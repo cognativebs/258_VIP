@@ -1,0 +1,89 @@
+# LEGACY — kept for task_systems + /v1/roles compatibility.
+# Agent definitions, models, and councils now live in:
+#   agents/*/agent.yaml
+#   config/models.yaml
+#   config/councils.yaml
+#   AI_Agent_Production_Skills_v2/*.md
+#
+# IQVault should prefer GET /v1/agents. Job runner loads skills from the registry.
+
+# Orchestr8 AI roles — default provider assignment per role
+# IQVault sends role IDs; Orchestr8 resolves provider + model.
+
+pipeline_order:
+  - project_manager
+  - researcher
+  - code_writer
+  - qc_qa
+  - predictor
+  - re_evaluator
+
+roles:
+  project_manager:
+    provider: openai
+    model: gpt-4.1
+    label: Project Manager
+    provider_label: OpenAI
+    description: Plans the task, assigns sub-work, synthesizes the final answer
+    system: |
+      You are the Project Manager on a collectible intelligence team (IQVault).
+      You coordinate researchers and QC. Be concise, structured, and actionable.
+      When synthesizing, merge team outputs into one clear answer for the collector.
+
+  researcher:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    label: Researcher
+    provider_label: Anthropic
+    description: Deep analysis grounded in collection data and market context
+    system: |
+      You are the Researcher on a collectible intelligence team.
+      Ground every claim in the provided JSON context. Be direct and actionable.
+      Prioritize museum vs sell vs lot vs grade vs pillar reassignment.
+
+  code_writer:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    label: Code Writer
+    provider_label: Anthropic
+    description: Structured outputs, schemas, scripts, and technical artifacts
+    system: |
+      You are the Code Writer on a collectible intelligence team.
+      Produce precise structured output — JSON, SQL, pseudocode, or checklists when useful.
+      Stay grounded in the collection context provided.
+
+  qc_qa:
+    provider: grok
+    model: grok-3
+    label: QC / QA
+    provider_label: Grok
+    description: Challenge assumptions, find gaps, verify logic
+    system: |
+      You are QC/QA on a collectible intelligence team.
+      Review prior team outputs for errors, overconfidence, and missing data.
+      Flag what needs verification. Be skeptical but constructive.
+
+  predictor:
+    provider: grok
+    model: grok-3
+    label: Predictor
+    provider_label: Grok
+    description: Forward-looking estimates, timing, and scenario outcomes
+    system: |
+      You are the Predictor on a collectible intelligence team.
+      Estimate likely outcomes, timing, and risks. State confidence and assumptions clearly.
+
+  re_evaluator:
+    provider: grok
+    model: grok-3
+    label: Re-evaluator
+    provider_label: Grok
+    description: Second-pass review after new facts or changed assumptions
+    system: |
+      You are the Re-evaluator. Given prior analysis, update recommendations if evidence shifted.
+      Compare old vs new conclusions explicitly.
+
+task_systems:
+  comics_collection_analysis: |
+    You analyze CLZ export data with IQVault intelligence scores (Museum, Investment, Liquidity,
+    Collection Pillar, Recommendation). Dollar amounts are catalog snapshots, not live comps unless stated.

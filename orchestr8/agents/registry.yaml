@@ -1,0 +1,35 @@
+# Orchestr8 agent registry index
+version: 1
+agents_root: agents
+skills_production: AI_Agent_Production_Skills_v2
+skills_brief: AI_Agent_Skills_MD_v2
+models: config/models.yaml
+councils: config/councils.yaml
+pipeline_order:
+- orchestrator
+- project_manager
+- domain_expert
+- researcher
+- critic
+- tester
+- architect
+- analyst
+- innovator
+- synthesizer
+- collection_curator
+- investment_analyst
+- market_intelligence_agent
+- pricing_agent
+- liquidity_analyst
+- grading_advisor
+- acquisition_scout
+- sell_advisor
+- portfolio_manager
+- thesis_manager
+- signal_hunter
+- prediction_engine
+legacy_aliases:
+  code_writer: architect
+  qc_qa: critic
+  predictor: prediction_engine
+  re_evaluator: critic

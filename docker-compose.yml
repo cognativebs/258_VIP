@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: iqvault-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vault
+      POSTGRES_DB: iqvault
+    ports:
+      - "5432:5432"
+    volumes:
+      - iqvault_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iqvault"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  iqvault_pgdata:

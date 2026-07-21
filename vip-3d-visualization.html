@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIP — Interactive Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#05070f; --ink:#eaf1ff; --dim:#93a4c9; --line:#1e2b49;
+    --cyan:#25e0d0; --violet:#8b6cff; --amber:#ffb547; --rose:#ff5d8f; --lime:#7dff9b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--void);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif}
+  #scene{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* HEADER */
+  .top{position:fixed;top:0;left:0;right:0;z-index:10;padding:20px 26px;
+    display:flex;align-items:center;gap:18px;pointer-events:none;
+    background:linear-gradient(180deg,rgba(5,7,15,.85),transparent)}
+  .brand{pointer-events:auto}
+  .brand .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.3em;
+    text-transform:uppercase;color:var(--cyan)}
+  .brand h1{font-family:'Sora',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em}
+  .brand h1 b{background:linear-gradient(120deg,var(--cyan),var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hint{margin-left:auto;pointer-events:auto;font-family:'JetBrains Mono',monospace;
+    font-size:11px;color:var(--dim);text-align:right;line-height:1.7;
+    border:1px solid var(--line);border-radius:10px;padding:9px 14px;background:rgba(10,16,32,.6)}
+  .hint b{color:var(--ink)}
+
+  /* CONTROLS */
+  .controls{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:10;
+    display:flex;gap:10px;background:rgba(10,16,32,.72);border:1px solid var(--line);
+    border-radius:999px;padding:8px;backdrop-filter:blur(10px)}
+  .controls button{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.05em;
+    color:var(--ink);background:transparent;border:1px solid transparent;border-radius:999px;
+    padding:9px 16px;cursor:pointer;transition:.18s;white-space:nowrap}
+  .controls button:hover{background:rgba(255,255,255,.06)}
+  .controls button.on{background:linear-gradient(120deg,var(--cyan),var(--violet));color:var(--void);font-weight:700}
+  .controls .sep{width:1px;background:var(--line);margin:4px 2px}
+
+  /* LEGEND */
+  .legend{position:fixed;top:96px;left:26px;z-index:10;display:flex;flex-direction:column;gap:2px}
+  .legend button{display:flex;align-items:center;gap:10px;background:rgba(10,16,32,.55);
+    border:1px solid var(--line);border-radius:10px;padding:9px 13px;cursor:pointer;
+    color:var(--ink);font-size:12.5px;font-family:'Space Grotesk';transition:.18s;text-align:left;
+    min-width:172px}
+  .legend button:hover{background:rgba(255,255,255,.06);transform:translateX(3px)}
+  .legend .d{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:0 0 10px currentColor}
+  .legend small{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:9.5px;
+    color:var(--dim);letter-spacing:.05em}
+
+  /* DETAIL PANEL */
+  .panel{position:fixed;top:0;right:0;bottom:0;width:min(400px,92vw);z-index:20;
+    background:linear-gradient(160deg,rgba(14,22,44,.97),rgba(6,10,22,.98));
+    border-left:1px solid var(--line);transform:translateX(105%);transition:.4s cubic-bezier(.2,.9,.3,1);
+    padding:28px 26px;overflow-y:auto;backdrop-filter:blur(14px)}
+  .panel.open{transform:translateX(0)}
+  .panel .close{position:absolute;top:18px;right:20px;background:none;border:1px solid var(--line);
+    color:var(--dim);width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:16px}
+  .panel .close:hover{color:var(--ink);border-color:var(--ink)}
+  .panel .tier{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;margin-bottom:8px}
+  .panel h2{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;line-height:1.05;
+    margin-bottom:6px;letter-spacing:-.01em}
+  .panel .status{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;
+    padding:3px 9px;border-radius:6px;letter-spacing:.08em;margin-bottom:16px}
+  .st-decided{background:var(--lime);color:var(--void);font-weight:700}
+  .st-proposed{background:rgba(255,181,71,.18);color:var(--amber);border:1px solid var(--amber)}
+  .st-built{background:var(--cyan);color:var(--void);font-weight:700}
+  .panel p.desc{color:var(--dim);font-size:14px;line-height:1.6;margin-bottom:20px}
+  .panel h4{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--dim);margin:18px 0 10px}
+  .panel ul{list-style:none;display:flex;flex-direction:column;gap:7px}
+  .panel li{font-size:13.5px;padding-left:20px;position:relative;color:var(--ink)}
+  .panel li::before{content:"▸";position:absolute;left:2px;color:var(--accent)}
+  .panel .next{margin-top:20px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+    background:rgba(255,255,255,.02)}
+  .panel .next b{font-size:12px;color:var(--cyan);font-family:'JetBrains Mono',monospace;
+    letter-spacing:.06em}
+  .panel .next p{font-size:13px;color:var(--dim);margin-top:6px}
+
+  .loading{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;background:var(--void);transition:.5s}
+  .loading.hide{opacity:0;pointer-events:none}
+  .loading .ring{width:46px;height:46px;border:3px solid var(--line);border-top-color:var(--cyan);
+    border-radius:50%;animation:spin 1s linear infinite}
+  .loading p{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--dim)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  @media(max-width:640px){
+    .legend{top:auto;bottom:86px;left:12px;right:12px;flex-direction:row;overflow-x:auto;padding-bottom:4px}
+    .legend button{min-width:auto;white-space:nowrap}
+    .legend small{display:none}
+    .hint{display:none}
+    .controls{flex-wrap:wrap;justify-content:center;max-width:94vw}
+  }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<div class="top">
+  <div class="brand">
+    <div class="k">258 Services · Architecture Explorer</div>
+    <h1>Vault <b>Intelligence Platform</b></h1>
+  </div>
+  <div class="hint">
+    <b>Drag</b> to orbit · <b>Scroll</b> to zoom<br>
+    <b>Click a node</b> to expand its layer
+  </div>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="controls">
+  <button id="btnSpin" class="on">◐ Auto-rotate</button>
+  <button id="btnExpand">⊹ Expand all</button>
+  <button id="btnCollapse">⊙ Collapse all</button>
+  <div class="sep"></div>
+  <button id="btnReset">⟲ Reset view</button>
+</div>
+
+<div class="panel" id="panel">
+  <button class="close" id="panelClose">×</button>
+  <div class="tier" id="pTier"></div>
+  <h2 id="pName"></h2>
+  <span class="status" id="pStatus"></span>
+  <p class="desc" id="pDesc"></p>
+  <h4>Inside this layer</h4>
+  <ul id="pItems"></ul>
+  <div class="next"><b id="pNextLabel">NEXT GATE</b><p id="pNext"></p></div>
+</div>
+
+<div class="loading" id="loading">
+  <div class="ring"></div>
+  <p>Assembling the platform…</p>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ---------- DATA: the VIP structure ---------- */
+const C = { cyan:0x25e0d0, violet:0x8b6cff, amber:0xffb547, rose:0xff5d8f, lime:0x7dff9b, ink:0xeaf1ff };
+const HEX = { [C.cyan]:'#25e0d0',[C.violet]:'#8b6cff',[C.amber]:'#ffb547',[C.rose]:'#ff5d8f',[C.lime]:'#7dff9b' };
+
+// tiers stacked on the Y axis; each has a color, radius, and orbiting child nodes
+const TIERS = [
+  {
+    id:'apps', y:9, r:6.2, color:C.cyan, tier:'Tier 4 · Faces',
+    name:'Applications', status:'built', statusText:'Partly proven',
+    desc:'Role-specific faces on one backend. Same intelligence, different framing, permissions, and workflow — never forked products.',
+    next:'Convert prototypes into a canonical backend-backed IQVault, then define the VaultOS pilot workflow.',
+    children:[
+      {name:'IQVault', color:C.cyan, note:'Collector decision system + proving ground'},
+      {name:'VaultOS', color:C.violet, note:'LGS / dealer operating + intelligence app'},
+      {name:'Show Mode', color:C.amber, note:'Mobile Decision Lens — phone first'},
+      {name:'Future verticals', color:C.rose, note:'Auction houses, investors, enterprise'},
+    ]
+  },
+  {
+    id:'orchestr8', y:4.5, r:5.4, color:C.violet, tier:'Tier 3 · Coordination',
+    name:'Orchastr8 Agents', status:'proposed', statusText:'Proposed',
+    desc:'A controlled workflow layer that decomposes work, routes to specialists, demands evidence, and invokes critique. Agents obey contracts — not free-floating personas.',
+    next:'Finish agent contracts, routing, logging, and evaluation. Red-team every high-dollar recommendation.',
+    children:[
+      {name:'Coordinator', color:C.violet, note:'Decomposes requests, selects workflow'},
+      {name:'Market Intel', color:C.cyan, note:'Gathers & synthesizes current evidence'},
+      {name:'Investment Analyst', color:C.amber, note:'EV, downside, horizon, opportunity cost'},
+      {name:'Liquidity Analyst', color:C.lime, note:'Sale velocity, depth, fees, exit difficulty'},
+      {name:'Collection Curator', color:C.rose, note:'Cultural value, coherence, completion fit'},
+      {name:'Grading Advisor', color:C.cyan, note:'Condition evidence & grading economics'},
+      {name:'Critic / Red Team', color:C.rose, note:'Challenges assumptions & overconfidence'},
+    ]
+  },
+  {
+    id:'intelligence', y:0, r:6.6, color:C.amber, tier:'Tier 2 · The Loop',
+    name:'Intelligence Core', status:'proposed', statusText:'Proven in parts',
+    desc:'The canonical loop that turns facts into actions: Ingest → Normalize → Enrich → Reason → Recommend → Act → Learn. This is what makes VIP worth paying for.',
+    next:'Replace heuristic-only scoring with configurable rules plus evidence; automate runs and persist change history.',
+    children:[
+      {name:'Decision Engine', color:C.amber, note:'All-in cost, ranges, Buy/Watch/Pass'},
+      {name:'Signals Engine', color:C.cyan, note:'Ingest, dedup, novelty, cycle detection'},
+      {name:'Collection Hunts', color:C.lime, note:'PROVEN — Absolute Batman module'},
+      {name:'Pokémon Runs', color:C.violet, note:'PROVEN — repeatable intelligence runs'},
+      {name:'Comic Ingestion', color:C.rose, note:'PROVEN — CLZ parser, ~2,700 records'},
+      {name:'Prediction Ledger', color:C.amber, note:'Probability, outcome, calibration'},
+    ]
+  },
+  {
+    id:'data', y:-4.5, r:5.6, color:C.lime, tier:'Tier 1 · Truth',
+    name:'Canonical Data Model', status:'proposed', statusText:'Proposed',
+    desc:'One source of truth for assets, evidence, and provenance. Field-level confidence and verification status — inferred values never masquerade as verified facts.',
+    next:'Freeze v0.1 entities & identifiers; implement provenance, confidence, and supersession.',
+    children:[
+      {name:'Asset Catalog', color:C.lime, note:'Set, variant, printing, edition, IDs'},
+      {name:'Owned Inventory', color:C.cyan, note:'Instance, grade, cost basis, media'},
+      {name:'Market Evidence', color:C.amber, note:'Listings, sales, pop reports, MSRP'},
+      {name:'Theses & Predictions', color:C.violet, note:'Hypothesis, horizon, confidence'},
+      {name:'Audit & Provenance', color:C.rose, note:'Who/what/when, method, version'},
+    ]
+  },
+  {
+    id:'foundation', y:-8.5, r:4.4, color:C.violet, tier:'Tier 0 · Ground',
+    name:'Platform Foundation', status:'decided', statusText:'Decided',
+    desc:'258 Services operates VIP: the shared backend, identity, media pipeline, and immutable raw-snapshot store every layer above depends on.',
+    next:'Finalize naming/legal/domain only after architecture and MVP scope stabilize.',
+    children:[
+      {name:'Identity & Tenancy', color:C.violet, note:'User, org, role, permissions, BYOK'},
+      {name:'Media Pipeline', color:C.cyan, note:'Calibrated capture, grading imaging'},
+      {name:'Immutable Snapshots', color:C.lime, note:'Raw imports retained forever'},
+      {name:'Transactions', color:C.amber, note:'Offers, sales, fees, listings, tasks'},
+    ]
+  },
+];
+
+/* ---------- THREE.JS SETUP ---------- */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070f, 0.018);
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 200);
+let camTarget = new THREE.Vector3(0,0,0);
+const camState = { radius:34, theta:0.6, phi:1.15 };
+function applyCam(){
+  camera.position.x = camTarget.x + camState.radius*Math.sin(camState.phi)*Math.cos(camState.theta);
+  camera.position.y = camTarget.y + camState.radius*Math.cos(camState.phi);
+  camera.position.z = camTarget.z + camState.radius*Math.sin(camState.phi)*Math.sin(camState.theta);
+  camera.lookAt(camTarget);
+}
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+document.getElementById('scene').appendChild(renderer.domElement);
+
+// lights
+scene.add(new THREE.AmbientLight(0x556080, 0.9));
+const key = new THREE.PointLight(0x25e0d0, 1.4, 120); key.position.set(18,22,18); scene.add(key);
+const fill = new THREE.PointLight(0x8b6cff, 1.2, 120); fill.position.set(-20,-6,-14); scene.add(fill);
+const rim = new THREE.PointLight(0xff5d8f, 0.8, 120); rim.position.set(0,-24,10); scene.add(rim);
+
+// starfield
+(function stars(){
+  const g = new THREE.BufferGeometry(), n=900, pos=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ const r=60+Math.random()*70, t=Math.random()*Math.PI*2, p=Math.acos(2*Math.random()-1);
+    pos[i*3]=r*Math.sin(p)*Math.cos(t); pos[i*3+1]=r*Math.cos(p); pos[i*3+2]=r*Math.sin(p)*Math.sin(t); }
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0x4a5a80,size:0.15,transparent:true,opacity:.7})));
+})();
+
+/* ---------- BUILD THE STRUCTURE ---------- */
+const root = new THREE.Group(); scene.add(root);
+const pickables = [];      // meshes we can click
+const tierGroups = [];     // for expand/collapse
+const spinAxis = new THREE.Group(); root.add(spinAxis);
+
+// central spine connecting tiers
+const spineMat = new THREE.MeshBasicMaterial({color:0x25e0d0, transparent:true, opacity:0.22});
+const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,22,8), spineMat);
+spinAxis.add(spine);
+
+function makeLabel(text, colorHex, scale=1){
+  const cv = document.createElement('canvas'); const s=256; cv.width=s*4; cv.height=s;
+  const ctx = cv.getContext('2d');
+  ctx.font = '600 88px "Space Grotesk", sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.shadowColor=colorHex; ctx.shadowBlur=24; ctx.fillStyle='#eaf1ff';
+  ctx.fillText(text, cv.width/2, cv.height/2);
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy=4;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false}));
+  spr.scale.set(6*scale, 1.5*scale, 1);
+  return spr;
+}
+
+TIERS.forEach((tier, ti)=>{
+  const g = new THREE.Group(); g.position.y = tier.y; spinAxis.add(g);
+  const childGroup = new THREE.Group(); g.add(childGroup);
+
+  // ---- core node (the tier hub) ----
+  const coreGeo = new THREE.IcosahedronGeometry(2.1, 1);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color:tier.color, emissive:tier.color, emissiveIntensity:.35,
+    metalness:.4, roughness:.25, transparent:true, opacity:.92, flatShading:true
+  });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  core.userData = { type:'tier', tierIndex:ti, base:2.1 };
+  g.add(core); pickables.push(core);
+
+  // wireframe shell
+  const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(2.35,1),
+    new THREE.MeshBasicMaterial({color:tier.color, wireframe:true, transparent:true, opacity:.28}));
+  core.add(shell);
+
+  // tier label
+  const lbl = makeLabel(tier.name, HEX[tier.color], 1.15);
+  lbl.position.set(0, 3.1, 0); g.add(lbl);
+
+  // ---- orbit ring ----
+  const ringGeo = new THREE.TorusGeometry(tier.r, 0.02, 8, 96);
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({color:tier.color, transparent:true, opacity:.22}));
+  ring.rotation.x = Math.PI/2; childGroup.add(ring);
+
+  // ---- child nodes (orbiting, hidden until expand) ----
+  const kids = [];
+  tier.children.forEach((ch, ci)=>{
+    const ang = (ci/tier.children.length)*Math.PI*2;
+    const cg = new THREE.Group();
+    const cGeo = new THREE.OctahedronGeometry(0.62,0);
+    const cMat = new THREE.MeshStandardMaterial({color:ch.color, emissive:ch.color,
+      emissiveIntensity:.4, metalness:.3, roughness:.3, flatShading:true, transparent:true});
+    const node = new THREE.Mesh(cGeo, cMat);
+    node.userData = { type:'child', tierIndex:ti, name:ch.name, note:ch.note, color:ch.color };
+    cg.add(node); pickables.push(node);
+
+    // connector line from hub to child
+    const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(tier.r*Math.cos(ang),0,tier.r*Math.sin(ang))]);
+    const line = new THREE.Line(lg, new THREE.LineBasicMaterial({color:ch.color, transparent:true, opacity:.35}));
+    childGroup.add(line);
+
+    // small label
+    const clbl = makeLabel(ch.name, HEX[ch.color], 0.62);
+    clbl.position.y = 1.0; cg.add(clbl);
+
+    cg.position.set(tier.r*Math.cos(ang), 0, tier.r*Math.sin(ang));
+    cg.userData = { ang, line };
+    childGroup.add(cg);
+    kids.push({ group:cg, node, line, label:clbl, ang });
+  });
+
+  childGroup.visible = false;
+  childGroup.scale.setScalar(0.01);
+  tierGroups.push({ tier, group:g, core, shell, childGroup, kids, expanded:false, tExpand:0 });
+});
+
+/* ---------- INTERACTION ---------- */
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hovered = null;
+
+function setExpanded(idx, want){
+  const tg = tierGroups[idx];
+  if(tg.expanded === want) return;
+  tg.expanded = want;
+  if(want) tg.childGroup.visible = true;
+}
+
+// legend
+const legendEl = document.getElementById('legend');
+TIERS.forEach((t,i)=>{
+  const b = document.createElement('button');
+  b.innerHTML = `<span class="d" style="background:${HEX[t.color]};color:${HEX[t.color]}"></span>${t.name}<small>${t.statusText}</small>`;
+  b.onclick = ()=>{ focusTier(i); };
+  legendEl.appendChild(b);
+});
+
+// detail panel
+const panel = document.getElementById('panel');
+function openTier(i){
+  const t = TIERS[i];
+  document.getElementById('pTier').textContent = t.tier;
+  document.getElementById('pTier').style.color = HEX[t.color];
+  document.getElementById('pName').textContent = t.name;
+  const st = document.getElementById('pStatus');
+  st.textContent = t.statusText;
+  st.className = 'status ' + (t.status==='decided'?'st-decided':t.status==='built'?'st-built':'st-proposed');
+  document.getElementById('pDesc').textContent = t.desc;
+  const ul = document.getElementById('pItems'); ul.innerHTML='';
+  ul.style.setProperty('--accent', HEX[t.color]);
+  t.children.forEach(c=>{
+    const li = document.createElement('li');
+    li.style.setProperty('--accent', HEX[c.color]);
+    li.innerHTML = `<b style="color:${HEX[c.color]}">${c.name}</b> — <span style="color:var(--dim)">${c.note}</span>`;
+    ul.appendChild(li);
+  });
+  document.getElementById('pNext').textContent = t.next;
+  panel.classList.add('open');
+}
+function openChild(ci){
+  // child click focuses its tier panel but scrolls emphasis — reuse tier panel
+  openTier(ci.tierIndex);
+}
+document.getElementById('panelClose').onclick = ()=> panel.classList.remove('open');
+
+function focusTier(i){
+  setExpanded(i, true);
+  openTier(i);
+  camTarget.set(0, TIERS[i].y, 0);
+  targetRadius = 22;
+}
+
+/* ---------- CONTROLS ---------- */
+let autoSpin = true;
+let targetRadius = camState.radius;
+const btnSpin = document.getElementById('btnSpin');
+btnSpin.onclick = ()=>{ autoSpin=!autoSpin; btnSpin.classList.toggle('on',autoSpin); };
+document.getElementById('btnExpand').onclick = ()=> tierGroups.forEach((_,i)=>setExpanded(i,true));
+document.getElementById('btnCollapse').onclick = ()=>{ tierGroups.forEach((_,i)=>setExpanded(i,false)); panel.classList.remove('open'); };
+document.getElementById('btnReset').onclick = ()=>{
+  camTarget.set(0,0,0); targetRadius=34; camState.theta=0.6; camState.phi=1.15;
+  panel.classList.remove('open');
+};
+
+// drag to orbit
+let dragging=false, lx=0, ly=0;
+const el = renderer.domElement;
+function down(x,y){ dragging=true; lx=x; ly=y; autoSpin=false; btnSpin.classList.remove('on'); }
+function move(x,y){
+  if(!dragging) return;
+  camState.theta -= (x-lx)*0.006;
+  camState.phi   -= (y-ly)*0.006;
+  camState.phi = Math.max(0.25, Math.min(2.7, camState.phi));
+  lx=x; ly=y;
+}
+function up(){ dragging=false; }
+el.addEventListener('mousedown', e=>down(e.clientX,e.clientY));
+addEventListener('mousemove', e=>{ move(e.clientX,e.clientY); mouse.x=(e.clientX/innerWidth)*2-1; mouse.y=-(e.clientY/innerHeight)*2+1; });
+addEventListener('mouseup', up);
+el.addEventListener('touchstart', e=>{ if(e.touches[0]) down(e.touches[0].clientX,e.touches[0].clientY); },{passive:true});
+el.addEventListener('touchmove', e=>{ if(e.touches[0]) move(e.touches[0].clientX,e.touches[0].clientY); },{passive:true});
+el.addEventListener('touchend', up);
+el.addEventListener('wheel', e=>{ e.preventDefault(); targetRadius = Math.max(12, Math.min(60, targetRadius + e.deltaY*0.03)); },{passive:false});
+
+// click to select
+el.addEventListener('click', e=>{
+  if(Math.abs(e.clientX-lx)>4 || Math.abs(e.clientY-ly)>4) return; // ignore drags
+  ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObjects(pickables, false);
+  if(hits.length){
+    const ud = hits[0].object.userData;
+    if(ud.type==='tier'){ setExpanded(ud.tierIndex, !tierGroups[ud.tierIndex].expanded); openTier(ud.tierIndex); }
+    else if(ud.type==='child'){ openChild(ud); }
+  }
+});
+
+/* ---------- ANIMATE ---------- */
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if(autoSpin && !dragging) camState.theta += dt*0.12;
+  camState.radius += (targetRadius - camState.radius)*0.08;
+  applyCam();
+
+  // gentle spine spin
+  spinAxis.rotation.y += dt*0.05;
+
+  // per-tier animation
+  tierGroups.forEach((tg,i)=>{
+    tg.core.rotation.y += dt*0.4;
+    tg.core.rotation.x += dt*0.15;
+    tg.shell.rotation.y -= dt*0.6;
+    // pulse
+    const pulse = 1 + Math.sin(t*1.5 + i)*0.04;
+    tg.core.scale.setScalar(pulse);
+
+    // expand/collapse tween
+    tg.tExpand += ((tg.expanded?1:0) - tg.tExpand) * 0.12;
+    const e = tg.tExpand;
+    if(e < 0.01 && !tg.expanded){ tg.childGroup.visible=false; }
+    else { tg.childGroup.visible=true; }
+    tg.childGroup.scale.setScalar(0.01 + e*0.99);
+    tg.childGroup.rotation.y += dt*0.1;
+
+    // children bob + fade
+    tg.kids.forEach((k,ki)=>{
+      k.node.rotation.y += dt*0.8;
+      k.node.rotation.x += dt*0.3;
+      k.node.position.y = Math.sin(t*1.2 + ki)*0.12;
+      k.node.material.opacity = e;
+      k.line.material.opacity = 0.35*e;
+      k.label.material.opacity = e;
+    });
+  });
+
+  // hover glow
+  ray.setFromCamera(mouse, camera);
+  const hits = ray.intersectObjects(pickables, false);
+  const h = hits.length ? hits[0].object : null;
+  if(hovered && hovered!==h){ hovered.material.emissiveIntensity = hovered.userData.type==='tier'?.35:.4; }
+  if(h){ h.material.emissiveIntensity = 0.9; el.style.cursor='pointer'; }
+  else { el.style.cursor = dragging?'grabbing':'grab'; }
+  hovered = h;
+
+  renderer.render(scene, camera);
+}
+
+applyCam();
+animate();
+setTimeout(()=>document.getElementById('loading').classList.add('hide'), 700);
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Orchestr8 agent — Architect
+id: architect
+label: Architect
+tier: 1
+description: Designs VIP / Orchestr8 / app system boundaries and contracts
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- gpt-4.1
+- o3-mini
+councils: []
+temperature: 0.25
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Architect.md
+skill_brief: AI_Agent_Skills_MD_v2/Architect.md
+output_schema: standard_agent_v1
+enabled: true

@@ -1,0 +1,84 @@
+# Orchestr8 councils — permanent team structures for VIP playbooks
+# Agents declare membership in agent.yaml; this file defines operating procedure.
+
+councils:
+  discovery:
+    id: discovery
+    label: Discovery Council
+    purpose: Generate opportunities, signals, and acquisition leads
+    mode: parallel
+    agents:
+      - researcher
+      - signal_hunter
+      - market_intelligence_agent
+      - acquisition_scout
+    voting: none
+    output_owner: researcher
+
+  analysis:
+    id: analysis
+    label: Analysis Council
+    purpose: Evaluate holdings, price, portfolio fit, and forecasts
+    mode: parallel
+    agents:
+      - investment_analyst
+      - pricing_agent
+      - liquidity_analyst
+      - portfolio_manager
+      - analyst
+      - prediction_engine
+    voting: none
+    output_owner: investment_analyst
+
+  challenge:
+    id: challenge
+    label: Challenge Council
+    purpose: Stress-test recommendations before they reach the user
+    mode: pipeline
+    agents:
+      - critic
+      - tester
+      - domain_expert
+    voting: veto_on_critical
+    output_owner: critic
+
+  execution:
+    id: execution
+    label: Execution Council
+    purpose: Turn decisions into plans, status, and final narrative
+    mode: pipeline
+    agents:
+      - orchestrator
+      - project_manager
+      - synthesizer
+    voting: none
+    output_owner: synthesizer
+
+  curation:
+    id: curation
+    label: Curation Council
+    purpose: Collection identity — pillars, grading, thesis, sell timing
+    mode: parallel
+    agents:
+      - collection_curator
+      - grading_advisor
+      - thesis_manager
+      - sell_advisor
+    voting: none
+    output_owner: collection_curator
+
+  board:
+    id: board
+    label: Executive Board
+    purpose: High-stakes review — surface disagreement before final call
+    mode: parallel
+    agents:
+      - orchestrator
+      - investment_analyst
+      - critic
+      - portfolio_manager
+      - domain_expert
+      - synthesizer
+    voting: dissent_required
+    output_owner: synthesizer
+    gate: high_stakes_only

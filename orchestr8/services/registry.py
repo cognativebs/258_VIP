@@ -1,0 +1,222 @@
+"""Agent registry — load agent.yaml, models.yaml, councils.yaml."""
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+ROOT = Path(__file__).resolve().parent.parent
+AGENTS_DIR = ROOT / "agents"
+CONFIG_DIR = ROOT / "config"
+
+
+def _read_yaml(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+@lru_cache(maxsize=1)
+def load_models() -> dict:
+    return _read_yaml(CONFIG_DIR / "models.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_councils() -> dict:
+    return _read_yaml(CONFIG_DIR / "councils.yaml")
+
+
+@lru_cache(maxsize=1)
+def load_registry_index() -> dict:
+    path = AGENTS_DIR / "registry.yaml"
+    if path.exists():
+        return _read_yaml(path)
+    return {"pipeline_order": [], "legacy_aliases": {}}
+
+
+@lru_cache(maxsize=1)
+def load_agents() -> dict[str, dict]:
+    """Return {agent_id: agent_meta} from agents/*/agent.yaml."""
+    agents: dict[str, dict] = {}
+    if not AGENTS_DIR.exists():
+        return agents
+    for path in sorted(AGENTS_DIR.glob("*/agent.yaml")):
+        meta = _read_yaml(path)
+        aid = meta.get("id") or path.parent.name
+        meta["id"] = aid
+        meta["_path"] = str(path.relative_to(ROOT))
+        agents[aid] = meta
+    return agents
+
+
+def clear_agent_cache() -> None:
+    load_models.cache_clear()
+    load_councils.cache_clear()
+    load_registry_index.cache_clear()
+    load_agents.cache_clear()
+
+
+def resolve_agent_id(agent_id: str) -> str:
+    """Map legacy role ids (code_writer, qc_qa, …) to registry agents."""
+    aliases = load_registry_index().get("legacy_aliases") or {}
+    return aliases.get(agent_id, agent_id)
+
+
+def get_agent(agent_id: str) -> dict:
+    agents = load_agents()
+    resolved = resolve_agent_id(agent_id)
+    if resolved not in agents:
+        raise ValueError(f"Unknown agent: {agent_id}")
+    return agents[resolved]
+
+
+def load_skill_text(agent_id: str, *, brief: bool = False) -> str:
+    meta = get_agent(agent_id)
+    key = "skill_brief" if brief else "skill"
+    rel = meta.get(key) or meta.get("skill")
+    if not rel:
+        return ""
+    path = ROOT / rel
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def model_pricing(model_id: str) -> dict[str, float]:
+    """Return {'in': usd_per_1M, 'out': usd_per_1M} for a model (0 if unknown)."""
+    m = (load_models().get("models") or {}).get(model_id, {})
+    return {"in": float(m.get("price_in", 0.0)), "out": float(m.get("price_out", 0.0))}
+
+
+def usd_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
+    """Estimate request cost in USD from token counts and catalog pricing."""
+    p = model_pricing(model_id)
+    return round((input_tokens / 1_000_000) * p["in"] + (output_tokens / 1_000_000) * p["out"], 6)
+
+
+def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
+    """Pick model for an agent; validate override against allowed_models."""
+    meta = get_agent(agent_id)
+    models_cfg = load_models()
+    models = models_cfg.get("models") or {}
+    provider_meta = models_cfg.get("providers") or {}
+    model_id = override or meta["default_model"]
+    allowed = meta.get("allowed_models") or [meta["default_model"]]
+    if model_id not in allowed:
+        raise ValueError(
+            f"Model {model_id!r} not allowed for {meta['id']}. Allowed: {allowed}"
+        )
+    if model_id not in models:
+        raise ValueError(f"Unknown model in catalog: {model_id}")
+    catalog = models[model_id]
+    provider = catalog["provider"]
+    return {
+        "agent": meta["id"],
+        "provider": provider,
+        "provider_label": (provider_meta.get(provider) or {}).get("label")
+        or meta.get("provider_label")
+        or provider,
+        "model": model_id,
+        "model_label": catalog.get("label", model_id),
+        "temperature": meta.get("temperature", 0.3),
+        "max_tokens": meta.get("max_tokens", 2048),
+        "default_model": meta["default_model"],
+        "allowed_models": allowed,
+        "home_provider": meta["provider"],
+        "price_in": float(catalog.get("price_in", 0.0)),
+        "price_out": float(catalog.get("price_out", 0.0)),
+    }
+
+
+def agents_public_list() -> list[dict]:
+    """API-safe agent list for IQVault team panel."""
+    from services.roles import configured_providers
+
+    providers = configured_providers()
+    models = load_models().get("models") or {}
+    out = []
+    for aid, meta in load_agents().items():
+        if meta.get("enabled") is False:
+            continue
+        allowed = []
+        for mid in meta.get("allowed_models") or []:
+            m = models.get(mid, {})
+            allowed.append(
+                {
+                    "id": mid,
+                    "label": m.get("label", mid),
+                    "provider": m.get("provider", meta["provider"]),
+                    "tier": m.get("tier"),
+                    "cost": m.get("cost"),
+                }
+            )
+        out.append(
+            {
+                "id": aid,
+                "label": meta["label"],
+                "tier": meta.get("tier"),
+                "description": meta.get("description", ""),
+                "provider": meta["provider"],
+                "providerLabel": meta.get("provider_label", meta["provider"]),
+                "defaultModel": meta["default_model"],
+                "allowedModels": allowed,
+                "councils": meta.get("councils") or [],
+                "configured": providers.get(meta["provider"], False),
+            }
+        )
+    return out
+
+
+def get_council(council_id: str) -> dict | None:
+    return (load_councils().get("councils") or {}).get(council_id)
+
+
+def councils_public_list() -> list[dict]:
+    cfg = load_councils().get("councils") or {}
+    return [
+        {
+            "id": c.get("id", kid),
+            "label": c.get("label", kid),
+            "purpose": c.get("purpose", ""),
+            "mode": c.get("mode", "parallel"),
+            "agents": c.get("agents") or [],
+            "voting": c.get("voting"),
+            "outputOwner": c.get("output_owner"),
+            "gate": c.get("gate"),
+        }
+        for kid, c in cfg.items()
+    ]
+
+
+def models_public_list() -> dict:
+    cfg = load_models()
+    models = []
+    for mid, meta in (cfg.get("models") or {}).items():
+        models.append(
+            {
+                "id": mid,
+                "label": meta.get("label", mid),
+                "provider": meta["provider"],
+                "tier": meta.get("tier"),
+                "cost": meta.get("cost"),
+                "context": meta.get("context"),
+                "priceIn": float(meta.get("price_in", 0.0)),
+                "priceOut": float(meta.get("price_out", 0.0)),
+                "strengths": meta.get("strengths") or [],
+            }
+        )
+    return {
+        "providers": cfg.get("providers") or {},
+        "models": models,
+        "fallbacks": cfg.get("fallbacks") or {},
+        "currency": cfg.get("currency", "USD"),
+        "pricingNote": cfg.get("pricing_note", ""),
+    }
+
+
+def pipeline_order() -> list[str]:
+    idx = load_registry_index().get("pipeline_order")
+    if idx:
+        return list(idx)
+    return list(load_agents().keys())

@@ -1,0 +1,21 @@
+# Orchestr8 agent — Researcher
+id: researcher
+label: Researcher
+tier: 1
+description: Evidence gatherer grounded in collection JSON and filter context
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- claude-sonnet-4-5
+- gpt-4.1
+councils:
+- discovery
+temperature: 0.3
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Researcher.md
+skill_brief: AI_Agent_Skills_MD_v2/Researcher.md
+output_schema: standard_agent_v1
+enabled: true

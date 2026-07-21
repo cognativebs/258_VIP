@@ -1,0 +1,22 @@
+# Orchestr8 agent — Domain Expert
+id: domain_expert
+label: Domain Expert
+tier: 1
+description: Collectibles domain authority — comics, TCG, sports, IQVault semantics
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- claude-sonnet-4-5
+- gpt-4.1
+councils:
+- challenge
+- board
+temperature: 0.3
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Domain_Expert.md
+skill_brief: AI_Agent_Skills_MD_v2/Domain_Expert.md
+output_schema: standard_agent_v1
+enabled: true

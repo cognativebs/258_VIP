@@ -1,0 +1,22 @@
+# Orchestr8 agent — Investment Analyst
+id: investment_analyst
+label: Investment Analyst
+tier: 9
+description: ROI, risk-adjusted holds, and capital allocation judgments
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- gpt-4.1
+- o3-mini
+councils:
+- analysis
+- board
+temperature: 0.25
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Investment_Analyst.md
+skill_brief: AI_Agent_Skills_MD_v2/Investment_Analyst.md
+output_schema: standard_agent_v1
+enabled: true

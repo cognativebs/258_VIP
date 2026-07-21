@@ -1,0 +1,21 @@
+# Orchestr8 agent — Project Manager
+id: project_manager
+label: Project Manager
+tier: 1
+description: Tracks progress, blockers, dependencies, and milestones
+provider: openai
+provider_label: OpenAI
+default_model: gpt-4.1
+allowed_models:
+- gpt-4.1
+- gpt-4o
+- gpt-4o-mini
+- claude-haiku-4-5
+councils:
+- execution
+temperature: 0.2
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Project_Manager.md
+skill_brief: AI_Agent_Skills_MD_v2/Project_Manager.md
+output_schema: standard_agent_v1
+enabled: true

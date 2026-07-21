@@ -1,0 +1,15 @@
+{
+  "name": "vip",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/ingest",
+    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/ingest",
+    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/ingest"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

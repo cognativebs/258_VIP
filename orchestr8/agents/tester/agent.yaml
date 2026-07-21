@@ -1,0 +1,21 @@
+# Orchestr8 agent — Tester
+id: tester
+label: Tester
+tier: 1
+description: Breaks workflows and recommendations with edge cases
+provider: grok
+provider_label: Grok
+default_model: grok-3
+allowed_models:
+- grok-3
+- grok-3-mini
+- gpt-4o-mini
+- claude-haiku-4-5
+councils:
+- challenge
+temperature: 0.3
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Tester.md
+skill_brief: AI_Agent_Skills_MD_v2/Tester.md
+output_schema: standard_agent_v1
+enabled: true

@@ -1,0 +1,17 @@
+# Model profiles for task-level routing (future: IQVault sends profile instead of roles)
+
+research_strong:
+  primary: { provider: openai, model: gpt-4.1 }
+  fallback: { provider: anthropic, model: claude-sonnet-4-6 }
+
+writing_polish:
+  primary: { provider: anthropic, model: claude-sonnet-4-6 }
+  fallback: { provider: openai, model: gpt-4.1 }
+
+qc_review:
+  primary: { provider: grok, model: grok-3 }
+  fallback: { provider: openai, model: gpt-4.1 }
+
+cheap_bulk_parse:
+  primary: { provider: openai, model: gpt-4o-mini }
+  fallback: { provider: grok, model: grok-3-mini }

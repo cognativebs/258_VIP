@@ -1,0 +1,21 @@
+# Orchestr8 agent — Liquidity Analyst
+id: liquidity_analyst
+label: Liquidity Analyst
+tier: 9
+description: Exit speed, venue fit, and sell-queue ordering by friction
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- gpt-4.1
+- grok-3
+- claude-haiku-4-5
+councils:
+- analysis
+temperature: 0.25
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Liquidity_Analyst.md
+skill_brief: AI_Agent_Skills_MD_v2/Liquidity_Analyst.md
+output_schema: standard_agent_v1
+enabled: true

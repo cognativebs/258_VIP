@@ -1,0 +1,19 @@
+:root {
+  --bg-deep: #0a0e17;
+  --bg-panel: #111827;
+  --bg-elevated: #1a2234;
+  --bg-hover: #243049;
+  --border: #2a3548;
+  --text: #e8edf5;
+  --text-muted: #8b9bb4;
+  --gold: #d4a853;
+  --gold-dim: #a8842f;
+  --gold-glow: rgba(212, 168, 83, 0.25);
+  --green: #34d399;
+  --red: #f87171;
+  --blue: #60a5fa;
+  --purple: #a78bfa;
+  --radius: 12px;
+  --font: "DM Sans", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}

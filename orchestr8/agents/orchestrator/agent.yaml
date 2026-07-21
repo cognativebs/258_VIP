@@ -1,0 +1,22 @@
+# Orchestr8 agent — Orchestrator
+id: orchestrator
+label: Orchestrator
+tier: 1
+description: Breaks problems into tasks, assigns specialists, manages workflow
+provider: openai
+provider_label: OpenAI
+default_model: gpt-4.1
+allowed_models:
+- gpt-4.1
+- gpt-4o
+- o3-mini
+- claude-sonnet-4-6
+councils:
+- execution
+- board
+temperature: 0.2
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Orchestrator.md
+skill_brief: AI_Agent_Skills_MD_v2/Orchestrator.md
+output_schema: standard_agent_v1
+enabled: true

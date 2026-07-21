@@ -1,0 +1,21 @@
+# Orchestr8 agent — Acquisition Scout
+id: acquisition_scout
+label: Acquisition Scout
+tier: 9
+description: Buy-side opportunities, hunt gaps, and deal margin scoring
+provider: openai
+provider_label: OpenAI
+default_model: gpt-4.1
+allowed_models:
+- gpt-4.1
+- gpt-4o
+- claude-sonnet-4-6
+- grok-3
+councils:
+- discovery
+temperature: 0.45
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Acquisition_Scout.md
+skill_brief: AI_Agent_Skills_MD_v2/Acquisition_Scout.md
+output_schema: standard_agent_v1
+enabled: true

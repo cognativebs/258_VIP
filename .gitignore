@@ -1,0 +1,14 @@
+.env
+.env.*
+*.env
+secrets.json
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.DS_Store
+tmp_*.py
+infra/db/migrations/_verify*.sql
+__pycache__/
+*.py[cod]
+.pytest_cache/

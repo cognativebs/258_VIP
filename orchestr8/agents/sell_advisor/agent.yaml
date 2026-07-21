@@ -1,0 +1,21 @@
+# Orchestr8 agent — Sell Advisor
+id: sell_advisor
+label: Sell Advisor
+tier: 9
+description: When/where/how to sell — waves, venues, ask/floor tactics
+provider: openai
+provider_label: OpenAI
+default_model: gpt-4.1
+allowed_models:
+- gpt-4.1
+- gpt-4o
+- claude-sonnet-4-6
+- grok-3
+councils:
+- curation
+temperature: 0.35
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Sell_Advisor.md
+skill_brief: AI_Agent_Skills_MD_v2/Sell_Advisor.md
+output_schema: standard_agent_v1
+enabled: true

@@ -1,0 +1,135 @@
+# Orchestr8 model catalog — source of truth for per-role model pickers
+# Apps fetch via GET /v1/models; agents reference model ids in agent.yaml
+#
+# price_in / price_out are USD per 1,000,000 tokens. These are EDITABLE ESTIMATES
+# used for the in-app cost readout — reconcile against each provider's billing
+# console periodically. Update here and POST /v1/reload (no restart needed).
+
+currency: USD
+pricing_note: "USD per 1M tokens; editable estimates — reconcile with provider billing."
+
+providers:
+  openai:
+    label: OpenAI
+    api: chat_completions
+    env_key: OPENAI_API_KEY
+  anthropic:
+    label: Anthropic
+    api: messages
+    env_key: ANTHROPIC_API_KEY
+  grok:
+    label: Grok (xAI)
+    api: chat_completions
+    env_key: XAI_API_KEY
+
+models:
+  # —— OpenAI ——
+  gpt-4.1:
+    provider: openai
+    label: GPT-4.1
+    tier: flagship
+    context: 128000
+    cost: high
+    price_in: 2.00
+    price_out: 8.00
+    strengths: [planning, synthesis, tool_use]
+  gpt-4o:
+    provider: openai
+    label: GPT-4o
+    tier: strong
+    context: 128000
+    cost: medium
+    price_in: 2.50
+    price_out: 10.00
+    strengths: [general, multimodal, speed]
+  gpt-4o-mini:
+    provider: openai
+    label: GPT-4o mini
+    tier: economy
+    context: 128000
+    cost: low
+    price_in: 0.15
+    price_out: 0.60
+    strengths: [bulk, routing, cheap_parse]
+  o3-mini:
+    provider: openai
+    label: o3-mini
+    tier: reasoning
+    context: 200000
+    cost: medium
+    price_in: 1.10
+    price_out: 4.40
+    strengths: [reasoning, math, analysis]
+
+  # —— Anthropic ——
+  claude-opus-4-6:
+    provider: anthropic
+    label: Claude Opus 4.6
+    tier: flagship
+    context: 200000
+    cost: very_high
+    price_in: 15.00
+    price_out: 75.00
+    strengths: [deep_analysis, writing, judgment]
+  claude-sonnet-4-6:
+    provider: anthropic
+    label: Claude Sonnet 4.6
+    tier: strong
+    context: 200000
+    cost: medium
+    price_in: 3.00
+    price_out: 15.00
+    strengths: [research, coding, balance]
+  claude-sonnet-4-5:
+    provider: anthropic
+    label: Claude Sonnet 4.5
+    tier: strong
+    context: 200000
+    cost: medium
+    price_in: 3.00
+    price_out: 15.00
+    strengths: [research, coding]
+  claude-haiku-4-5:
+    provider: anthropic
+    label: Claude Haiku 4.5
+    tier: economy
+    context: 200000
+    cost: low
+    price_in: 1.00
+    price_out: 5.00
+    strengths: [speed, bulk, triage]
+
+  # —— Grok / xAI ——
+  grok-3:
+    provider: grok
+    label: Grok 3
+    tier: flagship
+    context: 131072
+    cost: high
+    price_in: 3.00
+    price_out: 15.00
+    strengths: [critique, prediction, adversarial]
+  grok-3-mini:
+    provider: grok
+    label: Grok 3 mini
+    tier: economy
+    context: 131072
+    cost: low
+    price_in: 0.30
+    price_out: 0.50
+    strengths: [fast_qc, bulk, drafts]
+  grok-4:
+    provider: grok
+    label: Grok 4
+    tier: flagship
+    context: 256000
+    cost: very_high
+    price_in: 5.00
+    price_out: 25.00
+    strengths: [reasoning, critique, long_context]
+
+# Sensible fallbacks when a preferred model is unavailable
+fallbacks:
+  openai: [gpt-4.1, gpt-4o, gpt-4o-mini]
+  anthropic: [claude-sonnet-4-6, claude-sonnet-4-5, claude-haiku-4-5]
+  grok: [grok-3, grok-3-mini]

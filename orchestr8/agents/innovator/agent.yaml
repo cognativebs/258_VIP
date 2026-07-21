@@ -1,0 +1,20 @@
+# Orchestr8 agent — Innovator
+id: innovator
+label: Innovator
+tier: 1
+description: Generates novel strategies and unconventional option sets
+provider: openai
+provider_label: OpenAI
+default_model: gpt-4.1
+allowed_models:
+- gpt-4.1
+- gpt-4o
+- claude-sonnet-4-6
+- grok-3
+councils: []
+temperature: 0.7
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Innovator.md
+skill_brief: AI_Agent_Skills_MD_v2/Innovator.md
+output_schema: standard_agent_v1
+enabled: true

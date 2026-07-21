@@ -1,0 +1,22 @@
+# Orchestr8 agent — Portfolio Manager
+id: portfolio_manager
+label: Portfolio Manager
+tier: 9
+description: Sleeve allocation, concentration, and rebalance across the vault
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-opus-4-6
+allowed_models:
+- claude-opus-4-6
+- claude-sonnet-4-6
+- gpt-4.1
+- o3-mini
+councils:
+- analysis
+- board
+temperature: 0.25
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Portfolio_Manager.md
+skill_brief: AI_Agent_Skills_MD_v2/Portfolio_Manager.md
+output_schema: standard_agent_v1
+enabled: true

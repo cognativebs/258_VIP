@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIP — The Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#070b16;
+    --deep:#0d1426;
+    --panel:#111a30;
+    --panel2:#152241;
+    --line:#23304f;
+    --ink:#e8eefc;
+    --dim:#8ea0c4;
+    --cyan:#25e0d0;
+    --violet:#8b6cff;
+    --amber:#ffb547;
+    --rose:#ff5d8f;
+    --lime:#7dff9b;
+    --grad:linear-gradient(120deg,#25e0d0,#8b6cff 55%,#ff5d8f);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 700px at 15% -5%, rgba(139,108,255,.18), transparent 60%),
+      radial-gradient(1000px 600px at 100% 0%, rgba(37,224,208,.14), transparent 55%),
+      var(--void);
+    color:var(--ink);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    line-height:1.55;
+    padding:48px 22px 90px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  /* HERO */
+  .hero{
+    position:relative;border:1px solid var(--line);border-radius:22px;overflow:hidden;
+    background:linear-gradient(160deg,var(--panel2),var(--deep));
+    padding:44px 40px 40px;margin-bottom:34px;
+  }
+  .hero::before{
+    content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+    background:
+      repeating-linear-gradient(90deg,transparent 0 38px, rgba(37,224,208,.05) 38px 39px),
+      repeating-linear-gradient(0deg,transparent 0 38px, rgba(139,108,255,.05) 38px 39px);
+  }
+  .kicker{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--cyan);margin-bottom:14px;position:relative}
+  h1{font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(38px,7vw,72px);
+    line-height:.98;letter-spacing:-.02em;position:relative}
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--dim);font-size:18px;max-width:640px;margin-top:16px;position:relative}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;position:relative}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.05em;
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;color:var(--ink);
+    background:rgba(255,255,255,.03)}
+  .chip b{color:var(--cyan)}
+
+  /* SECTION HEAD */
+  .shead{display:flex;align-items:baseline;gap:16px;margin:52px 0 22px}
+  .snum{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--violet);
+    border:1px solid var(--line);border-radius:8px;padding:4px 10px;flex:none}
+  .shead h2{font-family:'Sora',sans-serif;font-weight:700;font-size:clamp(24px,4vw,34px);
+    letter-spacing:-.01em}
+  .shead p{color:var(--dim);font-size:14px;margin-left:auto;max-width:340px;text-align:right}
+
+  /* REVIEW CARDS */
+  .review{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .rcard{border:1px solid var(--line);border-radius:16px;padding:20px 22px;background:var(--panel)}
+  .rcard h3{font-size:16px;margin-bottom:8px;display:flex;align-items:center;gap:9px}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .rcard p{color:var(--dim);font-size:14px}
+  .rcard.win{border-color:rgba(125,255,155,.35)}
+  .rcard.win .dot{background:var(--lime);box-shadow:0 0 12px var(--lime)}
+  .rcard.watch{border-color:rgba(255,181,71,.35)}
+  .rcard.watch .dot{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+
+  /* FROZEN SCOPE */
+  .frozen{border:1px solid rgba(37,224,208,.4);border-radius:18px;overflow:hidden;
+    background:linear-gradient(160deg,rgba(37,224,208,.07),var(--panel))}
+  .frozen-top{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;
+    align-items:center;gap:14px;flex-wrap:wrap}
+  .seal{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--cyan);border:1px solid var(--cyan);
+    border-radius:6px;padding:5px 11px}
+  .frozen-top span{color:var(--dim);font-size:14px}
+  .flist{padding:8px 0}
+  .fitem{display:grid;grid-template-columns:44px 1fr;gap:14px;padding:14px 24px;
+    border-bottom:1px solid rgba(35,48,79,.5)}
+  .fitem:last-child{border-bottom:none}
+  .fno{font-family:'JetBrains Mono',monospace;color:var(--cyan);font-size:13px;padding-top:2px}
+  .fitem b{font-size:15px}
+  .fitem p{color:var(--dim);font-size:13.5px;margin-top:3px}
+  .parked{margin-top:16px;border:1px dashed var(--line);border-radius:14px;padding:18px 22px;
+    background:rgba(255,93,143,.05)}
+  .parked h4{font-size:14px;color:var(--rose);font-family:'JetBrains Mono',monospace;
+    letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+  .parked ul{list-style:none;display:grid;grid-template-columns:repeat(2,1fr);gap:6px 20px}
+  .parked li{color:var(--dim);font-size:13.5px;padding-left:18px;position:relative}
+  .parked li::before{content:"❄";position:absolute;left:0;color:var(--rose);font-size:11px}
+
+  /* PHASES */
+  .phase{border:1px solid var(--line);border-radius:16px;margin-bottom:16px;overflow:hidden;
+    background:var(--panel)}
+  .phase-head{display:flex;align-items:center;gap:16px;padding:18px 22px;
+    border-left:5px solid var(--pc,var(--cyan))}
+  .pbadge{font-family:'Sora',sans-serif;font-weight:800;font-size:22px;color:var(--pc);
+    background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;
+    width:56px;height:56px;display:flex;align-items:center;justify-content:center;flex:none}
+  .phase-head h3{font-size:19px;font-family:'Sora',sans-serif}
+  .phase-head .goal{color:var(--dim);font-size:13.5px;margin-top:2px}
+  .phase-head .tag{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;
+    color:var(--pc);border:1px solid currentColor;border-radius:999px;padding:5px 12px;
+    opacity:.85;flex:none}
+  .phase-body{padding:0 22px 20px 22px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .pcol h5{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--dim);margin:14px 0 9px}
+  .pcol ul{list-style:none}
+  .pcol li{font-size:14px;padding:6px 0 6px 22px;position:relative;color:var(--ink)}
+  .pcol li::before{content:"▸";position:absolute;left:2px;color:var(--pc)}
+  .test li::before{content:"✔";color:var(--lime)}
+  .test li{color:var(--dim)}
+  .test li b{color:var(--ink)}
+
+  /* TODO / TRACKER */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px;font-size:13px;color:var(--dim)}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .sq{width:14px;height:14px;border-radius:4px;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;
+    border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  thead th{background:var(--panel2);text-align:left;padding:12px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+    font-family:'JetBrains Mono',monospace;border-bottom:1px solid var(--line)}
+  tbody td{padding:11px 14px;border-bottom:1px solid rgba(35,48,79,.5);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:rgba(255,255,255,.015)}
+  .ph{font-family:'JetBrains Mono',monospace;color:var(--cyan);font-weight:700;white-space:nowrap}
+  .box{display:inline-flex;gap:5px}
+  .cbx{width:15px;height:15px;border:1.5px solid var(--line);border-radius:4px;display:inline-block}
+  .stat{font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 8px;border-radius:6px;
+    white-space:nowrap}
+  .s-todo{color:var(--dim);border:1px solid var(--line)}
+  .s-now{color:var(--void);background:var(--cyan);font-weight:700}
+  .s-done{color:var(--void);background:var(--lime);font-weight:700}
+
+  /* SCOREBOARD */
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}
+  .metric{border:1px solid var(--line);border-radius:14px;padding:18px 20px;background:var(--panel);
+    text-align:center}
+  .metric .n{font-family:'Sora',sans-serif;font-weight:800;font-size:34px;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .metric .l{font-size:12px;color:var(--dim);font-family:'JetBrains Mono',monospace;
+    letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+  .prog{height:10px;background:var(--panel2);border-radius:999px;overflow:hidden;
+    border:1px solid var(--line);margin-top:20px}
+  .prog i{display:block;height:100%;width:8%;background:var(--grad);border-radius:999px}
+
+  /* MANTRA */
+  .mantra{margin-top:56px;border:1px solid var(--line);border-radius:20px;padding:40px;
+    text-align:center;background:linear-gradient(160deg,var(--panel2),var(--deep));position:relative;
+    overflow:hidden}
+  .mantra::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(600px 300px at 50% 120%,rgba(139,108,255,.25),transparent 70%)}
+  .mantra .q{font-family:'Sora',sans-serif;font-weight:700;font-size:clamp(22px,4vw,32px);
+    line-height:1.25;position:relative;max-width:720px;margin:0 auto}
+  .mantra .q .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .mantra .by{font-family:'JetBrains Mono',monospace;color:var(--dim);font-size:12px;
+    letter-spacing:.2em;text-transform:uppercase;margin-top:18px;position:relative}
+
+  .noprint{position:fixed;bottom:22px;right:22px;z-index:20}
+  .noprint button{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;
+    background:var(--grad);color:var(--void);border:none;border-radius:999px;padding:12px 20px;
+    font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(37,224,208,.35)}
+
+  @media(max-width:760px){
+    .review,.parked ul{grid-template-columns:1fr}
+    .phase-body{grid-template-columns:1fr}
+    .board{grid-template-columns:repeat(2,1fr)}
+    .shead p{display:none}
+  }
+  @media print{
+    body{background:#fff;color:#0b1120;padding:0}
+    .noprint{display:none}
+    .hero,.frozen,.phase,.rcard,.metric,.mantra,table{break-inside:avoid}
+    .hero{background:#0d1426;color:#fff}
+    h1 .g,.metric .n,.mantra .q .g{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="kicker">258 Services · Vault Intelligence Platform</div>
+    <h1>Stop collecting ideas.<br><span class="g">Ship the engine.</span></h1>
+    <p class="sub">You've proven the thesis five times over. This is the operating plan that turns proofs into a product — a frozen scope, seven phases, real test gates, and a tracker that keeps score.</p>
+    <div class="meta">
+      <span class="chip">Owner <b>Gregory Williamson</b></span>
+      <span class="chip">Prepared <b>Jul 20 2026</b></span>
+      <span class="chip">Mode <b>Feature Freeze · ON</b></span>
+      <span class="chip">North star <b>“What should I do next, and why?”</b></span>
+    </div>
+  </header>
+
+  <!-- HOLISTIC REVIEW -->
+  <div class="shead">
+    <span class="snum">00</span>
+    <h2>The honest review</h2>
+    <p>Where the plan is strong, and where it can quietly kill you.</p>
+  </div>
+  <div class="review">
+    <div class="rcard win"><h3><span class="dot"></span>Vision coherence is rare</h3><p>Every use case collapses to one insight: intelligence over inventory. That's a real moat, not a slogan. Most founders never get this clean.</p></div>
+    <div class="rcard win"><h3><span class="dot"></span>You have working proofs</h3><p>Batman Hunt, Pokémon runs, the CLZ parser across ~2,700 comics. You're past "is this valuable?" — that's a huge de-risk.</p></div>
+    <div class="rcard win"><h3><span class="dot"></span>One backend, many faces</h3><p>IQVault + VaultOS on shared services is the correct architecture. It's leverage instead of duplicated work.</p></div>
+    <div class="rcard win"><h3><span class="dot"></span>Provenance discipline</h3><p>"NM assumed" beating silent fill-in is a mature instinct most teams learn the hard way. Bake it into the schema on day one.</p></div>
+    <div class="rcard watch"><h3><span class="dot"></span>Scope is the real enemy</h3><p>Glasses, grading ML, custom models, POS — each is a company. The freeze isn't a suggestion; it's survival. Backlog everything not in the active milestone.</p></div>
+    <div class="rcard watch"><h3><span class="dot"></span>Data rights are fragile</h3><p>Comps and pop reports live behind terms and rate limits. Treat every source as a swappable adapter or one dead scraper stalls the product.</p></div>
+    <div class="rcard watch"><h3><span class="dot"></span>Agents before contracts = chaos</h3><p>Orchastr8 is powerful but hallucination-prone. No agent ships without a contract, evidence bundle, and a critic on high-dollar calls.</p></div>
+    <div class="rcard watch"><h3><span class="dot"></span>False precision erodes trust</h3><p>"$412" is a lie; "$340–$460, 3 matched sales, medium confidence" is a product. Ranges and evidence counts, always.</p></div>
+  </div>
+
+  <!-- FROZEN SCOPE -->
+  <div class="shead">
+    <span class="snum">01</span>
+    <h2>The Frozen Scope</h2>
+    <p>Twelve commitments. Nothing outside this box gets built until a milestone gate opens it.</p>
+  </div>
+  <div class="frozen">
+    <div class="frozen-top">
+      <span class="seal">❄ Scope Locked</span>
+      <span>These are binding. New ideas go to the backlog, not the build queue.</span>
+    </div>
+    <div class="flist">
+      <div class="fitem"><div class="fno">F-01</div><div><b>Platform, not app.</b><p>Build VIP as a shared intelligence core. IQVault and VaultOS are role-specific faces on one backend — never forked products.</p></div></div>
+      <div class="fitem"><div class="fno">F-02</div><div><b>One canonical data model.</b><p>Assets, events, market evidence, signals, theses, recommendations — one truth, with vertical extensions.</p></div></div>
+      <div class="fitem"><div class="fno">F-03</div><div><b>Decisions over inventory.</b><p>Every feature must produce an action: Buy / Hold / Grade / Sell / Lot / Pass — with confidence and reasons.</p></div></div>
+      <div class="fitem"><div class="fno">F-04</div><div><b>Evidence &amp; provenance are mandatory.</b><p>Field-level source, method, model version, and confidence. Inferred values never masquerade as verified facts.</p></div></div>
+      <div class="fitem"><div class="fno">F-05</div><div><b>Raw imports are immutable.</b><p>Keep every source snapshot forever. Processed outputs are always regenerable from originals.</p></div></div>
+      <div class="fitem"><div class="fno">F-06</div><div><b>IQVault is the proving ground.</b><p>Your personal edition validates every reusable module before it reaches paying users.</p></div></div>
+      <div class="fitem"><div class="fno">F-07</div><div><b>Generalize the proven three.</b><p>Collection Hunts, Pokémon intelligence runs, and comic ingestion become reusable services — not one-offs.</p></div></div>
+      <div class="fitem"><div class="fno">F-08</div><div><b>Automated signals + prediction scoring.</b><p>No manual news pulls. Ingest on a schedule, quarantine noise, and grade predictions after the fact.</p></div></div>
+      <div class="fitem"><div class="fno">F-09</div><div><b>Contracted agents only.</b><p>Every Orchastr8 agent has a mission, tools, output schema, confidence rules, and a critic for high-dollar calls.</p></div></div>
+      <div class="fitem"><div class="fno">F-10</div><div><b>Phone before glasses.</b><p>Decision Lens ships on the phone first. Glasses consume an already-validated workflow — never lead with hardware.</p></div></div>
+      <div class="fitem"><div class="fno">F-11</div><div><b>Imaging is a measurement system.</b><p>Grading capture means calibration, QA, and provenance — not a cosmetic photo booth.</p></div></div>
+      <div class="fitem"><div class="fno">F-12</div><div><b>Freeze holds until gates pass.</b><p>Each milestone's acceptance tests must pass before the next major concept unlocks.</p></div></div>
+    </div>
+  </div>
+
+  <div class="parked">
+    <h4>❄ Parked until a gate unlocks it</h4>
+    <ul>
+      <li>AI glasses / wearable interface</li>
+      <li>PSA→CGC/TAG crossover ML model</li>
+      <li>Full POS &amp; event management</li>
+      <li>Marketplace listing automation</li>
+      <li>Custom / unsupervised model training</li>
+      <li>Every collectible category at once</li>
+      <li>Final legal names, domains, trademarks</li>
+      <li>Premium data-feed marketplace</li>
+    </ul>
+  </div>
+
+  <!-- PHASES -->
+  <div class="shead">
+    <span class="snum">02</span>
+    <h2>Seven phases to real</h2>
+    <p>Each phase ships a usable workflow and a measurable result — never just architecture.</p>
+  </div>
+
+  <div class="phase" style="--pc:var(--cyan)">
+    <div class="phase-head"><div class="pbadge">0</div><div><h3>Scope Freeze &amp; Architecture Baseline</h3><div class="goal">Draw the map before laying track.</div></div><div class="tag">NOW</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Publish one backlog: Now / Next / Later / Parked</li>
+        <li>One ADR defining VIP · IQVault · VaultOS · Orchastr8 boundaries</li>
+        <li>Freeze v0.1 entity names &amp; identifiers</li>
+        <li>Pick the single MVP user journey</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Boundary quiz:</b> pick 10 features, sort each to the right product in &lt;5 min with no overlap.</li>
+        <li><b>Vocabulary check:</b> two entities never mean the same thing twice in the ADR.</li>
+        <li><b>One-sentence MVP:</b> you can state the journey aloud without notes.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--violet)">
+    <div class="phase-head"><div class="pbadge">1</div><div><h3>Canonical Data Foundation</h3><div class="goal">The single source of truth everything else stands on.</div></div><div class="tag">NEXT</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Assets, variants, inventory instances, sources, evidence, market observations, users, audit history</li>
+        <li>Import adapters: CLZ XML/CSV + one TCG export</li>
+        <li>Field-level provenance, confidence, verification, supersession</li>
+        <li>Immutable raw-snapshot store</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Round-trip:</b> import your real CLZ file, delete processed data, regenerate it identically from the snapshot.</li>
+        <li><b>Provenance probe:</b> click any derived field → see source, method, version, confidence.</li>
+        <li><b>Honest gap:</b> a 0.0 grade shows "NM assumed · unverified," never a fake fact.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--amber)">
+    <div class="phase-head"><div class="pbadge">2</div><div><h3>Decision Engine v0.1</h3><div class="goal">The part that makes VIP worth paying for.</div></div><div class="tag">NEXT</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>All-in cost · market range · liquidity · target price</li>
+        <li>Buy / Watch / Pass rule engine with reason codes</li>
+        <li>Configurable constraints: budget, risk, horizon, goals, premium tolerance</li>
+        <li>Evidence links on every recommendation</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Backtest:</b> feed 10 past decisions you already made; engine agrees with your good calls &amp; flags the bad ones.</li>
+        <li><b>Range check:</b> output is always a range + evidence count, never a single fake price.</li>
+        <li><b>Explainability:</b> every rec cites ≥1 supporting and ≥1 opposing piece of evidence.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--lime)">
+    <div class="phase-head"><div class="pbadge">3</div><div><h3>IQVault Working App</h3><div class="goal">Your daily driver becomes real software.</div></div><div class="tag">LATER</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Inventory + portfolio dashboard</li>
+        <li>Signals · Watchlist · Theses · Sources · Recommendations on the canonical DB</li>
+        <li>Collection Hunts (Batman + Pokémon goals as test cases)</li>
+        <li>Comic sell queue from the CLZ dataset</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Dogfood week:</b> you use it for 7 straight days instead of spreadsheets.</li>
+        <li><b>Hunt accuracy:</b> Batman completion % matches your real shelf.</li>
+        <li><b>Sell queue trust:</b> you'd actually list the top 20 it surfaces.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--rose)">
+    <div class="phase-head"><div class="pbadge">4</div><div><h3>Automated Intelligence Runs</h3><div class="goal">The system works while you sleep.</div></div><div class="tag">LATER</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Source registry + scheduled ingestion (Pokémon drops first)</li>
+        <li>Dedup, novelty scoring, raw-vs-normalized signal storage</li>
+        <li>Prediction ledger + calibration dashboard</li>
+        <li>Auto reports &amp; alert thresholds</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Zero-touch run:</b> a full intelligence run completes with no manual trigger.</li>
+        <li><b>Delta report:</b> it tells you what changed since last run, not just today's state.</li>
+        <li><b>Calibration:</b> Brier score is tracked and trending the right way over 20+ predictions.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--cyan)">
+    <div class="phase-head"><div class="pbadge">5</div><div><h3>Mobile Show Mode</h3><div class="goal">A decision in seconds, on the show floor.</div></div><div class="tag">LATER</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Camera identify + asking-price capture</li>
+        <li>All-in economics · comps · inventory fit · offer target</li>
+        <li>Offline-tolerant evidence capture &amp; later sync</li>
+        <li>Fast actions: watch, acquire, log seller, reject-with-reason</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Field trial:</b> at a real show/store, scan → recommendation in under 8 seconds.</li>
+        <li><b>Tunnel test:</b> works with no signal, syncs cleanly when back online.</li>
+        <li><b>Tap budget:</b> a full Buy decision takes ≤4 taps.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase" style="--pc:var(--violet)">
+    <div class="phase-head"><div class="pbadge">6</div><div><h3>VaultOS Pilot + Grading</h3><div class="goal">Prove the second face &amp; the capture rig.</div></div><div class="tag">LATER</div></div>
+    <div class="phase-body">
+      <div class="pcol"><h5>Build</h5><ul>
+        <li>Buy-offer rec · expected margin · listing channel · inventory aging</li>
+        <li>One cooperative store pilot before broad POS features</li>
+        <li>Controlled imaging station + defect annotation + grade-range estimate</li>
+        <li>Economic grading recommendation (crossover ML stays parked)</li>
+      </ul></div>
+      <div class="pcol test"><h5>Test to pass the gate</h5><ul>
+        <li><b>Store metric:</b> pilot shows measurable lift in margin, turns, or avoided bad buys.</li>
+        <li><b>Same core:</b> collector rec and store rec come from the same engine, different constraints.</li>
+        <li><b>Capture repeatability:</b> same card, two sessions, matching identification &amp; defect notes.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- MVP DEFINITION -->
+  <div class="shead">
+    <span class="snum">03</span>
+    <h2>The first true MVP</h2>
+    <p>The single sentence you're allowed to be obsessed with.</p>
+  </div>
+  <div class="frozen" style="border-color:rgba(139,108,255,.4);background:linear-gradient(160deg,rgba(139,108,255,.08),var(--panel))">
+    <div class="fitem" style="grid-template-columns:1fr;border:none">
+      <div>
+        <b style="font-size:17px">A collector imports a collection, scans or searches an item, sees a credible evidence-backed market range, understands liquidity and collection fit, gets a Buy / Hold / Grade / Sell / Pass call, and saves the decision with its evidence and outcome.</b>
+        <p style="margin-top:12px">The same engine later reframes that recommendation for an LGS as a max buy offer and expected margin. Everything else — POS, marketplace automation, grading ML, glasses, every category — waits. The thesis is validated only when you repeatedly trust and act on the decisions.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACKER -->
+  <div class="shead">
+    <span class="snum">04</span>
+    <h2>The tracker</h2>
+    <p>Print it. Check the boxes by hand, or mark status. Keep score.</p>
+  </div>
+  <div class="legend">
+    <span><span class="sq" style="background:var(--cyan)"></span> Now — active</span>
+    <span><span class="sq" style="border-color:var(--line)"></span> To-do — queued</span>
+    <span><span class="sq" style="background:var(--lime)"></span> Done — shipped &amp; tested</span>
+    <span><span class="sq" style="border:1.5px solid var(--line)"></span> ☐ hand-check box</span>
+  </div>
+  <table>
+    <thead><tr><th>Phase</th><th>Task</th><th>Done when…</th><th style="width:70px">✓</th><th style="width:70px">Status</th></tr></thead>
+    <tbody>
+      <tr><td class="ph">P0</td><td>Publish Now/Next/Later/Parked backlog</td><td>Every open idea is sorted</td><td><span class="cbx"></span></td><td><span class="stat s-now">NOW</span></td></tr>
+      <tr><td class="ph">P0</td><td>Write the boundary ADR</td><td>4 products cleanly separated</td><td><span class="cbx"></span></td><td><span class="stat s-now">NOW</span></td></tr>
+      <tr><td class="ph">P0</td><td>Freeze v0.1 entities &amp; IDs</td><td>Terms are locked in one doc</td><td><span class="cbx"></span></td><td><span class="stat s-now">NOW</span></td></tr>
+      <tr><td class="ph">P0</td><td>Pick the MVP user journey</td><td>Stated in one sentence</td><td><span class="cbx"></span></td><td><span class="stat s-now">NOW</span></td></tr>
+      <tr><td class="ph">P1</td><td>Model assets/variants/inventory/evidence</td><td>Schema migrates clean</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P1</td><td>CLZ + TCG import adapters</td><td>Real files import w/o loss</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P1</td><td>Field-level provenance &amp; confidence</td><td>Every field traceable</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P1</td><td>Immutable raw-snapshot store</td><td>Round-trip regen works</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P2</td><td>All-in cost + range + liquidity calc</td><td>Ranges, never fake points</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P2</td><td>Buy/Watch/Pass rule engine</td><td>Reason codes on every call</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P2</td><td>Constraint config (budget/risk/goals)</td><td>Your params drive output</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P2</td><td>Backtest on 10 past decisions</td><td>Agrees w/ good, flags bad</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P3</td><td>IQVault dashboard + core objects</td><td>7-day dogfood passes</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P3</td><td>Collection Hunts (Batman+Pokémon)</td><td>Completion % matches shelf</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P3</td><td>Comic sell queue live</td><td>You'd list its top 20</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P4</td><td>Source registry + scheduled ingest</td><td>Zero-touch run completes</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P4</td><td>Dedup + novelty + signal storage</td><td>Noise quarantined, not lost</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P4</td><td>Prediction ledger + calibration</td><td>Brier tracked over 20+</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P5</td><td>Camera identify + price capture</td><td>Scan→rec &lt;8 sec</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P5</td><td>Offline capture + sync</td><td>Tunnel test passes</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P6</td><td>VaultOS buy-offer + margin</td><td>Store metric improves</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+      <tr><td class="ph">P6</td><td>Imaging station + defect annotation</td><td>Two-session repeatability</td><td><span class="cbx"></span></td><td><span class="stat s-todo">TO-DO</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="board">
+    <div class="metric"><div class="n">7</div><div class="l">Phases</div></div>
+    <div class="metric"><div class="n">22</div><div class="l">Tracked tasks</div></div>
+    <div class="metric"><div class="n">5</div><div class="l">Proofs banked</div></div>
+    <div class="metric"><div class="n">1</div><div class="l">MVP sentence</div></div>
+  </div>
+  <div class="prog"><i></i></div>
+  <p style="text-align:center;color:var(--dim);font-size:12px;margin-top:10px;font-family:'JetBrains Mono',monospace">Fill this bar in as you close phases. Right now: Phase 0, ~8%.</p>
+
+  <!-- MANTRA -->
+  <div class="mantra">
+    <div class="q">The next correct move is not another feature.<br><span class="g">It's to ship the intelligence loop end-to-end</span> — and let the outcomes prove the trust.</div>
+    <div class="by">Build with evidence · Ship with discipline · 258 Services</div>
+  </div>
+
+</div>
+
+<div class="noprint"><button onclick="window.print()">⎙ Print / Save PDF</button></div>
+</body>
+</html>

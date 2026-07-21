@@ -1,0 +1,20 @@
+# Orchestr8 agent — Grading Advisor
+id: grading_advisor
+label: Grading Advisor
+tier: 9
+description: Submit vs hold-raw vs sell-raw with grading ROI scenarios
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- gpt-4.1
+councils:
+- curation
+temperature: 0.3
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Grading_Advisor.md
+skill_brief: AI_Agent_Skills_MD_v2/Grading_Advisor.md
+output_schema: standard_agent_v1
+enabled: true

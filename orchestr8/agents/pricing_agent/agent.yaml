@@ -1,0 +1,21 @@
+# Orchestr8 agent — Pricing Agent
+id: pricing_agent
+label: Pricing Agent
+tier: 9
+description: Fair market value ranges from snapshot anchors and adjustments
+provider: anthropic
+provider_label: Anthropic
+default_model: claude-sonnet-4-6
+allowed_models:
+- claude-sonnet-4-6
+- claude-opus-4-6
+- gpt-4.1
+- o3-mini
+councils:
+- analysis
+temperature: 0.2
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Pricing_Agent.md
+skill_brief: AI_Agent_Skills_MD_v2/Pricing_Agent.md
+output_schema: standard_agent_v1
+enabled: true

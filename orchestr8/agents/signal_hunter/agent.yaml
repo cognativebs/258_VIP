@@ -1,0 +1,21 @@
+# Orchestr8 agent — Signal Hunter
+id: signal_hunter
+label: Signal Hunter
+tier: 9
+description: Early weak signals and anomalies before catalysts confirm
+provider: grok
+provider_label: Grok
+default_model: grok-3
+allowed_models:
+- grok-3
+- grok-4
+- grok-3-mini
+- gpt-4o
+councils:
+- discovery
+temperature: 0.55
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Signal_Hunter.md
+skill_brief: AI_Agent_Skills_MD_v2/Signal_Hunter.md
+output_schema: standard_agent_v1
+enabled: true

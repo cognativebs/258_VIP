@@ -1,0 +1,22 @@
+# Orchestr8 agent — Prediction Engine
+id: prediction_engine
+label: Prediction Engine
+tier: 9
+description: Bull/base/bear scenarios with probabilities and sensitivities
+provider: grok
+provider_label: Grok
+default_model: grok-3
+allowed_models:
+- grok-3
+- grok-4
+- claude-sonnet-4-6
+- o3-mini
+- gpt-4.1
+councils:
+- analysis
+temperature: 0.4
+max_tokens: 2048
+skill: AI_Agent_Production_Skills_v2/Prediction_Engine.md
+skill_brief: AI_Agent_Skills_MD_v2/Prediction_Engine.md
+output_schema: standard_agent_v1
+enabled: true
