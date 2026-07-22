@@ -4,20 +4,17 @@
 
 ---
 
-## Now — Phase 0 (Architecture baseline)
+## Now — Phase 2 (Decision engine v0.1)
 
-- [x] Publish this backlog (Now / Next / Later / Parked)
-- [x] ADR 0001 — product boundaries (VIP · IQVault · VaultOS · Orchastr8)
-- [x] Freeze entities v0.1 vocabulary (`docs/entities-v0.1.md`)
-- [x] MVP user journey + minimum backend capabilities (`docs/mvp.md`)
-- [x] Root `AGENTS.md` for Cursor
-- [x] Phase 0 gate: boundary quiz (10/10) + vocabulary check + MVP sentence (2026-07-20)
+- [x] `packages/decision-engine` — all-in cost, market range, liquidity, target price
+- [x] Buy / Watch|Hold / Pass with reason codes + supporting & opposing evidence
+- [x] UserConstraints threaded through every recommendation
+- [x] Backtest harness on 10 historical decisions (fixture; swap for real calls anytime)
+- [x] Phase 2 gate review: backtest 5 agree / 4 soft / 1 disagree; flags bad Buy (h07) (2026-07-21)
 
----
+## Next
 
-## Next — Phase 1 then Phase 2
-
-### Phase 1 — Canonical data foundation
+### Phase 1 — Canonical data foundation *(shipped)*
 - [x] `packages/core-model` — TS types + zod for entities v0.1; BaseRecord + provenance block
 - [x] `packages/evidence` — provenance helpers (`assertVerified`, `markInferred`)
 - [x] `infra/db` — Postgres migrations; immutable `raw_snapshots` (no UPDATE)
@@ -27,12 +24,6 @@
 - [x] Wire loaders to Postgres + apply migration on live DB
 - [ ] Schema review (Opus) before merge
 - [x] Applied `20260720_01_raw_snapshots.sql` on local `iqvault` Postgres (immutable triggers verified 2026-07-20)
-
-### Phase 2 — Decision engine v0.1
-- [ ] all-in cost, market range, liquidity, target price
-- [ ] Buy / Watch|Hold / Pass (canonical actions per entities doc) with reason codes + opposing evidence
-- [ ] UserConstraints threaded through recommendations
-- [ ] Backtest harness on 10 historical decisions
 
 ---
 
@@ -75,6 +66,7 @@ Do not build until a milestone gate explicitly unlocks:
 - Premium data-feed marketplace
 - Expanding `bridge/` as a product (absorb under VIP API instead)
 - Parallel “second brain” offer engines in face apps
+- Interactive WebGL “AI core” hero (stacked neon discs, orbiting AI nodes, bloom/particles) — marketing/visual experiment, not VIP core · sandbox lives at `sandbox/ai-core/` (standalone, not wired into product)
 
 ---
 
