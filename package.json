@@ -5,9 +5,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/ingest",
-    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/ingest",
-    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/ingest"
+    "build": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/ingest && npm run build -w @vip/decision-engine",
+    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/ingest && npm run test -w @vip/decision-engine",
+    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/ingest && npm run typecheck -w @vip/decision-engine",
+    "backtest": "npm run backtest -w @vip/decision-engine"
   },
   "engines": {
     "node": ">=20"
