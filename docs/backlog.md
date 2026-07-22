@@ -4,42 +4,35 @@
 
 ---
 
-## Now — Phase 3 (IQVault working app)
+## Now — Phase 4 (Automated intelligence runs)
 
-- [x] `services/api` — inventory, hunts, sell queue, recommendations (no direct DB from app)
-- [x] `apps/iqvault-web` — Next.js collector face
-- [x] Portfolio + provenance badges
-- [x] Recommendations with range + supporting/opposing evidence
-- [x] Collection Hunts (Absolute Batman + Pokémon 30th) image-first gallery
-- [x] Sell queue (MUS/INV/LIQ, priority, flags)
-- [x] Signals / Watchlist / Theses / Sources views
-- [ ] Dogfood week gate (use instead of spreadsheets for 7 days)
+- [x] `packages/signals` — pipeline stages (append-only, never overwrite)
+- [x] Source registry (authority, accuracy, latency, coverage, access, terms)
+- [x] Dedup + novelty scoring; quarantine noise (don’t delete)
+- [x] Prediction ledger + Brier/calibration helpers
+- [x] `services/jobs` — zero-touch Pokémon drops run + “what changed” delta
+- [x] Phase 4 gate: scheduled/job run completes with no manual trigger + delta report (2026-07-21)
 
 ## Next
+
+### Phase 3 — IQVault working app *(shipped; trial deferred)*
+- [x] API + Next.js collector face
+- [x] Dogfood / trial week — **deferred until after build-out** (Phases 4+)
 
 ### Phase 2 — Decision engine v0.1 *(shipped)*
 - [x] `packages/decision-engine` + backtest gate (2026-07-21)
 
 ### Phase 1 — Canonical data foundation *(shipped)*
-- [x] `packages/core-model` — TS types + zod for entities v0.1; BaseRecord + provenance block
-- [x] `packages/evidence` — provenance helpers (`assertVerified`, `markInferred`)
-- [x] `infra/db` — Postgres migrations; immutable `raw_snapshots` (no UPDATE)
-- [x] CLZ adapter + TCG CSV stub under shared Adapter interface
-- [x] Round-trip gate: import → snapshot → delete derived → regenerate identical
-- [x] Honest gap: grade 0.0 → null grade + NM inferred · unverified
-- [x] Wire loaders to Postgres + apply migration on live DB
+- [x] core-model, evidence, ingest, raw_snapshots, round-trip gate
 - [ ] Schema review (Opus) before merge
-- [x] Applied `20260720_01_raw_snapshots.sql` on local `iqvault` Postgres (immutable triggers verified 2026-07-20)
 
 ---
 
-## Later — Phases 4–6
+## Later — Phases 5–6 + trial
 
-### Phase 4 — Automated intelligence runs
-- Signal pipeline stages (no overwrite)
-- Source registry, dedup, novelty
-- Prediction ledger + calibration
-- Zero-touch Pokémon drops job + delta report
+### Trial (after build-out)
+- Dogfood IQVault for 7 days vs spreadsheets
+- Hunt completion % vs shelf; sell-queue trust (top 20)
 
 ### Phase 5 — Mobile Show Mode
 - Scan + asking price → decision engine
