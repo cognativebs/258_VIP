@@ -4,15 +4,21 @@
 
 ---
 
-## Now — Phase 2 (Decision engine v0.1)
+## Now — Phase 3 (IQVault working app)
 
-- [x] `packages/decision-engine` — all-in cost, market range, liquidity, target price
-- [x] Buy / Watch|Hold / Pass with reason codes + supporting & opposing evidence
-- [x] UserConstraints threaded through every recommendation
-- [x] Backtest harness on 10 historical decisions (fixture; swap for real calls anytime)
-- [x] Phase 2 gate review: backtest 5 agree / 4 soft / 1 disagree; flags bad Buy (h07) (2026-07-21)
+- [x] `services/api` — inventory, hunts, sell queue, recommendations (no direct DB from app)
+- [x] `apps/iqvault-web` — Next.js collector face
+- [x] Portfolio + provenance badges
+- [x] Recommendations with range + supporting/opposing evidence
+- [x] Collection Hunts (Absolute Batman + Pokémon 30th) image-first gallery
+- [x] Sell queue (MUS/INV/LIQ, priority, flags)
+- [x] Signals / Watchlist / Theses / Sources views
+- [ ] Dogfood week gate (use instead of spreadsheets for 7 days)
 
 ## Next
+
+### Phase 2 — Decision engine v0.1 *(shipped)*
+- [x] `packages/decision-engine` + backtest gate (2026-07-21)
 
 ### Phase 1 — Canonical data foundation *(shipped)*
 - [x] `packages/core-model` — TS types + zod for entities v0.1; BaseRecord + provenance block
@@ -27,13 +33,7 @@
 
 ---
 
-## Later — Phases 3–6
-
-### Phase 3 — IQVault working app
-- Inventory + portfolio on VIP API
-- Signals / Watchlist / Theses / Sources / Recommendations views
-- Collection Hunts (Batman + Pokémon) as reusable module
-- Comic sell queue over CLZ dataset
+## Later — Phases 4–6
 
 ### Phase 4 — Automated intelligence runs
 - Signal pipeline stages (no overwrite)
