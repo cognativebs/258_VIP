@@ -1,9 +1,15 @@
 # ADR 0002 — Orchestr8-First Build Sequence
 
-**Status:** Accepted  
+**Status:** Accepted (autonomy model + O1–O4 track **superseded by ADR 0003**)  
 **Date:** 2026-07-23  
 **Owner:** Gregory Williamson / 258 Services  
 **Phase:** Re-sequencing (supersedes phase order in `vip-cursor-build-kit.md`)
+
+> **Update 2026-07-23 — see ADR 0003.** The Orchestr8-first *sequencing* below
+> still holds, but the **autonomy model (A/B/C)** and the **O1–O4 build-harness**
+> are superseded: Orchestr8 will **author build specs**, and **Cursor builds them**
+> (autonomy 0 — Orchestr8 never writes or executes). The revised, leaner O1/O2
+> live in ADR 0003 and `docs/backlog.md`.
 
 ## Context
 

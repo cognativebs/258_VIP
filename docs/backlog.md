@@ -2,47 +2,29 @@
 
 **Feature freeze:** ON. Only **Now** may be built. Everything else waits for a gate.
 
-**Re-sequenced 2026-07-23 (ADR 0002):** Complete **Orchestr8 as a build engine** first,
-then build the rest of VIP *through* Orchestr8. Autonomy target = **(A) Advisory →
-human applies** (Orchestr8 proposes specs/diffs; a human reviews and applies).
+**Re-sequenced 2026-07-23 (ADR 0002 + 0003):** Finish **Orchestr8** first, then build
+the rest of VIP *through* it. **Orchestr8 authors build specs; Cursor builds them**
+(ADR 0003, autonomy 0 — Orchestr8 never writes or executes). After Cursor implements,
+paste the diff back for an optional Challenge-Council review against the spec.
 
 ---
 
-## Now — Phase O0 (Orchestr8 contracts & persistence) *(gates met 2026-07-23)*
+## Now — Phase O1 (Build-spec generator)
 
-- [x] Agent contract schema: mission, `allowed_tools`, input/output schema, confidence rules, failure behavior, escalation (AGENTS.md rule 6) — `orchestr8/config/contract.schema.json`
-- [x] Backfill/validate a contract for all 22 agents against the schema — `orchestr8/agents/*/contract.yaml`, `validate_contracts.py`
-- [x] Run + artifact persistence schema (immutable per rule 3): job id, roles, models, trace, cost, verdict — `orchestr8/config/run.schema.json`, `services/runstore.py`
-- [x] Persist a job end-to-end with full trace + cost — `run_job` wraps `_execute_job` and persists; offline gate `demo_persist_run.py`
-- [x] O0 gate: every agent has a validated contract (22/22); run persisted, re-readable, and immutable (8/8 checks)
-- [ ] Opus review of contract defaults (allowed_tools / high_impact / escalation) before O1
+- [ ] Build-spec (work order) schema: goal, constraints, contracts/schemas-first, file plan, acceptance tests, risks, provenance, ready-to-paste Cursor prompt
+- [ ] `build_spec` council task: architect → domain_expert → tester (test-designer) → critic (veto)
+- [ ] Emit spec as a persisted run bundle **and** a `docs/specs/*.md` file
+- [ ] Read-only repo context wired for the committee (`read_file` / `list_dir` / `grep` / `git_diff`)
+- [ ] O1 gate: committee produces a critic-passed build spec for a real backlog item; spec persisted + written to `docs/specs/`
 
-## Next — Orchestr8 track (O1–O4)
+## Next — Phase O2 (Diff review loop)
 
-### Phase O1 — Tool layer (read + propose)
-- [ ] Allow-listed tools: `read_file`, `list_dir`, `git_diff`, `grep`
-- [ ] Propose-only `write_file` / `patch` — emit artifacts, never mutate the repo (autonomy A)
-- [ ] Per-agent `allowed_tools` enforcement from contracts
-- [ ] O1 gate: Architect reads real files + emits a proposed patch artifact with provenance
-
-### Phase O2 — Verification gate
-- [ ] Apply proposed diffs to a throwaway scratch worktree
-- [ ] Run `tsc` + tests; capture real pass/fail
-- [ ] Critic receives real results (not vibes); gate blocks on fail
-- [ ] O2 gate: a deliberately broken proposed change is caught and rejected
-
-### Phase O3 — Build workflow
-- [ ] "Build spec" contract → plan → implement → verify → critic → diff bundle
-- [ ] Run persistence + artifact store; cost/critic gate on high-impact specs
-- [ ] O3 gate: Orchestr8 produces one merge-ready diff bundle for a trivial VIP task, end to end
-
-### Phase O4 — Self-hosting (advisory)
-- [ ] Orchestr8 authors a real backlog item as a diff bundle; human applies
-- [ ] O4 gate: a VIP change ships that Orchestr8 authored and a human reviewed + applied
+- [ ] Paste implemented diff back → Challenge Council scores it vs the spec's acceptance criteria
+- [ ] O2 gate: council catches a deliberately spec-violating diff
 
 ---
 
-## Later — VIP resumes (built via Orchestr8 after O4)
+## Later — VIP resumes (specced by Orchestr8, built in Cursor, after O2)
 
 ### Terminal UI + Orchestr8 controls *(was in progress; deferred)*
 - Bloomberg-style terminal restyle of `apps/iqvault-web`
@@ -66,6 +48,11 @@ human applies** (Orchestr8 proposes specs/diffs; a human reviews and applies).
 ---
 
 ## Shipped
+
+### Phase O0 — Orchestr8 contracts & persistence *(gates met 2026-07-23)*
+- [x] Contract schema + validated `contract.yaml` for all 22 agents (`validate_contracts.py`, 22/22)
+- [x] Immutable run/artifact persistence wired into `run_job` (`runstore.py`; `demo_persist_run.py`, 8/8)
+- [x] Opus review of contract defaults → tools trimmed to read-only, escalation/failure fixed, contracts bumped to v2 (ADR 0003)
 
 ### Phase 4 — Automated intelligence runs *(2026-07-21)*
 - [x] `packages/signals` — append-only pipeline stages
@@ -91,8 +78,8 @@ human applies** (Orchestr8 proposes specs/diffs; a human reviews and applies).
 
 Do not build until a milestone gate explicitly unlocks:
 
-- **Orchestr8 semi-autonomous mode** (scratch worktree + PR) — unlock after autonomy A proven
-- **Orchestr8 fully autonomous mode** (write/test/commit on a branch) — unlock after O2 trusted
+- **In-Orchestr8 build harness** (tool sandbox, write/execute tools, verification gate) — superseded by Cursor as builder (ADR 0003)
+- **Orchestr8 semi-autonomous / fully autonomous build modes** (Orchestr8 writes/tests/commits) — stays parked; Cursor builds
 - AI glasses / wearable interface
 - PSA → CGC/TAG crossover ML
 - Full POS & event management
@@ -110,3 +97,11 @@ Do not build until a milestone gate explicitly unlocks:
 ## Open ideas (unsorted → sort on intake)
 
 _Add new ideas here, then move to Now/Next/Later/Parked. Do not start work from this list._
+
+- **Binder Vault** (`apps/binder-vault`) — local-first digital card-binder builder
+  (drag-and-drop, live pokemontcg.io + TCGdex card search, high-res art, SQLite via
+  Drizzle/better-sqlite3, provenance on every placement). **Built 2026-07-23 as an
+  explicit owner-approved exception to the feature freeze** (off-milestone; not part of
+  the Orchestr8 O0 track). Standalone Next.js app on port 3010; does not touch the
+  frozen VIP core packages/services. Sort into a milestone (or fold into the collector
+  face) on next backlog review.

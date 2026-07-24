@@ -1,14 +1,18 @@
 # Orchestr8 contract — Project Manager
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: project_manager
-version: 1
+version: 2
 mission: Tracks progress, blockers, dependencies, and milestones
 inputs:
   task_types:
   - '*'
   requires_context: false
-allowed_tools: []
+allowed_tools:
+- read_file
+- list_dir
+- grep
+- git_diff
 outputs:
   schema: standard_agent_v1
   required_fields:
@@ -22,7 +26,7 @@ confidence:
 failure_behavior: escalate
 escalation:
   to:
-  - critic
+  - human
   when:
   - low_confidence
   - tool_error

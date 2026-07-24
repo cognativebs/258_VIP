@@ -1,14 +1,18 @@
 # Orchestr8 contract — Domain Expert
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: domain_expert
-version: 1
+version: 2
 mission: "Collectibles domain authority \u2014 comics, TCG, sports, IQVault semantics"
 inputs:
   task_types:
   - '*'
   requires_context: true
-allowed_tools: []
+allowed_tools:
+- read_file
+- list_dir
+- grep
+- git_diff
 outputs:
   schema: standard_agent_v1
   required_fields:

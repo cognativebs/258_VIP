@@ -1,8 +1,8 @@
 # Orchestr8 contract — Analyst
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: analyst
-version: 1
+version: 2
 mission: Quantitative stats, rankings, and distributions on holdings
 inputs:
   task_types:

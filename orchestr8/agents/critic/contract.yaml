@@ -1,8 +1,8 @@
 # Orchestr8 contract — Critic
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: critic
-version: 1
+version: 2
 mission: Stress-tests assumptions, overconfidence, and missing evidence
 inputs:
   task_types:
@@ -10,6 +10,8 @@ inputs:
   requires_context: true
 allowed_tools:
 - read_file
+- list_dir
+- grep
 - git_diff
 outputs:
   schema: standard_agent_v1

@@ -1,8 +1,8 @@
 # Orchestr8 contract — Acquisition Scout
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: acquisition_scout
-version: 1
+version: 2
 mission: Buy-side opportunities, hunt gaps, and deal margin scoring
 inputs:
   task_types:
@@ -19,7 +19,7 @@ confidence:
   min: 0.0
   max: 1.0
   escalate_below: 0.6
-failure_behavior: degrade
+failure_behavior: escalate
 escalation:
   to:
   - critic

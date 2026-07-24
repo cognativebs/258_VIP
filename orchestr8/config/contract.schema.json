@@ -28,18 +28,11 @@
       }
     },
     "allowed_tools": {
+      "description": "Read-only only. Orchestr8 authors specs; it never writes or executes (ADR 0003). Mutating/executing tools (propose_patch, run_tests, run_shell) are intentionally not grantable.",
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "read_file",
-          "list_dir",
-          "grep",
-          "git_diff",
-          "propose_patch",
-          "run_tests",
-          "run_shell"
-        ]
+        "enum": ["read_file", "list_dir", "grep", "git_diff"]
       }
     },
     "outputs": {

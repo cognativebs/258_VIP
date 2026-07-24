@@ -20,8 +20,8 @@ sys.path.insert(0, str(ROOT))
 
 from services.registry import load_agents  # noqa: E402
 
-# Autonomy target A (advisory): tools are declared here but stay read/propose-only
-# until O1 implements them and O2 gates them.
+# ADR 0003 — Orchestr8 authors build specs; Cursor builds. Orchestr8 never
+# writes or executes, so tools are strictly READ-ONLY.
 COORDINATORS = {"orchestrator", "project_manager", "synthesizer"}
 CHALLENGE = {"critic", "tester", "domain_expert"}
 # Recommendations that move money → always earn a critic pass (AGENTS.md rule 6).
@@ -36,11 +36,11 @@ HIGH_IMPACT = {
 }
 # Meta / build-track agents that reason about systems, not the collection slice.
 META = COORDINATORS | {"architect", "tester", "innovator"}
-READ_TOOLS = {
-    "architect": ["read_file", "list_dir", "grep", "git_diff"],
-    "tester": ["read_file", "list_dir", "grep", "run_tests"],
-    "critic": ["read_file", "git_diff"],
-}
+# Agents that reason about the repo (to author or review specs) get read-only
+# repo tools; collection-analysis agents work from the context JSON and get none.
+READ_ONLY_TOOLS = ["read_file", "list_dir", "grep", "git_diff"]
+REPO_READERS = COORDINATORS | {"architect", "tester", "critic", "domain_expert"}
+CONTRACT_VERSION = 2
 
 
 def _represent_ordered(dumper, data):
@@ -64,13 +64,13 @@ def build_contract(agent_id: str, meta: dict) -> OrderedDict:
 
     contract = OrderedDict()
     contract["id"] = agent_id
-    contract["version"] = 1
+    contract["version"] = CONTRACT_VERSION
     contract["mission"] = meta.get("description") or f"{meta.get('label', agent_id)} agent for the Orchestr8 team."
     contract["inputs"] = OrderedDict(
         task_types=["*"],
         requires_context=agent_id not in META,
     )
-    contract["allowed_tools"] = READ_TOOLS.get(agent_id, [])
+    contract["allowed_tools"] = list(READ_ONLY_TOOLS) if agent_id in REPO_READERS else []
     contract["outputs"] = OrderedDict(
         schema=meta.get("output_schema", "standard_agent_v1"),
         required_fields=required_fields,
@@ -81,11 +81,13 @@ def build_contract(agent_id: str, meta: dict) -> OrderedDict:
         max=1.0,
         escalate_below=0.6 if high_impact else 0.5,
     )
-    contract["failure_behavior"] = "escalate" if agent_id in COORDINATORS else "degrade"
-    contract["escalation"] = OrderedDict(
-        to=["human"] if is_challenge else ["critic"],
-        when=when,
-    )
+    # Coordinators and high-impact agents must not silently degrade: a missing
+    # planner or a failed money-moving analysis escalates rather than fake a result.
+    escalate_on_failure = agent_id in COORDINATORS or high_impact
+    contract["failure_behavior"] = "escalate" if escalate_on_failure else "degrade"
+    # Coordinators and challenge agents answer to a human; workers answer to the critic.
+    escalate_to = ["human"] if (agent_id in COORDINATORS or is_challenge) else ["critic"]
+    contract["escalation"] = OrderedDict(to=escalate_to, when=when)
     contract["high_impact"] = high_impact
     contract["enabled"] = meta.get("enabled", True)
     return contract
@@ -108,7 +110,7 @@ def main() -> int:
         header = (
             f"# Orchestr8 contract — {meta.get('label', agent_id)}\n"
             "# Schema: config/contract.schema.json  (ADR 0002 · O0)\n"
-            "# Autonomy A: tools are read/propose-only until O1/O2.\n"
+            "# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.\n"
         )
         body = yaml.dump(contract, default_flow_style=False, sort_keys=False)
         path.write_text(header + body, encoding="utf-8")

@@ -1,8 +1,8 @@
 # Orchestr8 contract — Tester
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: tester
-version: 1
+version: 2
 mission: Breaks workflows and recommendations with edge cases
 inputs:
   task_types:
@@ -12,7 +12,7 @@ allowed_tools:
 - read_file
 - list_dir
 - grep
-- run_tests
+- git_diff
 outputs:
   schema: standard_agent_v1
   required_fields:

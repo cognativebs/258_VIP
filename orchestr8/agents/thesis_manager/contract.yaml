@@ -1,8 +1,8 @@
 # Orchestr8 contract — Thesis Manager
 # Schema: config/contract.schema.json  (ADR 0002 · O0)
-# Autonomy A: tools are read/propose-only until O1/O2.
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
 id: thesis_manager
-version: 1
+version: 2
 mission: Tracks why assets were acquired and whether theses still hold
 inputs:
   task_types:
