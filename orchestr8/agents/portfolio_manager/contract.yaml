@@ -1,0 +1,31 @@
+# Orchestr8 contract — Portfolio Manager
+# Schema: config/contract.schema.json  (ADR 0002 · O0)
+# Autonomy A: tools are read/propose-only until O1/O2.
+id: portfolio_manager
+version: 1
+mission: Sleeve allocation, concentration, and rebalance across the vault
+inputs:
+  task_types:
+  - '*'
+  requires_context: true
+allowed_tools: []
+outputs:
+  schema: standard_agent_v1
+  required_fields:
+  - summary
+  - confidence
+confidence:
+  required: true
+  min: 0.0
+  max: 1.0
+  escalate_below: 0.6
+failure_behavior: degrade
+escalation:
+  to:
+  - critic
+  when:
+  - low_confidence
+  - high_impact
+  - tool_error
+high_impact: true
+enabled: true

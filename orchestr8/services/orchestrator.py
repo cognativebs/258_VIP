@@ -1,6 +1,7 @@
 """Multi-agent orchestration — driven by agents/*/agent.yaml + skill.md."""
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from providers.llm import chat_role
@@ -221,6 +222,54 @@ def _coordinator_id(agent_ids: list[str]) -> str | None:
 
 
 def run_job(
+    *,
+    task: str,
+    roles: list[str],
+    mode: str,
+    question: str,
+    context_json: str,
+    model_overrides: dict[str, str] | None = None,
+    council: str | None = None,
+    on_step=None,
+) -> dict:
+    """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
+    result = _execute_job(
+        task=task,
+        roles=roles,
+        mode=mode,
+        question=question,
+        context_json=context_json,
+        model_overrides=model_overrides,
+        council=council,
+        on_step=on_step,
+    )
+    _persist_run(result, task=task, question=question, context_json=context_json)
+    return result
+
+
+def _persist_run(result: dict, *, task: str, question: str, context_json: str) -> None:
+    # Persistence must never break a job; a failed write is logged, not raised.
+    try:
+        from services.runstore import build_bundle, persist_run, persistence_enabled
+
+        if not persistence_enabled():
+            return
+        bundle = build_bundle(
+            result=result,
+            task=task,
+            question=question,
+            context_json=context_json,
+        )
+        path = persist_run(bundle)
+        result["runId"] = bundle["run_id"]
+        result["runPath"] = str(path)
+    except Exception as e:  # noqa: BLE001
+        import sys
+
+        sys.stderr.write(f"[orchestr8] run persistence skipped: {e}\n")
+
+
+def _execute_job(
     *,
     task: str,
     roles: list[str],

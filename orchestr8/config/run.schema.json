@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestr8 Run Bundle",
+  "description": "Immutable record of one orchestration job (ADR 0002 O0). Written once; never mutated. Processed views regenerate from this snapshot.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "created_at",
+    "orchestr8_version",
+    "task",
+    "mode",
+    "roles",
+    "final_text",
+    "trace",
+    "usage",
+    "provenance"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 4 },
+    "created_at": { "type": "string" },
+    "orchestr8_version": { "type": "string" },
+    "task": { "type": "string" },
+    "mode": { "type": "string", "enum": ["single", "pipeline", "parallel"] },
+    "roles": { "type": "array", "items": { "type": "string" } },
+    "question": { "type": "string" },
+    "context_bytes": { "type": "integer", "minimum": 0 },
+    "final_text": { "type": "string" },
+    "trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "provider", "model"],
+        "properties": {
+          "role": { "type": "string" },
+          "role_label": { "type": "string" },
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "text": { "type": "string" },
+          "confidence": { "type": "number" },
+          "verdict": { "type": "string" },
+          "usage": { "type": "object" },
+          "costUsd": { "type": "number" }
+        }
+      }
+    },
+    "usage": { "type": "object" },
+    "provenance": {
+      "type": "object",
+      "required": ["contract_versions", "verification"],
+      "properties": {
+        "contract_versions": { "type": "object" },
+        "model_overrides": { "type": "object" },
+        "council": { "type": ["string", "null"] },
+        "verification": {
+          "type": "object",
+          "required": ["status", "gate"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["unverified", "passed", "failed"]
+            },
+            "gate": { "type": "string" }
+          }
+        },
+        "vote_summary": { "type": "string" },
+        "vetoed": { "type": "boolean" }
+      }
+    }
+  }
+}
