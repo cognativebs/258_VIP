@@ -9,18 +9,15 @@ paste the diff back for an optional Challenge-Council review against the spec.
 
 ---
 
-## Now — Phase O1 (Build-spec generator)
-
-- [ ] Build-spec (work order) schema: goal, constraints, contracts/schemas-first, file plan, acceptance tests, risks, provenance, ready-to-paste Cursor prompt
-- [ ] `build_spec` council task: architect → domain_expert → tester (test-designer) → critic (veto)
-- [ ] Emit spec as a persisted run bundle **and** a `docs/specs/*.md` file
-- [ ] Read-only repo context wired for the committee (`read_file` / `list_dir` / `grep` / `git_diff`)
-- [ ] O1 gate: committee produces a critic-passed build spec for a real backlog item; spec persisted + written to `docs/specs/`
-
-## Next — Phase O2 (Diff review loop)
+## Now — Phase O2 (Diff review loop)
 
 - [ ] Paste implemented diff back → Challenge Council scores it vs the spec's acceptance criteria
 - [ ] O2 gate: council catches a deliberately spec-violating diff
+- [ ] Seed work order: `docs/specs/o2-diff-review.md` (from O1) — execute in Cursor
+
+## Next
+
+_(empty — VIP terminal/mobile/VaultOS stay Later until O2 gate)_
 
 ---
 
@@ -48,6 +45,15 @@ paste the diff back for an optional Challenge-Council review against the spec.
 ---
 
 ## Shipped
+
+### Phase O1 — Build-spec generator *(offline gate 2026-07-26)*
+- [x] `build_spec.schema.json` + markdown/JSON emitter → `docs/specs/`
+- [x] Build Spec Council (architect → domain_expert → tester → critic, veto_on_critical)
+- [x] Read-only tools + contract enforcement (`services/tools.py`)
+- [x] Wired into `run_job` (repo context inject + auto-emit)
+- [x] CLI: `python scripts/generate_build_spec.py` (live; needs keys)
+- [x] Offline gate: `python demo_build_spec.py` — 15/15; seed spec `docs/specs/o2-diff-review.md`
+- [x] Live trial: GET `/v1/runs` — veto then revise; recovered spec `docs/specs/orchestr8-runs-api.md`; **implemented** (`demo_runs_api.py` 22/22)
 
 ### Phase O0 — Orchestr8 contracts & persistence *(gates met 2026-07-23)*
 - [x] Contract schema + validated `contract.yaml` for all 22 agents (`validate_contracts.py`, 22/22)

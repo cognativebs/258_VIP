@@ -64,6 +64,20 @@ def _build_user_prompt(
     mode: str,
 ) -> str:
     meta = get_agent(agent_id)
+    repo_context = ""
+    collection_ctx = context_json or "{}"
+    if task == "build_spec":
+        import json
+
+        try:
+            parsed = json.loads(context_json) if context_json else {}
+            if isinstance(parsed, dict) and parsed.get("repoContext"):
+                repo_context = str(parsed.get("repoContext"))
+                rest = {k: v for k, v in parsed.items() if k != "repoContext"}
+                collection_ctx = json.dumps(rest)
+        except json.JSONDecodeError:
+            pass
+
     parts = [
         f"TASK TYPE: {task}",
         f"YOUR ROLE: {meta['label']} ({agent_id})",
@@ -72,8 +86,17 @@ def _build_user_prompt(
         question,
         "",
         "--- COLLECTION CONTEXT (JSON) ---",
-        context_json or "{}",
+        collection_ctx,
     ]
+    if repo_context:
+        parts += ["", "--- REPO CONTEXT (read-only tools) ---", repo_context]
+    if task == "build_spec":
+        parts.append(
+            "\n--- BUILD SPEC RULES ---\n"
+            "Author a critic-passable work order for Cursor. Schemas/contracts first. "
+            "Ground every path in REPO CONTEXT. Append a fenced ```json build_spec block "
+            '(include "schema": "build_spec_v1").'
+        )
     if trace:
         parts.append("\n--- PRIOR TEAM OUTPUT ---")
         for step in trace:
@@ -233,6 +256,11 @@ def run_job(
     on_step=None,
 ) -> dict:
     """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
+    # For build_spec tasks, inject a read-only repo context pack unless the caller
+    # already provided one (Autonomy 0 — tools never write).
+    if task == "build_spec":
+        context_json = _ensure_repo_context(context_json)
+
     result = _execute_job(
         task=task,
         roles=roles,
@@ -244,7 +272,53 @@ def run_job(
         on_step=on_step,
     )
     _persist_run(result, task=task, question=question, context_json=context_json)
+
+    if task == "build_spec":
+        _emit_build_spec(result, question=question)
+
     return result
+
+
+def _ensure_repo_context(context_json: str) -> str:
+    import json
+
+    try:
+        ctx = json.loads(context_json) if context_json else {}
+        if not isinstance(ctx, dict):
+            ctx = {"raw": context_json}
+    except json.JSONDecodeError:
+        ctx = {"raw": context_json}
+
+    if ctx.get("repoContext"):
+        return json.dumps(ctx)
+
+    try:
+        from services.tools import gather_build_context
+
+        ctx["repoContext"] = gather_build_context("architect")
+    except Exception as e:  # noqa: BLE001
+        ctx["repoContext"] = f"(repo context unavailable: {e})"
+    return json.dumps(ctx)
+
+
+def _emit_build_spec(result: dict, *, question: str) -> None:
+    """Best-effort: extract a build spec and write docs/specs/<id>.md + .json."""
+    try:
+        from services.build_spec import build_spec_from_committee_result, write_spec
+
+        if result.get("vote", {}).get("vetoed"):
+            result["buildSpecStatus"] = "vetoed"
+            return
+        spec = build_spec_from_committee_result(result, question=question)
+        path = write_spec(spec)
+        result["buildSpecId"] = spec["id"]
+        result["buildSpecPath"] = str(path)
+        result["buildSpecStatus"] = spec["provenance"]["verification_status"]
+    except Exception as e:  # noqa: BLE001
+        import sys
+
+        sys.stderr.write(f"[orchestr8] build_spec emit skipped: {e}\n")
+        result["buildSpecStatus"] = f"emit_failed: {e}"
 
 
 def _persist_run(result: dict, *, task: str, question: str, context_json: str) -> None:
@@ -301,7 +375,14 @@ def _execute_job(
         if resolved not in seen:
             seen.add(resolved)
             unique.append(resolved)
-    unique = sort_agent_ids(unique)
+    # Prefer the council's declared agent order (e.g. build_spec: architect → … → critic).
+    # Fall back to the global pipeline_order when no council is set.
+    council_meta_early = get_council(council) if council else None
+    if council_meta_early and council_meta_early.get("agents"):
+        rank = {a: i for i, a in enumerate(council_meta_early["agents"])}
+        unique = sorted(unique, key=lambda r: rank.get(r, 999))
+    else:
+        unique = sort_agent_ids(unique)
     trace: list[dict] = []
 
     def override_for(aid: str) -> str | None:

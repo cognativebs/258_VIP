@@ -1,0 +1,79 @@
+{
+  "schema": "build_spec_v1",
+  "id": "o2-diff-review",
+  "title": "O2 Diff review loop",
+  "goal": "After Cursor implements a build spec, paste the diff back so the Challenge Council (critic + tester + domain_expert) scores it against the spec's acceptance criteria and returns approve/conditional/reject.",
+  "constraints": [
+    "Autonomy 0 — Orchestr8 never writes or executes code (ADR 0003)",
+    "Feature freeze — only O2 scope; do not resume VIP Phases 5–6",
+    "Reuse existing Challenge Council voting (veto_on_critical)",
+    "Provenance on the review artifact (source, method, confidence, verification)"
+  ],
+  "contracts_first": [
+    {
+      "path": "orchestr8/config/diff_review.schema.json",
+      "change": "Define input (spec_id, diff_text) and output (verdict, findings, provenance)"
+    },
+    {
+      "path": "orchestr8/services/diff_review.py",
+      "change": "Loader + validator + markdown renderer for review results"
+    }
+  ],
+  "file_plan": [
+    {
+      "path": "orchestr8/config/diff_review.schema.json",
+      "action": "create",
+      "notes": "JSON Schema for the review bundle"
+    },
+    {
+      "path": "orchestr8/services/diff_review.py",
+      "action": "create",
+      "notes": "Extract/validate/emit review; load paired docs/specs/<id>.json"
+    },
+    {
+      "path": "orchestr8/scripts/review_diff.py",
+      "action": "create",
+      "notes": "CLI: --spec-id + diff file → Challenge Council job"
+    },
+    {
+      "path": "orchestr8/demo_diff_review.py",
+      "action": "create",
+      "notes": "Offline gate: council catches a deliberately violating diff"
+    },
+    {
+      "path": "docs/backlog.md",
+      "action": "modify",
+      "notes": "Check off O2 items when gate passes"
+    }
+  ],
+  "acceptance_tests": [
+    "Offline demo: a diff that omits a required acceptance test is rejected/vetoed",
+    "A conforming synthetic diff receives approve or conditional with findings list",
+    "Review artifact written under docs/specs/ or .runs/ with provenance",
+    "python demo_diff_review.py exits 0"
+  ],
+  "risks": [
+    "Large diffs may truncate; need size limits and clear truncation flags",
+    "Critic may over-veto style nits — keep policy on acceptance criteria only"
+  ],
+  "out_of_scope": [
+    "Auto-applying fixes in the repo",
+    "Terminal UI / VIP Phase 5–6 work"
+  ],
+  "cursor_prompt": "Implement Orchestr8 Phase O2 (ADR 0003): Diff review loop.\n\nGoal: paste an implemented diff + build-spec id into Orchestr8; run the Challenge Council against the spec's acceptance_tests; emit a review artifact with provenance.\n\nConstraints: Autonomy 0 (no write/execute tools); reuse challenge council voting; feature freeze.\n\nDo schemas first: orchestr8/config/diff_review.schema.json, then services/diff_review.py, scripts/review_diff.py, demo_diff_review.py.\n\nAcceptance: offline demo catches a deliberately violating diff; conforming diff gets approve/conditional; provenance populated.",
+  "provenance": {
+    "source": "orchestr8.build_spec_council",
+    "method": "multi_agent_pipeline",
+    "rule_or_model_version": "build_spec_v1",
+    "confidence": 0.74,
+    "verification_status": "critic_passed",
+    "run_id": "run_demo_o1",
+    "council": "build_spec",
+    "roles": [
+      "architect",
+      "domain_expert",
+      "tester",
+      "critic"
+    ]
+  }
+}

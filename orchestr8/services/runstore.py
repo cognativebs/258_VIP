@@ -98,6 +98,7 @@ def persist_run(bundle: dict) -> Path:
 
 
 def load_run(run_id: str) -> dict | None:
+    """Load a full run bundle. Returns None if missing; raises JSONDecodeError if corrupt."""
     path = RUNS_DIR / f"{run_id}.json"
     if not path.exists():
         return None
@@ -105,10 +106,42 @@ def load_run(run_id: str) -> dict | None:
 
 
 def list_runs() -> list[dict]:
-    index = RUNS_DIR / "index.jsonl"
-    if not index.exists():
+    """Return metadata for each run_*.json (skips corrupt/partial files).
+
+    Does not include trace/vote/final_text — list endpoint stays light.
+    Missing or empty ``.runs/`` yields [].
+    """
+    if not RUNS_DIR.exists():
         return []
-    return [json.loads(line) for line in index.read_text(encoding="utf-8").splitlines() if line.strip()]
+    out: list[dict] = []
+    for path in sorted(RUNS_DIR.glob("run_*.json")):
+        try:
+            raw = path.read_text(encoding="utf-8")
+            if not raw.strip():
+                continue
+            data = json.loads(raw)
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            # AT-11: partial/corrupt files are skipped; valid runs still returned.
+            continue
+        if not isinstance(data, dict):
+            continue
+        usage = data.get("usage") or {}
+        prov = data.get("provenance") or {}
+        verification = prov.get("verification") or {}
+        out.append(
+            {
+                "run_id": data.get("run_id") or path.stem,
+                "created_at": data.get("created_at"),
+                "task": data.get("task"),
+                "mode": data.get("mode"),
+                "roles": data.get("roles") or [],
+                "question": data.get("question") or "",
+                "costUsd": usage.get("costUsd", 0.0),
+                "vetoed": bool(prov.get("vetoed")),
+                "verification": verification.get("status"),
+            }
+        )
+    return out
 
 
 def persistence_enabled() -> bool:

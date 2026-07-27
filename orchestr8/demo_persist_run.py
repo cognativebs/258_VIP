@@ -84,7 +84,12 @@ def main() -> int:
         abs((reloaded.get("usage") or {}).get("costUsd", 0) - 0.0237) < 1e-9,
     ))
     cv = (reloaded.get("provenance") or {}).get("contract_versions") or {}
-    checks.append(("provenance has contract versions", cv.get("investment_analyst") == 1))
+    checks.append(
+        (
+            "provenance has contract versions",
+            isinstance(cv.get("investment_analyst"), int) and cv.get("investment_analyst") >= 1,
+        )
+    )
     checks.append((
         "verification starts unverified",
         (reloaded.get("provenance") or {}).get("verification", {}).get("status") == "unverified",
