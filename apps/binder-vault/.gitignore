@@ -1,0 +1,10 @@
+.next/
+node_modules/
+out/
+*.tsbuildinfo
+
+# Local SQLite database + cached media (regenerable, never committed)
+.data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
