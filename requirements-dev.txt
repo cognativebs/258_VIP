@@ -1,0 +1,4 @@
+# Dev/CI dependencies for the Python comics ingest + API stack.
+# Runtime deps for the comics API itself live in orchestr8/requirements.txt.
+psycopg2-binary==2.9.12
+pytest==8.4.1
