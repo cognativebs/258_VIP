@@ -32,8 +32,8 @@ export default async function RecommendationsPage() {
   }
 
   return (
-    <>
-      <Nav active="/recommendations" />
+    <div className="shell">
+      <><Nav active="/recommendations" />
       <h1 className="page-title">Recommendations</h1>
       <p className="page-sub">
         Decision engine output: action + range + evidence. Never a bare point price.
@@ -88,6 +88,7 @@ export default async function RecommendationsPage() {
           </article>
         ))}
       </div>
-    </>
+      </>
+    </div>
   );
 }

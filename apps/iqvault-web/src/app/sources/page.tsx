@@ -19,8 +19,8 @@ export default async function SourcesPage() {
   }
 
   return (
-    <>
-      <Nav active="/sources" />
+    <div className="shell">
+      <><Nav active="/sources" />
       <h1 className="page-title">Sources</h1>
       <p className="page-sub">
         Registry of inputs. Core logic must not depend on one scraper.
@@ -37,6 +37,7 @@ export default async function SourcesPage() {
           </article>
         ))}
       </div>
-    </>
+      </>
+    </div>
   );
 }

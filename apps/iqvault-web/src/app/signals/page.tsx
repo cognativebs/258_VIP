@@ -18,8 +18,8 @@ export default async function SignalsPage() {
   }
 
   return (
-    <>
-      <Nav active="/signals" />
+    <div className="shell">
+      <><Nav active="/signals" />
       <h1 className="page-title">Signals</h1>
       <p className="page-sub">Normalized intelligence events. Quarantined noise is labeled, not deleted.</p>
       {error ? <div className="error">{error}</div> : null}
@@ -43,6 +43,7 @@ export default async function SignalsPage() {
           </article>
         ))}
       </div>
-    </>
+      </>
+    </div>
   );
 }

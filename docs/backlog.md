@@ -23,11 +23,12 @@ _(empty — VIP terminal/mobile/VaultOS stay Later until O2 gate)_
 
 ## Later — VIP resumes (specced by Orchestr8, built in Cursor, after O2)
 
-### Terminal UI + Orchestr8 controls *(was in progress; deferred)*
-- Bloomberg-style terminal restyle of `apps/iqvault-web`
-- Analysis/insights panel
-- Orchestr8 team modal: solo / duo / committee; consumes O1 model/tool layer
-- (Consumer of O1 — do not build standalone before O2)
+### Terminal UI + Orchestr8 controls *(partial — owner unlock 2026-08-08)*
+- [x] Merge `:5175` gold-dark + comics terminal into `apps/iqvault-web` (:3000)
+- [x] Richer hunts explorer on VIP `/api/hunts`; archive Vite `iqvault/` proof
+- [ ] Analysis/insights panel (Orchestr8 chat from Vite not yet ported)
+- [ ] Orchestr8 team modal: solo / duo / committee; consumes O1 model/tool layer
+- (Remaining items still prefer O2 gate; comics/hunts merge was owner-unlocked)
 
 ### Trial (after build-out)
 - Dogfood IQVault for 7 days vs spreadsheets

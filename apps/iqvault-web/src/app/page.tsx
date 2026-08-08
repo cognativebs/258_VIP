@@ -16,8 +16,8 @@ export default async function PortfolioPage() {
   }
 
   return (
-    <>
-      <Nav active="/" />
+    <div className="shell">
+      <><Nav active="/" />
       <h1 className="page-title">Portfolio</h1>
       <p className="page-sub">
         Inventory from VIP API — derived fields carry provenance. Snapshot totals are labeled,
@@ -95,6 +95,7 @@ export default async function PortfolioPage() {
           </div>
         </>
       ) : null}
-    </>
+      </>
+    </div>
   );
 }

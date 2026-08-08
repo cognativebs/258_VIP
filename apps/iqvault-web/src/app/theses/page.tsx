@@ -18,8 +18,8 @@ export default async function ThesesPage() {
   }
 
   return (
-    <>
-      <Nav active="/theses" />
+    <div className="shell">
+      <><Nav active="/theses" />
       <h1 className="page-title">Theses</h1>
       <p className="page-sub">Stated beliefs with horizon — not silent inventory notes.</p>
       {error ? <div className="error">{error}</div> : null}
@@ -37,6 +37,7 @@ export default async function ThesesPage() {
           </article>
         ))}
       </div>
-    </>
+      </>
+    </div>
   );
 }

@@ -13,8 +13,8 @@ export default async function SellQueuePage() {
   }
 
   return (
-    <>
-      <Nav active="/sell-queue" />
+    <div className="shell">
+      <><Nav active="/sell-queue" />
       <h1 className="page-title">Sell queue</h1>
       <p className="page-sub">
         CLZ-derived queue with Museum / Investment / Liquidity scores, sell priority, and
@@ -68,6 +68,7 @@ export default async function SellQueuePage() {
           </tbody>
         </table>
       </div>
-    </>
+      </>
+    </div>
   );
 }

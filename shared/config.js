@@ -18,8 +18,9 @@ export const TOOL_META = {
     id: TOOLS.IQVAULT,
     name: "IQVault",
     tagline: "Personal intelligence · hunts · portfolio",
-    port: 5175,
-    devUrl: "http://127.0.0.1:5175",
+    // Collector face lives in apps/iqvault-web (Next). Vite :5175 is archived.
+    port: 3000,
+    devUrl: "http://127.0.0.1:3000",
     accent: "#d4a853",
   },
 };

@@ -2,25 +2,31 @@ import Link from "next/link";
 
 const links = [
   { href: "/", label: "Portfolio" },
-  { href: "/recommendations", label: "Recommendations" },
+  { href: "/collections/comics", label: "Comics" },
+  { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },
-  { href: "/sell-queue", label: "Sell queue" },
+  { href: "/sell-queue", label: "Sell" },
   { href: "/signals", label: "Signals" },
-  { href: "/watchlist", label: "Watchlist" },
+  { href: "/watchlist", label: "Watch" },
   { href: "/theses", label: "Theses" },
   { href: "/sources", label: "Sources" },
 ];
+
+const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
 
 export function Nav({ active }: { active?: string }) {
   return (
     <header className="top">
       <div className="brand">
-        <div className="brand-kicker">258 · Collector face</div>
-        <Link href="/" className="brand-name">
-          IQVault
-        </Link>
+        <div className="brand-mark">IQ</div>
+        <div>
+          <div className="brand-kicker">258 · Personal Intelligence</div>
+          <Link href="/" className="brand-name">
+            IQVault
+          </Link>
+        </div>
       </div>
-      <nav className="nav">
+      <nav className="nav" aria-label="Collector face">
         {links.map((l) => (
           <Link
             key={l.href}
@@ -31,6 +37,15 @@ export function Nav({ active }: { active?: string }) {
           </Link>
         ))}
       </nav>
+      <a
+        className="ext-link"
+        href={BINDER_URL}
+        target="_blank"
+        rel="noreferrer"
+        title="Open Binder Vault"
+      >
+        Binder ↗
+      </a>
     </header>
   );
 }

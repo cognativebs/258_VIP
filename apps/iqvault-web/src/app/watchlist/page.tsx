@@ -12,8 +12,8 @@ export default async function WatchlistPage() {
   }
 
   return (
-    <>
-      <Nav active="/watchlist" />
+    <div className="shell">
+      <><Nav active="/watchlist" />
       <h1 className="page-title">Watchlist</h1>
       <p className="page-sub">Items staged for later Ask / Watch decisions.</p>
       {error ? <div className="error">{error}</div> : null}
@@ -37,6 +37,7 @@ export default async function WatchlistPage() {
           </tbody>
         </table>
       </div>
-    </>
+      </>
+    </div>
   );
 }

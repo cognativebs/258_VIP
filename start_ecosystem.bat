@@ -3,7 +3,7 @@ cd /d "%~dp0"
 echo Starting IQVault Ecosystem...
 echo   Bridge  : http://127.0.0.1:5199
 echo   VaultOS : http://127.0.0.1:5174  (store@vaultos.demo / demo)
-echo   IQVault : http://127.0.0.1:5175  (greg@iqvault.local / vault)
+echo   IQVault : http://127.0.0.1:3000  (npm run web — Vite :5175 archived)
 echo.
 
 start "IQVault Bridge" cmd /k node bridge\server.js
