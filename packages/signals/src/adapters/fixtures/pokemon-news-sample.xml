@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>VIP Pokémon News Fixture</title>
+    <link>https://example.invalid/feeds/pokemon</link>
+    <description>Offline fixture for Signals v1 tests — not a live host</description>
+    <item>
+      <title>Pokémon TCG Product Update — 30th Celebration</title>
+      <link>https://example.invalid/news/30th-celebration</link>
+      <guid>fixture-guid-30th-celebration</guid>
+      <pubDate>Wed, 02 Jul 2026 12:00:00 GMT</pubDate>
+      <description>Official product calendar mention for 30th celebration SKUs. Treat retail pricing as unverified.</description>
+    </item>
+    <item>
+      <title>30th celebration reprint chatter</title>
+      <link>https://example.invalid/news/reprint-chatter</link>
+      <guid>fixture-guid-reprint-chatter</guid>
+      <pubDate>Wed, 02 Jul 2026 13:00:00 GMT</pubDate>
+      <description>Syndicated reprint chatter recirculating without new SKUs — likely noise.</description>
+    </item>
+    <item>
+      <title>30th celebration reprint chatter</title>
+      <link>https://example.invalid/news/reprint-chatter</link>
+      <guid>fixture-guid-reprint-chatter</guid>
+      <pubDate>Wed, 02 Jul 2026 13:05:00 GMT</pubDate>
+      <description>Duplicate guid — must be deduped.</description>
+    </item>
+    <item>
+      <description>Missing title should quarantine</description>
+      <guid></guid>
+    </item>
+  </channel>
+</rss>

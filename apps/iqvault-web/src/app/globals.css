@@ -282,6 +282,56 @@ th {
   color: var(--danger);
 }
 
+.section-title {
+  font-family: "Fraunces", serif;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 28px 0 10px;
+  letter-spacing: -0.02em;
+}
+
+.tcg-panel {
+  margin: 8px 0 28px;
+  padding: 18px 18px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.tcg-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.tcg-panel-head .section-title {
+  margin: 0 0 6px;
+}
+
+.tcg-stats {
+  margin: 16px 0;
+}
+
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.btn-link:hover {
+  border-color: var(--accent);
+}
+
 @media (max-width: 800px) {
   .grid-stats,
   .evidence {

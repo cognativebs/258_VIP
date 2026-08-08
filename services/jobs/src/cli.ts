@@ -1,35 +1,43 @@
-import { formatDeltaReport, runPokemonDropsJob } from "./pokemon-drops.js";
+import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import { startScheduler } from "./scheduler.js";
 
 const cmd = process.argv[2] ?? "pokemon-drops";
 
-if (cmd === "pokemon-drops") {
-  const { delta } = runPokemonDropsJob({ triggeredBy: "cli" });
-  console.log(formatDeltaReport(delta));
-  process.exit(0);
-}
+async function main() {
+  if (cmd === "pokemon-drops") {
+    const { delta } = await runPokemonDropsJobAsync({ triggeredBy: "cli" });
+    console.log(formatDeltaReport(delta));
+    return;
+  }
 
-if (cmd === "schedule") {
-  // Dev cadence: every hour. Gate tests use direct job invocation (no manual prompts).
-  const handle = startScheduler(
-    [
-      {
-        name: "pokemon-drops",
-        everyMs: 60 * 60 * 1000,
-        run: () => {
-          const { delta } = runPokemonDropsJob({ triggeredBy: "schedule" });
-          console.log(formatDeltaReport(delta));
+  if (cmd === "schedule") {
+    const handle = startScheduler(
+      [
+        {
+          name: "pokemon-drops",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            void runPokemonDropsJobAsync({ triggeredBy: "schedule" }).then(({ delta }) => {
+              console.log(formatDeltaReport(delta));
+            });
+          },
         },
-      },
-    ],
-    { runImmediately: true },
-  );
-  console.log("Scheduler started (pokemon-drops). Ctrl+C to stop.");
-  process.on("SIGINT", () => {
-    handle.stop();
-    process.exit(0);
-  });
-} else {
+      ],
+      { runImmediately: true },
+    );
+    console.log("Scheduler started (pokemon-drops). Ctrl+C to stop.");
+    process.on("SIGINT", () => {
+      handle.stop();
+      process.exit(0);
+    });
+    return;
+  }
+
   console.error(`Unknown command: ${cmd}`);
   process.exit(1);
 }
+
+void main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

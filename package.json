@@ -13,6 +13,8 @@
     "backtest": "npm run backtest -w @vip/decision-engine",
     "api": "npm run start -w @vip/api",
     "web": "npm run dev -w @vip/iqvault-web",
+    "orchestr8:console": "npm run dev -w @vip/orchestr8-console",
+    "binder": "npm run dev -w @vip/binder-vault",
     "job:pokemon-drops": "npm run pokemon-drops -w @vip/jobs"
   },
   "engines": {

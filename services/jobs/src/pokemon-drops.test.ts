@@ -1,5 +1,7 @@
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  FEED_FILE,
   fetchPokemonDropObservations,
   formatDeltaReport,
   runPokemonDropsJob,
@@ -12,6 +14,7 @@ describe("Phase 4 gate — zero-touch Pokémon drops", () => {
       triggeredBy: "schedule",
       now: new Date("2026-07-21T15:00:00Z"),
       persist: false,
+      priorSignalBodies: [],
     });
 
     expect(delta.job).toBe("pokemon-drops");
@@ -51,5 +54,21 @@ describe("Phase 4 gate — zero-touch Pokémon drops", () => {
 
     expect(second.delta.quarantined).toBeGreaterThanOrEqual(1);
     expect(second.delta.newSignals + second.delta.quarantined).toBeGreaterThan(0);
+  });
+
+  it("persists signals-feed.json for VIP API", () => {
+    if (existsSync(FEED_FILE)) unlinkSync(FEED_FILE);
+    runPokemonDropsJob({
+      triggeredBy: "test",
+      now: new Date("2026-08-02T18:00:00Z"),
+      persist: true,
+    });
+    expect(existsSync(FEED_FILE)).toBe(true);
+    const feed = JSON.parse(readFileSync(FEED_FILE, "utf8")) as {
+      schema: string;
+      signals: unknown[];
+    };
+    expect(feed.schema).toBe("vip_signals_feed_v1");
+    expect(feed.signals.length).toBeGreaterThan(0);
   });
 });
