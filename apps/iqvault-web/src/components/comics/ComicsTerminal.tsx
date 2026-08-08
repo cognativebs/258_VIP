@@ -23,6 +23,7 @@ import {
 } from "@/lib/comicEngine";
 import { loadComicsTerminalData, patchComicHolding } from "@/lib/comicsClient";
 import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
+import { AnalyticsChat } from "./AnalyticsChat";
 
 const PAGE_SIZE = 50;
 
@@ -40,6 +41,7 @@ export function ComicsTerminal() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rightPanel, setRightPanel] = useState<"inspector" | "analytics">("inspector");
 
   useEffect(() => {
     let cancelled = false;
@@ -418,8 +420,36 @@ export function ComicsTerminal() {
         </section>
 
         <aside className="bb-right-panel">
-          <div className="bb-panel-head">INSPECTOR</div>
-          {!selected ? (
+          <div className="bb-right-tabs">
+            <button
+              type="button"
+              className={rightPanel === "inspector" ? "active" : ""}
+              onClick={() => setRightPanel("inspector")}
+            >
+              Inspector
+            </button>
+            <button
+              type="button"
+              className={rightPanel === "analytics" ? "active" : ""}
+              onClick={() => setRightPanel("analytics")}
+              title="Ask Orchestr8 agents about the current filter"
+            >
+              Analytics
+            </button>
+          </div>
+
+          {rightPanel === "analytics" ? (
+            <AnalyticsChat
+              meta={meta}
+              filtered={filtered}
+              dashboardStats={dashboardStats}
+              filters={filters}
+              workspace={workspace}
+              selectedComic={selected}
+              filteredValue={filteredValue}
+              source={source}
+            />
+          ) : !selected ? (
             <div className="bb-detail-body">
               <p className="bb-dim">Select a row to inspect.</p>
             </div>
