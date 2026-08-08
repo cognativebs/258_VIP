@@ -105,8 +105,8 @@ Asked for top 3 from the refined list.
 
 ---
 
-## Follow-ups still open
+## Follow-ups
 
-1. User picks **top 3** from the refined Craft shortlist.
-2. Balance those three into a public naming system (platform / collector face / store face / agent layer).
-3. Remap internal tool/UI labels to the Craft theme (draft map lives under Binder Vault until product rename lands).
+1. ~~User picks **top 3** from the refined Craft shortlist.~~ → **Decided 2026-08-08: Crucible · Forge · Temper.** See [`naming-decision.md`](naming-decision.md).
+2. ~~Balance those three into a public naming system.~~ → Surfaces assigned in the decision record; store face still unnamed.
+3. Remap internal tool/UI labels (map: [`apps/binder-vault/TOOL_THEME_MAP.md`](../../apps/binder-vault/TOOL_THEME_MAP.md)) — pending trademark clearance.

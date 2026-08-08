@@ -128,7 +128,7 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 - Marketplace listing automation
 - Custom / unsupervised model training
 - Every collectible category at once
-- Final legal names, domains, trademarks
+- Final legal names, domains, trademarks — names now chosen (Crucible · Forge · Temper, see [`docs/branding/naming-decision.md`](branding/naming-decision.md)); clearance + store-face name still open
 - Premium data-feed marketplace
 - Expanding `bridge/` as a product (prefer absorb under VIP API)
 - Parallel “second brain” offer engines in face apps
