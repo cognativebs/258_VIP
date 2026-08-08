@@ -4,13 +4,23 @@ import { holdingToComicRow, metaFromHoldings } from "./holdingToComic";
 
 const COMICS_BASE = process.env.NEXT_PUBLIC_COMICS_API_URL ?? "";
 
+// A stuck (not just down) comics API would otherwise hang this fetch forever
+// and freeze the whole terminal on load — always bound it.
+const COMICS_TIMEOUT_MS = 5000;
+
 async function tryComicsApi(): Promise<{ meta: ComicsMeta; inventory: ComicRow[] } | null> {
   // Browser: relative proxy. Server: optional absolute comics API.
   const prefix = typeof window === "undefined" ? COMICS_BASE || "http://127.0.0.1:5200" : "";
   try {
     const [metaRes, invRes] = await Promise.all([
-      fetch(`${prefix}/api/comics/meta`, { cache: "no-store" }),
-      fetch(`${prefix}/api/comics/inventory`, { cache: "no-store" }),
+      fetch(`${prefix}/api/comics/meta`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
+      }),
+      fetch(`${prefix}/api/comics/inventory`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
+      }),
     ]);
     if (!metaRes.ok || !invRes.ok) return null;
     const meta = (await metaRes.json()) as ComicsMeta;
@@ -53,6 +63,7 @@ export async function patchComicHolding(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields }),
+      signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { row?: ComicRow };

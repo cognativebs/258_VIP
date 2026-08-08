@@ -1,10 +1,26 @@
 const API_BASE = process.env.NEXT_PUBLIC_VIP_API_URL ?? "http://localhost:8787";
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    next: { revalidate: 0 },
-    cache: "no-store",
-  });
+/**
+ * Default timeout for VIP API calls. Without this, a backend that accepts a
+ * TCP connection but never responds (stuck process, not just "down") can hang
+ * a server component's fetch — and the whole :3000 page — indefinitely.
+ */
+const API_TIMEOUT_MS = 8000;
+
+export async function apiGet<T>(path: string, timeoutMs = API_TIMEOUT_MS): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      next: { revalidate: 0 },
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new Error(`API ${path} timed out after ${timeoutMs}ms — is it running but stuck?`);
+    }
+    throw e;
+  }
   if (!res.ok) {
     throw new Error(`API ${path} failed: ${res.status}`);
   }
