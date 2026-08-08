@@ -92,8 +92,9 @@ services. Never fork backend logic between them.
 6. Agents obey contracts: mission, allowed tools, input/output schema,
    confidence rules, failure behavior, escalation. High-dollar recs get a
    critic pass.
-7. Feature freeze is ON. If a task isn't in the active milestone, refuse it
-   and add it to docs/backlog.md under "Parked."
+7. Feature freeze is OFF (lifted 2026-08-02). Prefer Build Spec → Cursor for
+   non-trivial work. Track remaining work in docs/backlog.md; do not refuse
+   tasks solely for milestone/freeze reasons.
 
 ## Stack defaults (change only via an ADR)
 - TypeScript everywhere. zod for schemas. Postgres. Drizzle/Prisma ORM.

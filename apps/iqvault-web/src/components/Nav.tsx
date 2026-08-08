@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
+
 const links = [
   { href: "/", label: "Portfolio" },
   { href: "/collections/comics", label: "Comics" },
@@ -11,8 +13,6 @@ const links = [
   { href: "/theses", label: "Theses" },
   { href: "/sources", label: "Sources" },
 ];
-
-const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
 
 export function Nav({ active }: { active?: string }) {
   return (

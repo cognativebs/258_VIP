@@ -184,6 +184,8 @@ def git_diff(agent_id: str, *, staged: bool = False, path: str | None = None) ->
             cwd=str(ROOT),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )

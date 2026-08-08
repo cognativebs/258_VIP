@@ -1,5 +1,6 @@
 import { recommend } from "@vip/decision-engine";
 import type { ApiHolding } from "../lib/holdings.js";
+import { defaultSignalsFeedPath, readSignalsFeed } from "./signalsFeed.js";
 
 function syntheticSales(holding: ApiHolding, asOf = new Date()) {
   const mid = holding.currentPrice ?? 20;
@@ -11,6 +12,22 @@ function syntheticSales(holding: ApiHolding, asOf = new Date()) {
   }));
 }
 
+function signalEvidenceFromFeed() {
+  const feed = readSignalsFeed(defaultSignalsFeedPath());
+  if (!feed) return [];
+  return feed.signals.slice(0, 12).map((s) => ({
+    id: s.id,
+    body: s.body,
+    title: s.title,
+    signalType: s.signalType,
+    quarantineStatus: s.quarantineStatus,
+    provenance: {
+      source: feed.provenance.source,
+      verificationStatus: feed.provenance.verificationStatus,
+    },
+  }));
+}
+
 export function buildRecommendation(holding: ApiHolding, askPrice?: number | null) {
   const ask = askPrice ?? holding.currentPrice ?? null;
   const rec = recommend({
@@ -18,6 +35,7 @@ export function buildRecommendation(holding: ApiHolding, askPrice?: number | nul
     assetName: holding.assetName,
     askPrice: ask,
     sales: syntheticSales(holding),
+    signalEvidence: signalEvidenceFromFeed(),
     collectionFit: {
       inHunt: (holding.pillar ?? "").toLowerCase().includes("batman") ||
         (holding.pillar ?? "").toLowerCase().includes("absolute"),

@@ -15,7 +15,8 @@ councils:
 - challenge
 - board
 temperature: 0.3
-max_tokens: 2048
+# Build Spec repairs often need more than 2k (truncation mid-JSON).
+max_tokens: 4096
 skill: AI_Agent_Production_Skills_v2/Domain_Expert.md
 skill_brief: AI_Agent_Skills_MD_v2/Domain_Expert.md
 output_schema: standard_agent_v1

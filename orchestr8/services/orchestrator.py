@@ -152,14 +152,23 @@ def _run_agent(
         "model_label": routed.get("model_label", routed["model"]),
         "temperature": routed.get("temperature"),
     }
+    max_tokens = int(routed.get("max_tokens", 2048) or 2048)
+    # Build Spec needs larger completions; Domain Expert often drafts/repairs the JSON too.
+    if task == "build_spec":
+        if resolved == "architect":
+            max_tokens = max(max_tokens, 8192)
+        elif resolved == "domain_expert":
+            max_tokens = max(max_tokens, 4096)
+
     try:
-        result = chat_role(
+        result = _chat_role_retry(
             provider=routed["provider"],
             model=routed["model"],
             system=system,
             user=user,
             temperature=routed.get("temperature", 0.3),
-            max_tokens=routed.get("max_tokens", 2048),
+            max_tokens=max_tokens,
+            retries=1 if (task == "build_spec" and resolved == "architect") else 0,
         )
     except Exception as e:
         # Degrade gracefully: one agent failing must not sink the whole job.
@@ -168,11 +177,24 @@ def _run_agent(
         step["usage"] = {"input": 0, "output": 0, "total": 0}
         return step
 
-    prose, structured = extract_structured(result["text"])
-    step["text"] = prose
+    raw_text = result["text"]
     usage = result.get("usage") or {"input": 0, "output": 0, "total": 0}
+    cost = usd_cost(routed["model"], usage.get("input", 0), usage.get("output", 0))
+
+    # Build Spec: Architect often hits max_tokens mid-JSON. One continuation stitch.
+    if task == "build_spec" and resolved == "architect":
+        raw_text, usage, cost = _continue_truncated_build_spec(
+            raw_text,
+            usage=usage,
+            cost=cost,
+            routed={**routed, "max_tokens": max_tokens},
+            system=system,
+        )
+
+    prose, structured = extract_structured(raw_text)
+    step["text"] = prose
     step["usage"] = usage
-    step["costUsd"] = usd_cost(routed["model"], usage.get("input", 0), usage.get("output", 0))
+    step["costUsd"] = cost
     if structured is not None:
         step["structured"] = structured
         conf = normalize_confidence(structured.get("confidence"))
@@ -182,6 +204,99 @@ def _run_agent(
         if isinstance(verdict, str) and verdict:
             step["verdict"] = verdict
     return step
+
+
+def _is_retryable_provider_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(
+        needle in msg
+        for needle in (
+            "timed out",
+            "timeout",
+            "temporarily unavailable",
+            "overloaded",
+            "529",
+            "rate limit",
+            "connection reset",
+        )
+    )
+
+
+def _chat_role_retry(
+    *,
+    provider: str,
+    model: str,
+    system: str,
+    user: str,
+    temperature: float,
+    max_tokens: int,
+    retries: int = 0,
+) -> dict:
+    last: BaseException | None = None
+    attempts = 1 + max(0, retries)
+    for i in range(attempts):
+        try:
+            return chat_role(
+                provider=provider,
+                model=model,
+                system=system,
+                user=user,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:  # noqa: BLE001
+            last = e
+            if i + 1 < attempts and _is_retryable_provider_error(e):
+                continue
+            raise
+    assert last is not None
+    raise last
+
+
+def _continue_truncated_build_spec(
+    raw_text: str,
+    *,
+    usage: dict,
+    cost: float,
+    routed: dict,
+    system: str,
+) -> tuple[str, dict, float]:
+    """If Architect was cut off mid build-spec JSON, request one continuation."""
+    from services.build_spec import extract_build_spec, looks_like_truncated_build_spec
+
+    if extract_build_spec(raw_text) or not looks_like_truncated_build_spec(raw_text):
+        return raw_text, usage, cost
+    try:
+        cont = chat_role(
+            provider=routed["provider"],
+            model=routed["model"],
+            system=system,
+            user=(
+                "Your previous reply was truncated mid build-spec JSON (max_tokens). "
+                "Continue EXACTLY from the cutoff — output only the remainder of the JSON "
+                "object and close the ``` fence. Do not restart the object. Do not add prose "
+                "before the continuation.\n\n"
+                "--- CUTOFF TAIL (last 2000 chars) ---\n"
+                f"{raw_text[-2000:]}"
+            ),
+            temperature=routed.get("temperature", 0.3),
+            max_tokens=routed.get("max_tokens", 8192),
+        )
+    except Exception:  # noqa: BLE001
+        return raw_text, usage, cost
+
+    cont_text = cont.get("text") or ""
+    merged = raw_text + cont_text
+    cu = cont.get("usage") or {"input": 0, "output": 0, "total": 0}
+    merged_usage = {
+        "input": int(usage.get("input", 0)) + int(cu.get("input", 0)),
+        "output": int(usage.get("output", 0)) + int(cu.get("output", 0)),
+        "total": int(usage.get("total", 0)) + int(cu.get("total", 0)),
+    }
+    merged_cost = cost + usd_cost(
+        routed["model"], cu.get("input", 0), cu.get("output", 0)
+    )
+    return merged, merged_usage, merged_cost
 
 
 def _finalize(
@@ -254,12 +369,28 @@ def run_job(
     model_overrides: dict[str, str] | None = None,
     council: str | None = None,
     on_step=None,
+    on_progress=None,
 ) -> dict:
     """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
+
+    def progress(phase: str, message: str, role: str | None = None) -> None:
+        if not on_progress:
+            return
+        try:
+            on_progress({"phase": phase, "message": message, "role": role})
+        except Exception:  # noqa: BLE001
+            pass
+
     # For build_spec tasks, inject a read-only repo context pack unless the caller
     # already provided one (Autonomy 0 — tools never write).
     if task == "build_spec":
+        progress(
+            "repo_context",
+            "Gathering read-only repo context (list/read/grep/diff)…",
+            "architect",
+        )
         context_json = _ensure_repo_context(context_json)
+        progress("repo_context_done", "Repo context ready — starting council roles…", "architect")
 
     result = _execute_job(
         task=task,
@@ -270,6 +401,7 @@ def run_job(
         model_overrides=model_overrides,
         council=council,
         on_step=on_step,
+        on_progress=on_progress,
     )
     _persist_run(result, task=task, question=question, context_json=context_json)
 
@@ -353,6 +485,7 @@ def _execute_job(
     model_overrides: dict[str, str] | None = None,
     council: str | None = None,
     on_step=None,
+    on_progress=None,
 ) -> dict:
     if not roles:
         raise ValueError("At least one role is required")
@@ -365,6 +498,14 @@ def _execute_job(
                 on_step(step)
             except Exception:  # noqa: BLE001 — streaming must never break the job
                 pass
+
+    def progress(phase: str, message: str, role: str | None = None) -> None:
+        if not on_progress:
+            return
+        try:
+            on_progress({"phase": phase, "message": message, "role": role})
+        except Exception:  # noqa: BLE001
+            pass
 
     overrides = model_overrides or {}
     # Resolve legacy ids (qc_qa → critic) then de-dupe
@@ -389,6 +530,8 @@ def _execute_job(
         return overrides.get(aid) or overrides.get(resolve_agent_id(aid))
 
     if len(unique) == 1 or mode == "single":
+        label0 = get_agent(unique[0])["label"]
+        progress("role_start", f"Calling {label0}…", unique[0])
         step = _run_agent(
             unique[0],
             task=task,
@@ -412,6 +555,11 @@ def _execute_job(
     workers = [r for r in unique if r != coordinator]
 
     if mode == "parallel" and len(workers) > 1:
+        progress(
+            "role_start",
+            f"Calling {len(workers)} roles in parallel…",
+            workers[0] if workers else None,
+        )
         parallel_results: list[dict] = []
         with ThreadPoolExecutor(max_workers=min(6, len(workers))) as pool:
             futures = [
@@ -436,6 +584,7 @@ def _execute_job(
         trace.extend(parallel_results)
 
         synth_id = coordinator or _synthesizer_id(unique)
+        progress("role_start", f"Calling {get_agent(synth_id)['label']} (Synthesis)…", synth_id)
         synth = _run_agent(
             synth_id,
             task=task,
@@ -468,6 +617,11 @@ def _execute_job(
         if owner in execution_order:
             execution_order = [r for r in execution_order if r != owner] + [owner]
     if coordinator:
+        progress(
+            "role_start",
+            f"Calling {get_agent(coordinator)['label']} (Plan)…",
+            coordinator,
+        )
         plan = _run_agent(
             coordinator,
             task=task,
@@ -484,6 +638,11 @@ def _execute_job(
         execution_order = [r for r in execution_order if r != coordinator]
 
     for agent_id in execution_order:
+        progress(
+            "role_start",
+            f"Calling {get_agent(agent_id)['label']}…",
+            agent_id,
+        )
         step = _run_agent(
             agent_id,
             task=task,
@@ -495,8 +654,32 @@ def _execute_job(
         )
         trace.append(step)
         emit(step)
+        # Don't burn Domain/Tester/Critic spend when Architect never produced a spec.
+        if (
+            task == "build_spec"
+            and step.get("role") == "architect"
+            and step.get("error")
+        ):
+            progress(
+                "abort",
+                "Architect failed after retry — stopping Build Spec pipeline early.",
+                "architect",
+            )
+            return _finalize(
+                text=step["text"],
+                trace=trace,
+                mode="pipeline",
+                roles=unique,
+                overrides=overrides,
+                council=council,
+            )
 
     if coordinator:
+        progress(
+            "role_start",
+            f"Calling {get_agent(coordinator)['label']} (Final)…",
+            coordinator,
+        )
         synth = _run_agent(
             coordinator,
             task=task,

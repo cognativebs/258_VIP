@@ -1,5 +1,10 @@
 import { markInferred, markObserved } from "@vip/evidence";
 
+export type ExternalIdRef = {
+  source: string;
+  externalValue: string;
+};
+
 export type ApiHolding = {
   id: string;
   assetName: string;
@@ -20,8 +25,24 @@ export type ApiHolding = {
   currentPrice: number | null;
   assumedGrade: string | null;
   gradeRating: number | null;
+  externalIds: ExternalIdRef[];
   provenance: ReturnType<typeof markObserved> | ReturnType<typeof markInferred>;
 };
+
+function parseExternalIds(row: Record<string, unknown>): ExternalIdRef[] {
+  const raw = row["ExternalIds"] ?? row["externalIds"];
+  if (!Array.isArray(raw)) return [];
+  const out: ExternalIdRef[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const source = String((item as { source?: unknown }).source ?? "").trim();
+    const externalValue = String(
+      (item as { externalValue?: unknown }).externalValue ?? "",
+    ).trim();
+    if (source && externalValue) out.push({ source, externalValue });
+  }
+  return out;
+}
 
 function num(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -39,6 +60,8 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
   const needsVerification = yes(row["Needs Verification"]);
   const assumed = String(row["Assumed Grade"] ?? "");
   const gradeRating = num(row["Grade Rating"]);
+  const externalIds = parseExternalIds(row);
+  const isPokemonSeed = externalIds.length > 0;
   const isNmAssumed =
     assumed.toLowerCase().includes("nm") ||
     (gradeRating === 0 && String(row["Slab Status"] ?? "").toLowerCase() === "raw");
@@ -69,15 +92,16 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     currentPrice: num(row["Current Price"]),
     assumedGrade: isNmAssumed ? "NM" : assumed || null,
     gradeRating: isNmAssumed || gradeRating === 0 ? null : gradeRating,
+    externalIds,
     provenance: isNmAssumed
       ? markInferred({
-          source: "clz_import",
-          ruleOrModelVersion: "clz-adapter@0.1.0",
+          source: isPokemonSeed ? "vip_pokemon_seed" : "clz_import",
+          ruleOrModelVersion: isPokemonSeed ? "pokemon-seed@0.1.0" : "clz-adapter@0.1.0",
           notes: "NM assumed · unverified",
         })
       : markObserved({
-          source: "clz_import",
-          ruleOrModelVersion: "clz-adapter@0.1.0",
+          source: isPokemonSeed ? "vip_pokemon_seed" : "clz_import",
+          ruleOrModelVersion: isPokemonSeed ? "pokemon-seed@0.1.0" : "clz-adapter@0.1.0",
           confidence: 0.85,
         }),
   };

@@ -1,5 +1,6 @@
 import type { UserConstraints } from "@vip/core-model";
 import { allInCost } from "./cost.js";
+import { signalsToEvidenceRefs } from "./evidence-bridge.js";
 import { liquidity } from "./liquidity.js";
 import { marketRange } from "./market-range.js";
 import { targetPrice } from "./target-price.js";
@@ -201,6 +202,18 @@ export function recommend(
       weight: 0.75,
     });
     reasonCodes.push("ALL_IN_ABOVE_HIGH");
+  }
+
+  // --- Signal evidence bridge (intelligence events, not prose-only) ---
+  const signalRefs = signalsToEvidenceRefs(input.signalEvidence ?? []);
+  if (signalRefs.length === 0) {
+    reasonCodes.push("INSUFFICIENT_SIGNAL_EVIDENCE");
+  } else {
+    for (const ref of signalRefs) {
+      if (ref.polarity === "opposing") opposing.push(ref);
+      else supporting.push(ref);
+    }
+    reasonCodes.push("SIGNAL_EVIDENCE");
   }
 
   // Ensure we always have both polarities (trust surface).

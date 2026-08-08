@@ -12,12 +12,20 @@ from services.roles import provider_keys
 
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_TEMPERATURE = 0.3
+# Build-spec Architect can take minutes (large context + 8k completion).
+DEFAULT_HTTP_TIMEOUT = 120
 
 # OpenAI reasoning models: use max_completion_tokens and reject custom temperature.
 _OPENAI_REASONING_PREFIXES = ("o1", "o3", "o4")
 
 
-def _post_json(url: str, headers: dict, body: dict, *, timeout: int = 120) -> dict:
+def _http_timeout_for(max_tokens: int) -> int:
+    """Scale socket timeout with requested completion size."""
+    # ~0.04s per output token budget, floor 120s, cap 480s.
+    return max(DEFAULT_HTTP_TIMEOUT, min(480, 90 + int(max_tokens) // 20))
+
+
+def _post_json(url: str, headers: dict, body: dict, *, timeout: int = DEFAULT_HTTP_TIMEOUT) -> dict:
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
@@ -68,6 +76,7 @@ def chat_openai(
         "https://api.openai.com/v1/chat/completions",
         {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         body,
+        timeout=_http_timeout_for(max_tokens),
     )
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
     if not text:
@@ -109,6 +118,7 @@ def chat_anthropic(
             "system": system,
             "messages": [{"role": "user", "content": user}],
         },
+        timeout=_http_timeout_for(max_tokens),
     )
     blocks = data.get("content") or []
     text = next((b.get("text", "") for b in blocks if b.get("type") == "text"), "").strip()
@@ -149,6 +159,7 @@ def chat_grok(
                 {"role": "user", "content": user},
             ],
         },
+        timeout=_http_timeout_for(max_tokens),
     )
     text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
     if not text:

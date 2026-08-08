@@ -3,8 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
+import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { buildRecommendation } from "./lib/recommendations.js";
+import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
+import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,10 +17,13 @@ function loadJson(name: string): Record<string, unknown>[] {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>[];
 }
 
-const inventory: ApiHolding[] = loadJson("inventory-sample.json").map(mapInventoryRow);
+const comicsSeedHoldings: ApiHolding[] = loadJson("inventory-sample.json").map(mapInventoryRow);
+const pokemonSeedHoldings: ApiHolding[] = loadJson("pokemon-holdings-sample.json").map(
+  mapInventoryRow,
+);
 const sellQueue: ApiHolding[] = loadJson("sell-queue-sample.json").map(mapInventoryRow);
 
-const signals = [
+const SEED_SIGNALS = [
   {
     id: "sig-1",
     signalType: "market",
@@ -36,13 +42,26 @@ const signals = [
   },
 ];
 
-const watchlist = inventory.slice(0, 8).map((h) => ({
-  id: `watch-${h.id}`,
-  holdingId: h.id,
-  assetName: h.assetName,
-  note: "Watch for ask under range low",
-  addedAt: "2026-07-10",
-}));
+function loadSignalsResponse() {
+  const feed = readSignalsFeed(defaultSignalsFeedPath());
+  if (feed && feed.signals.length > 0) {
+    return {
+      signals: feed.signals,
+      source: "job_feed" as const,
+      feed: {
+        writtenAt: feed.writtenAt,
+        runId: feed.runId,
+        job: feed.job ?? null,
+        provenance: feed.provenance,
+      },
+    };
+  }
+  return {
+    signals: SEED_SIGNALS,
+    source: "seed" as const,
+    feed: null,
+  };
+}
 
 const theses = [
   {
@@ -54,44 +73,72 @@ const theses = [
   },
 ];
 
-const sources = [
-  {
-    id: "src-clz",
-    name: "CLZ Comics export",
-    authority: "owner_import",
-    accessMethod: "xml_file",
-    categoryCoverage: ["comic"],
-    notes: "Immutable snapshot via @vip/ingest",
-  },
-  {
-    id: "src-ebay",
-    name: "eBay sold comps",
-    authority: "market",
-    accessMethod: "adapter_pending",
-    categoryCoverage: ["comic", "pokemon"],
-    notes: "Swappable adapter — not hardcoded scrapers in core",
-  },
-];
+function includePokemonSeeds(): boolean {
+  return process.env.VIP_INCLUDE_POKEMON_SEEDS === "1";
+}
+
+async function buildInventory(): Promise<{
+  holdings: ApiHolding[];
+  tcgSource: "binder" | "pokemon_seeds" | "binder+seeds" | "none";
+  binder: Awaited<ReturnType<typeof loadBinderTcg>>;
+}> {
+  const binder = await loadBinderTcg();
+  const tcgFromBinder = binder.available && binder.holdings.length > 0;
+  const seeds = includePokemonSeeds() || !tcgFromBinder ? pokemonSeedHoldings : [];
+  const holdings = [...comicsSeedHoldings, ...seeds, ...(tcgFromBinder ? binder.holdings : [])];
+  let tcgSource: "binder" | "pokemon_seeds" | "binder+seeds" | "none" = "none";
+  if (tcgFromBinder && seeds.length) tcgSource = "binder+seeds";
+  else if (tcgFromBinder) tcgSource = "binder";
+  else if (seeds.length) tcgSource = "pokemon_seeds";
+  return { holdings, tcgSource, binder };
+}
 
 export function createApp() {
   const app = express();
-  app.use(cors());
+  // Reflect request origin so Binder/IQVault on LAN IPs work (not only localhost).
+  app.use(
+    cors({
+      origin: true,
+      credentials: false,
+    }),
+  );
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "vip-api", version: "0.1.0" });
+    res.json({ ok: true, service: "vip-api", version: "0.2.0" });
   });
 
-  app.get("/api/inventory", (_req, res) => {
-    const totalValue = inventory.reduce((s, h) => s + (h.currentPrice ?? 0) * h.quantity, 0);
+  app.get("/api/inventory", async (_req, res) => {
+    const { holdings, tcgSource, binder } = await buildInventory();
+    const totalValue = holdings.reduce((s, h) => s + (h.currentPrice ?? 0) * h.quantity, 0);
     res.json({
-      count: inventory.length,
+      count: holdings.length,
       totalValueEstimate: {
         note: "Sum of currentPrice snapshots — not a verified market range",
         amount: Number(totalValue.toFixed(2)),
         confidence: "low",
       },
-      holdings: inventory,
+      tcgSource,
+      binderDb: {
+        path: binder.dbPath,
+        available: binder.available,
+        filledSlots: binder.holdings.length,
+        error: binder.error ?? null,
+      },
+      holdings,
+    });
+  });
+
+  app.get("/api/tcg/binders", async (_req, res) => {
+    const binder = await loadBinderTcg();
+    res.json({
+      available: binder.available,
+      dbPath: binder.dbPath,
+      error: binder.error ?? null,
+      binders: binder.binders,
+      filledSlots: binder.holdings.length,
+      ownedSlots: binder.holdings.filter((h) => h.pillar?.includes("Owned")).length,
+      needSlots: binder.holdings.filter((h) => h.pillar?.includes("Need")).length,
     });
   });
 
@@ -118,14 +165,16 @@ export function createApp() {
     res.json({ hunt: { ...hunt, metrics: huntCompletion(hunt) } });
   });
 
-  app.get("/api/recommendations", (req, res) => {
+  app.get("/api/recommendations", async (req, res) => {
     const limit = Math.min(Number(req.query.limit ?? 12), 40);
-    const items = inventory.slice(0, limit).map((h) => buildRecommendation(h));
+    const { holdings } = await buildInventory();
+    const items = holdings.slice(0, limit).map((h) => buildRecommendation(h));
     res.json({ count: items.length, recommendations: items });
   });
 
-  app.get("/api/recommendations/:holdingId", (req, res) => {
-    const holding = inventory.find((h) => h.id === req.params.holdingId);
+  app.get("/api/recommendations/:holdingId", async (req, res) => {
+    const { holdings } = await buildInventory();
+    const holding = holdings.find((h) => h.id === req.params.holdingId);
     if (!holding) {
       res.status(404).json({ error: "Holding not found" });
       return;
@@ -133,10 +182,35 @@ export function createApp() {
     res.json({ recommendation: buildRecommendation(holding) });
   });
 
-  app.get("/api/signals", (_req, res) => res.json({ signals }));
-  app.get("/api/watchlist", (_req, res) => res.json({ watchlist }));
+  app.get("/api/signals", (_req, res) => res.json(loadSignalsResponse()));
+  app.get("/api/watchlist", async (_req, res) => {
+    const { holdings } = await buildInventory();
+    const watchlist = holdings.slice(0, 8).map((h) => ({
+      id: `watch-${h.id}`,
+      holdingId: h.id,
+      assetName: h.assetName,
+      note: "Watch for ask under range low",
+      addedAt: "2026-07-10",
+    }));
+    res.json({ watchlist });
+  });
   app.get("/api/theses", (_req, res) => res.json({ theses }));
-  app.get("/api/sources", (_req, res) => res.json({ sources }));
+  app.get("/api/sources", (_req, res) => {
+    res.json({ sources: loadSources() });
+  });
+  app.patch("/api/sources/:id", (req, res) => {
+    const active = req.body?.active;
+    if (typeof active !== "boolean") {
+      res.status(400).json({ error: "body.active boolean required" });
+      return;
+    }
+    const updated = updateSourceActive(String(req.params.id), active);
+    if (!updated) {
+      res.status(404).json({ error: "Source not found" });
+      return;
+    }
+    res.json({ source: updated });
+  });
 
   return app;
 }

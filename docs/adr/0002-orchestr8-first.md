@@ -1,15 +1,17 @@
 # ADR 0002 — Orchestr8-First Build Sequence
 
-**Status:** Accepted (autonomy model + O1–O4 track **superseded by ADR 0003**)  
+**Status:** Accepted historically; **milestone freeze superseded 2026-08-02** (see ADR 0004)  
 **Date:** 2026-07-23  
 **Owner:** Gregory Williamson / 258 Services  
 **Phase:** Re-sequencing (supersedes phase order in `vip-cursor-build-kit.md`)
 
 > **Update 2026-07-23 — see ADR 0003.** The Orchestr8-first *sequencing* below
-> still holds, but the **autonomy model (A/B/C)** and the **O1–O4 build-harness**
+> still holds as guidance, but the **autonomy model (A/B/C)** and the **O1–O4 build-harness**
 > are superseded: Orchestr8 will **author build specs**, and **Cursor builds them**
-> (autonomy 0 — Orchestr8 never writes or executes). The revised, leaner O1/O2
-> live in ADR 0003 and `docs/backlog.md`.
+> (autonomy 0 — Orchestr8 never writes or executes).
+>
+> **Update 2026-08-02 — see ADR 0004.** Feature freeze / Now-only gates are **OFF**.
+> Remaining work is inventoried in `docs/backlog.md` without milestone refusal.
 
 ## Context
 
@@ -81,7 +83,7 @@ terminal UI + Orchestr8 team controls, Phase 5 mobile, Phase 6 VaultOS.
 - VIP Phases 5–6 and the terminal UI restyle move to **Later**, built via Orchestr8 after O4.
 - The earlier "all roles on all models" UI request becomes a **consumer of O1's model/tool
   layer**, slotting in after O2 rather than being built standalone now.
-- Feature freeze holds: only the **Now** phase (O0) may be built; O1–O4 wait for gates.
+- ~~Feature freeze holds…~~ **Superseded by ADR 0004** — freeze/milestone gates OFF (2026-08-02).
 
 ## Related
 
