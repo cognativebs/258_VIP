@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run IQVault SQL migrations 01–07 in order."""
+"""Run the IQVault catalog spine (01–08) then the dated trust-layer migrations.
+
+The trust layer used to need a separate manual psql step, which is how imports
+ended up running without an immutable snapshot table to write to.
+"""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +11,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS = [
+SPINE = [
     "01_core_spine.sql",
     "02_tcg.sql",
     "03_sports_comics.sql",
@@ -17,6 +21,13 @@ MIGRATIONS = [
     "07_collection_holdings.sql",
     "08_holding_clz_metadata.sql",
 ]
+DATED_MIGRATIONS_DIR = ROOT / "infra" / "db" / "migrations"
+
+
+def migration_paths() -> list[Path]:
+    paths = [ROOT / name for name in SPINE]
+    paths += sorted(p for p in DATED_MIGRATIONS_DIR.glob("*.sql") if not p.name.startswith("_"))
+    return paths
 
 
 def main() -> int:
@@ -37,15 +48,14 @@ def main() -> int:
     conn.autocommit = True
     cur = conn.cursor()
 
-    for name in MIGRATIONS:
-        path = ROOT / name
+    for path in migration_paths():
         if not path.exists():
             print(f"Missing: {path}", file=sys.stderr)
             return 1
         sql = path.read_text(encoding="utf-8")
-        print(f"Applying {name} ...")
+        print(f"Applying {path.name} ...")
         cur.execute(sql)
-        print(f"  OK")
+        print("  OK")
 
     cur.execute(
         """
