@@ -1,5 +1,6 @@
 # IQVault VIP stack — one-shot launcher (desktop shortcut / Launch IQVault.bat)
-# Starts only what is missing: Docker Desktop → Postgres → Comics API → Orchestr8 → UI
+# Starts only what is missing: Docker -> Postgres -> DB migrations -> VIP API ->
+# Comics API -> Orchestr8 -> web UI, then opens the browser.
 param(
     [switch]$NoBrowser
 )
@@ -9,14 +10,19 @@ $Root = Split-Path -Parent $PSScriptRoot
 $Container = "iqvault-postgres"
 $ComposeFile = Join-Path $Root "docker-compose.yml"
 $Ports = @{
-    Postgres   = 5432
-    ComicsApi  = 5200
-    Orchestr8  = 5210
-    IqVaultUi  = 5175
+    Postgres  = 5432
+    VipApi    = 8787
+    ComicsApi = 5200
+    Orchestr8 = 5210
+    Web       = 3000
 }
 
 function Write-Step([string]$Msg) {
     Write-Host "[IQVault] $Msg" -ForegroundColor Cyan
+}
+
+function Write-Warn([string]$Msg) {
+    Write-Host "[IQVault] WARN: $Msg" -ForegroundColor Yellow
 }
 
 function Test-PortListening([int]$Port) {
@@ -34,6 +40,25 @@ function Wait-Port([int]$Port, [int]$TimeoutSec = 90) {
         Start-Sleep -Seconds 2
     }
     return $false
+}
+
+function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $r = Invoke-RestMethod -Uri $Url -TimeoutSec 5
+            if (& $Ok $r) { return $true }
+        } catch {
+            # still starting
+        }
+        Start-Sleep -Seconds 2
+    }
+    return $false
+}
+
+function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$CommandLine) {
+    $arg = "/k title $Title && cd /d `"$WorkingDir`" && $CommandLine"
+    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $WorkingDir -WindowStyle Minimized | Out-Null
 }
 
 function Test-DockerReady {
@@ -62,7 +87,7 @@ function Ensure-Docker {
         return
     }
     if (-not (Start-DockerDesktop)) {
-        throw "Docker Desktop not found. Install Docker Desktop or start it manually."
+        throw "Docker Desktop not found. Install Docker Desktop or start Postgres another way."
     }
     Write-Step "Waiting for Docker (up to 3 min)..."
     $deadline = (Get-Date).AddMinutes(3)
@@ -77,27 +102,32 @@ function Ensure-Docker {
 }
 
 function Ensure-Postgres {
-    $running = docker ps --filter "name=$Container" --format "{{.Names}}" 2>$null
-    if ($running -eq $Container) {
-        Write-Step "Postgres container already running."
+    $existing = docker ps -a --filter "name=$Container" --format "{{.Names}}" 2>$null
+    if ($existing -eq $Container) {
+        $running = docker ps --filter "name=$Container" --format "{{.Names}}" 2>$null
+        if ($running -eq $Container) {
+            Write-Step "Postgres container already running."
+        } else {
+            Write-Step "Starting existing Postgres container..."
+            docker start $Container 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not start Postgres container '$Container'. Run: docker logs $Container"
+            }
+        }
     } else {
-        Write-Step "Starting Postgres ($Container)..."
+        Write-Step "Creating Postgres container..."
         if (Test-Path $ComposeFile) {
             Push-Location $Root
-            docker compose up -d postgres 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                docker start $Container 2>&1 | Out-Null
-            }
+            docker compose up -d 2>&1 | Out-Null
             Pop-Location
         } else {
-            docker start $Container 2>&1 | Out-Null
+            throw "docker-compose.yml not found at $ComposeFile."
         }
         if ($LASTEXITCODE -ne 0) {
-            throw "Could not start Postgres container '$Container'. Run: docker logs $Container"
+            throw "Could not create Postgres container. Run: docker compose up -d"
         }
-        # Auto-start after reboot when Docker Desktop is running
-        docker update --restart unless-stopped $Container 2>$null | Out-Null
     }
+    docker update --restart unless-stopped $Container 2>$null | Out-Null
 
     Write-Step "Waiting for Postgres on port $($Ports.Postgres)..."
     if (-not (Wait-Port $Ports.Postgres 120)) {
@@ -116,23 +146,57 @@ function Ensure-Postgres {
     Write-Step "Postgres ready."
 }
 
-function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $r = Invoke-RestMethod -Uri $Url -TimeoutSec 5
-            if (& $Ok $r) { return $true }
-        } catch {
-            # still starting
-        }
-        Start-Sleep -Seconds 2
+function Ensure-NodeModules {
+    if (-not (Test-Path (Join-Path $Root "node_modules"))) {
+        Write-Step "Installing npm dependencies (first run — this can take a few minutes)..."
+        Push-Location $Root
+        npm ci
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed." }
+        Pop-Location
     }
-    return $false
 }
 
-function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$CommandLine) {
-    $arg = "/k title $Title && cd /d `"$WorkingDir`" && $CommandLine"
-    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $WorkingDir -WindowStyle Minimized | Out-Null
+function Ensure-PackagesBuilt {
+    # @vip/evidence etc. resolve through gitignored dist/ — every workspace
+    # that imports them (API, web) fails ERR_MODULE_NOT_FOUND without this.
+    Write-Step "Building shared packages..."
+    Push-Location $Root
+    npm run build:packages
+    if ($LASTEXITCODE -ne 0) { throw "npm run build:packages failed." }
+    Pop-Location
+}
+
+function Ensure-PythonDeps {
+    Write-Step "Checking Python dependencies (psycopg2, pytest)..."
+    Push-Location $Root
+    pip install -r requirements-dev.txt -q
+    Pop-Location
+}
+
+function Ensure-Migrated {
+    Write-Step "Applying database migrations..."
+    Push-Location $Root
+    python scripts/migrate_db.py
+    $code = $LASTEXITCODE
+    Pop-Location
+    if ($code -ne 0) {
+        Write-Warn "migrate_db.py reported a failure — VIP API may not serve comics. See the output above."
+    } else {
+        Write-Step "Migrations applied."
+    }
+}
+
+function Ensure-VipApi {
+    if (Test-PortListening $Ports.VipApi) {
+        Write-Step "VIP API already on port $($Ports.VipApi)."
+        return
+    }
+    Write-Step "Starting VIP API..."
+    Start-MinimizedProcess "IQVault VIP API" $Root "npm run api"
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/api/inventory" { param($j) $null -ne $j.comicsAvailable } 90)) {
+        throw "VIP API failed to start on port $($Ports.VipApi). Check the 'IQVault VIP API' window."
+    }
+    Write-Step "VIP API ready."
 }
 
 function Ensure-ComicsApi {
@@ -143,9 +207,20 @@ function Ensure-ComicsApi {
     Write-Step "Starting Comics API..."
     Start-MinimizedProcess "IQVault Comics API" $Root "python api\comics_server.py"
     if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.ComicsApi)/api/comics/health" { param($j) $j.ok -eq $true } 90)) {
-        throw "Comics API failed to start on port $($Ports.ComicsApi)."
+        Write-Warn "Comics API not healthy yet — the Comics tab will fall back to VIP (read-only)."
+        return
     }
     Write-Step "Comics API ready."
+}
+
+function Ensure-Orchestr8Env {
+    $orchRoot = Join-Path $Root "orchestr8"
+    $envFile = Join-Path $orchRoot ".env"
+    $envExample = Join-Path $orchRoot ".env.example"
+    if (-not (Test-Path $envFile) -and (Test-Path $envExample)) {
+        Copy-Item $envExample $envFile
+        Write-Warn "Created orchestr8\.env from the template — add a provider key (OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY) to enable Ask."
+    }
 }
 
 function Ensure-Orchestr8 {
@@ -153,62 +228,64 @@ function Ensure-Orchestr8 {
         Write-Step "Orchestr8 already on port $($Ports.Orchestr8)."
         return
     }
+    Ensure-Orchestr8Env
     Write-Step "Starting Orchestr8..."
     $orchRoot = Join-Path $Root "orchestr8"
     Start-MinimizedProcess "IQVault Orchestr8" $orchRoot "pip install -r requirements.txt -q 2>nul && python api\server.py"
-    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" { param($j) $j.ok -eq $true } 90)) {
-        Write-Host "[IQVault] WARN: Orchestr8 not healthy yet (check orchestr8/.env keys). UI will still load." -ForegroundColor Yellow
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" { param($j) $null -ne $j.service } 90)) {
+        Write-Warn "Orchestr8 not reachable yet. Ask on the Comics tab will stay disabled until it is."
         return
     }
-    Write-Step "Orchestr8 ready."
+    Write-Step "Orchestr8 gateway is up (Ask needs a provider key in orchestr8\.env to fully enable)."
 }
 
-function Ensure-IqVaultUi {
-    $iqDir = Join-Path $Root "iqvault"
-    if (-not (Test-Path (Join-Path $iqDir "node_modules"))) {
-        Write-Step "Installing IQVault UI dependencies (first run)..."
-        Push-Location $iqDir
-        npm install --no-fund --no-audit
-        Pop-Location
-    }
-
-    if (Test-PortListening $Ports.IqVaultUi) {
-        Write-Step "IQVault UI already on port $($Ports.IqVaultUi)."
+function Ensure-Web {
+    if (Test-PortListening $Ports.Web) {
+        Write-Step "IQVault web already on port $($Ports.Web)."
         return
     }
-
-    Write-Step "Starting IQVault UI..."
-    $arg = "/k title IQVault UI && cd /d `"$iqDir`" && npm run dev"
-    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $iqDir -WindowStyle Normal | Out-Null
-
-    if (-not (Wait-Port $Ports.IqVaultUi 120)) {
-        throw "IQVault UI failed to bind port $($Ports.IqVaultUi)."
+    Write-Step "Starting IQVault web..."
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/k title IQVault Web && cd /d `"$Root`" && npm run web" -WorkingDirectory $Root -WindowStyle Normal | Out-Null
+    if (-not (Wait-Port $Ports.Web 120)) {
+        throw "IQVault web failed to bind port $($Ports.Web)."
     }
-    Write-Step "IQVault UI ready."
+    Write-Step "IQVault web ready."
 }
 
 # --- main ---
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  IQVault VIP — starting stack" -ForegroundColor Green
-Write-Host "  http://127.0.0.1:$($Ports.IqVaultUi)" -ForegroundColor Green
+Write-Host "  http://127.0.0.1:$($Ports.Web)" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
 try {
     Ensure-Docker
     Ensure-Postgres
+    Ensure-NodeModules
+    Ensure-PackagesBuilt
+    Ensure-PythonDeps
+    Ensure-Migrated
+    Ensure-VipApi
     Ensure-ComicsApi
     Ensure-Orchestr8
-    Ensure-IqVaultUi
+    Ensure-Web
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
-        Start-Process "http://127.0.0.1:$($Ports.IqVaultUi)/"
+        Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
     }
 
     Write-Host ""
-    Write-Step "All services up. Login: greg@iqvault.local / vault"
+    Write-Step "All services up:"
+    Write-Step "  VIP API    http://127.0.0.1:$($Ports.VipApi)"
+    Write-Step "  Comics API http://127.0.0.1:$($Ports.ComicsApi)"
+    Write-Step "  Orchestr8  http://127.0.0.1:$($Ports.Orchestr8)"
+    Write-Step "  Web        http://127.0.0.1:$($Ports.Web)"
+    Write-Host ""
+    Write-Step "If the collection looks empty, import it once with:"
+    Write-Step "  python scripts/import_clz.py --xml <your export.xml>"
     Write-Host ""
 } catch {
     Write-Host ""
