@@ -24,11 +24,8 @@ from services.registry import (  # noqa: E402
     models_public_list,
     pipeline_order as registry_pipeline_order,
 )
-from services.roles import (  # noqa: E402
-    configured_providers,
-    load_config,
-    provider_key_warnings,
-)
+from services.provider_env import configured_providers, provider_key_warnings  # noqa: E402
+from services.roles import load_config  # noqa: E402
 
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
 
