@@ -101,10 +101,18 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] Scan + asking price → decision engine
 - [ ] ≤4 taps; offline capture + sync; &lt;8s field trial
 
-### I. Phase 6 — VaultOS pilot + grading capture *(not started)*
+### I. Phase 6 — VaultOS pilot + grading capture *(partial — scan intake 2026-08-09)*
 
+- [x] Capture session model + Ricoh fi-8170 intake pipeline (`@vip/scan-ingest`,
+      ADR 0008) — duplex folder-drop → ID candidates → duplicate alert →
+      inventory confirm (Hold) → eBay listing draft idle without tokens
+- [x] Migration `20260809_03_capture_session.sql` (`vault_media.*`)
+- [x] VIP API `/api/scan/*` review/confirm surface
+- [ ] Write-through from API store → Postgres `vault_media` + `vault_collection.holding`
+- [ ] Operator review UI (IQVault / VaultOS face)
+- [ ] Live catalog adapters (replace fixture sports/TCG matcher)
+- [ ] Museum-quality capture tier (same media model, `quality_tier=museum`)
 - [ ] Store constraints on same engine as VIP
-- [ ] Capture session model (measurement provenance; ML crossover still deferred ideas)
 - [ ] One cooperative store pilot metric
 
 ### J. Data foundation leftovers
@@ -161,7 +169,7 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 - AI glasses / wearable interface
 - PSA → CGC/TAG crossover ML
 - Full POS & event management
-- Marketplace listing automation
+- Marketplace listing automation *(scan path queues eBay drafts idle without tokens; live submit still deferred)*
 - Custom / unsupervised model training
 - Every collectible category at once
 - Final legal names, domains, trademarks — names now chosen (Crucible · Forge · Temper, see [`docs/branding/naming-decision.md`](branding/naming-decision.md)); clearance + store-face name still open
