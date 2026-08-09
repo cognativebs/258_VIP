@@ -7,22 +7,21 @@ import {
   SUGGESTED_PROMPTS,
 } from "@/lib/analyticsContext";
 import {
+  fetchOrchestr8Agents,
   fetchOrchestr8Health,
   streamOrchestr8Job,
   type JobStep,
   type Orchestr8Health,
 } from "@/lib/orchestr8Api";
+import {
+  FALLBACK_AGENTS,
+  agentMap,
+  teamSummary,
+  type AgentInfo,
+} from "@/lib/orchestr8Roles";
+import { loadTeamSettings, type TeamSettings } from "@/lib/orchestr8TeamSettings";
 import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
-
-/** Analysis Council — matches the Orchestr8 Console "council_analysis" preset. */
-const ANALYSIS_ROLES = [
-  "investment_analyst",
-  "pricing_agent",
-  "liquidity_analyst",
-  "portfolio_manager",
-  "analyst",
-  "prediction_engine",
-];
+import { TeamOrchestrationPanel } from "./TeamOrchestrationPanel";
 
 type Message = {
   role: "user" | "assistant";
@@ -62,6 +61,9 @@ export function AnalyticsChat({
   filteredValue: number;
   source: "comics-api" | "vip-api" | null;
 }) {
+  const [team, setTeam] = useState<TeamSettings>(() => loadTeamSettings());
+  const [agents, setAgents] = useState<AgentInfo[]>(FALLBACK_AGENTS);
+  const [showTeamPanel, setShowTeamPanel] = useState(false);
   const [health, setHealth] = useState<Orchestr8Health | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -70,9 +72,11 @@ export function AnalyticsChat({
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const configured = health?.ok === true;
+  const teamLabel = teamSummary(team.roles, team.mode, agents);
 
   const contextJson = useMemo(
     () =>
@@ -93,6 +97,11 @@ export function AnalyticsChat({
 
   useEffect(() => {
     void fetchOrchestr8Health().then(setHealth);
+    void fetchOrchestr8Agents()
+      .then((data) => {
+        if (data.agents?.length) setAgents(data.agents);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -130,11 +139,12 @@ export function AnalyticsChat({
         const result = await streamOrchestr8Job(
           {
             task: "comics_collection_analysis",
-            roles: ANALYSIS_ROLES,
-            mode: "parallel",
+            roles: team.roles,
+            mode: team.roles.length === 1 ? "single" : team.mode,
             question: trimmed,
             contextJson,
-            council: "analysis",
+            council: team.council,
+            modelOverrides: team.modelOverrides,
           },
           { onStep: (step) => setLiveSteps((prev) => [...prev, step]) },
           controller.signal,
@@ -161,23 +171,36 @@ export function AnalyticsChat({
         abortRef.current = null;
       }
     },
-    [loading, configured, contextJson],
+    [loading, configured, contextJson, team],
   );
+
+  const progressSteps = useMemo(() => {
+    const map = agentMap(agents);
+    const steps = team.roles.map((id) => map[id]?.label ?? id);
+    if (team.roles.length > 1) steps.push("Synthesis");
+    return steps;
+  }, [team.roles, agents]);
 
   const activeStep = Math.min(
     Math.floor(elapsed / SECS_PER_STEP),
-    Math.max(ANALYSIS_ROLES.length - 1, 0),
+    Math.max(progressSteps.length - 1, 0),
   );
-  const estTotal = ANALYSIS_ROLES.length * SECS_PER_STEP;
+  const estTotal = Math.max(progressSteps.length, 1) * SECS_PER_STEP;
 
   return (
     <div className="bb-analytics">
       <div className="bb-analytics-head">
         <span>Conversational analytics</span>
         <div className="bb-analytics-head-right">
-          <span className="bb-analytics-provider">
-            Analysis Council · {ANALYSIS_ROLES.length} agents
-          </span>
+          <span className="bb-analytics-provider">{teamLabel}</span>
+          <button
+            type="button"
+            className="bb-link-btn"
+            onClick={() => setShowTeamPanel(true)}
+            title="Pick Orchestr8 council, roles, and models"
+          >
+            AI team
+          </button>
         </div>
       </div>
 
@@ -187,7 +210,7 @@ export function AnalyticsChat({
           ? ` · selected ${selectedComic.Series ?? ""} #${selectedComic["Issue Full"] || selectedComic.Issue || ""}`
           : ""}
         {source === "vip-api"
-          ? " · VIP → Postgres (read-only)"
+          ? " · VIP → Postgres"
           : source === "comics-api"
             ? " · Comics API (live)"
             : ""}
@@ -201,9 +224,7 @@ export function AnalyticsChat({
           </p>
           <code>python orchestr8/api/server.py</code>
           <p className="bb-analytics-setup-note">
-            Specialized agents price, rank liquidity, and challenge high-dollar calls before they
-            reach you. Ask stays on this Comics tab once the gateway is up — results can later
-            land on Watch / Theses.
+            Open <strong>AI team</strong> to pick councils and models once the gateway is up.
           </p>
         </div>
       ) : null}
@@ -212,8 +233,8 @@ export function AnalyticsChat({
         {messages.length === 0 ? (
           <div className="bb-analytics-welcome">
             <p>
-              Ask about your <strong>current filter</strong>. Answers come back as actions with
-              confidence and reasons — ranges, never point values as fact.
+              Type your own question in the box below, or tap a suggestion. Open{" "}
+              <strong>AI team</strong> to change council / roles / models.
             </p>
             <div className="bb-prompt-grid">
               {SUGGESTED_PROMPTS.map((p) => (
@@ -292,7 +313,7 @@ export function AnalyticsChat({
             <div className="bb-msg-body bb-msg-loading">
               <div className="bb-load-head">
                 <span className="bb-blink">▮</span> Team analyzing{" "}
-                {filtered.length.toLocaleString()} books…
+                {filtered.length.toLocaleString()} books ({teamLabel})…
                 <span className="bb-load-timer">{fmtTime(elapsed)}</span>
               </div>
               <ol className="bb-load-steps">
@@ -307,15 +328,15 @@ export function AnalyticsChat({
                           : ""}
                       </li>
                     ))
-                  : ANALYSIS_ROLES.map((role, i) => (
+                  : progressSteps.map((label, i) => (
                       <li
-                        key={role}
+                        key={`${label}-${i}`}
                         className={
                           i < activeStep ? "done" : i === activeStep ? "active" : "pending"
                         }
                       >
                         <span className="bb-load-dot" />
-                        {role.replace(/_/g, " ")}
+                        {label}
                       </li>
                     ))}
                 {liveSteps.length > 0 ? (
@@ -327,7 +348,7 @@ export function AnalyticsChat({
               </ol>
               <span className="bb-load-hint">
                 {liveSteps.length > 0
-                  ? `Live · ${liveSteps.length} of ~${ANALYSIS_ROLES.length} agents done · ${fmtUsd(
+                  ? `Live · ${liveSteps.length} of ~${team.roles.length} agents done · ${fmtUsd(
                       liveSteps.reduce((sum, s) => sum + (s.costUsd || 0), 0),
                     )} so far`
                   : `Estimated progress · multi-agent runs take ~${estTotal}s`}
@@ -346,11 +367,18 @@ export function AnalyticsChat({
           void send(input);
         }}
       >
+        <label className="bb-analytics-input-label" htmlFor="bb-analytics-question">
+          Your question
+        </label>
         <textarea
+          id="bb-analytics-question"
+          ref={inputRef}
           className="bb-analytics-input"
-          rows={2}
+          rows={3}
           placeholder={
-            configured ? "Ask about this filter…" : "Start Orchestr8 first (start_orchestr8.bat)"
+            configured
+              ? "Type your own question about this filter…"
+              : "Start Orchestr8 first (Launch IQVault.bat)"
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -378,6 +406,7 @@ export function AnalyticsChat({
               onClick={() => {
                 setMessages([]);
                 setError(null);
+                inputRef.current?.focus();
               }}
               disabled={!messages.length}
             >
@@ -393,6 +422,15 @@ export function AnalyticsChat({
           </button>
         </div>
       </form>
+
+      {showTeamPanel ? (
+        <TeamOrchestrationPanel
+          settings={team}
+          onChange={setTeam}
+          onClose={() => setShowTeamPanel(false)}
+          gatewayHealth={health}
+        />
+      ) : null}
     </div>
   );
 }

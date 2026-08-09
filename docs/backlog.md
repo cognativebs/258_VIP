@@ -87,7 +87,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
-- [ ] Team/role picker for collector-face analytics (currently fixed Analysis Council preset)
+- [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09
 - [x] Single inventory truth across Comics + Binder in Postgres (ADR 0007) — VIP API reads both; unified Bloomberg grid still open above
 
 ### G. Product trial & trust

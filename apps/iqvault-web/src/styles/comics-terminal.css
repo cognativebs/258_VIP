@@ -1046,6 +1046,16 @@
   flex-shrink: 0;
 }
 
+.bb-analytics-input-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bb-dim);
+}
+
 .bb-analytics-input {
   width: 100%;
   background: #000;
@@ -1056,7 +1066,7 @@
   padding: 10px;
   border-radius: 6px;
   resize: vertical;
-  min-height: 52px;
+  min-height: 72px;
   outline: none;
 }
 
