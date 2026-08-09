@@ -1,4 +1,4 @@
-# IQVault VIP stack — one-shot launcher (desktop shortcut / Launch IQVault.bat)
+# IQVault VIP stack - one-shot launcher (desktop shortcut / Launch IQVault.bat)
 # Starts only what is missing: Docker -> Postgres -> DB migrations -> VIP API ->
 # Comics API -> Orchestr8 -> web UI, then opens the browser.
 #
@@ -154,7 +154,7 @@ function Ensure-Postgres {
 
 function Ensure-NodeModules {
     if (-not (Test-Path (Join-Path $Root "node_modules"))) {
-        Write-Step "Installing npm dependencies (first run — this can take a few minutes)..."
+        Write-Step "Installing npm dependencies (first run - this can take a few minutes)..."
         Push-Location $Root
         npm ci
         if ($LASTEXITCODE -ne 0) { throw "npm ci failed." }
@@ -163,7 +163,7 @@ function Ensure-NodeModules {
 }
 
 function Ensure-PackagesBuilt {
-    # @vip/evidence etc. resolve through gitignored dist/ — every workspace
+    # @vip/evidence etc. resolve through gitignored dist/ - every workspace
     # that imports them (API, web) fails ERR_MODULE_NOT_FOUND without this.
     Write-Step "Building shared packages..."
     Push-Location $Root
@@ -186,7 +186,7 @@ function Ensure-Migrated {
     $code = $LASTEXITCODE
     Pop-Location
     if ($code -ne 0) {
-        Write-Warn "migrate_db.py reported a failure — VIP API may not serve comics. See the output above."
+        Write-Warn "migrate_db.py reported a failure - VIP API may not serve comics. See the output above."
     } else {
         Write-Step "Migrations applied."
     }
@@ -262,7 +262,7 @@ function Ensure-ComicsApi {
     Write-Step "Starting Comics API..."
     Start-MinimizedProcess "IQVault Comics API" $Root "python api\comics_server.py"
     if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.ComicsApi)/api/comics/health" { param($j) $j.ok -eq $true } 90)) {
-        Write-Warn "Comics API not healthy yet — the Comics tab will fall back to VIP (read-only)."
+        Write-Warn "Comics API not healthy yet - the Comics tab will fall back to VIP (read-only)."
         return
     }
     Write-Step "Comics API ready."
@@ -274,7 +274,7 @@ function Ensure-Orchestr8Env {
     $envExample = Join-Path $orchRoot ".env.example"
     if (-not (Test-Path $envFile) -and (Test-Path $envExample)) {
         Copy-Item $envExample $envFile
-        Write-Warn "Created orchestr8\.env from the template — add a provider key (OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY) to enable Ask."
+        Write-Warn "Created orchestr8\.env from the template - add a provider key (OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY) to enable Ask."
     }
 }
 
@@ -405,7 +405,7 @@ function Write-StackSummary {
 # --- main ---
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  IQVault VIP — starting stack" -ForegroundColor Green
+Write-Host "  IQVault VIP - starting stack" -ForegroundColor Green
 Write-Host "  http://127.0.0.1:$($Ports.Web)" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""

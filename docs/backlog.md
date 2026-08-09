@@ -83,6 +83,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 
 - [x] Bloomberg-style restyle of `apps/iqvault-web` (gold-dark Personal Intelligence shell from `:5175`)
 - [x] Full comics grid + filters on VIP face (`/collections/comics`; Comics API `:5200` with VIP inventory fallback)
+- [x] Comics Terminal edits via VIP when `:5200` is down (`POST /api/comics/holding/:id`, same Postgres) — 2026-08-09
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)

@@ -15,6 +15,12 @@ import {
   loadComicsHoldings,
   type ComicsPayload,
 } from "./lib/comicsHoldings.js";
+import {
+  COMICS_WRITE_RULE,
+  comicHoldingPatchBodySchema,
+  updateComicHolding,
+  type UpdateComicHoldingResult,
+} from "./lib/comicsWrite.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { buildRecommendation } from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
@@ -80,6 +86,10 @@ function includePokemonSeeds(): boolean {
 
 export type AppDeps = {
   loadComics?: () => Promise<ComicsPayload>;
+  updateComicHolding?: (
+    sourceRowId: string,
+    fields: Record<string, unknown>,
+  ) => Promise<UpdateComicHoldingResult>;
 };
 
 type InventoryBundle = {
@@ -481,6 +491,38 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     res.json({ source: updated });
+  });
+
+  /**
+   * Comics Terminal edits — same Postgres as Python Comics API :5200.
+   * Collector face uses this when :5200 is down so VIP→Postgres is not
+   * stuck read-only for operator patches (e.g. Mark verified).
+   */
+  app.post("/api/comics/holding/:id", async (req, res) => {
+    const parsed = comicHoldingPatchBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        ok: false,
+        error: parsed.error.issues.map((i) => i.message).join("; ") || "Invalid body",
+      });
+      return;
+    }
+    const fields =
+      "fields" in parsed.data && parsed.data.fields
+        ? parsed.data.fields
+        : (parsed.data as Record<string, unknown>);
+    const patch = deps.updateComicHolding ?? updateComicHolding;
+    const result = await patch(String(req.params.id), fields as Record<string, unknown>);
+    if (!result.ok) {
+      res.status(result.status).json({ ok: false, error: result.error });
+      return;
+    }
+    res.json({
+      ok: true,
+      row: result.row,
+      provenance: result.provenance,
+      ruleOrModelVersion: COMICS_WRITE_RULE,
+    });
   });
 
   return app;
