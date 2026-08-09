@@ -121,28 +121,23 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 Found while auditing whether the collector face reports the real collection.
 These are rule violations and wrong-data paths, not missing features.
 
-- [ ] **Rule 4 violation — fabricated comps.** `services/api/src/lib/recommendations.ts`
-      `syntheticSales()` invents four sales at CLZ price × 0.9/1.0/1.1/0.95 and feeds
-      them to the decision engine, which then reports a market range with
-      `matchedSales: 4` and a confidence band. Must become "insufficient evidence"
-      until a real comps adapter answers.
-- [ ] **Wrong numbers on every VIP surface.** VIP API serves a 120-row
-      `inventory-sample.json` as comics inventory; the real collection is 2,700
-      holdings in Postgres. Portfolio / recommendations / watchlist / sell-queue all
-      compute off the sample.
-- [ ] **Silent degradation.** `/collections/comics` falls back from live Postgres to the
-      120-row sample when `:5200` is down; fallback must be loud, not quiet.
-- [ ] **Rule 3 violation — snapshot bypass.** `load_comics.py` writes derived holdings
-      without ever inserting `vault_evidence.raw_snapshots`; the table and
-      `holding.raw_snapshot_id` exist but are unused, so imports are not regenerable
-      from an immutable source of record.
-- [ ] **Two CLZ parsers.** `clz_comic_parser.py` (runs, 2,700 records) and
-      `packages/ingest` `clz-xml.ts` (has provenance + snapshot store, imported by
-      nothing at runtime). Resolved by ADR 0006 — Python is authoritative.
-- [ ] **Hardcoded user profile.** Every recommendation applies `budget: 150`,
-      `riskTolerance: "medium"` regardless of user.
-- [ ] **Hardcoded/derived-from-nothing endpoints.** `/api/theses` is a literal array;
-      `/api/watchlist` is "first 8 holdings"; `/api/hunts` is a seed file.
+- [x] **Rule 4 violation — fabricated comps.** `syntheticSales()` deleted 2026-08-09.
+      Recommendations now return `insufficientMarketEvidence` +
+      `INSUFFICIENT_MARKET_EVIDENCE` until eBay / TCGplayer adapters answer.
+- [x] **Wrong numbers on every VIP surface.** VIP API reads `vault_collection.holding`
+      (2,700 comics) via Postgres. Sample JSON is a test fixture only.
+- [x] **Silent degradation.** Comics-down returns `comicsAvailable: false` /
+      `comicsSource: "unavailable"` and 503 on sell-queue / recommendations /
+      watchlist / theses. UI banners the gap — no sample portfolio.
+- [x] **Rule 3 violation — snapshot bypass.** Fixed in PR #4 (`import_clz.py` +
+      `raw_snapshots`).
+- [x] **Two CLZ parsers.** ADR 0006 — Python authoritative; `@vip/ingest` removed.
+- [x] **Hardcoded user profile.** Replaced with `user-constraints.json` /
+      `VIP_USER_CONSTRAINTS_PATH`; empty defaults when unset (no invented budget).
+- [x] **Hardcoded/derived-from-nothing endpoints.** Sell-queue / watchlist / theses
+      now derive from live holdings. `/api/hunts` remains a seed file (tracked below).
+- [ ] **Hunts still seed data.** `/api/hunts` reads `seeds/hunts.ts` — move to Postgres.
+- [ ] **Live comps adapters.** eBay sold listings + TCGplayer market (Decision D).
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 

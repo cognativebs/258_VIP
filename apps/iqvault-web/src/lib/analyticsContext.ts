@@ -99,8 +99,8 @@ export function buildAnalyticsContext(args: {
   return {
     dataSource:
       source === "comics-api"
-        ? "Comics Postgres API (live holdings)"
-        : "VIP API inventory sample (fallback — not full collection)",
+        ? "Comics Postgres API (live holdings, editable)"
+        : "VIP API → same Postgres collection (read-only)",
     fullVault: {
       records: meta?.recordCount,
       totalValue: meta?.totalValue,

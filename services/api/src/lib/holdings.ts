@@ -61,10 +61,19 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
   const assumed = String(row["Assumed Grade"] ?? "");
   const gradeRating = num(row["Grade Rating"]);
   const externalIds = parseExternalIds(row);
-  const isPokemonSeed = externalIds.length > 0;
+  // Comics also carry externalIds (barcode, clz_hash, bp_comic). Only TCG
+  // catalog sources mark a row as a Pokémon seed.
+  const isPokemonSeed = externalIds.some((e) =>
+    ["pokemontcg", "tcgdex", "tcgplayer"].includes(e.source.toLowerCase()),
+  );
   const isNmAssumed =
     assumed.toLowerCase().includes("nm") ||
     (gradeRating === 0 && String(row["Slab Status"] ?? "").toLowerCase() === "raw");
+  const source = isPokemonSeed ? "vip_pokemon_seed" : "clz_import";
+  // ADR 0006 — Python owns CLZ ingest; keep the seed tag distinct.
+  const ruleOrModelVersion = isPokemonSeed
+    ? "pokemon-seed@0.1.0"
+    : "clz-python-ingest@0.2.0";
 
   return {
     id: String(row["CLZ Hash"] ?? `holding-${index}`),
@@ -95,13 +104,13 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     externalIds,
     provenance: isNmAssumed
       ? markInferred({
-          source: isPokemonSeed ? "vip_pokemon_seed" : "clz_import",
-          ruleOrModelVersion: isPokemonSeed ? "pokemon-seed@0.1.0" : "clz-adapter@0.1.0",
+          source,
+          ruleOrModelVersion,
           notes: "NM assumed · unverified",
         })
       : markObserved({
-          source: isPokemonSeed ? "vip_pokemon_seed" : "clz_import",
-          ruleOrModelVersion: isPokemonSeed ? "pokemon-seed@0.1.0" : "clz-adapter@0.1.0",
+          source,
+          ruleOrModelVersion,
           confidence: 0.85,
         }),
   };
