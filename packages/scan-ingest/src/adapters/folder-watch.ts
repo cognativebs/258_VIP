@@ -180,6 +180,7 @@ export function batchInputFromPages(
     categoryHint?: ScanBatchInput["categoryHint"];
     notes?: string;
     tenantId?: string | null;
+    device?: string;
   } = {},
 ): ScanBatchInput {
   const units = pairPagesIntoUnits(
@@ -188,7 +189,7 @@ export function batchInputFromPages(
     opts.categoryHint,
   );
   return {
-    device: RICOH_FI8170_DEVICE,
+    device: opts.device?.trim() || RICOH_FI8170_DEVICE,
     purpose: "inventory_intake",
     qualityTier: "intake",
     categoryHint: opts.categoryHint ?? null,

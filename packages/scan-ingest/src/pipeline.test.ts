@@ -62,10 +62,71 @@ describe("Ricoh fi-8170 scan → inventory pipeline", () => {
     expect(result.decisionAction).toBe("Hold");
     expect(result.commit.source).toBe(SCAN_HOLDING_SOURCE);
     expect(result.commit.assumedGrade).toBe("NM");
+    expect(result.commit.needsVerification).toBe(true);
     expect(result.commit.provenance.notes).toMatch(/NM assumed · unverified/);
     expect(result.ebayDraft?.status).toBe("pending_credentials");
     expect(result.ebayDraft?.emptyReason).toMatch(/tokens not configured/);
     expect(result.unit.status).toBe("confirmed");
+    expect(result.unit.confirmedAssetId).toBe(result.commit.assetId);
+
+    const again = confirmScanUnit(
+      {
+        unitId: unit.id,
+        selectedCandidateKey: "sports:topps:1986:jordan:57",
+      },
+      { store },
+    );
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.commit.assetId).toBe(result.commit.assetId);
+  });
+
+  it("keeps batch-open duplicate alert when confirm inventory is empty", async () => {
+    const adapter = new FolderWatchAdapter({
+      rootLabel: "scans/fi8170",
+      pairing: "sequential_duplex",
+      categoryHint: "pokemon",
+    });
+    adapter.ingestDescriptors([
+      {
+        fileName: "char_front.jpg",
+        bytes: "char-front-2",
+        ocrText: "Charizard Base Set 4/102 holo",
+      },
+      { fileName: "char_back.jpg", bytes: "char-back-2" },
+    ]);
+    const pages = await adapter.listPages();
+    const store = new ScanSessionStore();
+    const { batch } = openScanBatch(
+      batchInputFromPages(pages, { categoryHint: "pokemon" }),
+      {
+        store,
+        catalog: FIXTURE_CATALOG,
+        inventory: [
+          {
+            id: "holding-existing-charizard",
+            assetName: "Charizard",
+            quantity: 1,
+            catalogKey: "pokemon:base-set:4:charizard",
+            externalIds: [{ source: "pokemontcg", value: "base1-4" }],
+          },
+        ],
+      },
+    );
+    const unit = batch.units[0]!;
+    expect(unit.status).toBe("duplicate_alert");
+
+    const blocked = confirmScanUnit(
+      {
+        unitId: unit.id,
+        selectedCandidateKey: "pokemon:base-set:4:charizard",
+        acknowledgeDuplicates: false,
+      },
+      { store, inventory: [] },
+    );
+    expect(blocked.ok).toBe(false);
+    if (blocked.ok) return;
+    expect(blocked.code).toBe("DUPLICATE_UNACKNOWLEDGED");
   });
 
   it("alerts on duplicates and blocks confirm until acknowledged", async () => {

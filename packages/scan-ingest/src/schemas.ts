@@ -119,6 +119,8 @@ export const ScanUnitSchema = z.object({
   selectedCandidateKey: z.string().nullable().optional(),
   duplicateAlert: DuplicateAlertSchema.nullable().optional(),
   holdingId: UuidSchema.nullable().optional(),
+  /** Stable asset id after confirm — kept for idempotent re-confirm. */
+  confirmedAssetId: UuidSchema.nullable().optional(),
   rawSnapshotId: UuidSchema.nullable().optional(),
   idObservationId: UuidSchema.nullable().optional(),
   ebayListingDraftId: UuidSchema.nullable().optional(),

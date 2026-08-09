@@ -22,6 +22,7 @@ import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import {
   confirmScanFromApi,
   getScanBatch,
+  inventoryLookupFromHoldings,
   listScanBatches,
   openScanFromApi,
   scanMeta,
@@ -511,9 +512,14 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ batch });
   });
 
-  app.post("/api/scan/batches", (req, res) => {
+  app.post("/api/scan/batches", async (req, res) => {
     try {
-      const result = openScanFromApi(req.body ?? {});
+      const body = req.body ?? {};
+      const inventory =
+        Array.isArray(body.inventory) && body.inventory.length > 0
+          ? body.inventory
+          : inventoryLookupFromHoldings((await buildInventory(deps)).holdings);
+      const result = openScanFromApi({ ...body, inventory });
       res.status(201).json({
         batch: result.batch,
         rawSnapshots: result.rawSnapshots,
@@ -527,12 +533,20 @@ export function createApp(deps: AppDeps = {}) {
     }
   });
 
-  app.post("/api/scan/units/:id/confirm", (req, res) => {
+  app.post("/api/scan/units/:id/confirm", async (req, res) => {
     try {
-      const result = confirmScanFromApi({
-        ...(req.body ?? {}),
-        unitId: String(req.params.id),
-      });
+      const body = req.body ?? {};
+      const inventory =
+        Array.isArray(body.inventory) && body.inventory.length > 0
+          ? body.inventory
+          : inventoryLookupFromHoldings((await buildInventory(deps)).holdings);
+      const result = confirmScanFromApi(
+        {
+          ...body,
+          unitId: String(req.params.id),
+        },
+        inventory,
+      );
       if (!result.ok) {
         const status =
           result.code === "DUPLICATE_UNACKNOWLEDGED"

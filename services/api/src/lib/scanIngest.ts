@@ -15,6 +15,7 @@ import {
   type ScanBatchInput,
   type ScanPageInput,
 } from "@vip/scan-ingest";
+import type { ApiHolding } from "./holdings.js";
 
 /** Process-local intake store (Postgres capture_session is the durable path). */
 const store = new ScanSessionStore();
@@ -25,6 +26,28 @@ export function getScanStore(): ScanSessionStore {
 
 export function resetScanStoreForTests(): void {
   store.clear();
+}
+
+/** Map VIP inventory rows into the scan duplicate-check shape. */
+export function inventoryLookupFromHoldings(
+  holdings: ApiHolding[],
+): InventoryLookupRow[] {
+  return holdings.map((h) => ({
+    id: h.id,
+    assetName: h.assetName,
+    quantity: h.quantity,
+    externalIds: h.externalIds.map((e) => ({
+      source: e.source,
+      value: e.externalValue,
+    })),
+    // Prefer Pokémon/TCG external id as catalog key when present.
+    catalogKey:
+      h.externalIds.find((e) =>
+        ["pokemontcg", "tcgdex", "cardladder", "scryfall"].includes(
+          e.source.toLowerCase(),
+        ),
+      )?.externalValue ?? undefined,
+  }));
 }
 
 export type OpenScanBody = {
@@ -66,6 +89,7 @@ export function openScanFromApi(body: OpenScanBody) {
       pairing: "sequential_duplex",
       categoryHint: body.categoryHint ?? null,
       notes: body.notes,
+      device: body.device,
     });
   } else {
     throw new Error("body.units or body.pages required");

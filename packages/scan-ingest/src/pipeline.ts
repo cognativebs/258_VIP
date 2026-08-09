@@ -39,6 +39,7 @@ export type OpenBatchResult = {
     contentHash: string;
     contentType: string;
     storageRef: string;
+    backStorageRef?: string | null;
     byteLength: number;
     unitId: string;
   }>;
@@ -104,6 +105,7 @@ export function openScanBatch(
       contentHash: combinedHash,
       contentType: "application/vip.scan-unit+json",
       storageRef: unitIn.front.storageRef,
+      backStorageRef: unitIn.back?.storageRef ?? null,
       byteLength:
         (unitIn.front.byteLength ?? 0) + (unitIn.back?.byteLength ?? 0),
       unitId,
@@ -124,6 +126,7 @@ export function openScanBatch(
       selectedCandidateKey: null,
       duplicateAlert: null,
       holdingId: null,
+      confirmedAssetId: null,
       rawSnapshotId: snapshotId,
       idObservationId: null,
       ebayListingDraftId: null,
@@ -241,23 +244,28 @@ export function confirmScanUnit(
   }
 
   const unit = found.batch.units[found.unitIndex]!;
-  if (unit.status === "confirmed") {
-    // Idempotent re-confirm: return existing commit shape.
+  if (unit.status === "confirmed" || unit.status === "listed_draft") {
+    // Idempotent re-confirm: return existing commit shape with stable asset id.
     const candidate =
       unit.candidates.find((c) => c.catalogKey === unit.selectedCandidateKey) ??
       unit.candidates[0];
-    if (!candidate || !unit.holdingId || !unit.rawSnapshotId) {
+    if (
+      !candidate ||
+      !unit.holdingId ||
+      !unit.rawSnapshotId ||
+      !unit.confirmedAssetId
+    ) {
       return {
         ok: false,
         code: "CANDIDATE_NOT_FOUND",
-        message: "Confirmed unit missing candidate/holding",
+        message: "Confirmed unit missing candidate/holding/asset",
       };
     }
     return {
       ok: true,
       batch: found.batch,
       unit,
-      commit: commitFromUnit(unit, candidate, parsed),
+      commit: commitFromUnit(unit, candidate, parsed, unit.confirmedAssetId),
       ebayDraft: unit.ebayListingDraftId
         ? store.getDraft(unit.ebayListingDraftId) ?? null
         : null,
@@ -292,7 +300,16 @@ export function confirmScanUnit(
   }
 
   const inventory = deps.inventory ?? [];
-  const alert = findDuplicates(unit.id, [candidate], inventory);
+  const freshAlert = findDuplicates(unit.id, [candidate], inventory);
+  // Preserve an alert raised at batch-open when confirm inventory is omitted
+  // or temporarily empty — never silently clear a prior duplicate_alert.
+  const priorAlert =
+    unit.duplicateAlert &&
+    unit.candidates.some((c) => c.catalogKey === candidate!.catalogKey)
+      ? unit.duplicateAlert
+      : null;
+  const alert = freshAlert ?? priorAlert;
+
   if (alert && !parsed.acknowledgeDuplicates) {
     const now = deps.now?.() ?? new Date();
     store.updateBatch(found.batch.id, (b) => ({
@@ -344,6 +361,7 @@ export function confirmScanUnit(
           : [...u.candidates, candidate!],
         duplicateAlert: alert,
         holdingId,
+        confirmedAssetId: assetId,
         idObservationId,
         decisionAction: "Hold",
         provenance: markObserved({
@@ -405,16 +423,17 @@ function commitFromUnit(
   const grade = assumedGrade ?? req.assumedGrade ?? "NM";
   return {
     holdingId: unit.holdingId!,
-    assetId: assetId ?? candidate.assetId ?? randomUUID(),
+    assetId: assetId ?? unit.confirmedAssetId ?? candidate.assetId ?? randomUUID(),
     source: SCAN_HOLDING_SOURCE,
     sourceRowId: unit.id,
     rawSnapshotId: unit.rawSnapshotId!,
     quantity: req.quantity,
     assumedGrade: grade,
-    needsVerification: false,
+    // Intake never verifies physical condition — NM assumed stays unverified.
+    needsVerification: true,
     verificationNotes: unit.duplicateAlert
-      ? `Duplicate acknowledged (${unit.duplicateAlert.duplicates.length} existing)`
-      : `Scan ID confirmed as ${candidate.displayName}`,
+      ? `Duplicate acknowledged (${unit.duplicateAlert.duplicates.length} existing); ${grade} assumed · unverified`
+      : `Scan ID confirmed as ${candidate.displayName}; ${grade} assumed · unverified`,
     duplicateAcknowledged: Boolean(unit.duplicateAlert),
     provenance: markInferred({
       source: SCAN_HOLDING_SOURCE,
