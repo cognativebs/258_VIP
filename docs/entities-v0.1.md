@@ -128,8 +128,9 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 | Entity | Purpose | Key fields | Identifier |
 |---|---|---|---|
 | **IdObservation** | Human/model ID attempt | asset hypothesis, confidence, raw cues | from `04_market_sealed_id.sql` |
-| **CaptureSession** *(Phase 6)* | Controlled imaging session | calibration refs, device, model version | UUID |
-| **CaptureImage** | Immutable original media | sessionId, hash, preprocessing steps | UUID + content hash |
+| **CaptureSession** *(Phase 6)* | Controlled imaging session | calibration refs, device, model version, purpose, qualityTier (`intake` \| `museum`) | UUID |
+| **CaptureImage** | Immutable original media | sessionId, hash, face (front/back), qualityTier, preprocessing steps | UUID + content hash |
+| **ScanBatch / ScanUnit** *(ADR 0008)* | Ricoh/ADF intake review queue | duplex pair, ID candidates, duplicate alert, confirm → Holding | UUID |
 
 Crossover ML (PSA→CGC/TAG) stays **Parked**; capture stores measurement provenance only.
 

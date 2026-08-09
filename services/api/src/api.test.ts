@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import type { ComicsPayload } from "./lib/comicsHoldings.js";
 import { mapInventoryRow } from "./lib/holdings.js";
+import { resetScanStoreForTests } from "./lib/scanIngest.js";
 import { writeSignalsFeed } from "./lib/signalsFeed.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ function unavailableComics(): ComicsPayload {
 afterEach(() => {
   delete process.env.VIP_SIGNALS_FEED;
   delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
+  resetScanStoreForTests();
 });
 
 async function withServer<T>(
@@ -328,6 +330,67 @@ describe("VIP API", () => {
       const body = (await res.json()) as { source: string; signals: unknown[] };
       expect(body.source).toBe("seed");
       expect(body.signals.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("POST /api/scan/batches → confirm unit into inventory with eBay draft idle", async () => {
+    await withServer(async (base) => {
+      const meta = await fetch(`${base}/api/scan`);
+      expect(meta.status).toBe(200);
+      const metaBody = (await meta.json()) as { device: string; qualityTier: string };
+      expect(metaBody.device).toBe("ricoh_fi8170");
+      expect(metaBody.qualityTier).toBe("intake");
+
+      const open = await fetch(`${base}/api/scan/batches`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          categoryHint: "sports",
+          pages: [
+            {
+              storageRef: "scans/fi8170/j_front.jpg",
+              contentHash: "hash-front-jordan",
+              ocrText: "1986 Topps Michael Jordan 57",
+              face: "front",
+            },
+            {
+              storageRef: "scans/fi8170/j_back.jpg",
+              contentHash: "hash-back-jordan",
+              face: "back",
+            },
+          ],
+        }),
+      });
+      expect(open.status).toBe(201);
+      const opened = (await open.json()) as {
+        batch: {
+          id: string;
+          units: { id: string; candidates: { catalogKey: string }[] }[];
+        };
+      };
+      const unit = opened.batch.units[0]!;
+      expect(unit.candidates[0]?.catalogKey).toBe("sports:topps:1986:jordan:57");
+
+      const confirm = await fetch(`${base}/api/scan/units/${unit.id}/confirm`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selectedCandidateKey: "sports:topps:1986:jordan:57",
+          queueEbayListingDraft: true,
+        }),
+      });
+      expect(confirm.status).toBe(200);
+      const confirmed = (await confirm.json()) as {
+        ok: boolean;
+        outputAction: string;
+        commit: { source: string; assumedGrade: string };
+        ebayDraft: { status: string };
+      };
+      expect(confirmed.ok).toBe(true);
+      expect(confirmed.outputAction).toBe("Hold");
+      expect(confirmed.commit.source).toBe("ricoh_fi8170");
+      expect(confirmed.commit.assumedGrade).toBe("NM");
+      expect(confirmed.ebayDraft.status).toBe("pending_credentials");
     });
   });
 });

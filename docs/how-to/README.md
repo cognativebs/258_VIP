@@ -10,6 +10,7 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 | TCG in the Bloomberg / vault view | [02-tcg-in-bloomberg-view.md](02-tcg-in-bloomberg-view.md) |
 | Orchestr8 councils (build / comics / agents) | [03-orchestr8-councils.md](03-orchestr8-councils.md) |
 | Binder LAN access + IQVault bridge | [04-binder-lan-and-iqvault.md](04-binder-lan-and-iqvault.md) |
+| Ricoh fi-8170 scan → inventory intake | [05-ricoh-fi8170-scan-intake.md](05-ricoh-fi8170-scan-intake.md) |
 
 ## One-shot launcher (preferred)
 

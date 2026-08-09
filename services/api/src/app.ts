@@ -19,6 +19,13 @@ import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { buildRecommendation } from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
+import {
+  confirmScanFromApi,
+  getScanBatch,
+  listScanBatches,
+  openScanFromApi,
+  scanMeta,
+} from "./lib/scanIngest.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
@@ -481,6 +488,72 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     res.json({ source: updated });
+  });
+
+  /**
+   * Ricoh fi-8170 intake: scan → ID → duplicate alert → inventory confirm
+   * → optional eBay listing draft (idle without developer tokens).
+   */
+  app.get("/api/scan", (_req, res) => {
+    res.json(scanMeta());
+  });
+
+  app.get("/api/scan/batches", (_req, res) => {
+    res.json({ count: listScanBatches().length, batches: listScanBatches() });
+  });
+
+  app.get("/api/scan/batches/:id", (req, res) => {
+    const batch = getScanBatch(String(req.params.id));
+    if (!batch) {
+      res.status(404).json({ error: "Scan batch not found" });
+      return;
+    }
+    res.json({ batch });
+  });
+
+  app.post("/api/scan/batches", (req, res) => {
+    try {
+      const result = openScanFromApi(req.body ?? {});
+      res.status(201).json({
+        batch: result.batch,
+        rawSnapshots: result.rawSnapshots,
+        decisionNote:
+          "Candidates are inferred · unverified until POST /api/scan/units/:id/confirm",
+      });
+    } catch (e) {
+      res.status(400).json({
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/scan/units/:id/confirm", (req, res) => {
+    try {
+      const result = confirmScanFromApi({
+        ...(req.body ?? {}),
+        unitId: String(req.params.id),
+      });
+      if (!result.ok) {
+        const status =
+          result.code === "DUPLICATE_UNACKNOWLEDGED"
+            ? 409
+            : result.code === "UNIT_NOT_FOUND"
+              ? 404
+              : 400;
+        res.status(status).json(result);
+        return;
+      }
+      res.json({
+        ...result,
+        outputAction: result.decisionAction,
+        note: "Holding entered inventory; condition remains NM assumed · unverified until grading/museum capture",
+      });
+    } catch (e) {
+      res.status(400).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   });
 
   return app;
