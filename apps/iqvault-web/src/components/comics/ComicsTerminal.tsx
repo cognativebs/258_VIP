@@ -540,8 +540,9 @@ export function ComicsTerminal() {
                 </button>
               ) : (
                 <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
-                  Read-only via VIP. Start Comics API (:5200) for live edits — same Postgres
-                  collection either way.
+                  Read-only via VIP (collection still loads from Postgres). Live edits need Comics
+                  API on :5200 — check the top bar says &quot;Postgres live (editable)&quot;, or run{" "}
+                  <code>python api/comics_server.py</code> / Launch IQVault.bat.
                 </p>
               )}
             </div>

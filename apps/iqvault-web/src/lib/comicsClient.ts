@@ -4,22 +4,38 @@ import { holdingToComicRow, metaFromHoldings } from "./holdingToComic";
 
 const COMICS_BASE = process.env.NEXT_PUBLIC_COMICS_API_URL ?? "";
 
-// A stuck (not just down) comics API would otherwise hang this fetch forever
-// and freeze the whole terminal on load — always bound it.
-const COMICS_TIMEOUT_MS = 5000;
+// Probe stays short so a dead :5200 falls through to VIP quickly.
+// Full inventory is ~2.5MB for ~2,700 comics — match VIP's 30s budget.
+// The previous 5s inventory timeout made a healthy Comics API look "down"
+// and forced the read-only VIP path even when :5200 was serving.
+const COMICS_PROBE_MS = 3000;
+const COMICS_INVENTORY_TIMEOUT_MS = 30_000;
+const COMICS_MUTATION_TIMEOUT_MS = 15_000;
+
+function comicsPrefix(): string {
+  // Browser: relative proxy (/api/comics → :5200). Server: absolute.
+  return typeof window === "undefined" ? COMICS_BASE || "http://127.0.0.1:5200" : "";
+}
 
 async function tryComicsApi(): Promise<{ meta: ComicsMeta; inventory: ComicRow[] } | null> {
-  // Browser: relative proxy. Server: optional absolute comics API.
-  const prefix = typeof window === "undefined" ? COMICS_BASE || "http://127.0.0.1:5200" : "";
+  const prefix = comicsPrefix();
   try {
+    const healthRes = await fetch(`${prefix}/api/comics/health`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(COMICS_PROBE_MS),
+    });
+    if (!healthRes.ok) return null;
+    const health = (await healthRes.json()) as { ok?: boolean };
+    if (health.ok !== true) return null;
+
     const [metaRes, invRes] = await Promise.all([
       fetch(`${prefix}/api/comics/meta`, {
         cache: "no-store",
-        signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
+        signal: AbortSignal.timeout(COMICS_INVENTORY_TIMEOUT_MS),
       }),
       fetch(`${prefix}/api/comics/inventory`, {
         cache: "no-store",
-        signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
+        signal: AbortSignal.timeout(COMICS_INVENTORY_TIMEOUT_MS),
       }),
     ]);
     if (!metaRes.ok || !invRes.ok) return null;
@@ -84,13 +100,13 @@ export async function patchComicHolding(
   id: string,
   fields: Record<string, unknown>,
 ): Promise<ComicRow | null> {
-  const prefix = typeof window === "undefined" ? COMICS_BASE || "http://127.0.0.1:5200" : "";
+  const prefix = comicsPrefix();
   try {
     const res = await fetch(`${prefix}/api/comics/holding/${encodeURIComponent(id)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields }),
-      signal: AbortSignal.timeout(COMICS_TIMEOUT_MS),
+      signal: AbortSignal.timeout(COMICS_MUTATION_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { row?: ComicRow };
