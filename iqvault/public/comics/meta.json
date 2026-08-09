@@ -1,6 +1,8 @@
 {
-  "generatedAt": "2026-07-04T18:37:28.917496+00:00",
-  "snapshotLabel": "2026-07-04 CLZ Export",
+  "generatedAt": "2026-08-09T00:03:29.119337+00:00",
+  "snapshotLabel": "CLZ export comic_2026-07-04_19-11-11-export.xml · sha256 c25761755ac7",
+  "snapshotId": "39adc2b7-caa8-4477-b0b6-f3e08d1c8bb6",
+  "snapshotHash": "c25761755ac72e2500f59940f5d1fd943f61e0452a417dc11d45f44363d06630",
   "recordCount": 2700,
   "totalQuantity": 2701.0,
   "totalValue": 24238.0,
