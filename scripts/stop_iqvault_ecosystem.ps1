@@ -15,4 +15,4 @@ foreach ($port in $Ports) {
     }
 }
 
-Write-Host "[IQVault] Stopped. Postgres container is left running — 'docker stop iqvault-postgres' to also stop that." -ForegroundColor Green
+Write-Host "[IQVault] Stopped. Postgres container is left running - 'docker stop iqvault-postgres' to also stop that." -ForegroundColor Green
