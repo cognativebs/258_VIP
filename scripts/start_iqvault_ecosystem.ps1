@@ -1,4 +1,4 @@
-# IQVault VIP stack - one-shot launcher (desktop shortcut / Launch IQVault.bat)
+﻿# IQVault VIP stack - one-shot launcher (desktop shortcut / Launch IQVault.bat)
 # Starts only what is missing: Docker -> Postgres -> DB migrations -> VIP API ->
 # Comics API -> Orchestr8 -> web UI, then opens the browser.
 #
@@ -201,7 +201,7 @@ function Stop-ProcessesOnPort([int]$Port) {
     if ($procIds) {
         # Give the OS a moment to actually free the socket before rebinding.
         Start-Sleep -Seconds 2
-        # Second pass — Windows sometimes leaves a dying listener briefly.
+        # Second pass - Windows sometimes leaves a dying listener briefly.
         $still = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
             Select-Object -ExpandProperty OwningProcess -Unique
         foreach ($procId in $still) {
@@ -216,7 +216,7 @@ function Test-VipApiCurrent {
         $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
         # comicsAvailable only exists on the current schema. A process left
         # running from before the live-Postgres correction answers on this same
-        # port with the old 120-sample + 5-seed shape and no such field —
+        # port with the old 120-sample + 5-seed shape and no such field -
         # "already on this port" must not be mistaken for "healthy".
         return $null -ne $r.PSObject.Properties['comicsAvailable']
     } catch {
@@ -230,7 +230,7 @@ function Ensure-VipApi {
             Write-Step "VIP API already healthy on port $($Ports.VipApi)."
             return
         }
-        Write-Warn "Port $($Ports.VipApi) is serving an outdated or broken VIP API — restarting it."
+        Write-Warn "Port $($Ports.VipApi) is serving an outdated or broken VIP API - restarting it."
         Stop-ProcessesOnPort $Ports.VipApi
     }
     Write-Step "Starting VIP API..."
@@ -256,7 +256,7 @@ function Ensure-ComicsApi {
             Write-Step "Comics API already healthy on port $($Ports.ComicsApi)."
             return
         }
-        Write-Warn "Port $($Ports.ComicsApi) is listening but unhealthy — restarting Comics API."
+        Write-Warn "Port $($Ports.ComicsApi) is listening but unhealthy - restarting Comics API."
         Stop-ProcessesOnPort $Ports.ComicsApi
     }
     Write-Step "Starting Comics API..."
@@ -282,7 +282,7 @@ function Test-Orchestr8Healthy {
     try {
         $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" -TimeoutSec 5
         # Must be the Orchestr8 gateway shape. A dead/half-open listener
-        # (Accept then ResponseEnded) fails the Invoke and returns false —
+        # (Accept then ResponseEnded) fails the Invoke and returns false -
         # that is the failure mode that kept Comics Ask offline tonight.
         return ($r.service -eq "orchestr8") -and ($null -ne $r.providers)
     } catch {
@@ -296,7 +296,7 @@ function Ensure-Orchestr8 {
             Write-Step "Orchestr8 already healthy on port $($Ports.Orchestr8)."
             return
         }
-        Write-Warn "Port $($Ports.Orchestr8) is listening but not a healthy Orchestr8 gateway — restarting it."
+        Write-Warn "Port $($Ports.Orchestr8) is listening but not a healthy Orchestr8 gateway - restarting it."
         Stop-ProcessesOnPort $Ports.Orchestr8
     }
     Ensure-Orchestr8Env
@@ -318,7 +318,7 @@ function Ensure-Orchestr8 {
         if ($anyKey) {
             Write-Step "Orchestr8 ready (providers: $($h.providers | ConvertTo-Json -Compress))."
         } else {
-            Write-Warn "Orchestr8 is up but no provider keys are set — add keys to orchestr8\.env and restart Orchestr8 for Ask."
+            Write-Warn "Orchestr8 is up but no provider keys are set - add keys to orchestr8\.env and restart Orchestr8 for Ask."
         }
     } catch {
         Write-Step "Orchestr8 gateway is up."
@@ -347,7 +347,7 @@ function Ensure-Binder {
     Write-Step "Starting Binder Vault..."
     Start-MinimizedProcess "IQVault Binder" $Root "npm run binder"
     if (-not (Wait-Port $Ports.Binder 120)) {
-        Write-Warn "Binder did not bind port $($Ports.Binder) — skip or start later with: npm run binder"
+        Write-Warn "Binder did not bind port $($Ports.Binder) - skip or start later with: npm run binder"
         return
     }
     Write-Step "Binder ready on http://127.0.0.1:$($Ports.Binder)"
@@ -398,7 +398,7 @@ function Write-StackSummary {
         Write-Warn "Ask on Comics needs a healthy Orchestr8. Fix keys in orchestr8\.env then re-run this launcher."
     }
     Write-Step "If the collection looks empty, import once:"
-    Write-Step "  python scripts/import_clz.py --xml <your export.xml>"
+    Write-Step "  python scripts/import_clz.py --xml YOUR_EXPORT.xml"
     Write-Host ""
 }
 

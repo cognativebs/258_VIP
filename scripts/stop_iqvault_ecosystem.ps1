@@ -1,4 +1,4 @@
-# Stop every IQVault VIP service window (does not stop Postgres/Docker).
+﻿# Stop every IQVault VIP service window (does not stop Postgres/Docker).
 $Ports = 8787, 5200, 5210, 3000
 
 foreach ($port in $Ports) {
