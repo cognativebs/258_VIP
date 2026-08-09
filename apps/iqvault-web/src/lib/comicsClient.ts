@@ -5,9 +5,7 @@ import { holdingToComicRow, metaFromHoldings } from "./holdingToComic";
 const COMICS_BASE = process.env.NEXT_PUBLIC_COMICS_API_URL ?? "";
 
 // Probe stays short so a dead :5200 falls through to VIP quickly.
-// Full inventory is ~2.5MB for ~2,700 comics — match VIP's 30s budget.
-// The previous 5s inventory timeout made a healthy Comics API look "down"
-// and forced the read-only VIP path even when :5200 was serving.
+// Full inventory is ~2.5–4.5MB for ~2,700 comics — match VIP's 30s budget.
 const COMICS_PROBE_MS = 3000;
 const COMICS_INVENTORY_TIMEOUT_MS = 30_000;
 const COMICS_MUTATION_TIMEOUT_MS = 15_000;
@@ -15,6 +13,12 @@ const COMICS_MUTATION_TIMEOUT_MS = 15_000;
 function comicsPrefix(): string {
   // Browser: relative proxy (/api/comics → :5200). Server: absolute.
   return typeof window === "undefined" ? COMICS_BASE || "http://127.0.0.1:5200" : "";
+}
+
+function vipPrefix(): string {
+  if (process.env.NEXT_PUBLIC_VIP_API_URL) return process.env.NEXT_PUBLIC_VIP_API_URL;
+  if (typeof window !== "undefined") return "/api/vip";
+  return "http://127.0.0.1:8787";
 }
 
 async function tryComicsApi(): Promise<{ meta: ComicsMeta; inventory: ComicRow[] } | null> {
@@ -58,9 +62,9 @@ function isComicHolding(h: Holding): boolean {
 }
 
 /**
- * Prefer the Python Comics API (:5200) when up — it supports live edits.
- * Otherwise use VIP inventory, which now reads the same Postgres collection
- * (read-only). Never invent a sample portfolio when both are down.
+ * Prefer the Python Comics API (:5200) when up.
+ * Otherwise use VIP inventory — same Postgres collection. VIP now accepts
+ * holding patches, so the VIP path is editable when comicsAvailable.
  */
 export async function loadComicsTerminalData(): Promise<{
   meta: ComicsMeta;
@@ -93,10 +97,16 @@ export async function loadComicsTerminalData(): Promise<{
     meta.snapshotLabel = `${data.comicsSnapshot.label} · sha ${data.comicsSnapshot.shortHash} · age ${data.comicsSnapshot.ageDays}d`;
     meta.source = "vip-api-postgres";
   }
-  return { meta, inventory, source: "vip-api", editable: false };
+  return {
+    meta,
+    inventory,
+    source: "vip-api",
+    // Same Postgres as Comics API — edits go through VIP /api/comics/holding/:id.
+    editable: true,
+  };
 }
 
-export async function patchComicHolding(
+async function patchViaComicsApi(
   id: string,
   fields: Record<string, unknown>,
 ): Promise<ComicRow | null> {
@@ -114,4 +124,34 @@ export async function patchComicHolding(
   } catch {
     return null;
   }
+}
+
+async function patchViaVipApi(
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<ComicRow | null> {
+  try {
+    const res = await fetch(`${vipPrefix()}/api/comics/holding/${encodeURIComponent(id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(COMICS_MUTATION_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { row?: ComicRow };
+    return data.row ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function patchComicHolding(
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<ComicRow | null> {
+  // Prefer Comics API when up; VIP is the durable path (same Postgres).
+  const fromComics = await patchViaComicsApi(id, fields);
+  if (fromComics) return fromComics;
+  return patchViaVipApi(id, fields);
 }
