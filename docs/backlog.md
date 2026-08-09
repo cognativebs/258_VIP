@@ -67,9 +67,9 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Pokémon seed holdings with `externalIds` on VIP inventory
 - [x] Binder **Sync Owned (VIP)** API + button
 - [x] Binder → Postgres (ADR 0007, 2026-08-09) — `vault_tcg.*`; SQLite is import-only
-- [ ] Binder → VIP write path (owned/wishlist → `vault_collection.holding` / watchlist rows)
-      Owned flags already project into VIP inventory via Postgres read; durable holding
-      upserts still to do.
+- [x] Binder → VIP write path (2026-08-09) — owned → `vault_collection.holding`
+      (`source=binder_vault`); wishlist → `vault_collection.watchlist_item`; per-toggle
+      project + bulk **Push to VIP**; inventory prefers durable owned holdings
 - [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
 - [ ] Shared provenance package (`@vip/evidence`) inside Binder (today: local zod shapes)
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
