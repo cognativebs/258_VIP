@@ -48,6 +48,7 @@ export type TcgBindersResponse = {
   filledSlots: number;
   ownedSlots: number;
   needSlots: number;
+  store?: "postgres" | "sqlite";
 };
 
 export type Provenance = {
@@ -81,6 +82,29 @@ export type Holding = {
   gradeRating: number | null;
   externalIds?: { source: string; externalValue: string }[];
   provenance: Provenance;
+};
+
+export type ComicsSnapshotInfo = {
+  id: string;
+  contentHash: string;
+  shortHash: string;
+  ingestedAt: string;
+  recordCount: number | null;
+  ageDays: number;
+  label: string;
+};
+
+export type InventoryResponse = {
+  count: number;
+  comicsCount: number;
+  comicsSource: "postgres" | "unavailable";
+  comicsAvailable: boolean;
+  comicsError: string | null;
+  comicsSnapshot: ComicsSnapshotInfo | null;
+  totalValueEstimate: { amount: number; note: string; confidence: string };
+  tcgSource?: string;
+  binderDb?: { available: boolean; filledSlots: number; error: string | null };
+  holdings: Holding[];
 };
 
 export type Signal = {

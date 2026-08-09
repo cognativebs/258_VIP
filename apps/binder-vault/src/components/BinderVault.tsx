@@ -167,6 +167,7 @@ export function BinderVault() {
   const [searchNote, setSearchNote] = useState<string>("");
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [syncingOwned, setSyncingOwned] = useState(false);
+  const [pushingVip, setPushingVip] = useState(false);
   const [showWishlistExport, setShowWishlistExport] = useState(false);
   const [wishlistForm, setWishlistForm] = useState<WishlistExportForm>(DEFAULT_WISHLIST_FORM);
   const [wishlistPrinting, setWishlistPrinting] = useState(false);
@@ -486,6 +487,33 @@ export function BinderVault() {
       setSyncingOwned(false);
     }
   }, [activeBinder, applyBinder, flash, syncingOwned]);
+
+  /** Binder → VIP: write owned/wishlist flags into durable VIP holdings + watchlist. */
+  const pushToVip = useCallback(async () => {
+    if (!activeBinder || pushingVip) return;
+    setPushingVip(true);
+    try {
+      const data = await jsonFetch<{
+        slots: number;
+        holdingsUpserted: number;
+        holdingsDeleted: number;
+        watchlistUpserted: number;
+        watchlistDeleted: number;
+      }>("/api/push-vip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ binderId: activeBinder.id }),
+      });
+      flash(
+        `Pushed to VIP — ${data.holdingsUpserted} owned holdings, ` +
+          `${data.watchlistUpserted} wishlist · ${data.slots} slots scanned`,
+      );
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Push to VIP failed");
+    } finally {
+      setPushingVip(false);
+    }
+  }, [activeBinder, flash, pushingVip]);
 
   const reorderPages = useCallback(
     async (fromIndex: number, toIndex: number) => {
@@ -1083,6 +1111,14 @@ export function BinderVault() {
                   title="Mark pockets owned when they match VIP inventory external ids"
                 >
                   {syncingOwned ? "Syncing…" : "Sync Owned (VIP)"}
+                </button>
+                <button
+                  className="btn"
+                  disabled={pushingVip}
+                  onClick={() => void pushToVip()}
+                  title="Write this binder's owned + wishlist flags into durable VIP holdings / watchlist"
+                >
+                  {pushingVip ? "Pushing…" : "Push to VIP"}
                 </button>
                 <button
                   type="button"

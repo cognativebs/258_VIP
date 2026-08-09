@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { setWishlistSchema } from "@/lib/contracts";
 import { getBinder, setSlotWishlist } from "@/lib/repo";
+import { projectSlotToVip } from "@/lib/vipWrite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,5 +22,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
       { status: 404 },
     );
   }
-  return NextResponse.json({ binder: await getBinder(res.binderId) });
+
+  const vip = await projectSlotToVip(id);
+
+  return NextResponse.json({
+    binder: await getBinder(res.binderId),
+    vipProject: vip,
+  });
 }

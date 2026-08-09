@@ -1,18 +1,57 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
+import type { ComicsPayload } from "./lib/comicsHoldings.js";
+import { mapInventoryRow } from "./lib/holdings.js";
 import { writeSignalsFeed } from "./lib/signalsFeed.js";
 
-const tmpFeed = join(dirname(fileURLToPath(import.meta.url)), "..", ".tmp-test-signals-feed.json");
+const here = dirname(fileURLToPath(import.meta.url));
+const tmpFeed = join(here, "..", ".tmp-test-signals-feed.json");
+
+/** Explicit test fixture — never the runtime serving path. */
+function fixtureComics(count = 5): ComicsPayload {
+  const rows = JSON.parse(
+    readFileSync(join(here, "seeds", "inventory-sample.json"), "utf8"),
+  ) as Record<string, unknown>[];
+  return {
+    available: true,
+    holdings: rows.slice(0, count).map(mapInventoryRow),
+    snapshot: {
+      id: "fixture-snapshot",
+      contentHash: "a".repeat(64),
+      shortHash: "aaaaaaaaaaaa",
+      ingestedAt: "2026-07-04T00:00:00.000Z",
+      recordCount: count,
+      ageDays: 0,
+      label: "CLZ export fixture",
+    },
+    error: null,
+    dsn: "fixture",
+  };
+}
+
+function unavailableComics(): ComicsPayload {
+  return {
+    available: false,
+    holdings: [],
+    snapshot: null,
+    error: "connection refused (fixture)",
+    dsn: "fixture",
+  };
+}
 
 afterEach(() => {
   delete process.env.VIP_SIGNALS_FEED;
+  delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
 });
 
-async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
-  const app = createApp();
+async function withServer<T>(
+  fn: (base: string) => Promise<T>,
+  comics: ComicsPayload = fixtureComics(),
+): Promise<T> {
+  const app = createApp({ loadComics: async () => comics });
   const server = app.listen(0);
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("no port");
@@ -25,31 +64,139 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 }
 
 describe("VIP API", () => {
-  it("serves inventory with provenance on holdings", async () => {
+  it("serves live comics inventory with provenance — never the sample as truth", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);
       const body = (await res.json()) as {
-        holdings: { provenance: { method: string } }[];
+        comicsAvailable: boolean;
+        comicsSource: string;
+        comicsCount: number;
+        comicsSnapshot: { shortHash: string } | null;
+        holdings: { provenance: { method: string; source: string } }[];
       };
       expect(res.status).toBe(200);
-      expect(body.holdings.length).toBeGreaterThan(0);
+      expect(body.comicsAvailable).toBe(true);
+      expect(body.comicsSource).toBe("postgres");
+      expect(body.comicsCount).toBe(5);
+      expect(body.comicsSnapshot?.shortHash).toBe("aaaaaaaaaaaa");
       expect(body.holdings[0]?.provenance.method).toBeTruthy();
+      expect(body.holdings[0]?.provenance.source).toBe("clz_import");
     });
   });
 
-  it("recommendations include range + opposing evidence", async () => {
+  it("degrades loudly when comics Postgres is down — no silent sample portfolio", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/inventory`);
+      const body = (await res.json()) as {
+        comicsAvailable: boolean;
+        comicsSource: string;
+        comicsCount: number;
+        comicsError: string | null;
+        totalValueEstimate: { confidence: string; note: string };
+        holdings: unknown[];
+      };
+      expect(body.comicsAvailable).toBe(false);
+      expect(body.comicsSource).toBe("unavailable");
+      expect(body.comicsCount).toBe(0);
+      expect(body.comicsError).toMatch(/connection refused/);
+      expect(body.totalValueEstimate.confidence).toBe("none");
+      expect(body.totalValueEstimate.note).toMatch(/unavailable/i);
+      // Pokémon seeds may still appear; comics must not.
+      expect(body.holdings.every((h) => {
+        const row = h as { provenance?: { source?: string } };
+        return row.provenance?.source !== "clz_import";
+      })).toBe(true);
+    }, unavailableComics());
+  });
+
+  it("sell-queue / recommendations / theses refuse sample data when comics are down", async () => {
+    await withServer(async (base) => {
+      for (const path of ["/api/sell-queue", "/api/recommendations", "/api/theses"]) {
+        const res = await fetch(`${base}${path}`);
+        expect(res.status).toBe(503);
+        const body = (await res.json()) as { error: string };
+        expect(body.error).toMatch(/unavailable/i);
+      }
+      // Watchlist still serves durable Binder wishlist rows when comics are down.
+      const watch = await fetch(`${base}/api/watchlist`);
+      expect(watch.status).toBe(200);
+      const body = (await watch.json()) as { comicsAvailable: boolean; watchlist: unknown[] };
+      expect(body.comicsAvailable).toBe(false);
+      expect(Array.isArray(body.watchlist)).toBe(true);
+    }, unavailableComics());
+  });
+
+  it("POST /api/tcg/project projects Binder owned/wishlist into durable VIP rows", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/tcg/slots/slot-test-charizard/project`, {
+        method: "POST",
+      });
+      if (res.status === 404) {
+        // Seed missing in this environment — skip without failing CI Node job.
+        return;
+      }
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        ok: boolean;
+        holding: string;
+        watchlist: string;
+      };
+      expect(body.ok).toBe(true);
+      expect(body.holding).toBe("upserted");
+      expect(body.watchlist).toBe("upserted");
+
+      const inv = await fetch(`${base}/api/inventory`);
+      const invBody = (await inv.json()) as {
+        durableBinderHoldings: number;
+        holdings: { pillar: string | null; externalIds?: { externalValue: string }[] }[];
+      };
+      expect(invBody.durableBinderHoldings).toBeGreaterThanOrEqual(1);
+      expect(
+        invBody.holdings.some(
+          (h) =>
+            h.pillar === "TCG Owned (Binder)" &&
+            h.externalIds?.some((e) => e.externalValue === "base1-4"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("sell-queue is derived from live holdings, not sell-queue-sample.json", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/sell-queue`);
+      const body = (await res.json()) as {
+        comicsSource: string;
+        items: { sellPriority: string | null }[];
+      };
+      expect(res.status).toBe(200);
+      expect(body.comicsSource).toBe("postgres");
+      expect(body.items.every((i) => i.sellPriority === "High" || i.sellPriority === "Medium")).toBe(
+        true,
+      );
+    });
+  });
+
+  it("recommendations refuse fabricated comps — insufficient market evidence until adapters land", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/recommendations?limit=3`);
       const body = (await res.json()) as {
         recommendations: {
           supportingEvidence: unknown[];
           opposingEvidence: unknown[];
-          marketRange: unknown;
+          marketRange: { matchedSales: number } | null;
+          insufficientMarketEvidence: boolean;
+          reasonCodes: string[];
+          compsSource: string;
         }[];
       };
-      expect(body.recommendations[0]?.supportingEvidence.length).toBeGreaterThan(0);
-      expect(body.recommendations[0]?.opposingEvidence.length).toBeGreaterThan(0);
-      expect(body.recommendations[0]?.marketRange).toBeTruthy();
+      const first = body.recommendations[0];
+      expect(first).toBeTruthy();
+      expect(first?.insufficientMarketEvidence).toBe(true);
+      expect(first?.compsSource).toBe("none");
+      expect(first?.reasonCodes).toContain("INSUFFICIENT_MARKET_EVIDENCE");
+      expect(first?.marketRange?.matchedSales ?? 0).toBe(0);
+      // Still emits opposing evidence ("no matched sales") — never invents supporting comps.
+      expect(first?.opposingEvidence.length).toBeGreaterThan(0);
     });
   });
 
@@ -64,6 +211,7 @@ describe("VIP API", () => {
   });
 
   it("inventory includes TCG holdings with externalIds (Binder and/or seeds)", async () => {
+    process.env.VIP_INCLUDE_POKEMON_SEEDS = "1";
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);
       const body = (await res.json()) as {
@@ -74,25 +222,26 @@ describe("VIP API", () => {
       const withExt = body.holdings.filter((h) => (h.externalIds?.length ?? 0) > 0);
       expect(withExt.length).toBeGreaterThanOrEqual(1);
       expect(body.tcgSource).toBeTruthy();
-      // Seeds remain available when Binder DB is empty or VIP_INCLUDE_POKEMON_SEEDS=1
       if (body.tcgSource === "pokemon_seeds" || body.tcgSource === "binder+seeds") {
         expect(withExt.some((h) => h.externalIds?.[0]?.externalValue === "base1-4")).toBe(true);
       }
     });
   });
 
-  it("serves /api/tcg/binders summary", async () => {
+  it("serves /api/tcg/binders summary from Postgres", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/tcg/binders`);
       const body = (await res.json()) as {
         available: boolean;
         binders: unknown[];
         dbPath: string;
+        store?: string;
       };
       expect(res.status).toBe(200);
       expect(typeof body.available).toBe("boolean");
       expect(Array.isArray(body.binders)).toBe(true);
       expect(body.dbPath).toBeTruthy();
+      expect(body.store).toBe("postgres");
     });
   });
 
@@ -173,10 +322,7 @@ describe("VIP API", () => {
   });
 
   it("signals fall back to seeds when feed missing", async () => {
-    process.env.VIP_SIGNALS_FEED = join(
-      dirname(fileURLToPath(import.meta.url)),
-      "does-not-exist-signals-feed.json",
-    );
+    process.env.VIP_SIGNALS_FEED = join(here, "does-not-exist-signals-feed.json");
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/signals`);
       const body = (await res.json()) as { source: string; signals: unknown[] };

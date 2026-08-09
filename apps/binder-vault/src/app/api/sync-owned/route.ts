@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncOwnedSchema } from "@/lib/contracts";
 import { syncOwnedFromExternalIds } from "@/lib/repo";
+import { projectBinderToVip } from "@/lib/vipWrite";
 
 const VIP_API = process.env.VIP_API_URL ?? "http://127.0.0.1:8787";
 
@@ -52,6 +53,9 @@ export async function POST(req: Request) {
     binderId: parsed.data.binderId,
   });
 
+  // After flipping local owned flags, project them into durable VIP holdings.
+  const vipPush = await projectBinderToVip(parsed.data.binderId);
+
   return NextResponse.json({
     ok: true,
     matched: result.matched,
@@ -61,10 +65,11 @@ export async function POST(req: Request) {
     slotsChecked: result.slotsChecked,
     tcgSource: inventory.tcgSource ?? null,
     binder: result.binder,
+    vipProject: vipPush,
     provenance: {
       method: "api" as const,
       source: "vip-api",
-      modelVersion: "vip-owned-sync@0.2.0",
+      modelVersion: "vip-owned-sync@0.3.0",
       confidence: 0.7,
       verificationStatus: "unverified" as const,
     },

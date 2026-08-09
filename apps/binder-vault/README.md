@@ -12,42 +12,33 @@ binder experience of `binder-builder.html`, then adds:
     (`.../high.png`).
 - **High-res images**: results and the lightbox use the large/high asset URLs. See
   "Where the images come from" below.
-- **Local SQLite persistence** via Drizzle + better-sqlite3. Every card placement stores
-  **provenance** (source, method, model version, confidence, verification status) per the
-  VIP engineering rules — no inferred value is stored as if verified.
+- **Postgres persistence** via Drizzle + `pg` in schema `vault_tcg` (ADR 0007). Same
+  database as comics. Every card placement stores **provenance** (source, method, model
+  version, confidence, verification status) — no inferred value is stored as if verified.
 
 ## Setup
 
-From the repo root (installs workspace deps, incl. this app):
+From the repo root:
 
 ```bash
 npm install
+# Postgres up + migrations (creates vault_tcg.*)
+python scripts/migrate_db.py
+# Optional: import an old local SQLite file once
+python scripts/migrate_binder_sqlite_to_postgres.py \
+  --sqlite apps/binder-vault/.data/binder-vault.sqlite
+npm run binder          # → http://localhost:3010
 ```
 
-> `better-sqlite3` is a native module and ships prebuilt binaries for Windows + Node 20/22.
-> If install ever fails to find a prebuild, install the build toolchain once with
-> `npm i -g windows-build-tools` (older Node) or ensure Visual Studio Build Tools + Python
-> are present, then re-run `npm install`.
-
-Run the dev server:
-
-```bash
-npm run binder          # from repo root  → http://localhost:3010
-# or
-npm run dev -w @vip/binder-vault
-```
-
-The SQLite file and cached uploads are created automatically on first request under
-`apps/binder-vault/.data/` (git-ignored, fully regenerable). No migration step needed.
-
-### Optional environment
+### Environment
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `BINDER_DB_PATH` | SQLite file location (shared with VIP API) | `apps/binder-vault/.data/binder-vault.sqlite` |
+| `BINDER_DATABASE_URL` / `IQVAULT_DATABASE_DSN` / `DATABASE_URL` | Postgres DSN (shared with VIP) | `postgresql://postgres:vault@localhost:5432/iqvault` |
 | `BINDER_MEDIA_DIR` | Uploaded image cache dir | `apps/binder-vault/.data/media` |
 | `POKEMONTCG_API_KEY` | Raises pokemontcg.io limit to 20k/day (free at dev.pokemontcg.io) | none (1k/day) |
 | `VIP_API_URL` | VIP API for Sync Owned (use LAN IP on phone) | `http://127.0.0.1:8787` |
+| `BINDER_DB_PATH` | **Deprecated** — SQLite import input only | — |
 
 ### Phone / LAN
 

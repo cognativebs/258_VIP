@@ -35,6 +35,28 @@ export const DEFAULT_SOURCES: SourceRegistryEntry[] = [
     terms: "Owner data; immutable raw_snapshots.",
     active: true,
   }),
+  SourceRegistryEntrySchema.parse({
+    id: "ebay-sold",
+    name: "eBay sold / completed listings",
+    authority: "market",
+    historicalAccuracy: 0.7,
+    latencyHours: 1,
+    categoryCoverage: ["comic"],
+    accessMethod: "api",
+    terms: "Requires EBAY_OAUTH_TOKEN. Sold-ledger preferred; Browse summaries marked unverified until confirmed. Never invent comps when idle.",
+    active: true,
+  }),
+  SourceRegistryEntrySchema.parse({
+    id: "tcgplayer-market",
+    name: "TCGPlayer market / price history",
+    authority: "market",
+    historicalAccuracy: 0.75,
+    latencyHours: 1,
+    categoryCoverage: ["pokemon"],
+    accessMethod: "api",
+    terms: "Price-history buckets with quantitySold preferred over spot quotes. Adapter-swappable; rate-limit.",
+    active: true,
+  }),
 ];
 
 export class SourceRegistry {

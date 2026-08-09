@@ -1,0 +1,7 @@
+{
+  "collectionGoals": ["Batman", "Absolute Universe", "Spider-Man"],
+  "budget": 150,
+  "riskTolerance": "medium",
+  "timeHorizon": "12 months",
+  "premiumTolerance": 0.05
+}
