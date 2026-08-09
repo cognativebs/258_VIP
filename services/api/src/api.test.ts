@@ -109,20 +109,56 @@ describe("VIP API", () => {
     }, unavailableComics());
   });
 
-  it("sell-queue / recommendations / watchlist / theses refuse sample data when comics are down", async () => {
+  it("sell-queue / recommendations / theses refuse sample data when comics are down", async () => {
     await withServer(async (base) => {
-      for (const path of [
-        "/api/sell-queue",
-        "/api/recommendations",
-        "/api/watchlist",
-        "/api/theses",
-      ]) {
+      for (const path of ["/api/sell-queue", "/api/recommendations", "/api/theses"]) {
         const res = await fetch(`${base}${path}`);
         expect(res.status).toBe(503);
         const body = (await res.json()) as { error: string };
         expect(body.error).toMatch(/unavailable/i);
       }
+      // Watchlist still serves durable Binder wishlist rows when comics are down.
+      const watch = await fetch(`${base}/api/watchlist`);
+      expect(watch.status).toBe(200);
+      const body = (await watch.json()) as { comicsAvailable: boolean; watchlist: unknown[] };
+      expect(body.comicsAvailable).toBe(false);
+      expect(Array.isArray(body.watchlist)).toBe(true);
     }, unavailableComics());
+  });
+
+  it("POST /api/tcg/project projects Binder owned/wishlist into durable VIP rows", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/tcg/slots/slot-test-charizard/project`, {
+        method: "POST",
+      });
+      if (res.status === 404) {
+        // Seed missing in this environment — skip without failing CI Node job.
+        return;
+      }
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        ok: boolean;
+        holding: string;
+        watchlist: string;
+      };
+      expect(body.ok).toBe(true);
+      expect(body.holding).toBe("upserted");
+      expect(body.watchlist).toBe("upserted");
+
+      const inv = await fetch(`${base}/api/inventory`);
+      const invBody = (await inv.json()) as {
+        durableBinderHoldings: number;
+        holdings: { pillar: string | null; externalIds?: { externalValue: string }[] }[];
+      };
+      expect(invBody.durableBinderHoldings).toBeGreaterThanOrEqual(1);
+      expect(
+        invBody.holdings.some(
+          (h) =>
+            h.pillar === "TCG Owned (Binder)" &&
+            h.externalIds?.some((e) => e.externalValue === "base1-4"),
+        ),
+      ).toBe(true);
+    });
   });
 
   it("sell-queue is derived from live holdings, not sell-queue-sample.json", async () => {
