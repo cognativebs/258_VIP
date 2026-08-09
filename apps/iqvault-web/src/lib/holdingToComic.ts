@@ -24,6 +24,7 @@ export function holdingToComicRow(h: Holding): ComicRow {
     "Assumed Grade": h.assumedGrade,
     "Grade Rating": h.gradeRating,
     "Verification Notes": h.verificationNotes,
+    "Cover Image URL": h.coverImageUrl ?? "",
     "Slab Status": h.gradeRating != null ? "Slabbed" : "Raw",
     Location: null,
     "Is Key Comic": "No",

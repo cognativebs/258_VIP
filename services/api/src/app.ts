@@ -127,6 +127,7 @@ function durableBinderToApi(
     currentPrice: row.currentPrice,
     assumedGrade: null,
     gradeRating: null,
+    coverImageUrl: null,
     externalIds: row.externalIds,
     provenance,
   };
