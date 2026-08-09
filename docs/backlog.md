@@ -66,14 +66,18 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Nav link from IQVault web → Binder (`NEXT_PUBLIC_BINDER_URL`)
 - [x] Pokémon seed holdings with `externalIds` on VIP inventory
 - [x] Binder **Sync Owned (VIP)** API + button
-- [ ] Binder → VIP write path (owned/wishlist → holdings/watchlist)
+- [x] Binder → Postgres (ADR 0007, 2026-08-09) — `vault_tcg.*`; SQLite is import-only
+- [ ] Binder → VIP write path (owned/wishlist → `vault_collection.holding` / watchlist rows)
+      Owned flags already project into VIP inventory via Postgres read; durable holding
+      upserts still to do.
 - [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
 - [ ] Shared provenance package (`@vip/evidence`) inside Binder (today: local zod shapes)
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
 - [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
 - [x] Per-slot `price_updated_at` + Ledger “Prices as of…” + Sync Prices / Refresh All (page)
-- [ ] Price history snapshots (`price_snapshot` table) for secondary-market flux charts
+- [x] Price history snapshots (`price_snapshot` table) — schema in ADR 0007 migration
 - [ ] Scheduled / background Binder price refresh (cron or idle job)
+- [ ] Wire Binder price sync to insert `price_snapshot` rows on every refresh
 
 ### F. Unified Bloomberg / collector terminal *(partial — owner unlock 2026-08-08)*
 
@@ -83,7 +87,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [ ] Team/role picker for collector-face analytics (currently fixed Analysis Council preset)
-- [ ] Single inventory truth across Comics Postgres, VIP API, Binder SQLite
+- [x] Single inventory truth across Comics + Binder in Postgres (ADR 0007) — VIP API reads both; unified Bloomberg grid still open above
 
 ### G. Product trial & trust
 

@@ -1,20 +1,15 @@
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createClient, type Client } from "@libsql/client";
+import { sql } from "drizzle-orm";
+import { comicsDsn, getDb, normalizeDsn, redactDsn } from "../db/client.js";
 import { markInferred, markObserved } from "@vip/evidence";
 import type { ApiHolding } from "./holdings.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-/** Monorepo root: services/api/src/lib → ../../../../ */
-function defaultBinderDbPath(): string {
-  return resolve(__dirname, "../../../../apps/binder-vault/.data/binder-vault.sqlite");
-}
-
-export function resolveBinderDbPath(): string {
-  return resolve(process.env.BINDER_DB_PATH ?? defaultBinderDbPath());
-}
+/**
+ * Binder TCG layout → VIP holdings (ADR 0007).
+ *
+ * Reads `vault_tcg.*` in the same Postgres as comics. The SQLite file path is
+ * gone from the runtime path; `dbPath` in the payload is now the redacted DSN
+ * for operator diagnostics.
+ */
 
 export type BinderSummary = {
   id: string;
@@ -34,6 +29,7 @@ export type BinderTcgPayload = {
   holdings: ApiHolding[];
   binders: BinderSummary[];
   error?: string;
+  store: "postgres";
 };
 
 type SlotJoinRow = {
@@ -50,7 +46,7 @@ type SlotJoinRow = {
   number: string | null;
   rarity: string | null;
   price_market: number | null;
-  owned: number;
+  owned: boolean;
   verification_status: string | null;
   provenance_source: string | null;
   provenance_method: string | null;
@@ -58,12 +54,6 @@ type SlotJoinRow = {
   confidence: number | null;
   binder_updated_at: number | null;
 };
-
-function openClient(dbPath: string): Client | null {
-  if (!existsSync(dbPath)) return null;
-  const url = `file:${dbPath.replace(/\\/g, "/")}`;
-  return createClient({ url });
-}
 
 function slotToHolding(row: SlotJoinRow): ApiHolding {
   const setName = row.set_name?.trim() || "Unknown set";
@@ -81,12 +71,12 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
   const provenance = verified
     ? markObserved({
         source: row.provenance_source || "binder-vault",
-        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.1.0",
+        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.2.0",
         confidence: conf,
       })
     : markInferred({
         source: row.provenance_source || "binder-vault",
-        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.1.0",
+        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.2.0",
         notes: owned
           ? "Owned flag from Binder Vault · unverified against physical slab"
           : "Binder pocket placement · need / not marked owned",
@@ -133,22 +123,11 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
   };
 }
 
-/** Load filled Binder slots as VIP holdings + per-binder summaries. */
 export async function loadBinderTcg(): Promise<BinderTcgPayload> {
-  const dbPath = resolveBinderDbPath();
-  const client = openClient(dbPath);
-  if (!client) {
-    return {
-      dbPath,
-      available: false,
-      holdings: [],
-      binders: [],
-      error: `Binder DB not found at ${dbPath}`,
-    };
-  }
-
+  const dsn = redactDsn(normalizeDsn(comicsDsn()));
   try {
-    const slotsRes = await client.execute(`
+    const db = getDb();
+    const slotsRes = await db.execute(sql`
       SELECT
         s.id AS slot_id,
         b.id AS binder_id,
@@ -170,9 +149,9 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
         s.provenance_method AS provenance_method,
         s.provenance_model_version AS provenance_model_version,
         s.confidence AS confidence
-      FROM binder_slot s
-      JOIN binder_page p ON p.id = s.page_id
-      JOIN binder b ON b.id = p.binder_id
+      FROM vault_tcg.binder_slot s
+      JOIN vault_tcg.binder_page p ON p.id = s.page_id
+      JOIN vault_tcg.binder b ON b.id = p.binder_id
       WHERE s.source IS NOT NULL AND s.source != ''
       ORDER BY b.name, p.page_index, s.slot_index
     `);
@@ -211,22 +190,20 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
       }
     }
 
-    const pagesRes = await client.execute(`
-      SELECT binder_id, COUNT(*) AS page_count
-      FROM binder_page
+    const pagesRes = await db.execute(sql`
+      SELECT binder_id, COUNT(*)::int AS page_count
+      FROM vault_tcg.binder_page
       GROUP BY binder_id
     `);
-    for (const pr of pagesRes.rows) {
-      const id = String(pr.binder_id);
-      const summary = binderMap.get(id);
+    for (const pr of pagesRes.rows as { binder_id: string; page_count: number }[]) {
+      const summary = binderMap.get(String(pr.binder_id));
       if (summary) summary.pages = Number(pr.page_count) || 0;
     }
 
-    // Include empty binders (no filled slots) in summary list.
-    const allBinders = await client.execute(
-      `SELECT id, name, updated_at FROM binder ORDER BY name`,
-    );
-    for (const b of allBinders.rows) {
+    const allBinders = await db.execute(sql`
+      SELECT id, name, updated_at FROM vault_tcg.binder ORDER BY name
+    `);
+    for (const b of allBinders.rows as { id: string; name: string; updated_at: number | null }[]) {
       const id = String(b.id);
       if (binderMap.has(id)) continue;
       binderMap.set(id, {
@@ -241,27 +218,26 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
         updatedAt: b.updated_at != null ? Number(b.updated_at) : null,
       });
     }
-    for (const pr of pagesRes.rows) {
-      const id = String(pr.binder_id);
-      const summary = binderMap.get(id);
+    for (const pr of pagesRes.rows as { binder_id: string; page_count: number }[]) {
+      const summary = binderMap.get(String(pr.binder_id));
       if (summary && summary.pages === 0) summary.pages = Number(pr.page_count) || 0;
     }
 
     return {
-      dbPath,
+      dbPath: dsn,
       available: true,
       holdings,
       binders: [...binderMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      store: "postgres",
     };
   } catch (e) {
     return {
-      dbPath,
+      dbPath: dsn,
       available: false,
       holdings: [],
       binders: [],
+      store: "postgres",
       error: e instanceof Error ? e.message : String(e),
     };
-  } finally {
-    client.close();
   }
 }

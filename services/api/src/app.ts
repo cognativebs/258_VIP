@@ -221,6 +221,7 @@ export function createApp(deps: AppDeps = {}) {
     res.json({
       available: binder.available,
       dbPath: binder.dbPath,
+      store: binder.store,
       error: binder.error ?? null,
       binders: binder.binders,
       filledSlots: binder.holdings.length,

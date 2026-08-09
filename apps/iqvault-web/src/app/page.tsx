@@ -46,8 +46,8 @@ export default async function PortfolioPage() {
       <><Nav active="/" />
       <h1 className="page-title">Portfolio</h1>
       <p className="page-sub">
-        Live comics from Postgres plus Binder TCG. Derived fields carry provenance. Snapshot
-        totals are labeled CLZ point prices — not verified market ranges.
+        Live comics and Binder TCG from the same Postgres. Derived fields carry provenance.
+        Snapshot totals are labeled CLZ / market point prices — not verified ranges.
       </p>
 
       {error ? (
@@ -116,9 +116,10 @@ export default async function PortfolioPage() {
 
             {tcg && !tcg.available ? (
               <div className="error" style={{ marginTop: 12 }}>
-                Binder SQLite not available{tcg.error ? `: ${tcg.error}` : "."} Run{" "}
-                <code>npm run binder</code> once so the DB exists, or set{" "}
-                <code>BINDER_DB_PATH</code>.
+                Binder Postgres (`vault_tcg`) not available
+                {tcg.error ? `: ${tcg.error}` : "."} Apply migrations (
+                <code>python scripts/migrate_db.py</code>) and run{" "}
+                <code>npm run binder</code>.
               </div>
             ) : null}
 

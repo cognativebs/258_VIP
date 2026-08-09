@@ -192,18 +192,20 @@ describe("VIP API", () => {
     });
   });
 
-  it("serves /api/tcg/binders summary", async () => {
+  it("serves /api/tcg/binders summary from Postgres", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/tcg/binders`);
       const body = (await res.json()) as {
         available: boolean;
         binders: unknown[];
         dbPath: string;
+        store?: string;
       };
       expect(res.status).toBe(200);
       expect(typeof body.available).toBe("boolean");
       expect(Array.isArray(body.binders)).toBe(true);
       expect(body.dbPath).toBeTruthy();
+      expect(body.store).toBe("postgres");
     });
   });
 
