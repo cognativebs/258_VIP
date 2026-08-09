@@ -183,19 +183,27 @@ export function AnalyticsChat({
 
       <div className="bb-analytics-scope">
         Scope: {filtered.length.toLocaleString()} books
-        {source === "vip-api" ? " · VIP sample (fallback)" : ""}
+        {selectedComic
+          ? ` · selected ${selectedComic.Series ?? ""} #${selectedComic["Issue Full"] || selectedComic.Issue || ""}`
+          : ""}
+        {source === "vip-api"
+          ? " · VIP → Postgres (read-only)"
+          : source === "comics-api"
+            ? " · Comics API (live)"
+            : ""}
       </div>
 
       {!configured ? (
         <div className="bb-analytics-setup">
           <p>
-            Orchestr8 gateway not reachable. Start it with provider keys in{" "}
+            Orchestr8 gateway not reachable at <code>:5210</code>. Start it with provider keys in{" "}
             <code>orchestr8/.env</code>:
           </p>
-          <code>start_orchestr8.bat</code>
+          <code>python orchestr8/api/server.py</code>
           <p className="bb-analytics-setup-note">
             Specialized agents price, rank liquidity, and challenge high-dollar calls before they
-            reach you.
+            reach you. Ask stays on this Comics tab once the gateway is up — results can later
+            land on Watch / Theses.
           </p>
         </div>
       ) : null}

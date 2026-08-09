@@ -45,6 +45,7 @@ type SlotJoinRow = {
   set_name: string | null;
   number: string | null;
   rarity: string | null;
+  image_url: string | null;
   price_market: number | null;
   owned: boolean;
   verification_status: string | null;
@@ -113,6 +114,7 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
         : null,
     assumedGrade: null,
     gradeRating: null,
+    coverImageUrl: row.image_url?.trim() || null,
     externalIds:
       row.external_id && row.source
         ? [{ source: row.source, externalValue: row.external_id }]
@@ -142,6 +144,7 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
         s.set_name AS set_name,
         s.number AS number,
         s.rarity AS rarity,
+        s.image_url AS image_url,
         s.price_market AS price_market,
         s.owned AS owned,
         s.verification_status AS verification_status,

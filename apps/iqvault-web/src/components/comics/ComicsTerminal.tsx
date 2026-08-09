@@ -164,19 +164,30 @@ export function ComicsTerminal() {
         </div>
         <div className="bb-topbar-stats">
           <span>
+            <em>Vault</em> {(meta?.recordCount ?? inventory.length).toLocaleString()}
+          </span>
+          <span>
             <em>Showing</em> {filtered.length.toLocaleString()}
           </span>
           <span>
             <em>Value</em> {fmtMoney(filteredValue)}
           </span>
           <span>
-            <em>Vault</em> {fmtMoney(meta?.totalValue)}
+            <em>Total</em> {fmtMoney(meta?.totalValue)}
           </span>
           <span>
             <em>MUS</em> {dashboardStats.museumCount}
           </span>
         </div>
         <div className="bb-topbar-actions">
+          <button
+            type="button"
+            className="bb-btn bb-btn-ghost"
+            onClick={() => setRightPanel("analytics")}
+            title="Ask Orchestr8 about the current filter"
+          >
+            Ask
+          </button>
           <button
             type="button"
             className="bb-btn bb-btn-ghost"
@@ -458,9 +469,28 @@ export function ComicsTerminal() {
           ) : !selected ? (
             <div className="bb-detail-body">
               <p className="bb-dim">Select a row to inspect.</p>
+              <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
+                Or open <strong>Ask</strong> / Analytics to pose questions about the current
+                filter — answers can feed Watch / Theses next.
+              </p>
             </div>
           ) : (
             <div className="bb-detail-body">
+              {selected["Cover Image URL"] ? (
+                <div className="bb-cover-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={String(selected["Cover Image URL"])}
+                    alt=""
+                    className="bb-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
+                <p className="bb-dim" style={{ marginBottom: 8 }}>
+                  No cover image on this holding.
+                </p>
+              )}
               <h3 className="bb-detail-title">
                 {selected.Series} #{selected["Issue Full"] || selected.Issue}
               </h3>

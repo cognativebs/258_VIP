@@ -153,6 +153,8 @@ These are rule violations and wrong-data paths, not missing features.
 
 Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-cost / out-of-core:
 
+- Comics Ask → Watch / Theses: from Analytics answers on `/collections/comics`, one-click populate watchlist rows or thesis drafts (keep provenance; never silent fill-in)
+- Port full TeamOrchestrationPanel (provider/role/model picker modal) from archived `iqvault/` into `AnalyticsChat`
 - In-Orchestr8 build harness (write/execute tools) — superseded by Cursor builder (ADR 0003); keep deferred unless autonomy model changes
 - Orchestr8 semi-autonomous / fully autonomous build modes (writes/tests/commits)
 - AI glasses / wearable interface

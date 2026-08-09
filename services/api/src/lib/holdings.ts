@@ -25,6 +25,8 @@ export type ApiHolding = {
   currentPrice: number | null;
   assumedGrade: string | null;
   gradeRating: number | null;
+  /** CLZ / catalog cover URL when present — never invented. */
+  coverImageUrl: string | null;
   externalIds: ExternalIdRef[];
   provenance: ReturnType<typeof markObserved> | ReturnType<typeof markInferred>;
 };
@@ -101,6 +103,10 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     currentPrice: num(row["Current Price"]),
     assumedGrade: isNmAssumed ? "NM" : assumed || null,
     gradeRating: isNmAssumed || gradeRating === 0 ? null : gradeRating,
+    coverImageUrl: (() => {
+      const url = String(row["Cover Image URL"] ?? "").trim();
+      return url || null;
+    })(),
     externalIds,
     provenance: isNmAssumed
       ? markInferred({
