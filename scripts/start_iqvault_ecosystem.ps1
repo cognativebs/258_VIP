@@ -186,14 +186,44 @@ function Ensure-Migrated {
     }
 }
 
+function Stop-ProcessesOnPort([int]$Port) {
+    $procIds = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($procId in $procIds) {
+        try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    if ($procIds) {
+        # Give the OS a moment to actually free the socket before rebinding.
+        Start-Sleep -Seconds 1
+    }
+}
+
+function Test-VipApiCurrent {
+    try {
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
+        # comicsAvailable only exists on the current schema. A process left
+        # running from before the live-Postgres correction (main history
+        # cursor/vip-api-live-comics-inventory-9666) answers on this same
+        # port with the old 120-sample + 5-seed shape and no such field —
+        # "already on this port" must not be mistaken for "healthy".
+        return $null -ne $r.PSObject.Properties['comicsAvailable']
+    } catch {
+        return $false
+    }
+}
+
 function Ensure-VipApi {
     if (Test-PortListening $Ports.VipApi) {
-        Write-Step "VIP API already on port $($Ports.VipApi)."
-        return
+        if (Test-VipApiCurrent) {
+            Write-Step "VIP API already on port $($Ports.VipApi)."
+            return
+        }
+        Write-Warn "Port $($Ports.VipApi) is serving an outdated VIP API (no comicsAvailable field) — restarting it."
+        Stop-ProcessesOnPort $Ports.VipApi
     }
     Write-Step "Starting VIP API..."
     Start-MinimizedProcess "IQVault VIP API" $Root "npm run api"
-    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/api/inventory" { param($j) $null -ne $j.comicsAvailable } 90)) {
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/api/inventory" { param($j) $null -ne $j.PSObject.Properties['comicsAvailable'] } 90)) {
         throw "VIP API failed to start on port $($Ports.VipApi). Check the 'IQVault VIP API' window."
     }
     Write-Step "VIP API ready."
