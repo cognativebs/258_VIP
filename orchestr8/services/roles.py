@@ -14,7 +14,7 @@ _CONFIG: dict | None = None
 
 
 def load_config() -> dict:
-    """Legacy roles.yaml — kept for task_systems and backward-compatible /v1/roles."""
+    """Legacy roles.yaml - kept for task_systems and backward-compatible /v1/roles."""
     global _CONFIG
     if _CONFIG is None:
         with open(ROOT / "config" / "roles.yaml", encoding="utf-8") as f:
@@ -60,17 +60,68 @@ def task_system(task: str) -> str:
     return load_config().get("task_systems", {}).get(task, "")
 
 
+def _env_key(*names: str) -> str | None:
+    """First non-empty env var among names (strip whitespace / surrounding quotes)."""
+    for name in names:
+        raw = os.environ.get(name)
+        if raw is None:
+            continue
+        val = raw.strip().strip('"').strip("'")
+        if val:
+            return val
+    return None
+
+
 def provider_keys() -> dict[str, str | None]:
+    # Grok chat keys are XAI_API_KEY; accept GROK_API_KEY as a common alias.
     return {
-        "openai": os.environ.get("OPENAI_API_KEY"),
-        "anthropic": os.environ.get("ANTHROPIC_API_KEY"),
-        "grok": os.environ.get("XAI_API_KEY"),
+        "openai": _env_key("OPENAI_API_KEY"),
+        "anthropic": _env_key("ANTHROPIC_API_KEY"),
+        "grok": _env_key("XAI_API_KEY", "GROK_API_KEY"),
     }
 
 
 def configured_providers() -> dict[str, bool]:
     keys = provider_keys()
     return {k: bool(v) for k, v in keys.items()}
+
+
+def provider_key_warnings(keys: dict[str, str | None] | None = None) -> list[str]:
+    """Detect swapped / mislabeled keys (the usual sk-ant- in OPENAI mix-up)."""
+    keys = keys if keys is not None else provider_keys()
+    warnings: list[str] = []
+    openai = keys.get("openai") or ""
+    anthropic = keys.get("anthropic") or ""
+    grok = keys.get("grok") or ""
+
+    if openai.startswith("sk-ant-"):
+        warnings.append(
+            "OPENAI_API_KEY looks like an Anthropic key (sk-ant-...). "
+            "Move it to ANTHROPIC_API_KEY."
+        )
+    if openai.startswith("xai-"):
+        warnings.append(
+            "OPENAI_API_KEY looks like an xAI key (xai-...). Move it to XAI_API_KEY."
+        )
+    if anthropic and not anthropic.startswith("sk-ant-") and anthropic.startswith("sk-"):
+        warnings.append(
+            "ANTHROPIC_API_KEY looks like an OpenAI key (sk-... without sk-ant-). "
+            "Move it to OPENAI_API_KEY."
+        )
+    if anthropic.startswith("xai-"):
+        warnings.append(
+            "ANTHROPIC_API_KEY looks like an xAI key (xai-...). Move it to XAI_API_KEY."
+        )
+    if grok.startswith("sk-ant-"):
+        warnings.append(
+            "XAI_API_KEY looks like an Anthropic key (sk-ant-...). "
+            "Move it to ANTHROPIC_API_KEY."
+        )
+    if grok.startswith("sk-") and not grok.startswith("sk-ant-"):
+        warnings.append(
+            "XAI_API_KEY looks like an OpenAI key (sk-...). Move it to OPENAI_API_KEY."
+        )
+    return warnings
 
 
 def sort_roles(role_ids: list[str]) -> list[str]:
