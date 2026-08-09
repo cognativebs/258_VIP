@@ -30,8 +30,26 @@ jobs:
       - run: npm test
 
   python:
-    name: Python comics stack
+    name: Python ingest (real export, real Postgres)
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: vault
+          POSTGRES_DB: iqvault
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      IQVAULT_TEST_DSN: dbname=iqvault user=postgres password=vault host=localhost
+
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +62,17 @@ jobs:
 
       - name: Byte-compile ingest + API scripts
         run: python -m compileall -q clz_comic_parser.py load_comics.py api scripts
+
+      - name: Apply migrations
+        run: python scripts/migrate_db.py --dsn "$IQVAULT_TEST_DSN"
+
+      # Acceptance gate: the committed 2,700-record CLZ export must import
+      # cleanly, end to end, with every holding attributable to a snapshot.
+      - name: Import the real CLZ export
+        run: python scripts/import_clz.py --xml comic_2026-07-04_19-11-11-export.xml
+
+      - name: Derived artifacts must regenerate byte-identically
+        run: git diff --exit-code -- iqvault_comics_parser_package iqvault/public/comics/inventory.json
 
       - name: Tests
         run: pytest -q

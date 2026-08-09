@@ -338,8 +338,12 @@ def parse_clz_xml(path: str) -> List[Dict[str, Any]]:
 
 
 def write_csv(path: str, rows: List[Dict[str, Any]], fieldnames: List[str]) -> None:
+    # Fixed "\n" rather than the csv default "\r\n": derived files must be
+    # byte-identical when regenerated from the same snapshot on any platform.
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(
+            f, fieldnames=fieldnames, extrasaction="ignore", lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 

@@ -1,25 +1,35 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import {
+  bigint,
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  pgSchema,
+  text,
+} from "drizzle-orm/pg-core";
 
 /**
- * Binder Vault local schema.
+ * Binder Vault schema — Postgres `vault_tcg` (ADR 0007).
  *
  * Provenance is mandatory (AGENTS.md rule 2): every card placement records
  * source, method, model/rule version, confidence and verification status.
  * Inferred values are never stored as if verified.
  */
 
-export const binders = sqliteTable("binder", {
+export const vaultTcg = pgSchema("vault_tcg");
+
+export const binders = vaultTcg.table("binder", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   spineColor: text("spine_color").notNull().default("#7a2331"),
   rows: integer("rows").notNull().default(3),
   cols: integer("cols").notNull().default(3),
   template: text("template"),
-  createdAt: integer("created_at").notNull(),
-  updatedAt: integer("updated_at").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
 
-export const pages = sqliteTable(
+export const pages = vaultTcg.table(
   "binder_page",
   {
     id: text("id").primaryKey(),
@@ -30,14 +40,14 @@ export const pages = sqliteTable(
     title: text("title").notNull().default(""),
     subtitle: text("subtitle").notNull().default(""),
     tone: text("tone").notNull().default("#7a2331"),
-    createdAt: integer("created_at").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
   (t) => ({
     binderIdx: index("page_binder_idx").on(t.binderId),
   }),
 );
 
-export const slots = sqliteTable(
+export const slots = vaultTcg.table(
   "binder_slot",
   {
     id: text("id").primaryKey(),
@@ -46,39 +56,50 @@ export const slots = sqliteTable(
       .references(() => pages.id, { onDelete: "cascade" }),
     slotIndex: integer("slot_index").notNull(),
     roleLabel: text("role_label").notNull().default(""),
-    isCenter: integer("is_center", { mode: "boolean" }).notNull().default(false),
+    isCenter: boolean("is_center").notNull().default(false),
 
-    // --- Card placement (nullable when the pocket is empty) ---
-    source: text("source"), // 'tcgdex' | 'pokemontcg' | 'upload'
+    source: text("source"),
     externalId: text("external_id"),
     cardName: text("card_name"),
     setName: text("set_name"),
     number: text("number"),
     rarity: text("rarity"),
-    imageUrl: text("image_url"), // remote high-res source URL
-    imageLocal: text("image_local"), // cached filename under .data/media
-    priceMarket: real("price_market"),
+    imageUrl: text("image_url"),
+    imageLocal: text("image_local"),
+    priceMarket: doublePrecision("price_market"),
     priceCurrency: text("price_currency"),
-    /** Epoch ms when priceMarket was last successfully observed (null = never priced). */
-    priceUpdatedAt: integer("price_updated_at"),
+    priceUpdatedAt: bigint("price_updated_at", { mode: "number" }),
 
-    // --- Provenance (mandatory on any derived/placed data) ---
-    provenanceMethod: text("provenance_method"), // 'api' | 'user_upload' | 'inferred'
-    provenanceSource: text("provenance_source"), // source id or URL
+    provenanceMethod: text("provenance_method"),
+    provenanceSource: text("provenance_source"),
     provenanceModelVersion: text("provenance_model_version"),
-    confidence: real("confidence"),
-    verificationStatus: text("verification_status"), // 'verified' | 'unverified'
+    confidence: doublePrecision("confidence"),
+    verificationStatus: text("verification_status"),
 
-    addedAt: integer("added_at"),
-
-    /** Marked for store wishlist / PDF export. */
-    onWishlist: integer("on_wishlist", { mode: "boolean" }).notNull().default(false),
-
-    /** Physically owned — used by the page/binder value calculator. */
-    owned: integer("owned", { mode: "boolean" }).notNull().default(false),
+    addedAt: bigint("added_at", { mode: "number" }),
+    onWishlist: boolean("on_wishlist").notNull().default(false),
+    owned: boolean("owned").notNull().default(false),
   },
   (t) => ({
     pageIdx: index("slot_page_idx").on(t.pageId),
+  }),
+);
+
+export const priceSnapshots = vaultTcg.table(
+  "price_snapshot",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    slotId: text("slot_id")
+      .notNull()
+      .references(() => slots.id, { onDelete: "cascade" }),
+    priceMarket: doublePrecision("price_market").notNull(),
+    priceCurrency: text("price_currency").notNull().default("USD"),
+    observedAt: bigint("observed_at", { mode: "number" }).notNull(),
+    source: text("source").notNull(),
+    ruleVersion: text("rule_version").notNull(),
+  },
+  (t) => ({
+    slotIdx: index("price_snapshot_slot_idx").on(t.slotId, t.observedAt),
   }),
 );
 

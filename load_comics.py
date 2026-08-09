@@ -11,9 +11,15 @@ Loads the CLZ-enriched inventory into:
 Idempotent: re-running updates holdings in place (keyed on CLZ id) and
 skips catalog rows that already exist.
 
+Every holding is linked to the immutable raw snapshot it was derived from, so
+derived rows can be dropped and regenerated from the source of record.
+Prefer scripts/import_clz.py, which records the snapshot and runs this loader
+in one step.
+
 Usage:
   python load_comics.py --json path/to/inventory.json \
-      --dsn "dbname=iqvault user=postgres host=localhost"
+      --dsn "dbname=iqvault user=postgres host=localhost" \
+      --raw-snapshot-id <uuid>
 """
 from __future__ import annotations
 
@@ -63,7 +69,26 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", required=True)
     ap.add_argument("--dsn", required=True)
+    ap.add_argument(
+        "--raw-snapshot-id",
+        default=None,
+        help="vault_evidence.raw_snapshots id these rows were derived from. "
+        "Required unless --no-snapshot is passed (AGENTS.md rule 3).",
+    )
+    ap.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help="Load without linking a source snapshot. Leaves holdings "
+        "unattributable to an immutable import; use only for scratch databases.",
+    )
     args = ap.parse_args()
+
+    if not args.raw_snapshot_id and not args.no_snapshot:
+        ap.error(
+            "--raw-snapshot-id is required so every holding traces to an immutable "
+            "import. Prefer scripts/import_clz.py, which records the snapshot for "
+            "you, or pass --no-snapshot for a scratch load."
+        )
 
     rows = json.load(open(args.json, encoding="utf-8"))
     print(f"Loaded {len(rows)} inventory rows")
@@ -208,9 +233,10 @@ def main():
                     collection_pillar, museum_score, investment_score, liquidity_score,
                     recommendation, sell_priority, upgrade_candidate,
                     needs_grading, needs_photo, needs_verification, verification_notes,
-                    value_locked, current_price_snapshot, source, source_row_id, clz_metadata)
+                    value_locked, current_price_snapshot, source, source_row_id, clz_metadata,
+                    raw_snapshot_id)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                       'clz_import',%s,%s::jsonb)
+                       'clz_import',%s,%s::jsonb,%s)
                ON CONFLICT (source, source_row_id) DO UPDATE SET
                     quantity=EXCLUDED.quantity,
                     museum_score=EXCLUDED.museum_score,
@@ -220,6 +246,7 @@ def main():
                     sell_priority=EXCLUDED.sell_priority,
                     current_price_snapshot=EXCLUDED.current_price_snapshot,
                     clz_metadata=EXCLUDED.clz_metadata,
+                    raw_snapshot_id=EXCLUDED.raw_snapshot_id,
                     updated_at=now()""",
             (
                 asset_id,
@@ -242,6 +269,7 @@ def main():
                 r.get("Current Price"),
                 norm(r.get("id")) or norm(r.get("CLZ Hash")),
                 clz_meta,
+                args.raw_snapshot_id,
             ),
         )
         stats["holdings"] += 1

@@ -31,6 +31,7 @@ export function ComicsTerminal() {
   const [meta, setMeta] = useState<ComicsMeta | null>(null);
   const [inventory, setInventory] = useState<ComicRow[]>([]);
   const [source, setSource] = useState<"comics-api" | "vip-api" | null>(null);
+  const [editable, setEditable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState("all");
@@ -52,6 +53,7 @@ export function ComicsTerminal() {
         setMeta(data.meta);
         setInventory(data.inventory);
         setSource(data.source);
+        setEditable(data.editable);
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
@@ -103,7 +105,7 @@ export function ComicsTerminal() {
 
   const saveSelected = useCallback(
     async (patch: Record<string, unknown>) => {
-      if (!selected || source !== "comics-api") return;
+      if (!selected || !editable) return;
       setSaving(true);
       try {
         const row = await patchComicHolding(selected.id, patch);
@@ -114,7 +116,7 @@ export function ComicsTerminal() {
         setSaving(false);
       }
     },
-    [selected, source],
+    [selected, editable],
   );
 
   if (loading) {
@@ -153,7 +155,11 @@ export function ComicsTerminal() {
           <span className="bb-orange">IQVAULT</span>
           <span className="bb-dim">COMICS TERMINAL</span>
           <span className="bb-dim" style={{ marginLeft: 8 }}>
-            · {source === "comics-api" ? "Postgres live" : "VIP inventory"}
+            ·{" "}
+            {source === "comics-api"
+              ? "Postgres live (editable)"
+              : "VIP → Postgres (read-only)"}
+            {meta?.snapshotLabel ? ` · ${meta.snapshotLabel}` : ""}
           </span>
         </div>
         <div className="bb-topbar-stats">
@@ -492,7 +498,7 @@ export function ComicsTerminal() {
                   <div>{String(selected["Verification Notes"] || "—")}</div>
                 </div>
               </div>
-              {source === "comics-api" ? (
+              {editable ? (
                 <button
                   type="button"
                   className="bb-btn bb-btn-primary"
@@ -504,7 +510,8 @@ export function ComicsTerminal() {
                 </button>
               ) : (
                 <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
-                  Read-only on VIP fallback. Start Comics API (:5200) for live edits.
+                  Read-only via VIP. Start Comics API (:5200) for live edits — same Postgres
+                  collection either way.
                 </p>
               )}
             </div>
