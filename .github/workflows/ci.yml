@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: TypeScript (build · typecheck · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Order matters: workspace packages resolve through dist/, so the leaf
+      # packages must be built before anything typechecks or tests against them.
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+  python:
+    name: Python comics stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Byte-compile ingest + API scripts
+        run: python -m compileall -q clz_comic_parser.py load_comics.py api scripts
+
+      - name: Tests
+        run: pytest -q

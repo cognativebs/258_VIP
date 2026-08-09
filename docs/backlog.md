@@ -70,7 +70,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
 - [ ] Shared provenance package (`@vip/evidence`) inside Binder (today: local zod shapes)
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
-- [ ] Binder typecheck clean (`cards.ts` pre-existing `rarityKeys` TS errors)
+- [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
 - [x] Per-slot `price_updated_at` + Ledger “Prices as of…” + Sync Prices / Refresh All (page)
 - [ ] Price history snapshots (`price_snapshot` table) for secondary-market flux charts
 - [ ] Scheduled / background Binder price refresh (cron or idle job)
@@ -112,7 +112,39 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 
 - [ ] Reliable one-shot VIP stack launcher (ecosystem `.ps1` broken; manual starts work)
 - [ ] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`)
-- [ ] Include `@vip/binder-vault` in monorepo `typecheck`/`build` if it stays first-class
+- [x] Include `@vip/binder-vault` in monorepo `typecheck` (also `@vip/orchestr8-console`) — 2026-08-08
+- [x] CI on every PR: `build` → `typecheck` → `test` (Node) + Python ingest tests — 2026-08-08
+- [x] `npm test` / `npm run typecheck` work from a cold checkout (`build:packages` prerequisite) — 2026-08-08
+
+### L. Trust & correctness debt *(audit 2026-08-08)*
+
+Found while auditing whether the collector face reports the real collection.
+These are rule violations and wrong-data paths, not missing features.
+
+- [ ] **Rule 4 violation — fabricated comps.** `services/api/src/lib/recommendations.ts`
+      `syntheticSales()` invents four sales at CLZ price × 0.9/1.0/1.1/0.95 and feeds
+      them to the decision engine, which then reports a market range with
+      `matchedSales: 4` and a confidence band. Must become "insufficient evidence"
+      until a real comps adapter answers.
+- [ ] **Wrong numbers on every VIP surface.** VIP API serves a 120-row
+      `inventory-sample.json` as comics inventory; the real collection is 2,700
+      holdings in Postgres. Portfolio / recommendations / watchlist / sell-queue all
+      compute off the sample.
+- [ ] **Silent degradation.** `/collections/comics` falls back from live Postgres to the
+      120-row sample when `:5200` is down; fallback must be loud, not quiet.
+- [ ] **Rule 3 violation — snapshot bypass.** `load_comics.py` writes derived holdings
+      without ever inserting `vault_evidence.raw_snapshots`; the table and
+      `holding.raw_snapshot_id` exist but are unused, so imports are not regenerable
+      from an immutable source of record.
+- [ ] **Two CLZ parsers.** `clz_comic_parser.py` (runs, 2,700 records) and
+      `packages/ingest` `clz-xml.ts` (has provenance + snapshot store, imported by
+      nothing at runtime). Resolved by ADR 0006 — Python is authoritative.
+- [ ] **Hardcoded user profile.** Every recommendation applies `budget: 150`,
+      `riskTolerance: "medium"` regardless of user.
+- [ ] **Hardcoded/derived-from-nothing endpoints.** `/api/theses` is a literal array;
+      `/api/watchlist` is "first 8 holdings"; `/api/hunts` is a seed file.
+- [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
+      raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 
 ---
 
