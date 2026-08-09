@@ -36,7 +36,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
-- [ ] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (launcher broken)
+- [x] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (launcher broken) — rewritten 2026-08-09; health-checks VIP / Comics / Orchestr8
 
 ### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
 
@@ -114,7 +114,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 
 ### K. DevEx / ops leftovers
 
-- [ ] Reliable one-shot VIP stack launcher (ecosystem `.ps1` broken; manual starts work)
+- [x] Reliable one-shot VIP stack launcher (`Launch IQVault.bat` → Docker/Postgres/migrate/VIP/Comics/Orchestr8/web; restarts stale listeners) — 2026-08-09
 - [ ] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`)
 - [x] Include `@vip/binder-vault` in monorepo `typecheck` (also `@vip/orchestr8-console`) — 2026-08-08
 - [x] CI on every PR: `build` → `typecheck` → `test` (Node) + Python ingest tests — 2026-08-08
