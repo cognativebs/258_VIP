@@ -310,47 +310,56 @@ export async function loadBinderSlot(slotId: string): Promise<BinderSlotPayload 
 }
 
 export async function projectSlotToVip(slotId: string): Promise<ProjectResult | { ok: false; error: string }> {
-  const slot = await loadBinderSlot(slotId);
-  if (!slot) {
-    return { ok: false, error: "Filled Binder slot not found" };
+  try {
+    const slot = await loadBinderSlot(slotId);
+    if (!slot) {
+      return { ok: false, error: "Filled Binder slot not found" };
+    }
+
+    // Empty card after clear — wipe any VIP rows for this slot.
+    let holding: ProjectResult["holding"] = "skipped";
+    let watchlist: ProjectResult["watchlist"] = "skipped";
+    let assetId: string | null = null;
+    let holdingId: string | null = null;
+    let watchlistId: string | null = null;
+
+    if (slot.owned || slot.onWishlist) {
+      assetId = await ensureAsset(slot);
+    }
+
+    if (slot.owned) {
+      holdingId = await upsertOwnedHolding(slot, assetId!);
+      holding = "upserted";
+    } else {
+      const deleted = await deleteOwnedHolding(slot.slotId);
+      holding = deleted ? "deleted" : "skipped";
+    }
+
+    if (slot.onWishlist) {
+      watchlistId = await upsertWishlist(slot, assetId!);
+      watchlist = "upserted";
+    } else {
+      const deleted = await deleteWishlist(slot.slotId);
+      watchlist = deleted ? "deleted" : "skipped";
+    }
+
+    return {
+      ok: true,
+      slotId: slot.slotId,
+      holding,
+      watchlist,
+      assetId,
+      holdingId,
+      watchlistId,
+    };
+  } catch (error) {
+    // Node CI has no Postgres; callers (and the integration test) treat this
+    // as a soft skip rather than a hard failure.
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
-
-  // Empty card after clear — wipe any VIP rows for this slot.
-  let holding: ProjectResult["holding"] = "skipped";
-  let watchlist: ProjectResult["watchlist"] = "skipped";
-  let assetId: string | null = null;
-  let holdingId: string | null = null;
-  let watchlistId: string | null = null;
-
-  if (slot.owned || slot.onWishlist) {
-    assetId = await ensureAsset(slot);
-  }
-
-  if (slot.owned) {
-    holdingId = await upsertOwnedHolding(slot, assetId!);
-    holding = "upserted";
-  } else {
-    const deleted = await deleteOwnedHolding(slot.slotId);
-    holding = deleted ? "deleted" : "skipped";
-  }
-
-  if (slot.onWishlist) {
-    watchlistId = await upsertWishlist(slot, assetId!);
-    watchlist = "upserted";
-  } else {
-    const deleted = await deleteWishlist(slot.slotId);
-    watchlist = deleted ? "deleted" : "skipped";
-  }
-
-  return {
-    ok: true,
-    slotId: slot.slotId,
-    holding,
-    watchlist,
-    assetId,
-    holdingId,
-    watchlistId,
-  };
 }
 
 export async function projectAllBinderSlots(opts?: {

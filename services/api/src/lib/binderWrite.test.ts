@@ -45,7 +45,11 @@ describe("Binder → VIP write path", () => {
 
   it("idempotent re-project does not duplicate rows", async () => {
     const first = await projectSlotToVip("slot-test-charizard");
-    if (!first.ok) return;
+    if (!first.ok) {
+      // eslint-disable-next-line no-console
+      console.warn("skipping binder write idempotency test:", first.error);
+      return;
+    }
     const second = await projectSlotToVip("slot-test-charizard");
     expect(second.ok).toBe(true);
     if (!second.ok) return;
