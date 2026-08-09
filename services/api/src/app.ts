@@ -5,6 +5,13 @@ import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import {
+  BINDER_WRITE_RULE,
+  loadDurableBinderHoldings,
+  loadDurableWatchlist,
+  projectAllBinderSlots,
+  projectSlotToVip,
+} from "./lib/binderWrite.js";
+import {
   loadComicsHoldings,
   type ComicsPayload,
 } from "./lib/comicsHoldings.js";
@@ -13,6 +20,7 @@ import { buildRecommendation } from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
+import { markInferred, markObserved } from "@vip/evidence";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -80,22 +88,94 @@ type InventoryBundle = {
   tcgSource: "binder" | "pokemon_seeds" | "binder+seeds" | "none";
   binder: Awaited<ReturnType<typeof loadBinderTcg>>;
   comicsSource: "postgres" | "unavailable";
+  durableBinderHoldings: number;
 };
+
+function durableBinderToApi(
+  row: Awaited<ReturnType<typeof loadDurableBinderHoldings>>[number],
+): ApiHolding {
+  const verified = !row.needsVerification;
+  const provenance = verified
+    ? markObserved({
+        source: "binder_vault",
+        ruleOrModelVersion: BINDER_WRITE_RULE,
+        confidence: 0.8,
+      })
+    : markInferred({
+        source: "binder_vault",
+        ruleOrModelVersion: BINDER_WRITE_RULE,
+        notes: "Owned flag from Binder Vault · unverified against physical card",
+      });
+
+  return {
+    id: row.id,
+    assetName: row.assetName,
+    series: row.series,
+    issue: row.issue,
+    publisher: "The Pokémon Company",
+    quantity: row.quantity,
+    pillar: row.pillar,
+    museumScore: null,
+    investmentScore: null,
+    liquidityScore: null,
+    recommendationLabel: row.recommendationLabel,
+    sellPriority: row.sellPriority,
+    needsGrading: false,
+    needsPhoto: false,
+    needsVerification: row.needsVerification,
+    verificationNotes: row.verificationNotes,
+    currentPrice: row.currentPrice,
+    assumedGrade: null,
+    gradeRating: null,
+    externalIds: row.externalIds,
+    provenance,
+  };
+}
 
 async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
   const loadComics = deps.loadComics ?? loadComicsHoldings;
-  const [comics, binder] = await Promise.all([loadComics(), loadBinderTcg()]);
+  const [comics, binder, durableRows] = await Promise.all([
+    loadComics(),
+    loadBinderTcg(),
+    loadDurableBinderHoldings(),
+  ]);
 
-  const tcgFromBinder = binder.available && binder.holdings.length > 0;
-  const seeds = includePokemonSeeds() || !tcgFromBinder ? pokemonSeedHoldings : [];
+  const durableOwned = durableRows.map(durableBinderToApi);
+  const durableSlotIds = new Set(durableRows.map((r) => r.sourceRowId));
 
-  // Comics come from Postgres or nowhere. Never from a sample JSON.
+  // Need pockets still come from Binder layout; owned pockets prefer the
+  // durable VIP holding written by the Binder→VIP path (avoids duplicates).
+  const needFromBinder = binder.available
+    ? binder.holdings.filter((h) => {
+        if (!h.pillar?.includes("Need")) return false;
+        const slotId = h.id.startsWith("binder-slot-")
+          ? h.id.slice("binder-slot-".length)
+          : null;
+        return !slotId || !durableSlotIds.has(slotId);
+      })
+    : [];
+
+  // Also surface owned Binder slots that have not been projected yet (pre-push).
+  const unprojectedOwned = binder.available
+    ? binder.holdings.filter((h) => {
+        if (!h.pillar?.includes("Owned")) return false;
+        const slotId = h.id.startsWith("binder-slot-")
+          ? h.id.slice("binder-slot-".length)
+          : null;
+        return slotId ? !durableSlotIds.has(slotId) : true;
+      })
+    : [];
+
+  const tcgLive = [...durableOwned, ...unprojectedOwned, ...needFromBinder];
+  const seeds =
+    includePokemonSeeds() || tcgLive.length === 0 ? pokemonSeedHoldings : [];
+
   const comicsHoldings = comics.available ? comics.holdings : [];
-  const holdings = [...comicsHoldings, ...seeds, ...(tcgFromBinder ? binder.holdings : [])];
+  const holdings = [...comicsHoldings, ...seeds, ...tcgLive];
 
   let tcgSource: InventoryBundle["tcgSource"] = "none";
-  if (tcgFromBinder && seeds.length) tcgSource = "binder+seeds";
-  else if (tcgFromBinder) tcgSource = "binder";
+  if (tcgLive.length && seeds.length) tcgSource = "binder+seeds";
+  else if (tcgLive.length) tcgSource = "binder";
   else if (seeds.length) tcgSource = "pokemon_seeds";
 
   return {
@@ -104,6 +184,7 @@ async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
     tcgSource,
     binder,
     comicsSource: comics.available ? "postgres" : "unavailable",
+    durableBinderHoldings: durableOwned.length,
   };
 }
 
@@ -185,19 +266,20 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.get("/api/inventory", async (_req, res) => {
-    const { holdings, comics, tcgSource, binder, comicsSource } = await buildInventory(deps);
+    const { holdings, comics, tcgSource, binder, comicsSource, durableBinderHoldings } =
+      await buildInventory(deps);
     const totalValue = holdings.reduce((s, h) => s + (h.currentPrice ?? 0) * h.quantity, 0);
 
     // Loud degraded mode: comics unavailable is a first-class response field,
     // never a quiet 120-row sample that looks like a portfolio.
-    const status = comics.available ? 200 : 200;
-    res.status(status).json({
+    res.status(200).json({
       count: holdings.length,
       comicsCount: comics.available ? comics.holdings.length : 0,
       comicsSource,
       comicsAvailable: comics.available,
       comicsError: comics.error,
       comicsSnapshot: comics.snapshot,
+      durableBinderHoldings,
       totalValueEstimate: {
         note: comics.available
           ? "Sum of currentPrice CLZ snapshots — not a verified market range"
@@ -209,6 +291,7 @@ export function createApp(deps: AppDeps = {}) {
       binderDb: {
         path: binder.dbPath,
         available: binder.available,
+        store: binder.store,
         filledSlots: binder.holdings.length,
         error: binder.error ?? null,
       },
@@ -221,6 +304,7 @@ export function createApp(deps: AppDeps = {}) {
     res.json({
       available: binder.available,
       dbPath: binder.dbPath,
+      store: binder.store,
       error: binder.error ?? null,
       binders: binder.binders,
       filledSlots: binder.holdings.length,
@@ -311,20 +395,56 @@ export function createApp(deps: AppDeps = {}) {
 
   app.get("/api/watchlist", async (_req, res) => {
     const { holdings, comics, comicsSource } = await buildInventory(deps);
-    if (!comics.available) {
-      res.status(503).json({
-        error: "Comics inventory unavailable — watchlist not fabricated from sample data",
-        comicsSource,
-        comicsError: comics.error,
-        watchlist: [],
-      });
-      return;
-    }
+    const durable = await loadDurableWatchlist();
+    // Durable Binder wishlist first; attention-derived comics rows fill the rest.
+    const derived =
+      comics.available
+        ? watchlistFrom(holdings.filter((h) => h.provenance.source === "clz_import"))
+        : [];
     res.json({
       comicsSource,
+      comicsAvailable: comics.available,
+      comicsError: comics.error,
       comicsSnapshot: comics.snapshot,
-      watchlist: watchlistFrom(holdings),
+      source: durable.length ? "durable+derived" : comics.available ? "derived" : "durable",
+      watchlist: [...durable, ...derived],
     });
+  });
+
+  /** Binder → VIP: project one slot's owned/wishlist flags into durable VIP rows. */
+  app.post("/api/tcg/slots/:slotId/project", async (req, res) => {
+    try {
+      const result = await projectSlotToVip(String(req.params.slotId));
+      if (!result.ok) {
+        res.status(404).json(result);
+        return;
+      }
+      res.json({ ...result, ruleOrModelVersion: BINDER_WRITE_RULE });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  /** Binder → VIP: project all filled slots (optional ?binderId=). */
+  app.post("/api/tcg/project", async (req, res) => {
+    try {
+      const binderId =
+        typeof req.body?.binderId === "string"
+          ? req.body.binderId
+          : typeof req.query.binderId === "string"
+            ? req.query.binderId
+            : undefined;
+      const result = await projectAllBinderSlots({ binderId });
+      res.json({ ...result, ruleOrModelVersion: BINDER_WRITE_RULE });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   });
 
   app.get("/api/theses", async (_req, res) => {

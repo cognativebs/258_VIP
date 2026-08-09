@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.15",
     "@vip/core-model": "0.1.0",
     "@vip/decision-engine": "0.1.0",
     "@vip/evidence": "0.1.0",

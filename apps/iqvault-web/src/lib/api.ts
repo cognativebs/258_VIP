@@ -48,6 +48,7 @@ export type TcgBindersResponse = {
   filledSlots: number;
   ownedSlots: number;
   needSlots: number;
+  store?: "postgres" | "sqlite";
 };
 
 export type Provenance = {

@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // @libsql/client loads a native (Node-API) addon; keep it out of the bundler.
-  serverExternalPackages: ["@libsql/client", "libsql"],
+  // Keep the Postgres driver out of the Next bundler.
+  serverExternalPackages: ["pg", "drizzle-orm"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.pokemontcg.io" },
