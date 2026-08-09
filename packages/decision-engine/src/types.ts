@@ -100,12 +100,27 @@ export const EvidenceItemSchema = z.object({
     "constraint",
     "collection_fit",
     "risk",
+    "signal",
   ]),
   summary: z.string(),
   polarity: z.enum(["supporting", "opposing", "neutral"]),
   weight: z.number().min(0).max(1).default(0.5),
 });
 export type EvidenceItem = z.infer<typeof EvidenceItemSchema>;
+
+export const SignalEvidenceRefSchema = z.object({
+  id: z.string(),
+  body: z.string().optional(),
+  title: z.string().optional(),
+  signalType: z.string().optional(),
+  quarantineStatus: z.string().optional(),
+  provenance: z
+    .object({
+      source: z.string().optional(),
+      verificationStatus: z.string().optional(),
+    })
+    .optional(),
+});
 
 export const DecisionInputSchema = z.object({
   assetId: z.string(),
@@ -122,6 +137,8 @@ export const DecisionInputSchema = z.object({
       pillar: z.string().optional(),
     })
     .optional(),
+  /** Optional intelligence signals — bridged via signalsToEvidenceRefs. */
+  signalEvidence: z.array(SignalEvidenceRefSchema).optional().default([]),
   constraints: UserConstraintsSchema.default({ collectionGoals: [] }),
   asOf: z.coerce.date().optional(),
 });

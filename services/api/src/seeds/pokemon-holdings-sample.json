@@ -1,0 +1,122 @@
+[
+  {
+    "CLZ Hash": "pokemon-base1-4",
+    "Series": "Base Set",
+    "Issue Full": "4",
+    "Edition / Variant": "Charizard Holo",
+    "Publisher": "Wizards of the Coast",
+    "Quantity": 1,
+    "Collection Pillar": "Investment Portfolio",
+    "Recommendation": "Hold",
+    "Sell Priority": "Low",
+    "Museum Score": 72,
+    "Investment Score": 80,
+    "Liquidity Score": 65,
+    "Current Price": 350,
+    "Assumed Grade": "NM assumed · unverified",
+    "Needs Grading": "No",
+    "Needs Photo": "No",
+    "Needs Verification": "Yes",
+    "Verification Notes": "Pokémon seed for Binder external_id sync — price snapshot only",
+    "Slab Status": "raw",
+    "ExternalIds": [
+      { "source": "pokemontcg", "externalValue": "base1-4" }
+    ]
+  },
+  {
+    "CLZ Hash": "pokemon-base1-58",
+    "Series": "Base Set",
+    "Issue Full": "58",
+    "Edition / Variant": "Pikachu",
+    "Publisher": "Wizards of the Coast",
+    "Quantity": 1,
+    "Collection Pillar": "Personal Favorites",
+    "Recommendation": "Museum Candidate",
+    "Sell Priority": "Low",
+    "Museum Score": 60,
+    "Investment Score": 40,
+    "Liquidity Score": 70,
+    "Current Price": 12,
+    "Assumed Grade": "NM assumed · unverified",
+    "Needs Grading": "No",
+    "Needs Photo": "No",
+    "Needs Verification": "Yes",
+    "Verification Notes": "Pokémon seed for Binder external_id sync",
+    "Slab Status": "raw",
+    "ExternalIds": [
+      { "source": "pokemontcg", "externalValue": "base1-58" }
+    ]
+  },
+  {
+    "CLZ Hash": "pokemon-sv3-198",
+    "Series": "Obsidian Flames",
+    "Issue Full": "198",
+    "Edition / Variant": "Charizard ex Special Illustration Rare",
+    "Publisher": "The Pokémon Company",
+    "Quantity": 1,
+    "Collection Pillar": "Investment Portfolio",
+    "Recommendation": "Hold",
+    "Sell Priority": "Medium",
+    "Museum Score": 55,
+    "Investment Score": 75,
+    "Liquidity Score": 68,
+    "Current Price": 95,
+    "Assumed Grade": "NM assumed · unverified",
+    "Needs Grading": "Yes",
+    "Needs Photo": "No",
+    "Needs Verification": "Yes",
+    "Verification Notes": "Pokémon seed for Binder external_id sync — value unverified",
+    "Slab Status": "raw",
+    "ExternalIds": [
+      { "source": "pokemontcg", "externalValue": "sv3-198" }
+    ]
+  },
+  {
+    "CLZ Hash": "pokemon-swsh12-215",
+    "Series": "Silver Tempest",
+    "Issue Full": "215",
+    "Edition / Variant": "Lugia VSTAR",
+    "Publisher": "The Pokémon Company",
+    "Quantity": 1,
+    "Collection Pillar": "Investment Portfolio",
+    "Recommendation": "Sell",
+    "Sell Priority": "High",
+    "Museum Score": 35,
+    "Investment Score": 50,
+    "Liquidity Score": 72,
+    "Current Price": 45,
+    "Assumed Grade": "NM assumed · unverified",
+    "Needs Grading": "No",
+    "Needs Photo": "No",
+    "Needs Verification": "Yes",
+    "Verification Notes": "Pokémon seed for Binder external_id sync",
+    "Slab Status": "raw",
+    "ExternalIds": [
+      { "source": "pokemontcg", "externalValue": "swsh12-215" }
+    ]
+  },
+  {
+    "CLZ Hash": "pokemon-base1-15",
+    "Series": "Base Set",
+    "Issue Full": "15",
+    "Edition / Variant": "Venusaur Holo",
+    "Publisher": "Wizards of the Coast",
+    "Quantity": 1,
+    "Collection Pillar": "Personal Favorites",
+    "Recommendation": "Hold",
+    "Sell Priority": "Low",
+    "Museum Score": 68,
+    "Investment Score": 62,
+    "Liquidity Score": 55,
+    "Current Price": 120,
+    "Assumed Grade": "NM assumed · unverified",
+    "Needs Grading": "No",
+    "Needs Photo": "No",
+    "Needs Verification": "Yes",
+    "Verification Notes": "Pokémon seed for Binder external_id sync",
+    "Slab Status": "raw",
+    "ExternalIds": [
+      { "source": "pokemontcg", "externalValue": "base1-15" }
+    ]
+  }
+]

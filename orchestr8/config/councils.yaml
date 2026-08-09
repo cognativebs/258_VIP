@@ -82,3 +82,17 @@ councils:
     voting: dissent_required
     output_owner: synthesizer
     gate: high_stakes_only
+
+  # ADR 0003 · O1 — Orchestr8 authors build specs; Cursor builds them.
+  build_spec:
+    id: build_spec
+    label: Build Spec Council
+    purpose: Produce a critic-passed Cursor work order (schemas first, file plan, acceptance tests)
+    mode: pipeline
+    agents:
+      - architect
+      - domain_expert
+      - tester
+      - critic
+    voting: veto_on_critical
+    output_owner: critic

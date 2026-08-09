@@ -13,7 +13,8 @@ allowed_models:
 - o3-mini
 councils: []
 temperature: 0.25
-max_tokens: 2048
+# Build specs are large JSON work orders; 4096 truncates mid-fence (emit_failed).
+max_tokens: 8192
 skill: AI_Agent_Production_Skills_v2/Architect.md
 skill_brief: AI_Agent_Skills_MD_v2/Architect.md
 output_schema: standard_agent_v1

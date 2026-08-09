@@ -1,0 +1,78 @@
+{
+  "schema": "build_spec_v1",
+  "id": "console-local-time-note-001",
+  "title": "Orchestr8 Console — Local Time Status Note Under Health Bar",
+  "goal": "Add a one-line status note displaying the client's current local time immediately beneath the Orchestr8 Console Health Bar. Rendering is client-side only (reads the browser's clock after mount). No new API routes, no new packages, no schema changes.",
+  "constraints": [
+    "No new npm packages — use only Date, React hooks (useState, useEffect) already available via react@^19.1.0 in apps/orchestr8-console.",
+    "No new API routes in orchestr8/api/ or apps/orchestr8-console.",
+    "No schema changes to any .json schema file or zod contract.",
+    "Must be a 'use client' component to read client local time and avoid SSR hydration mismatch.",
+    "No provenance fields required — this is ephemeral display state, not a derived data field (AGENTS.md rule 2 does not apply).",
+    "TypeScript only. No .js files.",
+    "Do not alter the Health Bar's existing logic, styling, or data flow.",
+    "The note text must include the formatted local time string (e.g. 'Local time: 10:34:22 AM').",
+    "The component must read time after mount via useEffect to avoid Next.js 15 hydration errors."
+  ],
+  "contracts_first": [
+    {
+      "path": "n/a",
+      "change": "{\"LocalTimestampNote_props\": {\"description\": \"Props for the new LocalTimestampNote component. No props required \\u2014 reads clock internally.\", \"type\": \"object\", \"properties\": {}, \"required\": []}, \"rendered_output_contract\": {\"description\""
+    }
+  ],
+  "file_plan": [
+    {
+      "path": "apps/orchestr8-console/src/components/LocalTimestampNote.tsx",
+      "action": "create",
+      "notes": "New 'use client' React component. Uses useState<string | null>(null) and useEffect to set the formatted local time string after mount via new Date().toLocaleTimeString(). Renders null until mounted (avoids SSR/hydration mismatch). When mounted, renders a <p data-testid='console-local-time'> with text 'Local time: {time}'. Re-renders every second via setInterval in the same useEffect (clearInterval on cleanup). No props. No imports beyond React."
+    },
+    {
+      "path": "apps/orchestr8-console/src/components/HealthBar.tsx",
+      "action": "modify",
+      "notes": "LOCATE the Health Bar component (Cursor: search for 'HealthBar' or 'health' in apps/orchestr8-console/src — the file may be named HealthBar.tsx, StatusBar.tsx, or similar; check apps/orchestr8-console/src/components/ and apps/orchestr8-console/src/app/). Import LocalTimestampNote and render it immediately after the Health Bar's closing JSX element. If the Health Bar is defined inline in a page file, extract or wrap as needed — but prefer the minimal change of adding <LocalTimestampNote /> as a sibling after the health bar JSX block."
+    }
+  ],
+  "acceptance_tests": [
+    "LocalTimestampNote renders when the Console loads"
+  ],
+  "risks": [
+    "Health Bar file path unknown from repo context — apps/orchestr8-console/src/ structure not listed.",
+    "SSR hydration mismatch if Date is read during server render.",
+    "setInterval leak if component unmounts before cleanup."
+  ],
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Create LocalTimestampNote component",
+      "deliverable": "apps/orchestr8-console/src/components/LocalTimestampNote.tsx — compiles, no TS errors."
+    },
+    {
+      "phase": 2,
+      "name": "Wire into Health Bar / Console page",
+      "deliverable": "Health Bar file (or page.tsx) imports and renders <LocalTimestampNote /> beneath the health bar block."
+    },
+    {
+      "phase": 3,
+      "name": "Acceptance test",
+      "deliverable": "Test file (LocalTimestampNote.test.tsx or inline in existing test suite) asserting AT-01 passes."
+    }
+  ],
+  "cursor_prompt": "## Build Spec: Orchestr8 Console — Local Time Status Note\n\n### Goal\nAdd a one-line status note showing the client's current local time immediately beneath the Orchestr8 Console Health Bar. Client-side only. No new packages, no API routes, no schema changes.\n\n### Constraints\n- 'use client' directive required (reads browser clock after mount).\n- No new npm packages. Use React useState + useEffect only.\n- No schema or API changes.\n- TypeScript only.\n- Do not alter Health Bar logic or styling.\n- Avoid SSR hydration mismatch: render null until mounted.\n\n### Step 1 — Locate the Health Bar\nRun a file search / grep for 'health' or 'HealthBar' inside apps/orchestr8-console/src/. Identify the component or page file that renders the health bar UI. Do NOT invent a path.\n\n### Step 2 — Create apps/orchestr8-console/src/components/LocalTimestampNote.tsx\n```tsx\n'use client';\nimport { useEffect, useState } from 'react';\n\nexport function LocalTimestampNote() {\n  const [time, setTime] = useState<string | null>(null);\n\n  useEffect(() => {\n    const update = () => setTime(new Date().toLocaleTimeString());\n    update();\n    const id = setInterval(update, 1000);\n    return () => clearInterval(id);\n  }, []);\n\n  if (time === null) return null;\n\n  return (\n    <p data-testid=\"console-local-time\" style={{ fontSize: '0.75rem', opacity: 0.7, margin: '4px 0 0' }}>\n      Local time: {time}\n    </p>\n  );\n}\n```\n\n### Step 3 — Wire into Health Bar / Console page\nIn the file identified in Step 1, import LocalTimestampNote and render it immediately after the health bar JSX block:\n```tsx\nimport { LocalTimestampNote } from '@/components/LocalTimestampNote';\n// ... inside JSX, after the health bar element:\n<LocalTimestampNote />\n```\n\n### Step 4 — Acceptance test (AT-01)\nCreate apps/orchestr8-console/src/components/LocalTimestampNote.test.tsx (or add to existing test file):\n- Mount <LocalTimestampNote /> with React Testing Library.\n- Before act(): assert data-testid='console-local-time' is absent (null render).\n- After act() / timer advance: assert element is present and textContent matches /^Local time: .+$/.\n- Advance fake timer 1000ms: assert textContent changes.\n\n### Acceptance criteria\n1. apps/orchestr8-console/src/components/LocalTimestampNote.tsx exists, compiles with no TS errors.\n2. The Console page at http://localhost:3001 shows 'Local time: HH:MM:SS AM/PM' beneath the Health Bar on load.\n3. The time updates every second.\n4. AT-01 test passes.\n5. No new packages in package.json. No new API routes. No schema file changes.",
+  "provenance": {
+    "source": "orchestr8.build_spec_council",
+    "method": "multi_agent_pipeline",
+    "rule_or_model_version": "build_spec_v1",
+    "confidence": 0.9,
+    "verification_status": "critic_passed",
+    "run_id": "run_20260802T213309_f965cb9a",
+    "council": "build_spec",
+    "roles": [
+      "architect",
+      "domain_expert",
+      "tester",
+      "critic"
+    ],
+    "notes": "Recovered after emit_failed (nested fences in cursor_prompt). Critic verdict was conditional — address conditions before/while implementing."
+  },
+  "confidence": 0.93
+}

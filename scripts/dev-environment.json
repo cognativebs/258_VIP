@@ -1,0 +1,100 @@
+{
+  "workspace": "D:\\Projects\\Business_Ideas\\258_Labs\\IQVault",
+  "description": "Post-restart background apps for AI / Cursor / VS Code / VIP tools. Edit this list anytime.",
+  "apps": [
+    {
+      "id": "docker",
+      "name": "Docker Desktop",
+      "enabled": true,
+      "group": "infra",
+      "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+      "processName": "Docker Desktop",
+      "args": [],
+      "windowStyle": "Minimized",
+      "waitSeconds": 8,
+      "notes": "Needed for Postgres and local containers"
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "enabled": true,
+      "group": "editors",
+      "path": "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
+      "processName": "Cursor",
+      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "windowStyle": "Normal",
+      "notes": "Primary AI IDE for VIP / Orchestr8 work"
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code",
+      "enabled": false,
+      "group": "editors",
+      "path": "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+      "processName": "Code",
+      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "windowStyle": "Normal",
+      "notes": "Enable if you want VS Code alongside Cursor"
+    },
+    {
+      "id": "terminal",
+      "name": "Windows Terminal",
+      "enabled": true,
+      "group": "shell",
+      "path": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\wt.exe",
+      "processName": "WindowsTerminal",
+      "args": ["-d", "D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "windowStyle": "Normal",
+      "notes": "Working shell in the IQVault repo"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "enabled": false,
+      "group": "tools",
+      "path": "%LOCALAPPDATA%\\Programs\\Notion\\Notion.exe",
+      "processName": "Notion",
+      "args": [],
+      "windowStyle": "Normal",
+      "notes": "Notes / specs - turn on if you use it daily"
+    },
+    {
+      "id": "chrome",
+      "name": "Chrome (local stack tabs)",
+      "enabled": false,
+      "group": "tools",
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "processName": "chrome",
+      "args": [
+        "--new-window",
+        "http://127.0.0.1:5175/",
+        "http://127.0.0.1:5210/v1/health"
+      ],
+      "windowStyle": "Normal",
+      "notes": "Opens IQVault UI + Orchestr8 health after stack is up"
+    }
+  ],
+  "services": [
+    {
+      "id": "iqvault-stack",
+      "name": "IQVault VIP stack",
+      "enabled": true,
+      "group": "services",
+      "kind": "powershell",
+      "script": "scripts\\start_iqvault_ecosystem.ps1",
+      "args": ["-NoBrowser"],
+      "port": 5175,
+      "notes": "Docker -> Postgres -> Comics API -> Orchestr8 -> UI (minimized where possible)"
+    },
+    {
+      "id": "binder-vault",
+      "name": "Vault Binder",
+      "enabled": true,
+      "group": "services",
+      "kind": "npm",
+      "npmScript": "binder",
+      "port": 3010,
+      "notes": "Next.js binder at http://127.0.0.1:3010 (LAN: http://<PC-IP>:3010). VIP API reads its SQLite for TCG inventory — see docs/how-to/04-binder-lan-and-iqvault.md"
+    }
+  ]
+}

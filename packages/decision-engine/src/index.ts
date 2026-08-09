@@ -22,6 +22,7 @@ export { marketRange } from "./market-range.js";
 export { liquidity } from "./liquidity.js";
 export { targetPrice } from "./target-price.js";
 export { recommend } from "./recommend.js";
+export { signalsToEvidenceRefs, type SignalEvidenceInput } from "./evidence-bridge.js";
 
 export {
   HISTORICAL_DECISIONS,

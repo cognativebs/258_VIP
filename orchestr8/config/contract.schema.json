@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestr8 Agent Contract",
+  "description": "AGENTS.md rule 6 — every agent obeys a contract: mission, allowed tools, IO schema, confidence rules, failure behavior, escalation.",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "mission",
+    "inputs",
+    "allowed_tools",
+    "outputs",
+    "confidence",
+    "failure_behavior",
+    "escalation",
+    "high_impact"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 2 },
+    "version": { "type": "integer", "minimum": 1 },
+    "mission": { "type": "string", "minLength": 10 },
+    "inputs": {
+      "type": "object",
+      "required": ["task_types", "requires_context"],
+      "properties": {
+        "task_types": { "type": "array", "items": { "type": "string" } },
+        "requires_context": { "type": "boolean" }
+      }
+    },
+    "allowed_tools": {
+      "description": "Read-only only. Orchestr8 authors specs; it never writes or executes (ADR 0003). Mutating/executing tools (propose_patch, run_tests, run_shell) are intentionally not grantable.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["read_file", "list_dir", "grep", "git_diff"]
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "required": ["schema", "required_fields"],
+      "properties": {
+        "schema": { "type": "string" },
+        "required_fields": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["required", "min", "max", "escalate_below"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "min": { "type": "number", "minimum": 0 },
+        "max": { "type": "number", "maximum": 1 },
+        "escalate_below": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "failure_behavior": {
+      "type": "string",
+      "enum": ["degrade", "abort", "escalate"]
+    },
+    "escalation": {
+      "type": "object",
+      "required": ["to", "when"],
+      "properties": {
+        "to": { "type": "array", "items": { "type": "string" } },
+        "when": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["low_confidence", "high_impact", "tool_error", "veto", "always"]
+          }
+        }
+      }
+    },
+    "high_impact": { "type": "boolean" },
+    "enabled": { "type": "boolean" }
+  }
+}

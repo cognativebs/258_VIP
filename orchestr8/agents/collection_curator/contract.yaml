@@ -1,0 +1,30 @@
+# Orchestr8 contract — Collection Curator
+# Schema: config/contract.schema.json  (ADR 0002 · O0)
+# ADR 0003: Orchestr8 authors specs; Cursor builds. Tools are read-only.
+id: collection_curator
+version: 2
+mission: Pillar fit, keep/sell/lot disposition, thematic coherence
+inputs:
+  task_types:
+  - '*'
+  requires_context: true
+allowed_tools: []
+outputs:
+  schema: standard_agent_v1
+  required_fields:
+  - summary
+  - confidence
+confidence:
+  required: true
+  min: 0.0
+  max: 1.0
+  escalate_below: 0.5
+failure_behavior: degrade
+escalation:
+  to:
+  - critic
+  when:
+  - low_confidence
+  - tool_error
+high_impact: false
+enabled: true

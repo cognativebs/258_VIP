@@ -24,6 +24,7 @@ _INTENT = {
     "analysis": ("price", "value", "roi", "return", "liquidity", "forecast", "invest", "worth", "appraise"),
     "challenge": ("verify", "risk", "challenge", "double-check", "stress", "wrong", "safe"),
     "curation": ("pillar", "thesis", "grade", "curate", "collection identity", "sell timing"),
+    "build_spec": ("build spec", "work order", "implement", "cursor prompt", "file plan", "acceptance test"),
 }
 # Words that signal a high-stakes decision (justifies board / stronger models).
 _HIGH_STAKES = ("sell", "liquidate", "buy", "acquire", "insure", "large", "expensive", "museum", "grail")
@@ -113,7 +114,10 @@ def plan_job(
     ctx_tokens = _ctx_tokens(context_json)
 
     # 1. Route to a council.
-    council_id = prefer_council or _intent(question)
+    if task == "build_spec":
+        council_id = prefer_council or "build_spec"
+    else:
+        council_id = prefer_council or _intent(question)
     stakes = _high_stakes(question)
     if stakes and quality == "max":
         council_id = "board"

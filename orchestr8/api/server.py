@@ -12,6 +12,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from providers.billing import accounts_snapshot  # noqa: E402
+from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
+from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
 from services.orchestrator import run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
@@ -120,10 +122,49 @@ class GatewayHandler(BaseHTTPRequestHandler):
             json_response(self, 200, {"accounts": accounts_snapshot()})
             return
 
+        if path == "/v1/runs":
+            status, body = handle_list_runs()
+            json_response(self, status, body)
+            return
+
+        if path.startswith("/v1/runs/"):
+            run_id = path[len("/v1/runs/") :]
+            if not run_id or "/" in run_id:
+                json_response(self, 404, {"error": "Not found"})
+                return
+            status, body = handle_get_run(run_id)
+            json_response(self, status, body)
+            return
+
+        if path == "/v1/specs":
+            status, body = handle_list_specs()
+            json_response(self, status, body)
+            return
+
+        if path.startswith("/v1/specs/"):
+            spec_id = path[len("/v1/specs/") :]
+            if not spec_id or "/" in spec_id:
+                json_response(self, 404, {"error": "Not found"})
+                return
+            status, body = handle_get_spec(spec_id)
+            json_response(self, status, body)
+            return
+
+        json_response(self, 404, {"error": "Not found"})
+
+    def do_DELETE(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/v1/runs" or path.startswith("/v1/runs/"):
+            json_response(self, 405, {"error": "method_not_allowed", "detail": "Runs API is read-only"})
+            return
         json_response(self, 404, {"error": "Not found"})
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+
+        if path == "/v1/runs" or path.startswith("/v1/runs/"):
+            json_response(self, 405, {"error": "method_not_allowed", "detail": "Runs API is read-only"})
+            return
 
         if path == "/v1/reload":
             clear_agent_cache()
@@ -230,6 +271,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 model_overrides=model_overrides,
                 council=body.get("council") or None,
                 on_step=lambda step: self._sse({"type": "step", "step": step}),
+                on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
             )
             self._sse({"type": "done", "result": result})
         except Exception as e:  # noqa: BLE001
@@ -249,6 +291,10 @@ def main() -> None:
     print("  GET  /v1/councils")
     print("  GET  /v1/pricing")
     print("  GET  /v1/accounts")
+    print("  GET  /v1/runs")
+    print("  GET  /v1/runs/:id")
+    print("  GET  /v1/specs")
+    print("  GET  /v1/specs/:id")
     print("  POST /v1/jobs")
     print("  POST /v1/jobs/stream (SSE)")
     print("  POST /v1/plan")

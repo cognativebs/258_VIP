@@ -4,6 +4,9 @@
 secrets.json
 node_modules/
 dist/
+.next/
+out/
+services/jobs/.state/
 *.tsbuildinfo
 coverage/
 .DS_Store

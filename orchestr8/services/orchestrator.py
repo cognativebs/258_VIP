@@ -1,6 +1,7 @@
 """Multi-agent orchestration — driven by agents/*/agent.yaml + skill.md."""
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from providers.llm import chat_role
@@ -63,6 +64,20 @@ def _build_user_prompt(
     mode: str,
 ) -> str:
     meta = get_agent(agent_id)
+    repo_context = ""
+    collection_ctx = context_json or "{}"
+    if task == "build_spec":
+        import json
+
+        try:
+            parsed = json.loads(context_json) if context_json else {}
+            if isinstance(parsed, dict) and parsed.get("repoContext"):
+                repo_context = str(parsed.get("repoContext"))
+                rest = {k: v for k, v in parsed.items() if k != "repoContext"}
+                collection_ctx = json.dumps(rest)
+        except json.JSONDecodeError:
+            pass
+
     parts = [
         f"TASK TYPE: {task}",
         f"YOUR ROLE: {meta['label']} ({agent_id})",
@@ -71,8 +86,17 @@ def _build_user_prompt(
         question,
         "",
         "--- COLLECTION CONTEXT (JSON) ---",
-        context_json or "{}",
+        collection_ctx,
     ]
+    if repo_context:
+        parts += ["", "--- REPO CONTEXT (read-only tools) ---", repo_context]
+    if task == "build_spec":
+        parts.append(
+            "\n--- BUILD SPEC RULES ---\n"
+            "Author a critic-passable work order for Cursor. Schemas/contracts first. "
+            "Ground every path in REPO CONTEXT. Append a fenced ```json build_spec block "
+            '(include "schema": "build_spec_v1").'
+        )
     if trace:
         parts.append("\n--- PRIOR TEAM OUTPUT ---")
         for step in trace:
@@ -128,14 +152,23 @@ def _run_agent(
         "model_label": routed.get("model_label", routed["model"]),
         "temperature": routed.get("temperature"),
     }
+    max_tokens = int(routed.get("max_tokens", 2048) or 2048)
+    # Build Spec needs larger completions; Domain Expert often drafts/repairs the JSON too.
+    if task == "build_spec":
+        if resolved == "architect":
+            max_tokens = max(max_tokens, 8192)
+        elif resolved == "domain_expert":
+            max_tokens = max(max_tokens, 4096)
+
     try:
-        result = chat_role(
+        result = _chat_role_retry(
             provider=routed["provider"],
             model=routed["model"],
             system=system,
             user=user,
             temperature=routed.get("temperature", 0.3),
-            max_tokens=routed.get("max_tokens", 2048),
+            max_tokens=max_tokens,
+            retries=1 if (task == "build_spec" and resolved == "architect") else 0,
         )
     except Exception as e:
         # Degrade gracefully: one agent failing must not sink the whole job.
@@ -144,11 +177,24 @@ def _run_agent(
         step["usage"] = {"input": 0, "output": 0, "total": 0}
         return step
 
-    prose, structured = extract_structured(result["text"])
-    step["text"] = prose
+    raw_text = result["text"]
     usage = result.get("usage") or {"input": 0, "output": 0, "total": 0}
+    cost = usd_cost(routed["model"], usage.get("input", 0), usage.get("output", 0))
+
+    # Build Spec: Architect often hits max_tokens mid-JSON. One continuation stitch.
+    if task == "build_spec" and resolved == "architect":
+        raw_text, usage, cost = _continue_truncated_build_spec(
+            raw_text,
+            usage=usage,
+            cost=cost,
+            routed={**routed, "max_tokens": max_tokens},
+            system=system,
+        )
+
+    prose, structured = extract_structured(raw_text)
+    step["text"] = prose
     step["usage"] = usage
-    step["costUsd"] = usd_cost(routed["model"], usage.get("input", 0), usage.get("output", 0))
+    step["costUsd"] = cost
     if structured is not None:
         step["structured"] = structured
         conf = normalize_confidence(structured.get("confidence"))
@@ -158,6 +204,99 @@ def _run_agent(
         if isinstance(verdict, str) and verdict:
             step["verdict"] = verdict
     return step
+
+
+def _is_retryable_provider_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(
+        needle in msg
+        for needle in (
+            "timed out",
+            "timeout",
+            "temporarily unavailable",
+            "overloaded",
+            "529",
+            "rate limit",
+            "connection reset",
+        )
+    )
+
+
+def _chat_role_retry(
+    *,
+    provider: str,
+    model: str,
+    system: str,
+    user: str,
+    temperature: float,
+    max_tokens: int,
+    retries: int = 0,
+) -> dict:
+    last: BaseException | None = None
+    attempts = 1 + max(0, retries)
+    for i in range(attempts):
+        try:
+            return chat_role(
+                provider=provider,
+                model=model,
+                system=system,
+                user=user,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:  # noqa: BLE001
+            last = e
+            if i + 1 < attempts and _is_retryable_provider_error(e):
+                continue
+            raise
+    assert last is not None
+    raise last
+
+
+def _continue_truncated_build_spec(
+    raw_text: str,
+    *,
+    usage: dict,
+    cost: float,
+    routed: dict,
+    system: str,
+) -> tuple[str, dict, float]:
+    """If Architect was cut off mid build-spec JSON, request one continuation."""
+    from services.build_spec import extract_build_spec, looks_like_truncated_build_spec
+
+    if extract_build_spec(raw_text) or not looks_like_truncated_build_spec(raw_text):
+        return raw_text, usage, cost
+    try:
+        cont = chat_role(
+            provider=routed["provider"],
+            model=routed["model"],
+            system=system,
+            user=(
+                "Your previous reply was truncated mid build-spec JSON (max_tokens). "
+                "Continue EXACTLY from the cutoff — output only the remainder of the JSON "
+                "object and close the ``` fence. Do not restart the object. Do not add prose "
+                "before the continuation.\n\n"
+                "--- CUTOFF TAIL (last 2000 chars) ---\n"
+                f"{raw_text[-2000:]}"
+            ),
+            temperature=routed.get("temperature", 0.3),
+            max_tokens=routed.get("max_tokens", 8192),
+        )
+    except Exception:  # noqa: BLE001
+        return raw_text, usage, cost
+
+    cont_text = cont.get("text") or ""
+    merged = raw_text + cont_text
+    cu = cont.get("usage") or {"input": 0, "output": 0, "total": 0}
+    merged_usage = {
+        "input": int(usage.get("input", 0)) + int(cu.get("input", 0)),
+        "output": int(usage.get("output", 0)) + int(cu.get("output", 0)),
+        "total": int(usage.get("total", 0)) + int(cu.get("total", 0)),
+    }
+    merged_cost = cost + usd_cost(
+        routed["model"], cu.get("input", 0), cu.get("output", 0)
+    )
+    return merged, merged_usage, merged_cost
 
 
 def _finalize(
@@ -230,6 +369,123 @@ def run_job(
     model_overrides: dict[str, str] | None = None,
     council: str | None = None,
     on_step=None,
+    on_progress=None,
+) -> dict:
+    """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
+
+    def progress(phase: str, message: str, role: str | None = None) -> None:
+        if not on_progress:
+            return
+        try:
+            on_progress({"phase": phase, "message": message, "role": role})
+        except Exception:  # noqa: BLE001
+            pass
+
+    # For build_spec tasks, inject a read-only repo context pack unless the caller
+    # already provided one (Autonomy 0 — tools never write).
+    if task == "build_spec":
+        progress(
+            "repo_context",
+            "Gathering read-only repo context (list/read/grep/diff)…",
+            "architect",
+        )
+        context_json = _ensure_repo_context(context_json)
+        progress("repo_context_done", "Repo context ready — starting council roles…", "architect")
+
+    result = _execute_job(
+        task=task,
+        roles=roles,
+        mode=mode,
+        question=question,
+        context_json=context_json,
+        model_overrides=model_overrides,
+        council=council,
+        on_step=on_step,
+        on_progress=on_progress,
+    )
+    _persist_run(result, task=task, question=question, context_json=context_json)
+
+    if task == "build_spec":
+        _emit_build_spec(result, question=question)
+
+    return result
+
+
+def _ensure_repo_context(context_json: str) -> str:
+    import json
+
+    try:
+        ctx = json.loads(context_json) if context_json else {}
+        if not isinstance(ctx, dict):
+            ctx = {"raw": context_json}
+    except json.JSONDecodeError:
+        ctx = {"raw": context_json}
+
+    if ctx.get("repoContext"):
+        return json.dumps(ctx)
+
+    try:
+        from services.tools import gather_build_context
+
+        ctx["repoContext"] = gather_build_context("architect")
+    except Exception as e:  # noqa: BLE001
+        ctx["repoContext"] = f"(repo context unavailable: {e})"
+    return json.dumps(ctx)
+
+
+def _emit_build_spec(result: dict, *, question: str) -> None:
+    """Best-effort: extract a build spec and write docs/specs/<id>.md + .json."""
+    try:
+        from services.build_spec import build_spec_from_committee_result, write_spec
+
+        if result.get("vote", {}).get("vetoed"):
+            result["buildSpecStatus"] = "vetoed"
+            return
+        spec = build_spec_from_committee_result(result, question=question)
+        path = write_spec(spec)
+        result["buildSpecId"] = spec["id"]
+        result["buildSpecPath"] = str(path)
+        result["buildSpecStatus"] = spec["provenance"]["verification_status"]
+    except Exception as e:  # noqa: BLE001
+        import sys
+
+        sys.stderr.write(f"[orchestr8] build_spec emit skipped: {e}\n")
+        result["buildSpecStatus"] = f"emit_failed: {e}"
+
+
+def _persist_run(result: dict, *, task: str, question: str, context_json: str) -> None:
+    # Persistence must never break a job; a failed write is logged, not raised.
+    try:
+        from services.runstore import build_bundle, persist_run, persistence_enabled
+
+        if not persistence_enabled():
+            return
+        bundle = build_bundle(
+            result=result,
+            task=task,
+            question=question,
+            context_json=context_json,
+        )
+        path = persist_run(bundle)
+        result["runId"] = bundle["run_id"]
+        result["runPath"] = str(path)
+    except Exception as e:  # noqa: BLE001
+        import sys
+
+        sys.stderr.write(f"[orchestr8] run persistence skipped: {e}\n")
+
+
+def _execute_job(
+    *,
+    task: str,
+    roles: list[str],
+    mode: str,
+    question: str,
+    context_json: str,
+    model_overrides: dict[str, str] | None = None,
+    council: str | None = None,
+    on_step=None,
+    on_progress=None,
 ) -> dict:
     if not roles:
         raise ValueError("At least one role is required")
@@ -243,6 +499,14 @@ def run_job(
             except Exception:  # noqa: BLE001 — streaming must never break the job
                 pass
 
+    def progress(phase: str, message: str, role: str | None = None) -> None:
+        if not on_progress:
+            return
+        try:
+            on_progress({"phase": phase, "message": message, "role": role})
+        except Exception:  # noqa: BLE001
+            pass
+
     overrides = model_overrides or {}
     # Resolve legacy ids (qc_qa → critic) then de-dupe
     unique = []
@@ -252,13 +516,22 @@ def run_job(
         if resolved not in seen:
             seen.add(resolved)
             unique.append(resolved)
-    unique = sort_agent_ids(unique)
+    # Prefer the council's declared agent order (e.g. build_spec: architect → … → critic).
+    # Fall back to the global pipeline_order when no council is set.
+    council_meta_early = get_council(council) if council else None
+    if council_meta_early and council_meta_early.get("agents"):
+        rank = {a: i for i, a in enumerate(council_meta_early["agents"])}
+        unique = sorted(unique, key=lambda r: rank.get(r, 999))
+    else:
+        unique = sort_agent_ids(unique)
     trace: list[dict] = []
 
     def override_for(aid: str) -> str | None:
         return overrides.get(aid) or overrides.get(resolve_agent_id(aid))
 
     if len(unique) == 1 or mode == "single":
+        label0 = get_agent(unique[0])["label"]
+        progress("role_start", f"Calling {label0}…", unique[0])
         step = _run_agent(
             unique[0],
             task=task,
@@ -282,6 +555,11 @@ def run_job(
     workers = [r for r in unique if r != coordinator]
 
     if mode == "parallel" and len(workers) > 1:
+        progress(
+            "role_start",
+            f"Calling {len(workers)} roles in parallel…",
+            workers[0] if workers else None,
+        )
         parallel_results: list[dict] = []
         with ThreadPoolExecutor(max_workers=min(6, len(workers))) as pool:
             futures = [
@@ -306,6 +584,7 @@ def run_job(
         trace.extend(parallel_results)
 
         synth_id = coordinator or _synthesizer_id(unique)
+        progress("role_start", f"Calling {get_agent(synth_id)['label']} (Synthesis)…", synth_id)
         synth = _run_agent(
             synth_id,
             task=task,
@@ -338,6 +617,11 @@ def run_job(
         if owner in execution_order:
             execution_order = [r for r in execution_order if r != owner] + [owner]
     if coordinator:
+        progress(
+            "role_start",
+            f"Calling {get_agent(coordinator)['label']} (Plan)…",
+            coordinator,
+        )
         plan = _run_agent(
             coordinator,
             task=task,
@@ -354,6 +638,11 @@ def run_job(
         execution_order = [r for r in execution_order if r != coordinator]
 
     for agent_id in execution_order:
+        progress(
+            "role_start",
+            f"Calling {get_agent(agent_id)['label']}…",
+            agent_id,
+        )
         step = _run_agent(
             agent_id,
             task=task,
@@ -365,8 +654,32 @@ def run_job(
         )
         trace.append(step)
         emit(step)
+        # Don't burn Domain/Tester/Critic spend when Architect never produced a spec.
+        if (
+            task == "build_spec"
+            and step.get("role") == "architect"
+            and step.get("error")
+        ):
+            progress(
+                "abort",
+                "Architect failed after retry — stopping Build Spec pipeline early.",
+                "architect",
+            )
+            return _finalize(
+                text=step["text"],
+                trace=trace,
+                mode="pipeline",
+                roles=unique,
+                overrides=overrides,
+                council=council,
+            )
 
     if coordinator:
+        progress(
+            "role_start",
+            f"Calling {get_agent(coordinator)['label']} (Final)…",
+            coordinator,
+        )
         synth = _run_agent(
             coordinator,
             task=task,
