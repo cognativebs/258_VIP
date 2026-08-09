@@ -121,6 +121,20 @@ export function AnalyticsChat({
   // Cancel any in-flight run if the panel unmounts (tab switch / navigation).
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const stopRun = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const fillPrompt = useCallback((text: string) => {
+    setInput(text);
+    setError(null);
+    // Next tick so the value is in the DOM before focus/select.
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(text.length, text.length);
+    });
+  }, []);
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -150,8 +164,17 @@ export function AnalyticsChat({
           controller.signal,
         );
         if (!result) {
-          if (!controller.signal.aborted) throw new Error("No result returned from Orchestr8");
-          return;
+          if (controller.signal.aborted) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: "Stopped. Partial provider usage before the abort may still be billed.",
+              },
+            ]);
+            return;
+          }
+          throw new Error("No result returned from Orchestr8");
         }
         setMessages((prev) => [
           ...prev,
@@ -164,7 +187,17 @@ export function AnalyticsChat({
           },
         ]);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Request failed");
+        if (controller.signal.aborted) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "Stopped. Partial provider usage before the abort may still be billed.",
+            },
+          ]);
+        } else {
+          setError(e instanceof Error ? e.message : "Request failed");
+        }
       } finally {
         setLoading(false);
         setLiveSteps([]);
@@ -192,12 +225,23 @@ export function AnalyticsChat({
       <div className="bb-analytics-head">
         <span>Conversational analytics</span>
         <div className="bb-analytics-head-right">
+          {loading ? (
+            <button
+              type="button"
+              className="bb-btn bb-btn-stop"
+              onClick={stopRun}
+              title="Abort the running Orchestr8 job"
+            >
+              Stop
+            </button>
+          ) : null}
           <span className="bb-analytics-provider">{teamLabel}</span>
           <button
             type="button"
             className="bb-link-btn"
             onClick={() => setShowTeamPanel(true)}
             title="Pick Orchestr8 council, roles, and models"
+            disabled={loading}
           >
             AI team
           </button>
@@ -233,8 +277,9 @@ export function AnalyticsChat({
         {messages.length === 0 ? (
           <div className="bb-analytics-welcome">
             <p>
-              Type your own question in the box below, or tap a suggestion. Open{" "}
-              <strong>AI team</strong> to change council / roles / models.
+              Type your own question below, or tap a suggestion to <strong>fill</strong> the box
+              (suggestions do not start a run until you hit Analyze). Open <strong>AI team</strong>{" "}
+              for council / roles / models.
             </p>
             <div className="bb-prompt-grid">
               {SUGGESTED_PROMPTS.map((p) => (
@@ -243,7 +288,7 @@ export function AnalyticsChat({
                   type="button"
                   className="bb-prompt-chip"
                   disabled={!configured || loading}
-                  onClick={() => void send(p)}
+                  onClick={() => fillPrompt(p)}
                 >
                   {p}
                 </button>
@@ -315,6 +360,14 @@ export function AnalyticsChat({
                 <span className="bb-blink">▮</span> Team analyzing{" "}
                 {filtered.length.toLocaleString()} books ({teamLabel})…
                 <span className="bb-load-timer">{fmtTime(elapsed)}</span>
+                <button
+                  type="button"
+                  className="bb-btn bb-btn-stop"
+                  onClick={stopRun}
+                  title="Abort the running Orchestr8 job"
+                >
+                  Stop
+                </button>
               </div>
               <ol className="bb-load-steps">
                 {liveSteps.length > 0
@@ -392,12 +445,8 @@ export function AnalyticsChat({
         />
         <div className="bb-analytics-actions">
           {loading ? (
-            <button
-              type="button"
-              className="bb-btn bb-btn-ghost"
-              onClick={() => abortRef.current?.abort()}
-            >
-              Stop
+            <button type="button" className="bb-btn bb-btn-stop" onClick={stopRun}>
+              Stop run
             </button>
           ) : (
             <button

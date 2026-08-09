@@ -1088,6 +1088,25 @@
   font-weight: 700;
 }
 
+.bb-btn-stop {
+  background: #e5484d;
+  color: #fff;
+  border: 1px solid #ff7b7f;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bb-btn-stop:hover {
+  filter: brightness(1.08);
+}
+
+.bb-load-head .bb-btn-stop {
+  margin-left: 8px;
+}
+
 .bb-btn-analytics:hover:not(:disabled) {
   filter: brightness(1.08);
 }
