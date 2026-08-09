@@ -278,7 +278,9 @@ export function createApp(deps: AppDeps = {}) {
       });
       return;
     }
-    const items = holdings.slice(0, limit).map((h) => buildRecommendation(h));
+    const items = await Promise.all(
+      holdings.slice(0, limit).map((h) => buildRecommendation(h)),
+    );
     res.json({
       count: items.length,
       comicsSource,
@@ -302,7 +304,7 @@ export function createApp(deps: AppDeps = {}) {
       res.status(404).json({ error: "Holding not found" });
       return;
     }
-    res.json({ recommendation: buildRecommendation(holding) });
+    res.json({ recommendation: await buildRecommendation(holding) });
   });
 
   app.get("/api/signals", (_req, res) => res.json(loadSignalsResponse()));

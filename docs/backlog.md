@@ -137,7 +137,9 @@ These are rule violations and wrong-data paths, not missing features.
 - [x] **Hardcoded/derived-from-nothing endpoints.** Sell-queue / watchlist / theses
       now derive from live holdings. `/api/hunts` remains a seed file (tracked below).
 - [ ] **Hunts still seed data.** `/api/hunts` reads `seeds/hunts.ts` — move to Postgres.
-- [ ] **Live comps adapters.** eBay sold listings + TCGplayer market (Decision D).
+- [x] **Live comps adapters.** eBay sold + TCGplayer market adapters shipped
+      2026-08-09 (`services/api/src/lib/comps/`). Idle without credentials /
+      network — never fabricate. Wire `EBAY_OAUTH_TOKEN` for comics sold comps.
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 

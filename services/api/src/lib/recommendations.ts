@@ -1,27 +1,17 @@
 import { recommend } from "@vip/decision-engine";
+import { fetchCompsForHolding } from "./comps/index.js";
 import type { ApiHolding } from "./holdings.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./signalsFeed.js";
 import { constraintsForHolding, loadUserConstraints } from "./userConstraints.js";
 
 /**
- * Market comps for a holding. Until the eBay / TCGplayer adapters land
- * (Phase 2.2), this returns an empty list — and recommendations must say
- * "insufficient market evidence" rather than invent sales.
+ * Market comps for a holding. Live path uses swappable adapters
+ * (eBay sold listings + TCGplayer market). Empty adapter results mean
+ * "insufficient market evidence" — never fabricated sales.
  *
- * Rule 4: never fabricate comps. An empty list is honest; four invented
- * sales at CLZ price × 0.9/1.0/1.1/0.95 was not.
+ * Rule 4: never invent comps. Four synthetic sales at CLZ × 0.9/1.0/1.1/0.95
+ * used to live here; they are gone.
  */
-export type SaleComp = {
-  id: string;
-  price: number;
-  saleDate: Date;
-  source: string;
-};
-
-export type CompsLoader = (holding: ApiHolding) => SaleComp[];
-
-/** Default: no comps. Swappable once eBay / TCGplayer adapters register. */
-export const emptyCompsLoader: CompsLoader = () => [];
 
 function signalEvidenceFromFeed() {
   const feed = readSignalsFeed(defaultSignalsFeedPath());
@@ -39,13 +29,9 @@ function signalEvidenceFromFeed() {
   }));
 }
 
-export function buildRecommendation(
-  holding: ApiHolding,
-  askPrice?: number | null,
-  compsLoader: CompsLoader = emptyCompsLoader,
-) {
+export async function buildRecommendation(holding: ApiHolding, askPrice?: number | null) {
   const ask = askPrice ?? holding.currentPrice ?? null;
-  const sales = compsLoader(holding);
+  const { sales, adapters } = await fetchCompsForHolding(holding);
   const userConstraints = constraintsForHolding(loadUserConstraints(), holding.pillar);
 
   const rec = recommend({
@@ -66,6 +52,7 @@ export function buildRecommendation(
   });
 
   const insufficientMarket = (rec.marketRange?.matchedSales ?? 0) === 0;
+  const compsSources = [...new Set(sales.map((s) => s.source))];
 
   return {
     holdingId: holding.id,
@@ -89,7 +76,12 @@ export function buildRecommendation(
         }
       : null,
     insufficientMarketEvidence: insufficientMarket,
-    compsSource: sales.length ? sales[0]?.source ?? "comps" : "none",
+    compsSource: compsSources.length ? compsSources.join("+") : "none",
+    compsAdapters: adapters.map((a) => ({
+      id: a.adapterId,
+      matched: a.sales.length,
+      emptyReason: a.emptyReason ?? null,
+    })),
     ruleOrModelVersion: rec.ruleOrModelVersion,
     constraintsSnapshot: rec.constraintsSnapshot,
   };
