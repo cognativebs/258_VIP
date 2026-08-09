@@ -1,4 +1,4 @@
-# Recreate IQVault desktop shortcut with custom icon
+﻿# Recreate IQVault desktop shortcut with custom icon
 $root = Split-Path -Parent $PSScriptRoot
 $launcher = Join-Path $root "Launch IQVault.bat"
 $icon = Join-Path $root "assets\iqvault-icon.ico"
@@ -9,7 +9,7 @@ $shell = New-Object -ComObject WScript.Shell
 $sc = $shell.CreateShortcut($lnk)
 $sc.TargetPath = $launcher
 $sc.WorkingDirectory = $root
-$sc.Description = "IQVault VIP — Docker, Postgres, VIP API, Comics API, Orchestr8, web"
+$sc.Description = "IQVault VIP - Docker, Postgres, VIP API, Comics API, Orchestr8, web"
 $sc.IconLocation = "$icon,0"
 $sc.WindowStyle = 1
 $sc.Save()
