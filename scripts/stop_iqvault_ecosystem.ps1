@@ -1,4 +1,4 @@
-# Stop every IQVault VIP service window (does not stop Postgres/Docker).
+﻿# Stop every IQVault VIP service window (does not stop Postgres/Docker).
 $Ports = 8787, 5200, 5210, 3000
 
 foreach ($port in $Ports) {
@@ -15,4 +15,4 @@ foreach ($port in $Ports) {
     }
 }
 
-Write-Host "[IQVault] Stopped. Postgres container is left running — 'docker stop iqvault-postgres' to also stop that." -ForegroundColor Green
+Write-Host "[IQVault] Stopped. Postgres container is left running - 'docker stop iqvault-postgres' to also stop that." -ForegroundColor Green

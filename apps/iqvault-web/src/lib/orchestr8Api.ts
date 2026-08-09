@@ -37,8 +37,22 @@ export type AgentInfo = {
   label: string;
   provider: string;
   providerLabel?: string;
+  description?: string;
   defaultModel?: string;
+  allowedModels?: Array<{ id: string; label: string; provider?: string }>;
+  councils?: string[];
+  tier?: number;
   configured?: boolean;
+};
+
+export type CouncilInfo = {
+  id: string;
+  label: string;
+  purpose?: string;
+  mode?: string;
+  agents?: string[];
+  voting?: string;
+  outputOwner?: string;
 };
 
 /** Proxied through Next rewrites for plain JSON reads. */
@@ -63,13 +77,25 @@ export async function fetchOrchestr8Health(): Promise<Orchestr8Health> {
   }
 }
 
-export async function fetchOrchestr8Agents(): Promise<{ agents: AgentInfo[] }> {
+export async function fetchOrchestr8Agents(): Promise<{
+  agents: AgentInfo[];
+  pipelineOrder?: string[];
+}> {
   const res = await fetch(`${BASE}/v1/agents`, {
     cache: "no-store",
     signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) throw new Error(`Orchestr8 agents unavailable (${res.status})`);
-  return (await res.json()) as { agents: AgentInfo[] };
+  return (await res.json()) as { agents: AgentInfo[]; pipelineOrder?: string[] };
+}
+
+export async function fetchOrchestr8Councils(): Promise<{ councils: CouncilInfo[] }> {
+  const res = await fetch(`${BASE}/v1/councils`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`Orchestr8 councils unavailable (${res.status})`);
+  return (await res.json()) as { councils: CouncilInfo[] };
 }
 
 export async function streamOrchestr8Job(
@@ -80,6 +106,7 @@ export async function streamOrchestr8Job(
     question: string;
     contextJson?: string;
     council?: string | null;
+    modelOverrides?: Record<string, string>;
   },
   handlers: {
     onStep?: (step: JobStep) => void;
@@ -95,6 +122,7 @@ export async function streamOrchestr8Job(
       roles: payload.roles,
       mode: payload.mode,
       council: payload.council || undefined,
+      model_overrides: payload.modelOverrides || undefined,
       input: {
         question: payload.question,
         contextJson: payload.contextJson ?? "{}",

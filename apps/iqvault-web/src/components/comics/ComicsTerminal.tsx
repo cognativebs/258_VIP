@@ -158,7 +158,9 @@ export function ComicsTerminal() {
             ·{" "}
             {source === "comics-api"
               ? "Postgres live (editable)"
-              : "VIP → Postgres (read-only)"}
+              : editable
+                ? "VIP → Postgres (editable)"
+                : "VIP → Postgres (read-only)"}
             {meta?.snapshotLabel ? ` · ${meta.snapshotLabel}` : ""}
           </span>
         </div>
@@ -540,9 +542,8 @@ export function ComicsTerminal() {
                 </button>
               ) : (
                 <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
-                  Read-only via VIP (collection still loads from Postgres). Live edits need Comics
-                  API on :5200 — check the top bar says &quot;Postgres live (editable)&quot;, or run{" "}
-                  <code>python api/comics_server.py</code> / Launch IQVault.bat.
+                  Edits unavailable — Postgres comics inventory did not load. Start VIP API (
+                  <code>npm run api</code>) or Launch IQVault.bat.
                 </p>
               )}
             </div>

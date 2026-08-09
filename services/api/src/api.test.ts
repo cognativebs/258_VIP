@@ -2,8 +2,9 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
+import { createApp, type AppDeps } from "./app.js";
 import type { ComicsPayload } from "./lib/comicsHoldings.js";
+import type { UpdateComicHoldingResult } from "./lib/comicsWrite.js";
 import { mapInventoryRow } from "./lib/holdings.js";
 import { resetScanStoreForTests } from "./lib/scanIngest.js";
 import { writeSignalsFeed } from "./lib/signalsFeed.js";
@@ -52,8 +53,9 @@ afterEach(() => {
 async function withServer<T>(
   fn: (base: string) => Promise<T>,
   comics: ComicsPayload = fixtureComics(),
+  extraDeps: Omit<AppDeps, "loadComics"> = {},
 ): Promise<T> {
-  const app = createApp({ loadComics: async () => comics });
+  const app = createApp({ loadComics: async () => comics, ...extraDeps });
   const server = app.listen(0);
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("no port");
@@ -126,6 +128,54 @@ describe("VIP API", () => {
       expect(body.comicsAvailable).toBe(false);
       expect(Array.isArray(body.watchlist)).toBe(true);
     }, unavailableComics());
+  });
+
+  it("POST /api/comics/holding/:id patches via VIP (editable without Comics API :5200)", async () => {
+    const updateComicHolding = async (
+      id: string,
+      fields: Record<string, unknown>,
+    ): Promise<UpdateComicHoldingResult> => {
+      expect(id).toBe("clz-fixture-1");
+      expect(fields["Needs Verification"]).toBe("No");
+      return {
+        ok: true,
+        row: {
+          id,
+          "Needs Verification": "No",
+          Series: "X-Men",
+        },
+        provenance: {
+          source: "clz_import",
+          method: "observed",
+          ruleOrModelVersion: "vip-comics-holding-write@0.1.0",
+          confidence: 1,
+          verificationStatus: "verified",
+          supersededBy: null,
+        },
+      };
+    };
+
+    await withServer(
+      async (base) => {
+        const res = await fetch(`${base}/api/comics/holding/clz-fixture-1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { "Needs Verification": "No" } }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          ok: boolean;
+          row: { id: string; "Needs Verification": string };
+          ruleOrModelVersion: string;
+        };
+        expect(body.ok).toBe(true);
+        expect(body.row.id).toBe("clz-fixture-1");
+        expect(body.row["Needs Verification"]).toBe("No");
+        expect(body.ruleOrModelVersion).toBe("vip-comics-holding-write@0.1.0");
+      },
+      fixtureComics(),
+      { updateComicHolding },
+    );
   });
 
   it("POST /api/tcg/project projects Binder owned/wishlist into durable VIP rows", async () => {
