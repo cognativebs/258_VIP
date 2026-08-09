@@ -1,8 +1,13 @@
 # IQVault VIP stack — one-shot launcher (desktop shortcut / Launch IQVault.bat)
 # Starts only what is missing: Docker -> Postgres -> DB migrations -> VIP API ->
 # Comics API -> Orchestr8 -> web UI, then opens the browser.
+#
+# A listening port is NOT treated as healthy. Stale or half-dead processes
+# (old VIP sample API, broken Orchestr8 that accepts then closes) are killed
+# and restarted.
 param(
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$WithBinder
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +20,7 @@ $Ports = @{
     ComicsApi = 5200
     Orchestr8 = 5210
     Web       = 3000
+    Binder    = 3010
 }
 
 function Write-Step([string]$Msg) {
@@ -49,7 +55,7 @@ function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
             $r = Invoke-RestMethod -Uri $Url -TimeoutSec 5
             if (& $Ok $r) { return $true }
         } catch {
-            # still starting
+            # still starting, or broken listener that closes early
         }
         Start-Sleep -Seconds 2
     }
@@ -194,7 +200,14 @@ function Stop-ProcessesOnPort([int]$Port) {
     }
     if ($procIds) {
         # Give the OS a moment to actually free the socket before rebinding.
-        Start-Sleep -Seconds 1
+        Start-Sleep -Seconds 2
+        # Second pass — Windows sometimes leaves a dying listener briefly.
+        $still = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($procId in $still) {
+            try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        if ($still) { Start-Sleep -Seconds 1 }
     }
 }
 
@@ -202,8 +215,7 @@ function Test-VipApiCurrent {
     try {
         $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
         # comicsAvailable only exists on the current schema. A process left
-        # running from before the live-Postgres correction (main history
-        # cursor/vip-api-live-comics-inventory-9666) answers on this same
+        # running from before the live-Postgres correction answers on this same
         # port with the old 120-sample + 5-seed shape and no such field —
         # "already on this port" must not be mistaken for "healthy".
         return $null -ne $r.PSObject.Properties['comicsAvailable']
@@ -215,10 +227,10 @@ function Test-VipApiCurrent {
 function Ensure-VipApi {
     if (Test-PortListening $Ports.VipApi) {
         if (Test-VipApiCurrent) {
-            Write-Step "VIP API already on port $($Ports.VipApi)."
+            Write-Step "VIP API already healthy on port $($Ports.VipApi)."
             return
         }
-        Write-Warn "Port $($Ports.VipApi) is serving an outdated VIP API (no comicsAvailable field) — restarting it."
+        Write-Warn "Port $($Ports.VipApi) is serving an outdated or broken VIP API — restarting it."
         Stop-ProcessesOnPort $Ports.VipApi
     }
     Write-Step "Starting VIP API..."
@@ -229,10 +241,23 @@ function Ensure-VipApi {
     Write-Step "VIP API ready."
 }
 
+function Test-ComicsApiHealthy {
+    try {
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.ComicsApi)/api/comics/health" -TimeoutSec 5
+        return $r.ok -eq $true
+    } catch {
+        return $false
+    }
+}
+
 function Ensure-ComicsApi {
     if (Test-PortListening $Ports.ComicsApi) {
-        Write-Step "Comics API already on port $($Ports.ComicsApi)."
-        return
+        if (Test-ComicsApiHealthy) {
+            Write-Step "Comics API already healthy on port $($Ports.ComicsApi)."
+            return
+        }
+        Write-Warn "Port $($Ports.ComicsApi) is listening but unhealthy — restarting Comics API."
+        Stop-ProcessesOnPort $Ports.ComicsApi
     }
     Write-Step "Starting Comics API..."
     Start-MinimizedProcess "IQVault Comics API" $Root "python api\comics_server.py"
@@ -253,20 +278,51 @@ function Ensure-Orchestr8Env {
     }
 }
 
+function Test-Orchestr8Healthy {
+    try {
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" -TimeoutSec 5
+        # Must be the Orchestr8 gateway shape. A dead/half-open listener
+        # (Accept then ResponseEnded) fails the Invoke and returns false —
+        # that is the failure mode that kept Comics Ask offline tonight.
+        return ($r.service -eq "orchestr8") -and ($null -ne $r.providers)
+    } catch {
+        return $false
+    }
+}
+
 function Ensure-Orchestr8 {
     if (Test-PortListening $Ports.Orchestr8) {
-        Write-Step "Orchestr8 already on port $($Ports.Orchestr8)."
-        return
+        if (Test-Orchestr8Healthy) {
+            Write-Step "Orchestr8 already healthy on port $($Ports.Orchestr8)."
+            return
+        }
+        Write-Warn "Port $($Ports.Orchestr8) is listening but not a healthy Orchestr8 gateway — restarting it."
+        Stop-ProcessesOnPort $Ports.Orchestr8
     }
     Ensure-Orchestr8Env
     Write-Step "Starting Orchestr8..."
     $orchRoot = Join-Path $Root "orchestr8"
     Start-MinimizedProcess "IQVault Orchestr8" $orchRoot "pip install -r requirements.txt -q 2>nul && python api\server.py"
-    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" { param($j) $null -ne $j.service } 90)) {
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" { param($j) $j.service -eq "orchestr8" } 90)) {
         Write-Warn "Orchestr8 not reachable yet. Ask on the Comics tab will stay disabled until it is."
         return
     }
-    Write-Step "Orchestr8 gateway is up (Ask needs a provider key in orchestr8\.env to fully enable)."
+    try {
+        $h = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" -TimeoutSec 5
+        $anyKey = $false
+        if ($h.providers) {
+            foreach ($p in $h.providers.PSObject.Properties) {
+                if ($p.Value -eq $true) { $anyKey = $true; break }
+            }
+        }
+        if ($anyKey) {
+            Write-Step "Orchestr8 ready (providers: $($h.providers | ConvertTo-Json -Compress))."
+        } else {
+            Write-Warn "Orchestr8 is up but no provider keys are set — add keys to orchestr8\.env and restart Orchestr8 for Ask."
+        }
+    } catch {
+        Write-Step "Orchestr8 gateway is up."
+    }
 }
 
 function Ensure-Web {
@@ -280,6 +336,70 @@ function Ensure-Web {
         throw "IQVault web failed to bind port $($Ports.Web)."
     }
     Write-Step "IQVault web ready."
+}
+
+function Ensure-Binder {
+    if (-not $WithBinder) { return }
+    if (Test-PortListening $Ports.Binder) {
+        Write-Step "Binder already on port $($Ports.Binder)."
+        return
+    }
+    Write-Step "Starting Binder Vault..."
+    Start-MinimizedProcess "IQVault Binder" $Root "npm run binder"
+    if (-not (Wait-Port $Ports.Binder 120)) {
+        Write-Warn "Binder did not bind port $($Ports.Binder) — skip or start later with: npm run binder"
+        return
+    }
+    Write-Step "Binder ready on http://127.0.0.1:$($Ports.Binder)"
+}
+
+function Write-StackSummary {
+    Write-Host ""
+    Write-Step "Stack health check:"
+
+    $vipOk = Test-VipApiCurrent
+    $comicsOk = Test-ComicsApiHealthy
+    $orchOk = Test-Orchestr8Healthy
+    $webOk = Test-PortListening $Ports.Web
+
+    $comicsCount = "?"
+    if ($vipOk) {
+        try {
+            $inv = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
+            if ($null -ne $inv.comicsCount) { $comicsCount = $inv.comicsCount }
+        } catch {}
+    }
+
+    $orchProviders = "n/a"
+    if ($orchOk) {
+        try {
+            $h = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.Orchestr8)/v1/health" -TimeoutSec 5
+            $orchProviders = ($h.providers | ConvertTo-Json -Compress)
+        } catch {}
+    }
+
+    $vipLabel = if ($vipOk) { "OK" } else { "DOWN" }
+    $comicsLabel = if ($comicsOk) { "OK" } else { "DOWN" }
+    $orchLabel = if ($orchOk) { "OK" } else { "DOWN" }
+    $webLabel = if ($webOk) { "OK" } else { "DOWN" }
+
+    Write-Step ("  VIP API    {0}  http://127.0.0.1:{1}  comicsCount={2}" -f $vipLabel, $Ports.VipApi, $comicsCount)
+    Write-Step ("  Comics API {0}  http://127.0.0.1:{1}" -f $comicsLabel, $Ports.ComicsApi)
+    Write-Step ("  Orchestr8  {0}  http://127.0.0.1:{1}  providers={2}" -f $orchLabel, $Ports.Orchestr8, $orchProviders)
+    Write-Step ("  Web        {0}  http://127.0.0.1:{1}/collections/comics" -f $webLabel, $Ports.Web)
+    if ($WithBinder) {
+        $binderOk = Test-PortListening $Ports.Binder
+        $binderLabel = if ($binderOk) { "OK" } else { "DOWN" }
+        Write-Step ("  Binder     {0}  http://127.0.0.1:{1}" -f $binderLabel, $Ports.Binder)
+    }
+    Write-Host ""
+    Write-Step "Leave the service windows open. Stop everything with: Stop IQVault.bat"
+    if (-not $orchOk) {
+        Write-Warn "Ask on Comics needs a healthy Orchestr8. Fix keys in orchestr8\.env then re-run this launcher."
+    }
+    Write-Step "If the collection looks empty, import once:"
+    Write-Step "  python scripts/import_clz.py --xml <your export.xml>"
+    Write-Host ""
 }
 
 # --- main ---
@@ -301,22 +421,14 @@ try {
     Ensure-ComicsApi
     Ensure-Orchestr8
     Ensure-Web
+    Ensure-Binder
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
         Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
     }
 
-    Write-Host ""
-    Write-Step "All services up:"
-    Write-Step "  VIP API    http://127.0.0.1:$($Ports.VipApi)"
-    Write-Step "  Comics API http://127.0.0.1:$($Ports.ComicsApi)"
-    Write-Step "  Orchestr8  http://127.0.0.1:$($Ports.Orchestr8)"
-    Write-Step "  Web        http://127.0.0.1:$($Ports.Web)"
-    Write-Host ""
-    Write-Step "If the collection looks empty, import it once with:"
-    Write-Step "  python scripts/import_clz.py --xml <your export.xml>"
-    Write-Host ""
+    Write-StackSummary
 } catch {
     Write-Host ""
     Write-Host "[IQVault] ERROR: $($_.Exception.Message)" -ForegroundColor Red
