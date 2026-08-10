@@ -27,7 +27,7 @@ export function identifyUnit(
   const hint = opts.categoryHint ?? unit.categoryHint ?? null;
   const limit = opts.limit ?? 5;
   const query = normalize(
-    [unit.ocrText, unit.frontStorageRef.split("/").pop()].filter(Boolean).join(" "),
+    [unit.ocrText, baseName(unit.frontStorageRef)].filter(Boolean).join(" "),
   );
 
   if (!query) {
@@ -114,6 +114,15 @@ function matchReasons(query: string, card: CatalogCard): string[] {
   }
   if (reasons.length === 0) reasons.push("token_overlap");
   return reasons;
+}
+
+/**
+ * Last path segment for POSIX and Windows refs. PaperStream writes
+ * `D:\VIP\scans\001_front.jpg`, so splitting on "/" alone would leave the whole
+ * path in the query and dilute token scoring.
+ */
+function baseName(ref: string): string {
+  return ref.split(/[\\/]/).pop() ?? ref;
 }
 
 function normalize(s: string): string {

@@ -33,6 +33,7 @@ import {
   openScanFromApi,
   scanMeta,
 } from "./lib/scanIngest.js";
+import { importFolderPages, scanInboxRoot } from "./lib/scanFolder.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
@@ -506,7 +507,17 @@ export function createApp(deps: AppDeps = {}) {
    * → optional eBay listing draft (idle without developer tokens).
    */
   app.get("/api/scan", (_req, res) => {
-    res.json(scanMeta());
+    const inbox = scanInboxRoot();
+    res.json({
+      ...scanMeta(),
+      inbox: {
+        root: inbox,
+        configured: Boolean(inbox),
+        note: inbox
+          ? "POST /api/scan/import-folder starts a batch from this folder"
+          : "Set VIP_SCAN_INBOX to your PaperStream output folder to import without a full path",
+      },
+    });
   });
 
   app.get("/api/scan/batches", (_req, res) => {
@@ -520,6 +531,52 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     res.json({ batch });
+  });
+
+  /**
+   * Start a batch straight from the PaperStream drop folder so the collector
+   * face does not need curl. Hardware capture still happens in PaperStream.
+   */
+  app.post("/api/scan/import-folder", async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      const imported = await importFolderPages({
+        folder: body.folder ?? null,
+        categoryHint: body.categoryHint ?? null,
+        pairing: body.pairing,
+        notes: body.notes,
+        maxFiles: body.maxFiles,
+      });
+      if (!imported.ok) {
+        res.status(imported.status).json({ ok: false, error: imported.error });
+        return;
+      }
+
+      const inventory = inventoryLookupFromHoldings(
+        (await buildInventory(deps)).holdings,
+      );
+      const result = openScanFromApi({
+        categoryHint: body.categoryHint ?? null,
+        notes: body.notes ?? `Imported from ${imported.folder}`,
+        pages: imported.pages,
+        inventory,
+      });
+
+      res.status(201).json({
+        ok: true,
+        folder: imported.folder,
+        fileCount: imported.fileCount,
+        batch: result.batch,
+        rawSnapshots: result.rawSnapshots,
+        decisionNote:
+          "Candidates are inferred · unverified until POST /api/scan/units/:id/confirm",
+      });
+    } catch (e) {
+      res.status(400).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   });
 
   app.post("/api/scan/batches", async (req, res) => {
