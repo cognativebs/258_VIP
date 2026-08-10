@@ -1088,6 +1088,26 @@
   font-weight: 700;
 }
 
+.bb-verify-pending {
+  color: var(--bb-amber);
+  font-weight: 600;
+}
+
+.bb-verify-done {
+  color: #3fb950;
+  font-weight: 600;
+}
+
+.bb-detail-error {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--bb-red);
+  background: rgba(255, 85, 85, 0.12);
+  color: var(--bb-red);
+  font-size: var(--bb-fs-xs);
+  border-radius: 4px;
+}
+
 .bb-btn-stop {
   background: #e5484d;
   color: #fff;
