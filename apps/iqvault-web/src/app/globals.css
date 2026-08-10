@@ -480,6 +480,109 @@ button.hunt-card {
   background: var(--bg-hover);
 }
 
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--gold);
+  color: #14100a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Scan intake --- */
+.scan-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.scan-field input,
+.scan-field select {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.scan-field input:focus,
+.scan-field select:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.scan-field small {
+  font-weight: 400;
+}
+
+.scan-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0 12px;
+}
+
+.scan-status {
+  border-color: var(--gold);
+}
+
+.scan-batch-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.scan-candidates {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+/* --- Collections hub --- */
+.collection-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.collection-count {
+  text-align: right;
+}
+
+.collection-count .n {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.collection-count .l {
+  font-size: 12px;
+  color: var(--text-muted, #9a9384);
+}
+
 @media (max-width: 800px) {
   .grid-stats,
   .evidence {

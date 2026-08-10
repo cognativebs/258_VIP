@@ -4,7 +4,10 @@ const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010"
 
 const links = [
   { href: "/", label: "Portfolio" },
+  { href: "/collections", label: "Collections" },
   { href: "/collections/comics", label: "Comics" },
+  { href: "/collections/tcg", label: "TCG" },
+  { href: "/scan", label: "Scan" },
   { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },
   { href: "/sell-queue", label: "Sell" },

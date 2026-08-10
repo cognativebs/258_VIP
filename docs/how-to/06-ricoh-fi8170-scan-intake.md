@@ -32,11 +32,39 @@ ADF duplex pages
   → optional EbayListingDraft (idle without EBAY_* tokens)
 ```
 
+## From IQVault (no curl)
+
+1. Set the drop folder once, so you never type a full path:
+
+```powershell
+setx VIP_SCAN_INBOX "D:\VIP\scans\fi8170"
+```
+
+Restart the VIP API (or `Launch IQVault.bat`) so it picks the variable up.
+
+2. Scan in PaperStream Capture (duplex → that folder).
+3. Open IQVault → **Scan** (`http://127.0.0.1:3000/scan`).
+4. Pick the category, optionally a subfolder, then **Import scanned batch**.
+5. Review each unit's candidates and duplicate rows, then **Confirm**.
+
+Confirm writes a Holding with `source=ricoh_fi8170`, action **Hold**, and
+condition **NM assumed · unverified**. Units with duplicates require the
+explicit confirm click, which sends `acknowledgeDuplicates`.
+
+File naming helps identification: the matcher reads the file name when
+PaperStream OCR text is absent, so `1986_topps_michael_jordan_57_front.jpg`
+identifies far better than `img001.jpg`.
+
 ## API quick start
 
 ```bash
-# Capability probe
+# Capability probe (includes the configured inbox root)
 curl -s localhost:8787/api/scan | jq
+
+# Start a batch from the drop folder (what the Scan page calls)
+curl -s -X POST localhost:8787/api/scan/import-folder \
+  -H 'content-type: application/json' \
+  -d '{"folder":"box1","categoryHint":"sports"}' | jq
 
 # Open a batch from paired pages (OCR text helps ID)
 curl -s -X POST localhost:8787/api/scan/batches \

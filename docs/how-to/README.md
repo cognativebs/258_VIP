@@ -38,6 +38,8 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | Service | URL | Start |
 |---------|-----|--------|
 | IQVault web (VIP collector face) | http://127.0.0.1:3000 | `Launch IQVault.bat` or `npm run web` |
+| — Collections hub | http://127.0.0.1:3000/collections | Comics + TCG |
+| — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
 | Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` |
 | VIP API | http://127.0.0.1:8787 | `npm run api` |
 | Comics API | http://127.0.0.1:5200 | `python api/comics_server.py` (needs Postgres) |
