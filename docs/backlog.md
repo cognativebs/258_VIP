@@ -91,10 +91,28 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] **ADR 0009** identity staging — candidates as rows; canonical inventory written only at resolve — 2026-08-10
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10
 - [x] Catalog adapter seam (`CatalogAdapter`) so the fixture catalog is swappable — 2026-08-10
-- [ ] **Real catalog adapters**: pokemontcg.io / Scryfall / sports catalog behind `CatalogAdapter`
-- [ ] Postgres asset catalog adapter (match previously confirmed cards so repeat scans converge)
-- [ ] Re-identify staged units after a catalog upgrade (no re-scan needed)
 - [ ] Bulk review actions (confirm all `auto`, reject all `none`)
+
+### N. Catalog + market adapters *(ADR 0010 · [plan](plans/0001-catalog-adapter-rollout.md))*
+
+Ordered so the metered provider is not the first dependency. Yu-Gi-Oh and
+SportsCardsPro are out of scope this round (the latter also has a
+third-party-access licence limit).
+
+- [ ] **Phase 0** `CatalogResolver` fan-out + merge on `external_id` corroboration
+- [ ] **Phase 0** Identification cache keyed on `raw_snapshots.content_hash` (re-runs cost zero calls)
+- [ ] **Phase 0** Snapshot every provider response before parsing (rule 3)
+- [ ] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
+- [ ] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
+- [ ] **Phase 1** `TcgdexCatalogAdapter` (Pokémon, free, keyless) — catalog truth only, not pricing
+- [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
+- [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
+- [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target
+- [ ] **Phase 4** `cardHedgeAdapter` in comps — ranges only, idle without key (rule 4)
+- [ ] **Phase 4** Persist comps into `vault_market.sale` → `market_value` (schema exists, unwired)
+- [ ] **Phase 5** eBay Catalog ePID as `external_id` → listing prefill
+- [ ] Postgres asset catalog adapter (repeat scans converge on confirmed assets)
+- [ ] Re-identify staged units after a catalog upgrade (no re-scan needed)
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09
 - [x] Single inventory truth across Comics + Binder in Postgres (ADR 0007) — VIP API reads both; unified Bloomberg grid still open above
