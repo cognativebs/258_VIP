@@ -55,7 +55,13 @@ async function withServer<T>(
   comics: ComicsPayload = fixtureComics(),
   extraDeps: Omit<AppDeps, "loadComics"> = {},
 ): Promise<T> {
-  const app = createApp({ loadComics: async () => comics, ...extraDeps });
+  const app = createApp({
+    loadComics: async () => comics,
+    // Keep scan intake out of fixture inventory unless a test asks for it,
+    // otherwise local scans in the dev database change assertions.
+    loadScanHoldings: async () => [],
+    ...extraDeps,
+  });
   const server = app.listen(0);
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("no port");

@@ -34,6 +34,14 @@ import {
   scanMeta,
 } from "./lib/scanIngest.js";
 import { importFolderPages, scanInboxRoot } from "./lib/scanFolder.js";
+import {
+  listStagedBatches,
+  loadScanHoldings,
+  persistBatch,
+  rejectUnit,
+  resolveUnit,
+  type ScanHoldingRow,
+} from "./lib/scanStorePg.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
@@ -99,6 +107,8 @@ export type AppDeps = {
     sourceRowId: string,
     fields: Record<string, unknown>,
   ) => Promise<UpdateComicHoldingResult>;
+  /** Injectable so tests do not inherit whatever scans the local DB holds. */
+  loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
 };
 
 type InventoryBundle = {
@@ -152,13 +162,50 @@ function durableBinderToApi(
   };
 }
 
+/** Confirmed scan intake row → the shared holding shape. */
+function scanHoldingToApi(row: ScanHoldingRow): ApiHolding {
+  return {
+    id: row.id,
+    assetName: row.assetName,
+    series: row.assetName,
+    issue: "",
+    publisher: row.category ? `Scan intake (${row.category})` : "Scan intake",
+    quantity: row.quantity,
+    pillar: "Scanned Intake",
+    museumScore: null,
+    investmentScore: null,
+    liquidityScore: null,
+    recommendationLabel: "Hold",
+    sellPriority: null,
+    needsGrading: false,
+    needsPhoto: false,
+    needsVerification: row.needsVerification,
+    verificationNotes: row.verificationNotes,
+    currentPrice: null,
+    // Intake never inspects condition — keep the grade explicitly inferred.
+    assumedGrade: row.assumedGrade,
+    gradeRating: null,
+    coverImageUrl: null,
+    externalIds: row.externalIds,
+    provenance: markInferred({
+      source: "ricoh_fi8170",
+      ruleOrModelVersion: "scan-ingest@0.1.0",
+      confidence: 0.5,
+      notes: `${row.assumedGrade ?? "NM"} assumed · unverified condition (intake scan)`,
+    }),
+  };
+}
+
 async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
   const loadComics = deps.loadComics ?? loadComicsHoldings;
-  const [comics, binder, durableRows] = await Promise.all([
+  const loadScans = deps.loadScanHoldings ?? loadScanHoldings;
+  const [comics, binder, durableRows, scanRows] = await Promise.all([
     loadComics(),
     loadBinderTcg(),
     loadDurableBinderHoldings(),
+    loadScans().catch(() => [] as ScanHoldingRow[]),
   ]);
+  const scanHoldings = scanRows.map(scanHoldingToApi);
 
   const durableOwned = durableRows.map(durableBinderToApi);
   const durableSlotIds = new Set(durableRows.map((r) => r.sourceRowId));
@@ -191,7 +238,7 @@ async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
     includePokemonSeeds() || tcgLive.length === 0 ? pokemonSeedHoldings : [];
 
   const comicsHoldings = comics.available ? comics.holdings : [];
-  const holdings = [...comicsHoldings, ...seeds, ...tcgLive];
+  const holdings = [...comicsHoldings, ...seeds, ...tcgLive, ...scanHoldings];
 
   let tcgSource: InventoryBundle["tcgSource"] = "none";
   if (tcgLive.length && seeds.length) tcgSource = "binder+seeds";
@@ -520,8 +567,51 @@ export function createApp(deps: AppDeps = {}) {
     });
   });
 
-  app.get("/api/scan/batches", (_req, res) => {
-    res.json({ count: listScanBatches().length, batches: listScanBatches() });
+  /**
+   * Staged batches from Postgres (survive restarts); the in-memory store is
+   * only a fallback for a run with no database.
+   */
+  app.get("/api/scan/batches", async (_req, res) => {
+    try {
+      const staged = await listStagedBatches();
+      res.json({ count: staged.length, batches: staged, store: "postgres" });
+    } catch (e) {
+      const batches = listScanBatches();
+      res.json({
+        count: batches.length,
+        batches,
+        store: "memory",
+        storeError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  /** Resolve a staged unit into canonical inventory (the ADR 0009 boundary). */
+  app.post("/api/scan/units/:id/resolve", async (req, res) => {
+    const body = req.body ?? {};
+    if (typeof body.catalogKey !== "string" || !body.catalogKey.trim()) {
+      res.status(400).json({ ok: false, error: "body.catalogKey required" });
+      return;
+    }
+    const result = await resolveUnit({
+      unitId: String(req.params.id),
+      catalogKey: body.catalogKey,
+      mode: body.mode === "auto_high_confidence" ? "auto_high_confidence" : "operator_confirmed",
+      quantity: typeof body.quantity === "number" ? body.quantity : 1,
+      acknowledgeDuplicates: body.acknowledgeDuplicates === true,
+      assumedGrade: body.assumedGrade ?? null,
+      location: body.location ?? null,
+    });
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
+  });
+
+  app.post("/api/scan/units/:id/reject", async (req, res) => {
+    const result = await rejectUnit(String(req.params.id), req.body?.reason);
+    res.status(result.ok ? 200 : 400).json(result);
   });
 
   app.get("/api/scan/batches/:id", (req, res) => {
@@ -562,12 +652,24 @@ export function createApp(deps: AppDeps = {}) {
         inventory,
       });
 
+      // ADR 0009: the batch lands in staging only. Nothing reaches
+      // vault_core.asset / vault_collection.holding until a unit resolves.
+      let staged: Awaited<ReturnType<typeof persistBatch>> | null = null;
+      let stagingError: string | null = null;
+      try {
+        staged = await persistBatch(result);
+      } catch (e) {
+        stagingError = e instanceof Error ? e.message : String(e);
+      }
+
       res.status(201).json({
         ok: true,
         folder: imported.folder,
         fileCount: imported.fileCount,
         batch: result.batch,
         rawSnapshots: result.rawSnapshots,
+        staged,
+        stagingError,
         decisionNote:
           "Candidates are inferred · unverified until POST /api/scan/units/:id/confirm",
       });

@@ -53,7 +53,31 @@ export {
   type ConfirmUnitResult,
   type PipelineDeps,
 } from "./pipeline.js";
-export { identifyUnit, type IdentifyOptions } from "./identify.js";
+export {
+  identifyUnit,
+  identifyUnitWithAdapter,
+  buildCatalogQuery,
+  queryTextFor,
+  type IdentifyOptions,
+} from "./identify.js";
+export {
+  CONFIDENCE_POLICY_VERSION,
+  DEFAULT_CONFIDENCE_POLICY,
+  assessCandidates,
+  policyFromEnv,
+  type ConfidenceAssessment,
+  type ConfidenceBand,
+  type ConfidencePolicy,
+} from "./confidence-policy.js";
+export {
+  createFixtureCatalogAdapter,
+  FIXTURE_CATALOG_ADAPTER,
+} from "./catalog/fixture-adapter.js";
+export type {
+  CatalogAdapter,
+  CatalogQuery,
+  SyncCatalogAdapter,
+} from "./catalog/types.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,

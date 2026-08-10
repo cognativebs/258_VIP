@@ -32,6 +32,37 @@ ADF duplex pages
   → optional EbayListingDraft (idle without EBAY_* tokens)
 ```
 
+## Staging vs inventory (ADR 0009)
+
+An imported card is **staged**, not owned. Identity candidates live in
+`vault_media.scan_unit_candidate` with their own confidence and provenance;
+nothing is written to `vault_core.asset` or `vault_collection.holding` until a
+unit resolves. A database CHECK enforces it: a `scan_unit` may not carry
+`confirmed_asset_id` / `holding_id` without a `resolution_mode` and rule
+version.
+
+Confidence bands shown in the review queue:
+
+| Band | Meaning |
+|---|---|
+| `auto` | Would auto-resolve (only when auto-resolution is enabled) |
+| `review` | Plausible match, needs a human |
+| `weak` | Low score — treat as a guess |
+| `none` | No candidate; the catalog has nothing close |
+
+Auto-resolution is **off by default**. Enabling it requires all of: confidence
+above the threshold, a clear margin over the runner-up, an identity-grade match
+reason (external id or collector number), and no duplicate alert.
+
+```powershell
+setx VIP_SCAN_AUTO_RESOLVE 1          # opt in
+setx VIP_SCAN_AUTO_RESOLVE_MIN 0.95   # optional, default 0.9
+setx VIP_SCAN_AUTO_RESOLVE_MARGIN 0.2 # optional, default 0.15
+```
+
+Rejecting a unit keeps the scan and its candidates, so a better catalog can be
+re-run against the same capture instead of forcing a re-scan.
+
 ## From IQVault (no curl)
 
 1. Set the drop folder once, so you never type a full path:
