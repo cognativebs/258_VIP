@@ -196,7 +196,8 @@ function Ensure-NodeModules {
         return
     }
 
-    $missing = Get-MissingWorkspaceLinks
+    # @() so a single missing name stays an array rather than a bare string.
+    $missing = @(Get-MissingWorkspaceLinks)
     if ($missing.Count -gt 0) {
         Write-Warn "node_modules is missing workspace(s): $($missing -join ', ') - running npm install."
         Push-Location $Root
@@ -205,7 +206,7 @@ function Ensure-NodeModules {
         Pop-Location
         if ($code -ne 0) { throw "npm install failed - run it manually and re-launch." }
 
-        $still = Get-MissingWorkspaceLinks
+        $still = @(Get-MissingWorkspaceLinks)
         if ($still.Count -gt 0) {
             throw "Workspace(s) still unlinked after npm install: $($still -join ', ')"
         }
