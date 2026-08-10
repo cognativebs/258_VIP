@@ -20,47 +20,43 @@ export type ScanMeta = {
   inbox: { root: string | null; configured: boolean; note: string };
 };
 
-export type IdentityCandidate = {
+export type StagedCandidate = {
   catalogKey: string;
-  category: ScanCategory;
   displayName: string;
-  setName?: string | null;
-  collectorNumber?: string | null;
-  year?: number | null;
+  category: string | null;
+  setName: string | null;
+  collectorNumber: string | null;
   confidence: number;
   matchReasons: string[];
+  adapterId: string;
+  assetId: string | null;
 };
 
-export type DuplicateMatch = {
-  holdingId: string;
-  assetName: string;
-  quantity: number;
-  matchKind: string;
-  confidence: number;
-  notes?: string;
-};
-
-export type ScanUnit = {
+export type StagedUnit = {
   id: string;
   unitIndex: number;
   status: string;
   frontStorageRef: string;
-  backStorageRef?: string | null;
-  candidates: IdentityCandidate[];
-  selectedCandidateKey?: string | null;
-  duplicateAlert?: { duplicates: DuplicateMatch[] } | null;
-  decisionAction?: string | null;
-  holdingId?: string | null;
+  backStorageRef: string | null;
+  selectedCandidateKey: string | null;
+  holdingId: string | null;
+  confirmedAssetId: string | null;
+  resolutionMode: string | null;
+  topConfidence: number | null;
+  confidenceBand: string | null;
+  duplicateAcknowledged: boolean;
+  decisionAction: string | null;
+  candidates: StagedCandidate[];
 };
 
-export type ScanBatch = {
+export type StagedBatch = {
   id: string;
   device: string;
   status: string;
-  categoryHint?: ScanCategory | null;
-  notes?: string;
-  units: ScanUnit[];
+  categoryHint: string | null;
+  notes: string | null;
   createdAt: string;
+  units: StagedUnit[];
 };
 
 async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -81,7 +77,12 @@ export function fetchScanMeta(): Promise<ScanMeta> {
   return vipFetch<ScanMeta>("/api/scan");
 }
 
-export function fetchScanBatches(): Promise<{ count: number; batches: ScanBatch[] }> {
+export function fetchScanBatches(): Promise<{
+  count: number;
+  batches: StagedBatch[];
+  store: "postgres" | "memory";
+  storeError?: string;
+}> {
   return vipFetch("/api/scan/batches");
 }
 
@@ -89,25 +90,35 @@ export function importScanFolder(body: {
   folder?: string;
   categoryHint?: ScanCategory | null;
   notes?: string;
-  pairing?: "sequential_duplex" | "filename_front_back";
-}): Promise<{ folder: string; fileCount: number; batch: ScanBatch }> {
+}): Promise<{
+  folder: string;
+  fileCount: number;
+  staged: { unitCount: number; candidateCount: number } | null;
+  stagingError: string | null;
+}> {
   return vipFetch("/api/scan/import-folder", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function confirmScanUnit(
+/** The ADR 0009 boundary: staging → canonical inventory. */
+export function resolveScanUnit(
   unitId: string,
-  body: {
-    selectedCandidateKey: string;
-    acknowledgeDuplicates?: boolean;
-    quantity?: number;
-    queueEbayListingDraft?: boolean;
-  },
-): Promise<{ ok: boolean; outputAction?: string; note?: string; error?: string }> {
-  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/confirm`, {
+  body: { catalogKey: string; acknowledgeDuplicates?: boolean; quantity?: number },
+): Promise<{ ok: boolean; holdingId?: string; alreadyResolved?: boolean; note?: string }> {
+  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/resolve`, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export function rejectScanUnit(
+  unitId: string,
+  reason?: string,
+): Promise<{ ok: boolean }> {
+  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
