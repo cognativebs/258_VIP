@@ -1,6 +1,7 @@
 import { markInferred } from "@vip/evidence";
 import { SCAN_ID_RULE } from "./constants.js";
 import { FIXTURE_CATALOG } from "./catalog/fixture-catalog.js";
+import type { CatalogAdapter, CatalogQuery } from "./catalog/types.js";
 import type {
   CatalogCard,
   IdentityCandidate,
@@ -13,36 +14,110 @@ export type IdentifyOptions = {
   categoryHint?: ScanCategory | null;
   /** Max candidates returned (ranked). */
   limit?: number;
+  /** Exact ids read from a barcode / QR, when the capture provides them. */
+  externalIds?: Array<{ source: string; value: string }>;
 };
+
+type IdentifyInput = Pick<
+  ScanUnit,
+  "ocrText" | "frontStorageRef" | "categoryHint"
+>;
+
+/** Text the matcher scores against: OCR when present, else the file name. */
+export function queryTextFor(unit: IdentifyInput): string {
+  return normalize(
+    [unit.ocrText, baseName(unit.frontStorageRef)].filter(Boolean).join(" "),
+  );
+}
+
+export function buildCatalogQuery(
+  unit: IdentifyInput,
+  opts: IdentifyOptions = {},
+): CatalogQuery {
+  return {
+    text: queryTextFor(unit),
+    category: opts.categoryHint ?? unit.categoryHint ?? null,
+    externalIds: opts.externalIds ?? [],
+    limit: opts.limit ?? 5,
+  };
+}
 
 /**
  * Score OCR / filename text against a catalog.
- * Results are always inferred · unverified until human confirm.
+ * Results are always inferred · unverified until human confirm (ADR 0009).
  */
 export function identifyUnit(
-  unit: Pick<ScanUnit, "ocrText" | "frontStorageRef" | "categoryHint">,
+  unit: IdentifyInput,
   opts: IdentifyOptions = {},
 ): IdentityCandidate[] {
   const catalog = opts.catalog ?? FIXTURE_CATALOG;
   const hint = opts.categoryHint ?? unit.categoryHint ?? null;
-  const limit = opts.limit ?? 5;
-  const query = normalize(
-    [unit.ocrText, baseName(unit.frontStorageRef)].filter(Boolean).join(" "),
-  );
+  const query = queryTextFor(unit);
+  const externalIds = opts.externalIds ?? [];
 
-  if (!query) {
+  if (!query && externalIds.length === 0) {
     return [];
   }
 
-  const scored = catalog
-    .filter((card) => !hint || card.category === hint)
-    .map((card) => ({ card, score: scoreMatch(query, card) }))
+  return rankCandidates(
+    catalog.filter((card) => !hint || card.category === hint),
+    query,
+    externalIds,
+    opts.limit ?? 5,
+  );
+}
+
+/**
+ * Adapter-backed identification. Same scoring for every adapter so a swap
+ * cannot quietly change what "0.9 confidence" means.
+ */
+export async function identifyUnitWithAdapter(
+  unit: IdentifyInput,
+  adapter: CatalogAdapter,
+  opts: IdentifyOptions = {},
+): Promise<IdentityCandidate[]> {
+  const query = buildCatalogQuery(unit, opts);
+  if (!query.text && (query.externalIds?.length ?? 0) === 0) return [];
+  const cards = await adapter.search(query);
+  return rankCandidates(
+    cards,
+    query.text,
+    query.externalIds ?? [],
+    query.limit ?? 5,
+  );
+}
+
+function rankCandidates(
+  cards: CatalogCard[],
+  query: string,
+  externalIds: Array<{ source: string; value: string }>,
+  limit: number,
+): IdentityCandidate[] {
+  return cards
+    .map((card) => {
+      const exact = matchesExternalId(card, externalIds);
+      const score = exact ? 1 : scoreMatch(query, card);
+      return { card, score, exact };
+    })
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(({ card, score, exact }) =>
+      toCandidate(card, score, matchReasons(query, card, exact)),
+    );
+}
 
-  return scored.map(({ card, score }) =>
-    toCandidate(card, score, matchReasons(query, card)),
+function matchesExternalId(
+  card: CatalogCard,
+  externalIds: Array<{ source: string; value: string }>,
+): boolean {
+  if (externalIds.length === 0) return false;
+  return card.externalIds.some((ext) =>
+    externalIds.some(
+      (want) =>
+        want.source.toLowerCase() === ext.source.toLowerCase() &&
+        want.value.toLowerCase() === ext.value.toLowerCase(),
+    ),
   );
 }
 
@@ -97,8 +172,16 @@ function scoreMatch(query: string, card: CatalogCard): number {
   return Number(raw.toFixed(3));
 }
 
-function matchReasons(query: string, card: CatalogCard): string[] {
+function matchReasons(
+  query: string,
+  card: CatalogCard,
+  exactExternalId = false,
+): string[] {
   const reasons: string[] = [];
+  if (exactExternalId) {
+    const ext = card.externalIds[0];
+    reasons.push(`external_id:${ext ? ext.source : "match"}`);
+  }
   const q = normalize(query);
   if (card.collectorNumber && q.includes(normalize(card.collectorNumber))) {
     reasons.push(`collector_number:${card.collectorNumber}`);
