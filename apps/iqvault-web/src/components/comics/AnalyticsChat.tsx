@@ -455,9 +455,10 @@ export function AnalyticsChat({
               onClick={() => {
                 setMessages([]);
                 setError(null);
+                setInput("");
                 inputRef.current?.focus();
               }}
-              disabled={!messages.length}
+              disabled={!messages.length && !input.trim()}
             >
               Clear
             </button>
