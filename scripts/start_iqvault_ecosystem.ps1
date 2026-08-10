@@ -152,13 +152,65 @@ function Ensure-Postgres {
     Write-Step "Postgres ready."
 }
 
+function Get-WorkspacePackageNames {
+    # Names declared by every workspace package.json under packages/ apps/ services/.
+    $names = @()
+    foreach ($group in @("packages", "apps", "services")) {
+        $dir = Join-Path $Root $group
+        if (-not (Test-Path $dir)) { continue }
+        foreach ($pkg in Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue) {
+            $manifest = Join-Path $pkg.FullName "package.json"
+            if (-not (Test-Path $manifest)) { continue }
+            try {
+                $json = Get-Content $manifest -Raw | ConvertFrom-Json
+                if ($json.name) { $names += $json.name }
+            } catch {
+                # unreadable manifest is not fatal for the link check
+            }
+        }
+    }
+    return $names
+}
+
+function Get-MissingWorkspaceLinks {
+    # A `git pull` that adds a workspace (e.g. @vip/scan-ingest) leaves the old
+    # node_modules in place with no link for it, so `npm run api` dies with
+    # ERR_MODULE_NOT_FOUND even though node_modules exists.
+    $missing = @()
+    foreach ($name in (Get-WorkspacePackageNames)) {
+        $linkPath = Join-Path (Join-Path $Root "node_modules") ($name -replace "/", [IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path $linkPath)) { $missing += $name }
+    }
+    return $missing
+}
+
 function Ensure-NodeModules {
-    if (-not (Test-Path (Join-Path $Root "node_modules"))) {
+    $modules = Join-Path $Root "node_modules"
+    if (-not (Test-Path $modules)) {
         Write-Step "Installing npm dependencies (first run - this can take a few minutes)..."
         Push-Location $Root
         npm ci
-        if ($LASTEXITCODE -ne 0) { throw "npm ci failed." }
+        $code = $LASTEXITCODE
         Pop-Location
+        if ($code -ne 0) { throw "npm ci failed." }
+        return
+    }
+
+    # @() so a single missing name stays an array rather than a bare string.
+    $missing = @(Get-MissingWorkspaceLinks)
+    if ($missing.Count -gt 0) {
+        Write-Warn "node_modules is missing workspace(s): $($missing -join ', ') - running npm install."
+        Push-Location $Root
+        npm install
+        $code = $LASTEXITCODE
+        Pop-Location
+        if ($code -ne 0) { throw "npm install failed - run it manually and re-launch." }
+
+        $still = @(Get-MissingWorkspaceLinks)
+        if ($still.Count -gt 0) {
+            throw "Workspace(s) still unlinked after npm install: $($still -join ', ')"
+        }
+        Write-Step "Workspace links repaired."
     }
 }
 
