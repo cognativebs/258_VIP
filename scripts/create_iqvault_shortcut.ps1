@@ -10,7 +10,9 @@ $sc = $shell.CreateShortcut($lnk)
 $sc.TargetPath = $launcher
 $sc.WorkingDirectory = $root
 $sc.Description = "IQVault VIP - Docker, Postgres, VIP API, Comics API, Orchestr8, web"
-$sc.IconLocation = "$icon,0"
+if (Test-Path $icon) {
+    $sc.IconLocation = "$icon,0"
+}
 $sc.WindowStyle = 1
 $sc.Save()
 

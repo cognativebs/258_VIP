@@ -7,13 +7,17 @@
 # and restarted.
 param(
     [switch]$NoBrowser,
-    [switch]$WithBinder
+    [switch]$WithBinder,
+    [switch]$InstallShortcut
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Container = "iqvault-postgres"
 $ComposeFile = Join-Path $Root "docker-compose.yml"
+$LogDir = Join-Path $PSScriptRoot "logs"
+$LogFile = Join-Path $LogDir "launcher.log"
+$ShortcutName = "IQVault.lnk"
 $Ports = @{
     Postgres  = 5432
     VipApi    = 8787
@@ -32,11 +36,26 @@ function Write-Warn([string]$Msg) {
 }
 
 function Test-PortListening([int]$Port) {
+    # Get-NetTCPConnection often throws or returns nothing when this script is
+    # started from a double-clicked .bat (no admin, NetTCPIP missing). TcpClient
+    # is the fallback so "already running" / Wait-Port still work.
     try {
-        return $null -ne (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+        $hit = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -ne $hit) { return $true }
+    } catch {}
+    $client = $null
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+        $ok = $iar.AsyncWaitHandle.WaitOne(400)
+        if ($ok -and $client.Connected) { return $true }
     } catch {
         return $false
+    } finally {
+        if ($client) { $client.Close() }
     }
+    return $false
 }
 
 function Wait-Port([int]$Port, [int]$TimeoutSec = 90) {
@@ -75,10 +94,11 @@ function Test-DockerReady {
 function Start-DockerDesktop {
     $paths = @(
         "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe",
-        "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+        "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe",
+        (Join-Path $env:LOCALAPPDATA "Docker\Docker\Docker Desktop.exe")
     )
     foreach ($p in $paths) {
-        if (Test-Path $p) {
+        if ($p -and (Test-Path $p)) {
             Write-Step "Starting Docker Desktop..."
             Start-Process -FilePath $p | Out-Null
             return $true
@@ -224,19 +244,71 @@ function Ensure-PackagesBuilt {
     Pop-Location
 }
 
+function Repair-ProcessPath {
+    # Explorer-launched .bat files often have a truncated PATH, so python/npm/docker
+    # "are installed" in a terminal but missing on double-click.
+    $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $user = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @($machine, $user, $env:Path) | Where-Object { $_ }
+    if ($parts.Count -gt 0) {
+        $env:Path = ($parts -join ";")
+    }
+}
+
+function Install-DesktopShortcut {
+    $shortcutScript = Join-Path $PSScriptRoot "create_iqvault_shortcut.ps1"
+    if (-not (Test-Path $shortcutScript)) { return }
+    try {
+        & $shortcutScript
+    } catch {
+        Write-Warn "Could not refresh desktop IQVault.lnk: $($_.Exception.Message)"
+    }
+}
+
 function Ensure-PythonDeps {
-    Write-Step "Checking Python dependencies (psycopg2, pytest)..."
-    Push-Location $Root
-    pip install -r requirements-dev.txt -q
-    Pop-Location
+    Write-Step "Checking Python dependencies (psycopg2)..."
+    $req = Join-Path $Root "requirements-dev.txt"
+    if (-not (Test-Path $req)) { return }
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $py = Get-Command python -ErrorAction SilentlyContinue
+        $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+        if ($py) {
+            python -m pip install -r $req -q
+        } elseif ($pyLauncher) {
+            py -3 -m pip install -r $req -q
+        } else {
+            Write-Warn "python not on PATH - install Python 3 or open a terminal and run Launch IQVault.bat from there."
+            return
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "pip install had a non-zero exit - Comics API may fail until: python -m pip install -r requirements-dev.txt"
+        }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
 }
 
 function Ensure-Migrated {
     Write-Step "Applying database migrations..."
     Push-Location $Root
-    python scripts/migrate_db.py
-    $code = $LASTEXITCODE
-    Pop-Location
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if (Get-Command python -ErrorAction SilentlyContinue) {
+            python scripts/migrate_db.py
+        } elseif (Get-Command py -ErrorAction SilentlyContinue) {
+            py -3 scripts/migrate_db.py
+        } else {
+            Write-Warn "python not on PATH - skipped migrations."
+            return
+        }
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+        Pop-Location
+    }
     if ($code -ne 0) {
         Write-Warn "migrate_db.py reported a failure - VIP API may not serve comics. See the output above."
     } else {
@@ -455,6 +527,12 @@ function Write-StackSummary {
 }
 
 # --- main ---
+Repair-ProcessPath
+try {
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    Start-Transcript -Path $LogFile -Force | Out-Null
+} catch {}
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  IQVault VIP - starting stack" -ForegroundColor Green
@@ -463,6 +541,7 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
 try {
+    Install-DesktopShortcut
     Ensure-Docker
     Ensure-Postgres
     Ensure-NodeModules
@@ -478,13 +557,18 @@ try {
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
         Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
+        Start-Process "http://127.0.0.1:$($Ports.Web)/collections"
     }
 
     Write-StackSummary
 } catch {
     Write-Host ""
     Write-Host "[IQVault] ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[IQVault] Log: $LogFile" -ForegroundColor Yellow
     Write-Host ""
     Read-Host "Press Enter to close"
+    try { Stop-Transcript | Out-Null } catch {}
     exit 1
 }
+
+try { Stop-Transcript | Out-Null } catch {}
