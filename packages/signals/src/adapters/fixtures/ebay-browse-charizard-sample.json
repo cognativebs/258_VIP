@@ -1,0 +1,55 @@
+{
+  "href": "https://api.ebay.com/buy/browse/v1/item_summary/search?q=Charizard%20Base%20Set%204%2F102&limit=5",
+  "total": 24,
+  "limit": 5,
+  "offset": 0,
+  "itemSummaries": [
+    {
+      "itemId": "v1|110000000001|0",
+      "title": "Charizard Base Set 4/102 Holo PSA 8 — Buy It Now",
+      "price": { "value": "420.00", "currency": "USD" },
+      "condition": "Used",
+      "itemWebUrl": "https://www.ebay.com/itm/110000000001",
+      "buyingOptions": ["FIXED_PRICE"],
+      "shippingOptions": [{ "shippingCost": { "value": "5.99", "currency": "USD" } }]
+    },
+    {
+      "itemId": "v1|110000000002|0",
+      "title": "Pokemon Charizard 4/102 Base Set Holo — LP",
+      "price": { "value": "310.00", "currency": "USD" },
+      "condition": "Used",
+      "itemWebUrl": "https://www.ebay.com/itm/110000000002",
+      "buyingOptions": ["FIXED_PRICE"],
+      "shippingOptions": [{ "shippingCost": { "value": "0.00", "currency": "USD" } }]
+    },
+    {
+      "itemId": "v1|110000000003|0",
+      "title": "Charizard Base Set 4/102 Unlimited Holo",
+      "price": { "value": "275.00", "currency": "USD" },
+      "condition": "Used",
+      "itemWebUrl": "https://www.ebay.com/itm/110000000003",
+      "buyingOptions": ["FIXED_PRICE", "BEST_OFFER"]
+    },
+    {
+      "itemId": "v1|110000000002|0",
+      "title": "DUPLICATE listing id should be skipped",
+      "price": { "value": "999.00", "currency": "USD" },
+      "condition": "Used",
+      "itemWebUrl": "https://www.ebay.com/itm/110000000002",
+      "buyingOptions": ["FIXED_PRICE"]
+    },
+    {
+      "itemId": "",
+      "title": "",
+      "price": { "value": "1.00", "currency": "USD" }
+    },
+    {
+      "itemId": "v1|110000000004|0",
+      "title": "Charizard Base Set Shadowless Holo 4/102",
+      "currentBidPrice": { "value": "350.00", "currency": "USD" },
+      "condition": "Used",
+      "itemWebUrl": "https://www.ebay.com/itm/110000000004",
+      "buyingOptions": ["AUCTION"]
+    }
+  ]
+}

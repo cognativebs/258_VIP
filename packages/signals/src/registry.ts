@@ -36,6 +36,18 @@ export const DEFAULT_SOURCES: SourceRegistryEntry[] = [
     active: true,
   }),
   SourceRegistryEntrySchema.parse({
+    id: "ebay-browse",
+    name: "eBay Browse active listings (ask comps + liquidity proxy)",
+    authority: "market",
+    historicalAccuracy: 0.4,
+    latencyHours: 1,
+    categoryCoverage: ["pokemon", "sports", "comic", "tcg"],
+    accessMethod: "api",
+    terms:
+      "buy.browse OAuth; store raw Browse JSON snapshots; asks are inferred · not sold. Swap to sold aggregator behind MarketCompsAdapter when available.",
+    active: true,
+  }),
+  SourceRegistryEntrySchema.parse({
     id: "ebay-sold",
     name: "eBay sold / completed listings",
     authority: "market",

@@ -8,7 +8,7 @@ import type { Holding } from "./api";
  * each asset class its own page instead of a comics-only app.
  */
 
-export type CollectionId = "comics" | "tcg";
+export type CollectionId = "comics" | "tcg" | "sports";
 
 export type CollectionDef = {
   id: CollectionId;
@@ -29,6 +29,12 @@ export const COLLECTIONS: CollectionDef[] = [
     label: "TCG / Binder",
     href: "/collections/tcg",
     blurb: "Pokemon binder pockets — owned and still-needed, priced from Binder.",
+  },
+  {
+    id: "sports",
+    label: "Sports",
+    href: "/collections/sports",
+    blurb: "Catalog schema only so far — Scan intake is the path in until a holdings loader exists.",
   },
 ];
 

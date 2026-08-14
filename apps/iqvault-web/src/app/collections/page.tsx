@@ -61,8 +61,9 @@ export default async function CollectionsPage() {
       </div>
 
       <p className="muted" style={{ fontSize: 13 }}>
-        Sports cards arrive through <Link href="/scan">Scan intake</Link>; they will get
-        their own collection page once holdings exist.
+        Sports cards can also arrive through <Link href="/scan">Scan intake</Link>. The{" "}
+        <Link href="/collections/sports">Sports terminal</Link> is a stub until holdings
+        exist — same source-bar pattern as Comics, drop zone off.
       </p>
     </div>
   );

@@ -12,6 +12,7 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 | Binder LAN access + IQVault bridge | [04-binder-lan-and-iqvault.md](04-binder-lan-and-iqvault.md) |
 | Orchestr8 `.env` keys (OpenAI / Anthropic / xAI) | [05-orchestr8-env-keys.md](05-orchestr8-env-keys.md) |
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |
+| CLZ inbox sync (scheduled XML drop) | [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 
 ## One-shot launcher (preferred)
 
@@ -38,11 +39,15 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | Service | URL | Start |
 |---------|-----|--------|
 | IQVault web (VIP collector face) | http://127.0.0.1:3000 | `Launch IQVault.bat` or `npm run web` |
-| — Collections hub | http://127.0.0.1:3000/collections | Comics + TCG |
+| — Collections hub | http://127.0.0.1:3000/collections | Comics + TCG + Sports |
+| — Comics terminal | http://127.0.0.1:3000/collections/comics | CLZ buttons + XML drop zone |
+| — TCG / Binder | http://127.0.0.1:3000/collections/tcg | live Binder holdings |
+| — Sports (stub) | http://127.0.0.1:3000/collections/sports | catalog only until ingest |
 | — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
-| Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` |
+| Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` or launcher `-WithBinder` |
 | VIP API | http://127.0.0.1:8787 | `npm run api` |
 | Comics API | http://127.0.0.1:5200 | `python api/comics_server.py` (needs Postgres) |
+| CLZ sync | drop XML in inbox | `npm run job:clz-sync` — see [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 | Orchestr8 gateway | http://127.0.0.1:5210 | `Launch IQVault.bat` / `start_orchestr8.bat` |
 | Orchestr8 Console | http://127.0.0.1:3001 | `npm run orchestr8:console` |
 | Legacy IQVault (archived Vite) | http://127.0.0.1:5175 | `npm run dev --prefix iqvault` |

@@ -36,7 +36,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
-- [x] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (launcher broken) — rewritten 2026-08-09; health-checks VIP / Comics / Orchestr8
+- [x] Fix `scripts/start_iqvault_ecosystem.ps1` — parse failure rewritten 2026-08-09; retarget VIP `:8787` + collector `:3000` (2026-08-13)
 
 ### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
 
@@ -84,6 +84,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Bloomberg-style restyle of `apps/iqvault-web` (gold-dark Personal Intelligence shell from `:5175`)
 - [x] Full comics grid + filters on VIP face (`/collections/comics`; Comics API `:5200` with VIP inventory fallback)
 - [x] Comics Terminal edits via VIP when `:5200` is down (`POST /api/comics/holding/:id`, same Postgres) — 2026-08-09
+- [x] TCG + Sports collection tabs (`/collections/tcg`, `/collections/sports`) — TCG is live Binder holdings; Sports is a stub; CLZ XML drop zone live on Comics
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Collections hub + first-class TCG collection page (`/collections`, `/collections/tcg`) so comics is not the only collection — 2026-08-10
@@ -241,6 +242,8 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 
 ### Phase 1 — Canonical data foundation
 - [x] core-model, evidence, ingest, raw_snapshots, round-trip gate
+- [x] CLZ inbox sync job (`npm run job:clz-sync`) — XML drop → raw_snapshots + holdings reconcile (`dropped_at`)
+- [x] Comics terminal CLZ buttons + XML drop zone (`POST /api/comics/inbox` → same inbox folder)
 
 ---
 

@@ -11,25 +11,25 @@ Loads the CLZ-enriched inventory into:
 Idempotent: re-running updates holdings in place (keyed on CLZ id) and
 skips catalog rows that already exist.
 
-Every holding is linked to the immutable raw snapshot it was derived from, so
-derived rows can be dropped and regenerated from the source of record.
-Prefer scripts/import_clz.py, which records the snapshot and runs this loader
-in one step.
-
 Usage:
   python load_comics.py --json path/to/inventory.json \
-      --dsn "dbname=iqvault user=postgres host=localhost" \
-      --raw-snapshot-id <uuid>
+      --dsn "dbname=iqvault user=postgres host=localhost"
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import sys
 from datetime import datetime, date
+from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "scripts"))
+from clz_delta import ExistingHolding, compute_delta, holding_row_id  # noqa: E402
 
 DATE_FORMATS = ["%b %d, %Y", "%b %Y", "%Y-%m-%d", "%m/%d/%Y", "%Y"]
 
@@ -65,32 +65,21 @@ def norm(v) -> str:
     return str(v or "").strip()
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--json", required=True)
-    ap.add_argument("--dsn", required=True)
-    ap.add_argument(
-        "--raw-snapshot-id",
-        default=None,
-        help="vault_evidence.raw_snapshots id these rows were derived from. "
-        "Required unless --no-snapshot is passed (AGENTS.md rule 3).",
+def ensure_dropped_at_column(cur) -> None:
+    cur.execute(
+        """
+        ALTER TABLE vault_collection.holding
+            ADD COLUMN IF NOT EXISTS dropped_at TIMESTAMPTZ
+        """
     )
-    ap.add_argument(
-        "--no-snapshot",
-        action="store_true",
-        help="Load without linking a source snapshot. Leaves holdings "
-        "unattributable to an immutable import; use only for scratch databases.",
-    )
-    args = ap.parse_args()
 
-    if not args.raw_snapshot_id and not args.no_snapshot:
-        ap.error(
-            "--raw-snapshot-id is required so every holding traces to an immutable "
-            "import. Prefer scripts/import_clz.py, which records the snapshot for "
-            "you, or pass --no-snapshot for a scratch load."
-        )
 
-    rows = json.load(open(args.json, encoding="utf-8"))
+def load_inventory(
+    conn,
+    rows: list[dict],
+    raw_snapshot_id: str | None = None,
+) -> dict:
+    """Upsert catalog + holdings and reconcile dropped CLZ rows. Returns stats + delta."""
     print(f"Loaded {len(rows)} inventory rows")
 
     # Pass 1: earliest year per (series, publisher) so a long-running series
@@ -105,15 +94,36 @@ def main():
         elif k not in series_year:
             series_year[k] = None
 
-    conn = psycopg2.connect(args.dsn)
-    conn.autocommit = False
-
     # NOTE: series UNIQUE(title, publisher, volume, year_began) does NOT stop
     # duplicates when year_began is NULL (SQL NULLs are pairwise distinct).
     # Schema-level fix for PG15+: UNIQUE NULLS NOT DISTINCT. Loader-level fix:
     # preload existing rows so re-runs reuse ids instead of re-inserting.
     series_cache: dict[tuple, str] = {}
     cur = conn.cursor()
+    ensure_dropped_at_column(cur)
+    cur.execute(
+        """
+        SELECT source_row_id, current_price_snapshot, dropped_at
+        FROM vault_collection.holding
+        WHERE source = 'clz_import'
+        """
+    )
+    existing = {
+        str(rid): ExistingHolding(
+            source_row_id=str(rid),
+            current_price=float(price) if price is not None else None,
+            dropped_at=dropped,
+        )
+        for rid, price, dropped in cur.fetchall()
+        if rid
+    }
+    incoming: dict[str, dict] = {}
+    for r in rows:
+        rid = holding_row_id(r)
+        if rid:
+            incoming[rid] = r
+    delta = compute_delta(existing, incoming)
+
     cur.execute("SELECT id, title, publisher, volume, year_began FROM vault_comic.series")
     for sid, t, p, vol, y in cur.fetchall():
         series_cache[(t, p, vol, y)] = sid
@@ -233,20 +243,34 @@ def main():
                     collection_pillar, museum_score, investment_score, liquidity_score,
                     recommendation, sell_priority, upgrade_candidate,
                     needs_grading, needs_photo, needs_verification, verification_notes,
-                    value_locked, current_price_snapshot, source, source_row_id, clz_metadata,
+                    value_locked,                     current_price_snapshot, source, source_row_id, clz_metadata,
                     raw_snapshot_id)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                        'clz_import',%s,%s::jsonb,%s)
                ON CONFLICT (source, source_row_id) DO UPDATE SET
                     quantity=EXCLUDED.quantity,
+                    purchase_price=EXCLUDED.purchase_price,
+                    purchase_date=EXCLUDED.purchase_date,
+                    location=EXCLUDED.location,
+                    slab_status=EXCLUDED.slab_status,
+                    assumed_grade=EXCLUDED.assumed_grade,
+                    grade_rating=EXCLUDED.grade_rating,
+                    collection_pillar=EXCLUDED.collection_pillar,
                     museum_score=EXCLUDED.museum_score,
                     investment_score=EXCLUDED.investment_score,
                     liquidity_score=EXCLUDED.liquidity_score,
                     recommendation=EXCLUDED.recommendation,
                     sell_priority=EXCLUDED.sell_priority,
+                    upgrade_candidate=EXCLUDED.upgrade_candidate,
+                    needs_grading=EXCLUDED.needs_grading,
+                    needs_photo=EXCLUDED.needs_photo,
+                    needs_verification=EXCLUDED.needs_verification,
+                    verification_notes=EXCLUDED.verification_notes,
+                    value_locked=EXCLUDED.value_locked,
                     current_price_snapshot=EXCLUDED.current_price_snapshot,
                     clz_metadata=EXCLUDED.clz_metadata,
-                    raw_snapshot_id=EXCLUDED.raw_snapshot_id,
+                    raw_snapshot_id=COALESCE(EXCLUDED.raw_snapshot_id, vault_collection.holding.raw_snapshot_id),
+                    dropped_at=NULL,
                     updated_at=now()""",
             (
                 asset_id,
@@ -267,17 +291,76 @@ def main():
                 norm(r.get("Verification Notes")) or None,
                 yn(r.get("Value Locked")),
                 r.get("Current Price"),
-                norm(r.get("id")) or norm(r.get("CLZ Hash")),
+                holding_row_id(r),
                 clz_meta,
-                args.raw_snapshot_id,
+                raw_snapshot_id,
             ),
         )
         stats["holdings"] += 1
+
+    if delta.dropped:
+        cur.execute(
+            """
+            UPDATE vault_collection.holding
+               SET dropped_at = now(), updated_at = now()
+             WHERE source = 'clz_import'
+               AND dropped_at IS NULL
+               AND source_row_id = ANY(%s)
+            """,
+            (delta.dropped,),
+        )
+        stats["dropped"] = cur.rowcount
+    else:
+        stats["dropped"] = 0
 
     conn.commit()
     print("Committed.")
     for k, v in stats.items():
         print(f"  {k:9s} {v}")
+    print(
+        "  delta    "
+        f"added={len(delta.added)} updated={len(delta.updated)} "
+        f"dropped={len(delta.dropped)} revived={len(delta.revived)} "
+        f"price_changed={len(delta.price_changed)} unchanged={delta.unchanged}"
+    )
+    return {"stats": stats, "delta": delta.as_dict()}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", required=True)
+    ap.add_argument("--dsn", required=True)
+    ap.add_argument(
+        "--raw-snapshot-id",
+        default=None,
+        help="vault_evidence.raw_snapshots id these rows were derived from. "
+        "Required unless --no-snapshot is passed (AGENTS.md rule 3).",
+    )
+    ap.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help="Load without linking a source snapshot. Leaves holdings "
+        "unattributable to an immutable import; use only for scratch databases.",
+    )
+    args = ap.parse_args()
+
+    if not args.raw_snapshot_id and not args.no_snapshot:
+        ap.error(
+            "--raw-snapshot-id is required so every holding traces to an immutable "
+            "import. Prefer scripts/import_clz.py, which records the snapshot for "
+            "you, or pass --no-snapshot for a scratch load."
+        )
+
+    rows = json.load(open(args.json, encoding="utf-8"))
+    conn = psycopg2.connect(args.dsn)
+    conn.autocommit = False
+    try:
+        load_inventory(conn, rows, raw_snapshot_id=args.raw_snapshot_id)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

@@ -15,6 +15,11 @@ infra/db/migrations/_verify*.sql
 __pycache__/
 *.py[cod]
 .pytest_cache/
+scripts/logs/*.log
+clz-inbox/**/*.xml
+clz-inbox/archive/
+clz-inbox/processed/
+clz-inbox/.hashes.json
 
 # Test scratch files written by services/api tests
 services/api/.tmp-test-signals-feed.json

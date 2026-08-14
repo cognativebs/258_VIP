@@ -1,5 +1,6 @@
 import { Nav } from "@/components/Nav";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { TcgSourceBar } from "@/components/tcg/TcgTerminal";
 import {
   apiGet,
   BINDER_URL,
@@ -37,6 +38,7 @@ export default async function TcgCollectionPage() {
   return (
     <div className="shell">
       <Nav active="/collections/tcg" />
+      <TcgSourceBar />
       <h1 className="page-title">TCG / Binder</h1>
       <p className="page-sub">
         Pokemon binder pockets from the same Postgres as comics. Layout and pricing stay in

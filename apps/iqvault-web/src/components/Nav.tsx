@@ -7,6 +7,7 @@ const links = [
   { href: "/collections", label: "Collections" },
   { href: "/collections/comics", label: "Comics" },
   { href: "/collections/tcg", label: "TCG" },
+  { href: "/collections/sports", label: "Sports" },
   { href: "/scan", label: "Scan" },
   { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },
