@@ -42,6 +42,7 @@ export function ComicsTerminal() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [rightPanel, setRightPanel] = useState<"inspector" | "analytics">("inspector");
 
   useEffect(() => {
@@ -86,6 +87,9 @@ export function ComicsTerminal() {
     () => inventory.find((r) => r.id === selectedId) ?? null,
     [inventory, selectedId],
   );
+
+  const needsVerification =
+    String(selected?.["Needs Verification"] ?? "").toLowerCase() === "yes";
   const ticker = useMemo(
     () => buildTickerItems(filtered.length ? filtered : inventory, meta),
     [filtered, inventory, meta],
@@ -107,11 +111,22 @@ export function ComicsTerminal() {
     async (patch: Record<string, unknown>) => {
       if (!selected || !editable) return;
       setSaving(true);
+      setSaveError(null);
       try {
         const row = await patchComicHolding(selected.id, patch);
-        if (row) {
-          setInventory((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...row } : r)));
+        if (!row) {
+          // A failed patch used to be swallowed, which looked identical to
+          // success because the panel showed no verification state at all.
+          setSaveError("Save failed — Comics API and VIP both rejected the edit.");
+          return;
         }
+        // Keep the row keyed on the id the grid selected by; the API echoes the
+        // holding's source_row_id, and clz_metadata carries a different hash.
+        setInventory((prev) =>
+          prev.map((r) => (r.id === selected.id ? { ...r, ...row, id: r.id } : r)),
+        );
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Save failed");
       } finally {
         setSaving(false);
       }
@@ -526,20 +541,46 @@ export function ComicsTerminal() {
                   </div>
                 </div>
                 <div>
+                  <span className="bb-dim">Verification</span>
+                  <div
+                    className={
+                      needsVerification ? "bb-verify-pending" : "bb-verify-done"
+                    }
+                  >
+                    {needsVerification ? "Needs review" : "Verified"}
+                  </div>
+                </div>
+                <div>
                   <span className="bb-dim">Notes</span>
                   <div>{String(selected["Verification Notes"] || "—")}</div>
                 </div>
               </div>
+              {saveError ? <p className="bb-detail-error">{saveError}</p> : null}
               {editable ? (
-                <button
-                  type="button"
-                  className="bb-btn bb-btn-primary"
-                  style={{ marginTop: 12 }}
-                  disabled={saving}
-                  onClick={() => void saveSelected({ "Needs Verification": "No" })}
-                >
-                  Mark verified
-                </button>
+                needsVerification ? (
+                  <button
+                    type="button"
+                    className="bb-btn bb-btn-primary"
+                    style={{ marginTop: 12 }}
+                    disabled={saving}
+                    onClick={() => void saveSelected({ "Needs Verification": "No" })}
+                  >
+                    {saving ? "Saving…" : "Mark verified"}
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 12 }}>
+                    <span className="bb-verify-done">Verified</span>
+                    <button
+                      type="button"
+                      className="bb-btn bb-btn-ghost"
+                      style={{ marginLeft: 8 }}
+                      disabled={saving}
+                      onClick={() => void saveSelected({ "Needs Verification": "Yes" })}
+                    >
+                      {saving ? "Saving…" : "Undo"}
+                    </button>
+                  </div>
+                )
               ) : (
                 <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
                   Edits unavailable — Postgres comics inventory did not load. Start VIP API (
