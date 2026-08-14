@@ -1,3 +1,7 @@
+import {
+  formatEbayBrowseReport,
+  runEbayBrowseCompsJob,
+} from "./ebay-browse-comps.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -7,6 +11,15 @@ async function main() {
   if (cmd === "pokemon-drops") {
     const { delta } = await runPokemonDropsJobAsync({ triggeredBy: "cli" });
     console.log(formatDeltaReport(delta));
+    return;
+  }
+
+  if (cmd === "ebay-browse-comps") {
+    const result = await runEbayBrowseCompsJob({
+      triggeredBy: "cli",
+      argv: process.argv.slice(3),
+    });
+    console.log(formatEbayBrowseReport(result));
     return;
   }
 

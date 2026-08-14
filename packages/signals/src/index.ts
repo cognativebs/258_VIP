@@ -38,6 +38,41 @@ export {
 } from "./schemas/source-registry.js";
 
 export { RssAdapter, resetRssRateLimitForTests } from "./adapters/rss-adapter.js";
+
+export {
+  EBAY_BROWSE_ADAPTER_VERSION,
+  EbayBrowseAdapterConfigSchema,
+  MarketCompsQuerySchema,
+  MarketCompsBundleSchema,
+  MarketCompsProvenanceSchema,
+  ActiveListingAskSchema,
+  LiquidityProxySchema,
+  RawEbayBrowseSnapshotSchema,
+  AskAsSaleCompSchema,
+  PricingSeamResultSchema,
+  type EbayBrowseAdapterConfig,
+  type MarketCompsQuery,
+  type MarketCompsBundle,
+  type MarketCompsProvenance,
+  type ActiveListingAsk,
+  type LiquidityProxy,
+  type RawEbayBrowseSnapshot,
+  type AskAsSaleComp,
+  type PricingSeamResult,
+  type EbayEnvironment,
+} from "./schemas/ebay-browse.js";
+
+export {
+  EbayBrowseAdapter,
+  liquidityFromActiveCount,
+  resetEbayBrowseStateForTests,
+} from "./adapters/ebay-browse-adapter.js";
+
+export {
+  toPricingSeamResult,
+  type MarketCompsAdapter,
+} from "./adapters/market-comps.js";
+
 export {
   defaultSourcesStatePath,
   loadPersistedState,

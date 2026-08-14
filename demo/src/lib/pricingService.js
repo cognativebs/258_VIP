@@ -3,7 +3,9 @@
  *
  * getPricing() takes an identified card and returns market data + comps.
  * DEMO: mock comps grounded in IQVault catalog market windows.
- * PROD: replace body with eBay Marketplace Insights / vault_market.sale query.
+ * PROD: call @vip/signals EbayBrowseAdapter (+ toPricingSeamResult) for active asks /
+ *       liquidity proxy; later swap MarketCompsAdapter impl for sold aggregator /
+ *       Marketplace Insights when approved. Same return contract — nothing downstream changes.
  *
  * Return contract (keep identical when swapping backends):
  *   { marketValue, low, high, comps: [{ price, date, title }], source, confidence }

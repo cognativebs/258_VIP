@@ -67,11 +67,13 @@
       "processName": "chrome",
       "args": [
         "--new-window",
-        "http://127.0.0.1:5175/",
+        "http://127.0.0.1:3000/",
+        "http://localhost:3010/",
+        "http://127.0.0.1:8787/health",
         "http://127.0.0.1:5210/v1/health"
       ],
       "windowStyle": "Normal",
-      "notes": "Opens IQVault UI + Orchestr8 health after stack is up"
+      "notes": "Opens collector face + VIP API + Orchestr8 health after stack is up"
     }
   ],
   "services": [
@@ -83,8 +85,8 @@
       "kind": "powershell",
       "script": "scripts\\start_iqvault_ecosystem.ps1",
       "args": ["-NoBrowser"],
-      "port": 5175,
-      "notes": "Docker -> Postgres -> Comics API -> Orchestr8 -> UI (minimized where possible)"
+      "port": 3000,
+      "notes": "Docker -> Postgres -> Comics API -> VIP API -> collector :3000 -> Binder :3010 -> Orchestr8"
     },
     {
       "id": "binder-vault",

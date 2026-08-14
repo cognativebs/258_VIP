@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx src/cli.ts",
     "pokemon-drops": "tsx src/cli.ts pokemon-drops",
+    "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

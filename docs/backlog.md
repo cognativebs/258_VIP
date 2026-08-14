@@ -36,7 +36,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
-- [ ] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (launcher broken)
+- [x] Fix `scripts/start_iqvault_ecosystem.ps1` — retarget to VIP API `:8787` + collector `:3000` (2026-08-13)
 
 ### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
 
