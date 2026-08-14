@@ -10,19 +10,22 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.15",
     "@vip/core-model": "0.1.0",
     "@vip/decision-engine": "0.1.0",
     "@vip/evidence": "0.1.0",
+    "@vip/scan-ingest": "0.1.0",
     "@vip/signals": "0.1.0",
     "cors": "^2.8.5",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
+    "pg": "^8.23.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.30",
+    "@types/pg": "^8.21.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

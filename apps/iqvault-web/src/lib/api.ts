@@ -1,24 +1,40 @@
-const API_BASE = process.env.NEXT_PUBLIC_VIP_API_URL ?? "http://localhost:8787";
+/**
+ * Browser: same-origin `/api/vip/*` rewrite → VIP :8787 (see next.config.ts).
+ * That way the Comics tab cannot accidentally hit a different machine's old
+ * localhost:8787 (the classic 120-sample + 5-seed = 125 bug).
+ * Server / explicit override: NEXT_PUBLIC_VIP_API_URL or http://127.0.0.1:8787.
+ */
+function vipApiBase(): string {
+  if (process.env.NEXT_PUBLIC_VIP_API_URL) return process.env.NEXT_PUBLIC_VIP_API_URL;
+  if (typeof window !== "undefined") return "/api/vip";
+  return "http://127.0.0.1:8787";
+}
+
 export const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
 
 /**
  * Default timeout for VIP API calls. Without this, a backend that accepts a
  * TCP connection but never responds (stuck process, not just "down") can hang
  * a server component's fetch — and the whole :3000 page — indefinitely.
+ * Inventory is ~2.5MB for 2,700 comics — allow longer than the default.
  */
 const API_TIMEOUT_MS = 8000;
+const INVENTORY_TIMEOUT_MS = 30_000;
 
-export async function apiGet<T>(path: string, timeoutMs = API_TIMEOUT_MS): Promise<T> {
+export async function apiGet<T>(path: string, timeoutMs?: number): Promise<T> {
+  const ms =
+    timeoutMs ??
+    (path.startsWith("/api/inventory") ? INVENTORY_TIMEOUT_MS : API_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${vipApiBase()}${path}`, {
       next: { revalidate: 0 },
       cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(ms),
     });
   } catch (e) {
     if (e instanceof Error && e.name === "TimeoutError") {
-      throw new Error(`API ${path} timed out after ${timeoutMs}ms — is it running but stuck?`);
+      throw new Error(`API ${path} timed out after ${ms}ms — is it running but stuck?`);
     }
     throw e;
   }
@@ -48,6 +64,7 @@ export type TcgBindersResponse = {
   filledSlots: number;
   ownedSlots: number;
   needSlots: number;
+  store?: "postgres" | "sqlite";
 };
 
 export type Provenance = {
@@ -79,8 +96,32 @@ export type Holding = {
   currentPrice: number | null;
   assumedGrade: string | null;
   gradeRating: number | null;
+  coverImageUrl?: string | null;
   externalIds?: { source: string; externalValue: string }[];
   provenance: Provenance;
+};
+
+export type ComicsSnapshotInfo = {
+  id: string;
+  contentHash: string;
+  shortHash: string;
+  ingestedAt: string;
+  recordCount: number | null;
+  ageDays: number;
+  label: string;
+};
+
+export type InventoryResponse = {
+  count: number;
+  comicsCount: number;
+  comicsSource: "postgres" | "unavailable";
+  comicsAvailable: boolean;
+  comicsError: string | null;
+  comicsSnapshot: ComicsSnapshotInfo | null;
+  totalValueEstimate: { amount: number; note: string; confidence: string };
+  tcgSource?: string;
+  binderDb?: { available: boolean; filledSlots: number; error: string | null };
+  holdings: Holding[];
 };
 
 export type Signal = {

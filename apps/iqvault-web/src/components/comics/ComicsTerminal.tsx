@@ -36,6 +36,7 @@ import {
   isAcceptedDropFile,
   type InboxStatus,
 } from "@/lib/sourceDrop";
+import { AnalyticsChat } from "./AnalyticsChat";
 
 const PAGE_SIZE = 50;
 
@@ -43,6 +44,7 @@ export function ComicsTerminal() {
   const [meta, setMeta] = useState<ComicsMeta | null>(null);
   const [inventory, setInventory] = useState<ComicRow[]>([]);
   const [source, setSource] = useState<"comics-api" | "vip-api" | null>(null);
+  const [editable, setEditable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState("all");
@@ -53,6 +55,8 @@ export function ComicsTerminal() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [rightPanel, setRightPanel] = useState<"inspector" | "analytics">("inspector");
   const [inbox, setInbox] = useState<InboxStatus | null>(null);
   const [dropBusy, setDropBusy] = useState(false);
   const [dropMsg, setDropMsg] = useState<string | null>(null);
@@ -63,6 +67,7 @@ export function ComicsTerminal() {
     setMeta(data.meta);
     setInventory(data.inventory);
     setSource(data.source);
+    setEditable(data.editable);
   }, []);
 
   useEffect(() => {
@@ -78,6 +83,7 @@ export function ComicsTerminal() {
         setInventory(data.inventory);
         setSource(data.source);
         setInbox(inboxStatus);
+        setEditable(data.editable);
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
@@ -156,6 +162,9 @@ export function ComicsTerminal() {
     () => inventory.find((r) => r.id === selectedId) ?? null,
     [inventory, selectedId],
   );
+
+  const needsVerification =
+    String(selected?.["Needs Verification"] ?? "").toLowerCase() === "yes";
   const ticker = useMemo(
     () => buildTickerItems(filtered.length ? filtered : inventory, meta),
     [filtered, inventory, meta],
@@ -195,18 +204,29 @@ export function ComicsTerminal() {
 
   const saveSelected = useCallback(
     async (patch: Record<string, unknown>) => {
-      if (!selected || source !== "comics-api") return;
+      if (!selected || !editable) return;
       setSaving(true);
+      setSaveError(null);
       try {
         const row = await patchComicHolding(selected.id, patch);
-        if (row) {
-          setInventory((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...row } : r)));
+        if (!row) {
+          // A failed patch used to be swallowed, which looked identical to
+          // success because the panel showed no verification state at all.
+          setSaveError("Save failed — Comics API and VIP both rejected the edit.");
+          return;
         }
+        // Keep the row keyed on the id the grid selected by; the API echoes the
+        // holding's source_row_id, and clz_metadata carries a different hash.
+        setInventory((prev) =>
+          prev.map((r) => (r.id === selected.id ? { ...r, ...row, id: r.id } : r)),
+        );
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Save failed");
       } finally {
         setSaving(false);
       }
     },
-    [selected, source],
+    [selected, editable],
   );
 
   if (loading) {
@@ -276,10 +296,19 @@ export function ComicsTerminal() {
           <span className="bb-orange">IQVAULT</span>
           <span className="bb-dim">COMICS TERMINAL</span>
           <span className="bb-dim" style={{ marginLeft: 8 }}>
-            · {source === "comics-api" ? "Postgres live" : "VIP inventory"}
+            ·{" "}
+            {source === "comics-api"
+              ? "Postgres live (editable)"
+              : editable
+                ? "VIP → Postgres (editable)"
+                : "VIP → Postgres (read-only)"}
+            {meta?.snapshotLabel ? ` · ${meta.snapshotLabel}` : ""}
           </span>
         </div>
         <div className="bb-topbar-stats">
+          <span>
+            <em>Vault</em> {(meta?.recordCount ?? inventory.length).toLocaleString()}
+          </span>
           <span>
             <em>Showing</em> {filtered.length.toLocaleString()}
           </span>
@@ -287,13 +316,21 @@ export function ComicsTerminal() {
             <em>Value</em> {fmtMoney(filteredValue)}
           </span>
           <span>
-            <em>Vault</em> {fmtMoney(meta?.totalValue)}
+            <em>Total</em> {fmtMoney(meta?.totalValue)}
           </span>
           <span>
             <em>MUS</em> {dashboardStats.museumCount}
           </span>
         </div>
         <div className="bb-topbar-actions">
+          <button
+            type="button"
+            className="bb-btn bb-btn-ghost"
+            onClick={() => setRightPanel("analytics")}
+            title="Ask Orchestr8 about the current filter"
+          >
+            Ask
+          </button>
           <button
             type="button"
             className="bb-btn bb-btn-ghost"
@@ -543,13 +580,60 @@ export function ComicsTerminal() {
         </section>
 
         <aside className="bb-right-panel">
-          <div className="bb-panel-head">INSPECTOR</div>
-          {!selected ? (
+          <div className="bb-right-tabs">
+            <button
+              type="button"
+              className={rightPanel === "inspector" ? "active" : ""}
+              onClick={() => setRightPanel("inspector")}
+            >
+              Inspector
+            </button>
+            <button
+              type="button"
+              className={rightPanel === "analytics" ? "active" : ""}
+              onClick={() => setRightPanel("analytics")}
+              title="Ask Orchestr8 agents about the current filter"
+            >
+              Analytics
+            </button>
+          </div>
+
+          {rightPanel === "analytics" ? (
+            <AnalyticsChat
+              meta={meta}
+              filtered={filtered}
+              dashboardStats={dashboardStats}
+              filters={filters}
+              workspace={workspace}
+              selectedComic={selected}
+              filteredValue={filteredValue}
+              source={source}
+            />
+          ) : !selected ? (
             <div className="bb-detail-body">
               <p className="bb-dim">Select a row to inspect.</p>
+              <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
+                Or open <strong>Ask</strong> / Analytics to pose questions about the current
+                filter — answers can feed Watch / Theses next.
+              </p>
             </div>
           ) : (
             <div className="bb-detail-body">
+              {selected["Cover Image URL"] ? (
+                <div className="bb-cover-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={String(selected["Cover Image URL"])}
+                    alt=""
+                    className="bb-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
+                <p className="bb-dim" style={{ marginBottom: 8 }}>
+                  No cover image on this holding.
+                </p>
+              )}
               <h3 className="bb-detail-title">
                 {selected.Series} #{selected["Issue Full"] || selected.Issue}
               </h3>
@@ -583,23 +667,50 @@ export function ComicsTerminal() {
                   </div>
                 </div>
                 <div>
+                  <span className="bb-dim">Verification</span>
+                  <div
+                    className={
+                      needsVerification ? "bb-verify-pending" : "bb-verify-done"
+                    }
+                  >
+                    {needsVerification ? "Needs review" : "Verified"}
+                  </div>
+                </div>
+                <div>
                   <span className="bb-dim">Notes</span>
                   <div>{String(selected["Verification Notes"] || "—")}</div>
                 </div>
               </div>
-              {source === "comics-api" ? (
-                <button
-                  type="button"
-                  className="bb-btn bb-btn-primary"
-                  style={{ marginTop: 12 }}
-                  disabled={saving}
-                  onClick={() => void saveSelected({ "Needs Verification": "No" })}
-                >
-                  Mark verified
-                </button>
+              {saveError ? <p className="bb-detail-error">{saveError}</p> : null}
+              {editable ? (
+                needsVerification ? (
+                  <button
+                    type="button"
+                    className="bb-btn bb-btn-primary"
+                    style={{ marginTop: 12 }}
+                    disabled={saving}
+                    onClick={() => void saveSelected({ "Needs Verification": "No" })}
+                  >
+                    {saving ? "Saving…" : "Mark verified"}
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 12 }}>
+                    <span className="bb-verify-done">Verified</span>
+                    <button
+                      type="button"
+                      className="bb-btn bb-btn-ghost"
+                      style={{ marginLeft: 8 }}
+                      disabled={saving}
+                      onClick={() => void saveSelected({ "Needs Verification": "Yes" })}
+                    >
+                      {saving ? "Saving…" : "Undo"}
+                    </button>
+                  </div>
+                )
               ) : (
                 <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
-                  Read-only on VIP fallback. Start Comics API (:5200) for live edits.
+                  Edits unavailable — Postgres comics inventory did not load. Start VIP API (
+                  <code>npm run api</code>) or Launch IQVault.bat.
                 </p>
               )}
             </div>

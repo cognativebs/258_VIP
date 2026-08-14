@@ -74,7 +74,11 @@ def ensure_dropped_at_column(cur) -> None:
     )
 
 
-def load_inventory(conn, rows: list[dict]) -> dict:
+def load_inventory(
+    conn,
+    rows: list[dict],
+    raw_snapshot_id: str | None = None,
+) -> dict:
     """Upsert catalog + holdings and reconcile dropped CLZ rows. Returns stats + delta."""
     print(f"Loaded {len(rows)} inventory rows")
 
@@ -239,9 +243,10 @@ def load_inventory(conn, rows: list[dict]) -> dict:
                     collection_pillar, museum_score, investment_score, liquidity_score,
                     recommendation, sell_priority, upgrade_candidate,
                     needs_grading, needs_photo, needs_verification, verification_notes,
-                    value_locked, current_price_snapshot, source, source_row_id, clz_metadata)
+                    value_locked,                     current_price_snapshot, source, source_row_id, clz_metadata,
+                    raw_snapshot_id)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                       'clz_import',%s,%s::jsonb)
+                       'clz_import',%s,%s::jsonb,%s)
                ON CONFLICT (source, source_row_id) DO UPDATE SET
                     quantity=EXCLUDED.quantity,
                     purchase_price=EXCLUDED.purchase_price,
@@ -264,6 +269,7 @@ def load_inventory(conn, rows: list[dict]) -> dict:
                     value_locked=EXCLUDED.value_locked,
                     current_price_snapshot=EXCLUDED.current_price_snapshot,
                     clz_metadata=EXCLUDED.clz_metadata,
+                    raw_snapshot_id=COALESCE(EXCLUDED.raw_snapshot_id, vault_collection.holding.raw_snapshot_id),
                     dropped_at=NULL,
                     updated_at=now()""",
             (
@@ -287,6 +293,7 @@ def load_inventory(conn, rows: list[dict]) -> dict:
                 r.get("Current Price"),
                 holding_row_id(r),
                 clz_meta,
+                raw_snapshot_id,
             ),
         )
         stats["holdings"] += 1
@@ -323,13 +330,32 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", required=True)
     ap.add_argument("--dsn", required=True)
+    ap.add_argument(
+        "--raw-snapshot-id",
+        default=None,
+        help="vault_evidence.raw_snapshots id these rows were derived from. "
+        "Required unless --no-snapshot is passed (AGENTS.md rule 3).",
+    )
+    ap.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help="Load without linking a source snapshot. Leaves holdings "
+        "unattributable to an immutable import; use only for scratch databases.",
+    )
     args = ap.parse_args()
+
+    if not args.raw_snapshot_id and not args.no_snapshot:
+        ap.error(
+            "--raw-snapshot-id is required so every holding traces to an immutable "
+            "import. Prefer scripts/import_clz.py, which records the snapshot for "
+            "you, or pass --no-snapshot for a scratch load."
+        )
 
     rows = json.load(open(args.json, encoding="utf-8"))
     conn = psycopg2.connect(args.dsn)
     conn.autocommit = False
     try:
-        load_inventory(conn, rows)
+        load_inventory(conn, rows, raw_snapshot_id=args.raw_snapshot_id)
     except Exception:
         conn.rollback()
         raise

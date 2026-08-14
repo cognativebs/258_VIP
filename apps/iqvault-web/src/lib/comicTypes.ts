@@ -43,6 +43,8 @@ export type ComicsMeta = {
   pillars?: { name: string; count: number }[];
   locations?: string[];
   source?: string;
+  /** Identity of the immutable CLZ import behind these rows, when known. */
+  snapshotLabel?: string;
 };
 
 export type ComicFilters = {

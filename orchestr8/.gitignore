@@ -1,6 +1,7 @@
 .env
 .env.*
 *.env
+!.env.example
 secrets.json
 __pycache__/
 *.pyc

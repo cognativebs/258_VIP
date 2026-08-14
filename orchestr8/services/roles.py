@@ -1,20 +1,23 @@
 """Load legacy roles.yaml helpers + provider keys. Agent metadata lives in agents/*/agent.yaml."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
+
+from services.provider_env import (  # noqa: F401 - re-export for existing callers
+    configured_providers,
+    provider_key_warnings,
+    provider_keys,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
 
 _CONFIG: dict | None = None
 
 
 def load_config() -> dict:
-    """Legacy roles.yaml — kept for task_systems and backward-compatible /v1/roles."""
+    """Legacy roles.yaml - kept for task_systems and backward-compatible /v1/roles."""
     global _CONFIG
     if _CONFIG is None:
         with open(ROOT / "config" / "roles.yaml", encoding="utf-8") as f:
@@ -58,19 +61,6 @@ def pipeline_order() -> list[str]:
 
 def task_system(task: str) -> str:
     return load_config().get("task_systems", {}).get(task, "")
-
-
-def provider_keys() -> dict[str, str | None]:
-    return {
-        "openai": os.environ.get("OPENAI_API_KEY"),
-        "anthropic": os.environ.get("ANTHROPIC_API_KEY"),
-        "grok": os.environ.get("XAI_API_KEY"),
-    }
-
-
-def configured_providers() -> dict[str, bool]:
-    keys = provider_keys()
-    return {k: bool(v) for k, v in keys.items()}
 
 
 def sort_roles(role_ids: list[str]) -> list[str]:

@@ -6,15 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { formatClzSyncReport, runClzSyncJob, type ClzSyncResult } from "./clz-sync.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const FIXTURE = join(
-  REPO_ROOT,
-  "packages",
-  "ingest",
-  "src",
-  "__tests__",
-  "fixtures",
-  "clz-sample.xml",
-);
+const FIXTURE = join(REPO_ROOT, "tests", "fixtures", "clz-sample.xml");
 
 describe("clz-sync job", () => {
   const dirs: string[] = [];

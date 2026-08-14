@@ -1,0 +1,217 @@
+import { markInferred } from "@vip/evidence";
+import { SCAN_ID_RULE } from "./constants.js";
+import { FIXTURE_CATALOG } from "./catalog/fixture-catalog.js";
+import type { CatalogAdapter, CatalogQuery } from "./catalog/types.js";
+import type {
+  CatalogCard,
+  IdentityCandidate,
+  ScanCategory,
+  ScanUnit,
+} from "./schemas.js";
+
+export type IdentifyOptions = {
+  catalog?: CatalogCard[];
+  categoryHint?: ScanCategory | null;
+  /** Max candidates returned (ranked). */
+  limit?: number;
+  /** Exact ids read from a barcode / QR, when the capture provides them. */
+  externalIds?: Array<{ source: string; value: string }>;
+};
+
+type IdentifyInput = Pick<
+  ScanUnit,
+  "ocrText" | "frontStorageRef" | "categoryHint"
+>;
+
+/** Text the matcher scores against: OCR when present, else the file name. */
+export function queryTextFor(unit: IdentifyInput): string {
+  return normalize(
+    [unit.ocrText, baseName(unit.frontStorageRef)].filter(Boolean).join(" "),
+  );
+}
+
+export function buildCatalogQuery(
+  unit: IdentifyInput,
+  opts: IdentifyOptions = {},
+): CatalogQuery {
+  return {
+    text: queryTextFor(unit),
+    category: opts.categoryHint ?? unit.categoryHint ?? null,
+    externalIds: opts.externalIds ?? [],
+    limit: opts.limit ?? 5,
+  };
+}
+
+/**
+ * Score OCR / filename text against a catalog.
+ * Results are always inferred · unverified until human confirm (ADR 0009).
+ */
+export function identifyUnit(
+  unit: IdentifyInput,
+  opts: IdentifyOptions = {},
+): IdentityCandidate[] {
+  const catalog = opts.catalog ?? FIXTURE_CATALOG;
+  const hint = opts.categoryHint ?? unit.categoryHint ?? null;
+  const query = queryTextFor(unit);
+  const externalIds = opts.externalIds ?? [];
+
+  if (!query && externalIds.length === 0) {
+    return [];
+  }
+
+  return rankCandidates(
+    catalog.filter((card) => !hint || card.category === hint),
+    query,
+    externalIds,
+    opts.limit ?? 5,
+  );
+}
+
+/**
+ * Adapter-backed identification. Same scoring for every adapter so a swap
+ * cannot quietly change what "0.9 confidence" means.
+ */
+export async function identifyUnitWithAdapter(
+  unit: IdentifyInput,
+  adapter: CatalogAdapter,
+  opts: IdentifyOptions = {},
+): Promise<IdentityCandidate[]> {
+  const query = buildCatalogQuery(unit, opts);
+  if (!query.text && (query.externalIds?.length ?? 0) === 0) return [];
+  const cards = await adapter.search(query);
+  return rankCandidates(
+    cards,
+    query.text,
+    query.externalIds ?? [],
+    query.limit ?? 5,
+  );
+}
+
+function rankCandidates(
+  cards: CatalogCard[],
+  query: string,
+  externalIds: Array<{ source: string; value: string }>,
+  limit: number,
+): IdentityCandidate[] {
+  return cards
+    .map((card) => {
+      const exact = matchesExternalId(card, externalIds);
+      const score = exact ? 1 : scoreMatch(query, card);
+      return { card, score, exact };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ card, score, exact }) =>
+      toCandidate(card, score, matchReasons(query, card, exact)),
+    );
+}
+
+function matchesExternalId(
+  card: CatalogCard,
+  externalIds: Array<{ source: string; value: string }>,
+): boolean {
+  if (externalIds.length === 0) return false;
+  return card.externalIds.some((ext) =>
+    externalIds.some(
+      (want) =>
+        want.source.toLowerCase() === ext.source.toLowerCase() &&
+        want.value.toLowerCase() === ext.value.toLowerCase(),
+    ),
+  );
+}
+
+function toCandidate(
+  card: CatalogCard,
+  confidence: number,
+  matchReasons: string[],
+): IdentityCandidate {
+  return {
+    assetId: card.assetId ?? null,
+    catalogKey: card.catalogKey,
+    category: card.category,
+    displayName: card.displayName,
+    setName: card.setName ?? null,
+    collectorNumber: card.collectorNumber ?? null,
+    playerOrCharacter: card.playerOrCharacter ?? null,
+    year: card.year ?? null,
+    externalIds: card.externalIds,
+    confidence,
+    matchReasons,
+    provenance: markInferred({
+      source: "scan_id_matcher",
+      ruleOrModelVersion: SCAN_ID_RULE,
+      confidence,
+      notes: "Catalog match from OCR/filename · unverified until operator confirm",
+    }),
+  };
+}
+
+function scoreMatch(query: string, card: CatalogCard): number {
+  const hay = normalize(card.searchText);
+  const tokens = query.split(/\s+/).filter((t) => t.length > 1);
+  if (tokens.length === 0) return 0;
+
+  let hits = 0;
+  for (const token of tokens) {
+    if (hay.includes(token)) hits += 1;
+  }
+  const ratio = hits / tokens.length;
+
+  // Boost exact collector number / name hits
+  let boost = 0;
+  if (card.collectorNumber && query.includes(normalize(card.collectorNumber))) {
+    boost += 0.15;
+  }
+  if (card.playerOrCharacter && hay.includes(normalize(card.playerOrCharacter))) {
+    const nameTokens = normalize(card.playerOrCharacter).split(/\s+/);
+    if (nameTokens.every((t) => query.includes(t))) boost += 0.2;
+  }
+
+  const raw = Math.min(1, ratio * 0.75 + boost);
+  return Number(raw.toFixed(3));
+}
+
+function matchReasons(
+  query: string,
+  card: CatalogCard,
+  exactExternalId = false,
+): string[] {
+  const reasons: string[] = [];
+  if (exactExternalId) {
+    const ext = card.externalIds[0];
+    reasons.push(`external_id:${ext ? ext.source : "match"}`);
+  }
+  const q = normalize(query);
+  if (card.collectorNumber && q.includes(normalize(card.collectorNumber))) {
+    reasons.push(`collector_number:${card.collectorNumber}`);
+  }
+  if (card.playerOrCharacter) {
+    const name = normalize(card.playerOrCharacter);
+    if (name.split(/\s+/).every((t) => q.includes(t))) {
+      reasons.push(`name:${card.playerOrCharacter}`);
+    }
+  }
+  if (card.setName && q.includes(normalize(card.setName))) {
+    reasons.push(`set:${card.setName}`);
+  }
+  if (reasons.length === 0) reasons.push("token_overlap");
+  return reasons;
+}
+
+/**
+ * Last path segment for POSIX and Windows refs. PaperStream writes
+ * `D:\VIP\scans\001_front.jpg`, so splitting on "/" alone would leave the whole
+ * path in the query and dilute token scoring.
+ */
+function baseName(ref: string): string {
+  return ref.split(/[\\/]/).pop() ?? ref;
+}
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9/#.\s-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}

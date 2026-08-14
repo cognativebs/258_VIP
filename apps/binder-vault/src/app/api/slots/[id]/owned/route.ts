@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { setOwnedSchema } from "@/lib/contracts";
 import { getBinder, setSlotOwned } from "@/lib/repo";
+import { projectSlotToVip } from "@/lib/vipWrite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,5 +22,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
       { status: 404 },
     );
   }
-  return NextResponse.json({ binder: await getBinder(res.binderId) });
+
+  // Binder layout is local truth for the toggle; VIP gets a durable holding.
+  const vip = await projectSlotToVip(id);
+
+  return NextResponse.json({
+    binder: await getBinder(res.binderId),
+    vipProject: vip,
+  });
 }

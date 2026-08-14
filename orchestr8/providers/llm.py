@@ -8,7 +8,7 @@ import json
 import urllib.error
 import urllib.request
 
-from services.roles import provider_keys
+from services.provider_env import provider_keys
 
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_TEMPERATURE = 0.3

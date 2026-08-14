@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: TypeScript (build · typecheck · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Order matters: workspace packages resolve through dist/, so the leaf
+      # packages must be built before anything typechecks or tests against them.
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+  python:
+    name: Python ingest (real export, real Postgres)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: vault
+          POSTGRES_DB: iqvault
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      IQVAULT_TEST_DSN: dbname=iqvault user=postgres password=vault host=localhost
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Byte-compile ingest + API scripts
+        run: python -m compileall -q clz_comic_parser.py load_comics.py api scripts
+
+      - name: Apply migrations
+        run: python scripts/migrate_db.py --dsn "$IQVAULT_TEST_DSN"
+
+      # Acceptance gate: the committed 2,700-record CLZ export must import
+      # cleanly, end to end, with every holding attributable to a snapshot.
+      - name: Import the real CLZ export
+        run: python scripts/import_clz.py --xml comic_2026-07-04_19-11-11-export.xml
+
+      - name: Derived artifacts must regenerate byte-identically
+        run: git diff --exit-code -- iqvault_comics_parser_package iqvault/public/comics/inventory.json
+
+      - name: Tests
+        run: pytest -q

@@ -1,18 +1,67 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "./app.js";
+import { createApp, type AppDeps } from "./app.js";
+import type { ComicsPayload } from "./lib/comicsHoldings.js";
+import type { UpdateComicHoldingResult } from "./lib/comicsWrite.js";
+import { mapInventoryRow } from "./lib/holdings.js";
+import { resetScanStoreForTests } from "./lib/scanIngest.js";
 import { writeSignalsFeed } from "./lib/signalsFeed.js";
 
-const tmpFeed = join(dirname(fileURLToPath(import.meta.url)), "..", ".tmp-test-signals-feed.json");
+const here = dirname(fileURLToPath(import.meta.url));
+const tmpFeed = join(here, "..", ".tmp-test-signals-feed.json");
+
+/** Explicit test fixture — never the runtime serving path. */
+function fixtureComics(count = 5): ComicsPayload {
+  const rows = JSON.parse(
+    readFileSync(join(here, "seeds", "inventory-sample.json"), "utf8"),
+  ) as Record<string, unknown>[];
+  return {
+    available: true,
+    holdings: rows.slice(0, count).map(mapInventoryRow),
+    snapshot: {
+      id: "fixture-snapshot",
+      contentHash: "a".repeat(64),
+      shortHash: "aaaaaaaaaaaa",
+      ingestedAt: "2026-07-04T00:00:00.000Z",
+      recordCount: count,
+      ageDays: 0,
+      label: "CLZ export fixture",
+    },
+    error: null,
+    dsn: "fixture",
+  };
+}
+
+function unavailableComics(): ComicsPayload {
+  return {
+    available: false,
+    holdings: [],
+    snapshot: null,
+    error: "connection refused (fixture)",
+    dsn: "fixture",
+  };
+}
 
 afterEach(() => {
   delete process.env.VIP_SIGNALS_FEED;
+  delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
+  resetScanStoreForTests();
 });
 
-async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
-  const app = createApp();
+async function withServer<T>(
+  fn: (base: string) => Promise<T>,
+  comics: ComicsPayload = fixtureComics(),
+  extraDeps: Omit<AppDeps, "loadComics"> = {},
+): Promise<T> {
+  const app = createApp({
+    loadComics: async () => comics,
+    // Keep scan intake out of fixture inventory unless a test asks for it,
+    // otherwise local scans in the dev database change assertions.
+    loadScanHoldings: async () => [],
+    ...extraDeps,
+  });
   const server = app.listen(0);
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("no port");
@@ -25,31 +74,187 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
 }
 
 describe("VIP API", () => {
-  it("serves inventory with provenance on holdings", async () => {
+  it("serves live comics inventory with provenance — never the sample as truth", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);
       const body = (await res.json()) as {
-        holdings: { provenance: { method: string } }[];
+        comicsAvailable: boolean;
+        comicsSource: string;
+        comicsCount: number;
+        comicsSnapshot: { shortHash: string } | null;
+        holdings: { provenance: { method: string; source: string } }[];
       };
       expect(res.status).toBe(200);
-      expect(body.holdings.length).toBeGreaterThan(0);
+      expect(body.comicsAvailable).toBe(true);
+      expect(body.comicsSource).toBe("postgres");
+      expect(body.comicsCount).toBe(5);
+      expect(body.comicsSnapshot?.shortHash).toBe("aaaaaaaaaaaa");
       expect(body.holdings[0]?.provenance.method).toBeTruthy();
+      expect(body.holdings[0]?.provenance.source).toBe("clz_import");
     });
   });
 
-  it("recommendations include range + opposing evidence", async () => {
+  it("degrades loudly when comics Postgres is down — no silent sample portfolio", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/inventory`);
+      const body = (await res.json()) as {
+        comicsAvailable: boolean;
+        comicsSource: string;
+        comicsCount: number;
+        comicsError: string | null;
+        totalValueEstimate: { confidence: string; note: string };
+        holdings: unknown[];
+      };
+      expect(body.comicsAvailable).toBe(false);
+      expect(body.comicsSource).toBe("unavailable");
+      expect(body.comicsCount).toBe(0);
+      expect(body.comicsError).toMatch(/connection refused/);
+      expect(body.totalValueEstimate.confidence).toBe("none");
+      expect(body.totalValueEstimate.note).toMatch(/unavailable/i);
+      // Pokémon seeds may still appear; comics must not.
+      expect(body.holdings.every((h) => {
+        const row = h as { provenance?: { source?: string } };
+        return row.provenance?.source !== "clz_import";
+      })).toBe(true);
+    }, unavailableComics());
+  });
+
+  it("sell-queue / recommendations / theses refuse sample data when comics are down", async () => {
+    await withServer(async (base) => {
+      for (const path of ["/api/sell-queue", "/api/recommendations", "/api/theses"]) {
+        const res = await fetch(`${base}${path}`);
+        expect(res.status).toBe(503);
+        const body = (await res.json()) as { error: string };
+        expect(body.error).toMatch(/unavailable/i);
+      }
+      // Watchlist still serves durable Binder wishlist rows when comics are down.
+      const watch = await fetch(`${base}/api/watchlist`);
+      expect(watch.status).toBe(200);
+      const body = (await watch.json()) as { comicsAvailable: boolean; watchlist: unknown[] };
+      expect(body.comicsAvailable).toBe(false);
+      expect(Array.isArray(body.watchlist)).toBe(true);
+    }, unavailableComics());
+  });
+
+  it("POST /api/comics/holding/:id patches via VIP (editable without Comics API :5200)", async () => {
+    const updateComicHolding = async (
+      id: string,
+      fields: Record<string, unknown>,
+    ): Promise<UpdateComicHoldingResult> => {
+      expect(id).toBe("clz-fixture-1");
+      expect(fields["Needs Verification"]).toBe("No");
+      return {
+        ok: true,
+        row: {
+          id,
+          "Needs Verification": "No",
+          Series: "X-Men",
+        },
+        provenance: {
+          source: "clz_import",
+          method: "observed",
+          ruleOrModelVersion: "vip-comics-holding-write@0.1.0",
+          confidence: 1,
+          verificationStatus: "verified",
+          supersededBy: null,
+        },
+      };
+    };
+
+    await withServer(
+      async (base) => {
+        const res = await fetch(`${base}/api/comics/holding/clz-fixture-1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { "Needs Verification": "No" } }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          ok: boolean;
+          row: { id: string; "Needs Verification": string };
+          ruleOrModelVersion: string;
+        };
+        expect(body.ok).toBe(true);
+        expect(body.row.id).toBe("clz-fixture-1");
+        expect(body.row["Needs Verification"]).toBe("No");
+        expect(body.ruleOrModelVersion).toBe("vip-comics-holding-write@0.1.0");
+      },
+      fixtureComics(),
+      { updateComicHolding },
+    );
+  });
+
+  it("POST /api/tcg/project projects Binder owned/wishlist into durable VIP rows", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/tcg/slots/slot-test-charizard/project`, {
+        method: "POST",
+      });
+      if (res.status === 404) {
+        // Seed missing in this environment — skip without failing CI Node job.
+        return;
+      }
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        ok: boolean;
+        holding: string;
+        watchlist: string;
+      };
+      expect(body.ok).toBe(true);
+      expect(body.holding).toBe("upserted");
+      expect(body.watchlist).toBe("upserted");
+
+      const inv = await fetch(`${base}/api/inventory`);
+      const invBody = (await inv.json()) as {
+        durableBinderHoldings: number;
+        holdings: { pillar: string | null; externalIds?: { externalValue: string }[] }[];
+      };
+      expect(invBody.durableBinderHoldings).toBeGreaterThanOrEqual(1);
+      expect(
+        invBody.holdings.some(
+          (h) =>
+            h.pillar === "TCG Owned (Binder)" &&
+            h.externalIds?.some((e) => e.externalValue === "base1-4"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("sell-queue is derived from live holdings, not sell-queue-sample.json", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/sell-queue`);
+      const body = (await res.json()) as {
+        comicsSource: string;
+        items: { sellPriority: string | null }[];
+      };
+      expect(res.status).toBe(200);
+      expect(body.comicsSource).toBe("postgres");
+      expect(body.items.every((i) => i.sellPriority === "High" || i.sellPriority === "Medium")).toBe(
+        true,
+      );
+    });
+  });
+
+  it("recommendations refuse fabricated comps — insufficient market evidence until adapters land", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/recommendations?limit=3`);
       const body = (await res.json()) as {
         recommendations: {
           supportingEvidence: unknown[];
           opposingEvidence: unknown[];
-          marketRange: unknown;
+          marketRange: { matchedSales: number } | null;
+          insufficientMarketEvidence: boolean;
+          reasonCodes: string[];
+          compsSource: string;
         }[];
       };
-      expect(body.recommendations[0]?.supportingEvidence.length).toBeGreaterThan(0);
-      expect(body.recommendations[0]?.opposingEvidence.length).toBeGreaterThan(0);
-      expect(body.recommendations[0]?.marketRange).toBeTruthy();
+      const first = body.recommendations[0];
+      expect(first).toBeTruthy();
+      expect(first?.insufficientMarketEvidence).toBe(true);
+      expect(first?.compsSource).toBe("none");
+      expect(first?.reasonCodes).toContain("INSUFFICIENT_MARKET_EVIDENCE");
+      expect(first?.marketRange?.matchedSales ?? 0).toBe(0);
+      // Still emits opposing evidence ("no matched sales") — never invents supporting comps.
+      expect(first?.opposingEvidence.length).toBeGreaterThan(0);
     });
   });
 
@@ -64,6 +269,7 @@ describe("VIP API", () => {
   });
 
   it("inventory includes TCG holdings with externalIds (Binder and/or seeds)", async () => {
+    process.env.VIP_INCLUDE_POKEMON_SEEDS = "1";
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);
       const body = (await res.json()) as {
@@ -74,25 +280,26 @@ describe("VIP API", () => {
       const withExt = body.holdings.filter((h) => (h.externalIds?.length ?? 0) > 0);
       expect(withExt.length).toBeGreaterThanOrEqual(1);
       expect(body.tcgSource).toBeTruthy();
-      // Seeds remain available when Binder DB is empty or VIP_INCLUDE_POKEMON_SEEDS=1
       if (body.tcgSource === "pokemon_seeds" || body.tcgSource === "binder+seeds") {
         expect(withExt.some((h) => h.externalIds?.[0]?.externalValue === "base1-4")).toBe(true);
       }
     });
   });
 
-  it("serves /api/tcg/binders summary", async () => {
+  it("serves /api/tcg/binders summary from Postgres", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/tcg/binders`);
       const body = (await res.json()) as {
         available: boolean;
         binders: unknown[];
         dbPath: string;
+        store?: string;
       };
       expect(res.status).toBe(200);
       expect(typeof body.available).toBe("boolean");
       expect(Array.isArray(body.binders)).toBe(true);
       expect(body.dbPath).toBeTruthy();
+      expect(body.store).toBe("postgres");
     });
   });
 
@@ -173,15 +380,142 @@ describe("VIP API", () => {
   });
 
   it("signals fall back to seeds when feed missing", async () => {
-    process.env.VIP_SIGNALS_FEED = join(
-      dirname(fileURLToPath(import.meta.url)),
-      "does-not-exist-signals-feed.json",
-    );
+    process.env.VIP_SIGNALS_FEED = join(here, "does-not-exist-signals-feed.json");
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/signals`);
       const body = (await res.json()) as { source: string; signals: unknown[] };
       expect(body.source).toBe("seed");
       expect(body.signals.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("POST /api/scan/batches → confirm unit into inventory with eBay draft idle", async () => {
+    await withServer(async (base) => {
+      const meta = await fetch(`${base}/api/scan`);
+      expect(meta.status).toBe(200);
+      const metaBody = (await meta.json()) as { device: string; qualityTier: string };
+      expect(metaBody.device).toBe("ricoh_fi8170");
+      expect(metaBody.qualityTier).toBe("intake");
+
+      const open = await fetch(`${base}/api/scan/batches`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          categoryHint: "sports",
+          pages: [
+            {
+              storageRef: "scans/fi8170/j_front.jpg",
+              contentHash: "hash-front-jordan",
+              ocrText: "1986 Topps Michael Jordan 57",
+              face: "front",
+            },
+            {
+              storageRef: "scans/fi8170/j_back.jpg",
+              contentHash: "hash-back-jordan",
+              face: "back",
+            },
+          ],
+        }),
+      });
+      expect(open.status).toBe(201);
+      const opened = (await open.json()) as {
+        batch: {
+          id: string;
+          units: { id: string; candidates: { catalogKey: string }[] }[];
+        };
+        rawSnapshots: { storageRef: string; backStorageRef?: string | null }[];
+      };
+      const unit = opened.batch.units[0]!;
+      expect(unit.candidates[0]?.catalogKey).toBe("sports:topps:1986:jordan:57");
+      expect(opened.rawSnapshots[0]?.backStorageRef).toBe("scans/fi8170/j_back.jpg");
+
+      const confirm = await fetch(`${base}/api/scan/units/${unit.id}/confirm`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selectedCandidateKey: "sports:topps:1986:jordan:57",
+          queueEbayListingDraft: true,
+        }),
+      });
+      expect(confirm.status).toBe(200);
+      const confirmed = (await confirm.json()) as {
+        ok: boolean;
+        outputAction: string;
+        commit: {
+          source: string;
+          assumedGrade: string;
+          needsVerification: boolean;
+        };
+        ebayDraft: { status: string };
+      };
+      expect(confirmed.ok).toBe(true);
+      expect(confirmed.outputAction).toBe("Hold");
+      expect(confirmed.commit.source).toBe("ricoh_fi8170");
+      expect(confirmed.commit.assumedGrade).toBe("NM");
+      expect(confirmed.commit.needsVerification).toBe(true);
+      expect(confirmed.ebayDraft.status).toBe("pending_credentials");
+    });
+  });
+
+  it("POST /api/scan/units/:id/confirm returns 409 until duplicates are acknowledged", async () => {
+    await withServer(async (base) => {
+      const open = await fetch(`${base}/api/scan/batches`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          categoryHint: "pokemon",
+          inventory: [
+            {
+              id: "holding-existing-charizard",
+              assetName: "Charizard",
+              quantity: 1,
+              catalogKey: "pokemon:base-set:4:charizard",
+              externalIds: [{ source: "pokemontcg", value: "base1-4" }],
+            },
+          ],
+          pages: [
+            {
+              storageRef: "scans/fi8170/c_front.jpg",
+              contentHash: "hash-front-char",
+              ocrText: "Charizard Base Set 4/102 holo",
+              face: "front",
+            },
+            {
+              storageRef: "scans/fi8170/c_back.jpg",
+              contentHash: "hash-back-char",
+              face: "back",
+            },
+          ],
+        }),
+      });
+      expect(open.status).toBe(201);
+      const opened = (await open.json()) as {
+        batch: { units: { id: string; status: string }[] };
+      };
+      const unit = opened.batch.units[0]!;
+      expect(unit.status).toBe("duplicate_alert");
+
+      const blocked = await fetch(`${base}/api/scan/units/${unit.id}/confirm`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selectedCandidateKey: "pokemon:base-set:4:charizard",
+          acknowledgeDuplicates: false,
+          inventory: [
+            {
+              id: "holding-existing-charizard",
+              assetName: "Charizard",
+              quantity: 1,
+              catalogKey: "pokemon:base-set:4:charizard",
+              externalIds: [{ source: "pokemontcg", value: "base1-4" }],
+            },
+          ],
+        }),
+      });
+      expect(blocked.status).toBe(409);
+      const body = (await blocked.json()) as { ok: boolean; code: string };
+      expect(body.ok).toBe(false);
+      expect(body.code).toBe("DUPLICATE_UNACKNOWLEDGED");
     });
   });
 });

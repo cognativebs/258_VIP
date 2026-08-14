@@ -2,6 +2,7 @@
 """Convert CLZ parser CSV output to IQVault web data (JSON)."""
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import os
@@ -49,7 +50,7 @@ def normalize(row: dict) -> dict:
     return out
 
 
-def build_meta(rows: list[dict]) -> dict:
+def build_meta(rows: list[dict], snapshot: dict[str, str] | None = None) -> dict:
     total_value = sum(r.get("Current Price", 0) * r.get("Quantity", 1) for r in rows)
     pillars = Counter(r.get("Collection Pillar", "Unknown") for r in rows)
     pillar_value = defaultdict(float)
@@ -61,9 +62,15 @@ def build_meta(rows: list[dict]) -> dict:
     locations = Counter(r.get("Location", "") or "Unassigned" for r in rows)
     recs = Counter(r.get("Recommendation", "") for r in rows)
 
+    snapshot = snapshot or {}
+
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "snapshotLabel": "2026-07-04 CLZ Export",
+        # Never hardcode a date here: a stale label is how a July export ends up
+        # reading as today's collection.
+        "snapshotLabel": snapshot.get("label", "CLZ export · snapshot unidentified"),
+        "snapshotId": snapshot.get("id"),
+        "snapshotHash": snapshot.get("hash"),
         "recordCount": len(rows),
         "totalQuantity": sum(r.get("Quantity", 1) for r in rows),
         "totalValue": round(total_value, 2),
@@ -94,6 +101,12 @@ def build_meta(rows: list[dict]) -> dict:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--snapshot-label", default=None, help="e.g. 'CLZ export 2026-07-04'")
+    ap.add_argument("--snapshot-id", default=None, help="vault_evidence.raw_snapshots id")
+    ap.add_argument("--snapshot-hash", default=None, help="sha256 of the source export")
+    args = ap.parse_args()
+
     if not os.path.isfile(CSV_PATH):
         raise SystemExit(f"Missing CSV: {CSV_PATH}\nRun clz_comic_parser.py first.")
 
@@ -102,7 +115,16 @@ def main() -> None:
     with open(CSV_PATH, newline="", encoding="utf-8") as f:
         rows = [normalize(r) for r in csv.DictReader(f)]
 
-    meta = build_meta(rows)
+    snapshot = {
+        k: v
+        for k, v in (
+            ("label", args.snapshot_label),
+            ("id", args.snapshot_id),
+            ("hash", args.snapshot_hash),
+        )
+        if v
+    }
+    meta = build_meta(rows, snapshot)
 
     with open(os.path.join(OUT_DIR, "inventory.json"), "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False)

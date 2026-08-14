@@ -4,6 +4,7 @@ import {
   apiGet,
   BINDER_URL,
   type Holding,
+  type InventoryResponse,
   type TcgBindersResponse,
 } from "@/lib/api";
 
@@ -12,17 +13,11 @@ function usd(n: number): string {
 }
 
 export default async function PortfolioPage() {
-  let data: {
-    count: number;
-    totalValueEstimate: { amount: number; note: string; confidence: string };
-    holdings: Holding[];
-    tcgSource?: string;
-    binderDb?: { available: boolean; filledSlots: number; error: string | null };
-  } | null = null;
+  let data: InventoryResponse | null = null;
   let tcg: TcgBindersResponse | null = null;
   let error: string | null = null;
   try {
-    data = await apiGet("/api/inventory");
+    data = await apiGet<InventoryResponse>("/api/inventory");
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load inventory";
   }
@@ -51,8 +46,8 @@ export default async function PortfolioPage() {
       <><Nav active="/" />
       <h1 className="page-title">Portfolio</h1>
       <p className="page-sub">
-        Inventory from VIP API — comics sample plus live Binder TCG (shared SQLite). Derived
-        fields carry provenance. Snapshot totals are labeled, not verified market truth.
+        Live comics and Binder TCG from the same Postgres. Derived fields carry provenance.
+        Snapshot totals are labeled CLZ / market point prices — not verified ranges.
       </p>
 
       {error ? (
@@ -61,12 +56,25 @@ export default async function PortfolioPage() {
         </div>
       ) : null}
 
+      {data && !data.comicsAvailable ? (
+        <div className="error">
+          Comics Postgres unavailable
+          {data.comicsError ? `: ${data.comicsError}` : "."} Portfolio is missing the real
+          collection — not falling back to a sample. Run{" "}
+          <code>python scripts/import_clz.py --xml &lt;export.xml&gt;</code> and ensure Postgres
+          is up.
+        </div>
+      ) : null}
+
       {data ? (
         <>
           <div className="grid-stats">
             <div className="stat">
-              <div className="n">{data.count}</div>
-              <div className="l">Holdings (comics + TCG)</div>
+              <div className="n">{data.comicsCount}</div>
+              <div className="l">
+                Comics
+                {data.comicsAvailable ? " · live" : " · unavailable"}
+              </div>
             </div>
             <div className="stat">
               <div className="n">${data.totalValueEstimate.amount.toLocaleString()}</div>
@@ -81,6 +89,9 @@ export default async function PortfolioPage() {
           </div>
           <p className="muted" style={{ marginTop: -8, marginBottom: 16, fontSize: 13 }}>
             {data.totalValueEstimate.note}
+            {data.comicsSnapshot
+              ? ` · ${data.comicsSnapshot.label} · sha ${data.comicsSnapshot.shortHash} · age ${data.comicsSnapshot.ageDays}d`
+              : ""}
             {data.tcgSource ? ` · TCG source: ${data.tcgSource}` : ""}
           </p>
 
@@ -105,9 +116,10 @@ export default async function PortfolioPage() {
 
             {tcg && !tcg.available ? (
               <div className="error" style={{ marginTop: 12 }}>
-                Binder SQLite not available{tcg.error ? `: ${tcg.error}` : "."} Run{" "}
-                <code>npm run binder</code> once so the DB exists, or set{" "}
-                <code>BINDER_DB_PATH</code>.
+                Binder Postgres (`vault_tcg`) not available
+                {tcg.error ? `: ${tcg.error}` : "."} Apply migrations (
+                <code>python scripts/migrate_db.py</code>) and run{" "}
+                <code>npm run binder</code>.
               </div>
             ) : null}
 

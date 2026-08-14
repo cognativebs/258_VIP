@@ -23,7 +23,7 @@ from clz_delta import (  # noqa: E402
 from clz_sync import FileHashStore, accept_inbox_drop, inbox_status, run_sync, sanitize_inbox_filename  # noqa: E402
 from comics_db import HOLDINGS_SQL  # noqa: E402
 
-FIXTURE = ROOT / "packages" / "ingest" / "src" / "__tests__" / "fixtures" / "clz-sample.xml"
+FIXTURE = ROOT / "tests" / "fixtures" / "clz-sample.xml"
 
 
 class HoldingIdTests(unittest.TestCase):

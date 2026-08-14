@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BaseRecordSchema, UuidSchema } from "./base.js";
+import { CategoryKindSchema } from "./catalog.js";
 
 export const IdObservationSchema = BaseRecordSchema.extend({
   predictedAssetId: UuidSchema.nullable().optional(),
@@ -13,11 +14,28 @@ export const IdObservationSchema = BaseRecordSchema.extend({
 });
 export type IdObservation = z.infer<typeof IdObservationSchema>;
 
+/** Intake = Ricoh/document scan path; museum = future high-res station. */
+export const CaptureQualityTierSchema = z.enum(["intake", "museum"]);
+export type CaptureQualityTier = z.infer<typeof CaptureQualityTierSchema>;
+
+export const CapturePurposeSchema = z.enum([
+  "inventory_intake",
+  "museum_capture",
+  "grading",
+]);
+export type CapturePurpose = z.infer<typeof CapturePurposeSchema>;
+
+export const CaptureFaceSchema = z.enum(["front", "back", "unknown"]);
+export type CaptureFace = z.infer<typeof CaptureFaceSchema>;
+
 export const CaptureSessionSchema = BaseRecordSchema.extend({
   device: z.string().nullable().optional(),
   calibrationRef: z.string().nullable().optional(),
   modelVersion: z.string().min(1),
   tenantId: UuidSchema.nullable().optional(),
+  purpose: CapturePurposeSchema.default("inventory_intake"),
+  qualityTier: CaptureQualityTierSchema.default("intake"),
+  categoryHint: CategoryKindSchema.nullable().optional(),
 });
 export type CaptureSession = z.infer<typeof CaptureSessionSchema>;
 
@@ -26,5 +44,11 @@ export const CaptureImageSchema = BaseRecordSchema.extend({
   contentHash: z.string().min(1),
   storageRef: z.string().min(1),
   preprocessingSteps: z.array(z.string()).default([]),
+  face: CaptureFaceSchema.default("unknown"),
+  qualityTier: CaptureQualityTierSchema.default("intake"),
+  /** Duplex pair index within the session (0-based card unit). */
+  unitIndex: z.number().int().nonnegative().nullable().optional(),
+  mimeType: z.string().min(1).default("image/jpeg"),
+  byteLength: z.number().int().nonnegative().nullable().optional(),
 });
 export type CaptureImage = z.infer<typeof CaptureImageSchema>;

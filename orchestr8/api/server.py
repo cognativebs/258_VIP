@@ -24,7 +24,8 @@ from services.registry import (  # noqa: E402
     models_public_list,
     pipeline_order as registry_pipeline_order,
 )
-from services.roles import configured_providers, load_config  # noqa: E402
+from services.provider_env import configured_providers, provider_key_warnings  # noqa: E402
+from services.roles import load_config  # noqa: E402
 
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
 
@@ -67,15 +68,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
         if path == "/v1/health":
             providers = configured_providers()
-            json_response(
-                self,
-                200,
-                {
-                    "ok": any(providers.values()),
-                    "service": "orchestr8",
-                    "providers": providers,
-                },
-            )
+            warnings = provider_key_warnings()
+            body: dict = {
+                "ok": any(providers.values()),
+                "service": "orchestr8",
+                "providers": providers,
+            }
+            if warnings:
+                body["keyWarnings"] = warnings
+            json_response(self, 200, body)
             return
 
         if path == "/v1/roles":
@@ -301,6 +302,8 @@ def main() -> None:
     print("  POST /v1/reload")
     print(f"  Providers: {configured_providers()}")
     print(f"  Agents: {len(agents_public_list())}")
+    for warn in provider_key_warnings():
+        print(f"  WARN: {warn}")
     server.serve_forever()
 
 

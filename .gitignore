@@ -20,3 +20,10 @@ clz-inbox/**/*.xml
 clz-inbox/archive/
 clz-inbox/processed/
 clz-inbox/.hashes.json
+
+# Test scratch files written by services/api tests
+services/api/.tmp-test-signals-feed.json
+services/api/sources-state-api-test.json
+
+# Per-operator decision constraints (copy from user-constraints.example.json)
+services/api/user-constraints.json

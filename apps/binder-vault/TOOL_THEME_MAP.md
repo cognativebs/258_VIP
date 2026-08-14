@@ -1,135 +1,115 @@
-# Binder Vault — tool name → Craft theme map (draft)
+# Binder Vault → Forge — tool name map
 
-**Status:** mapping only — **do not rename UI yet.**  
-**Date:** 2026-08-05  
-**Scope:** user-facing Binder Vault tool / button labels (internal app).  
-**Source theme:** Craft / Transformation / Value Creation  
-*(from branding conversation — see `docs/branding/conversation-export-2026-08-04.md`)*
+**Status:** names decided; **UI not renamed yet.**  
+**Date:** 2026-08-08 (supersedes the 2026-08-05 guess draft)  
+**Scope:** user-facing Binder Vault tool / button labels.  
+**Decision record:** [`docs/branding/naming-decision.md`](../../docs/branding/naming-decision.md)
 
-## Theme basis
+## Locked names
 
-Public “Vault” names are **internal-only** going forward. Destination labels below use the
-locked Craft seed / shortlist:
+> **Crucible** — parent platform + collector face (was VIP + IQVault)  
+> **Forge** — this app: building and arranging collections (was Binder Vault)  
+> **Temper** — valuation / judgment layer: market marks, ranges, confidence
 
-> **Crucible · Forge · Temper · Alloy · Anvil · Catalyst**  
-> *(also considered: Alchemy, Refinery, Origin)*
+Reserve words (not assigned): Alloy, Anvil, Catalyst, Assay, Ingot, Billet, Quench, Anneal.
 
-Metaphor guide for UI verbs:
+## Guiding rule for labels
 
-| Craft word | Use for |
-| --- | --- |
-| Forge | Create / build / open something new |
-| Crucible | The working surface / active binder or page under heat |
-| Anvil | Stable workspace / where work is struck |
-| Temper | Refine / refresh / harden quality (prices, owned state) |
-| Alloy | Merge / combine / sync across systems |
-| Catalyst | Kick off a process (export, print, hunt mode) |
-| Assay *(derived)* | Read / inspect value without claiming precision |
-| Quench *(derived)* | Stop / clear / retire |
+**Theme the products, not every button.** Three brand names plus a couple of
+genuine verbs is a voice; renaming twelve buttons is a thesaurus the user has to
+learn. So:
 
-Confidence: **High** = natural fit. **Med** = workable. **Low** = stretch; revisit after top-3 product name pick.
+- **Keep literal** anything structural or navigational — Binder, Page, Pocket,
+  Prev/Next, Print, Delete. These are physical objects the collector already
+  knows.
+- **Use Craft vocabulary** only where it carries real meaning: the product names
+  themselves, and price/valuation actions (which belong to **Temper**).
+- **Never** theme a destructive action into something ambiguous. "Quench Page"
+  reads as a feature; "Delete Page" reads as a consequence.
+
+Earlier draft labels like *Add Plate*, *Quench Page*, *Stock*, *Seek*, and
+*Share Crucible* are **dropped** for that reason — they were stretches, and
+`Share Crucible` is now wrong outright since Crucible is the platform, not a binder.
 
 ---
 
 ## Topbar / binder tools
 
-| Current (internal) label | Craft-themed label (guess) | Why | Confidence | Later notes |
-| --- | --- | --- | --- | --- |
-| Copy URL | Share Crucible | Share the live work surface (LAN) | Med | Keep “Copy link” in tooltip |
-| + New Binder | + Forge Binder | Create a new working book | High | Product may rename “Binder” later |
-| + Create your first binder | Forge your first binder | Empty-state CTA | High | |
-| Cards | Stock | Mobile search dock — raw material | Low | Or keep *Cards* for clarity |
-| Search | Seek | Find stock to seat | Med | Vendor tabs stay as-is |
-| Close | Close | Neutral | High | |
-| ‹ Prev / Next › | ‹ Prev / Next › | Keep — pagination clarity > theme | High | |
-| + Add Page | + Add Plate | Another plate in the crucible | Med | Alt: *+ Add Leaf* if book metaphor stays |
-| Delete Page | Quench Page | Pull a plate from heat | Low | Soften to *Remove Page* if needed |
-| Move / Copy Page | Transfer Plate | Move/copy between binders | Med | Split: *Move Plate* / *Alloy Copy* |
-| Sync Prices | Temper Prices | Harden/fill market marks | High | Fill-missing only |
-| Syncing… | Tempering… | Busy state | High | |
-| Refresh All | Re-Temper All | Force re-assay prices on page | High | |
-| Sync Owned (VIP) | Alloy Owned | Fuse VIP inventory ownership in | High | Tooltip: match internal VIP ids |
-| Highlight Missing | Reveal Gaps | Show what’s still unforged / needed | High | On: *Reveal Gaps: On* |
-| Export Wishlist | Cast Wishlist | Pour wants into a takeaway (PDF) | Med | Alt: *Catalyst: Wishlist* |
-| Print Page | Press Plate | Physical impression | Med | |
-| Delete Binder | Retire Binder | Take binder off the line | Med | Keep danger styling |
+| Current label | New label | Rationale |
+| --- | --- | --- |
+| Copy URL | Copy link | Literal beats themed for a utility action |
+| + New Binder | + New Binder | Keep — "Forge Binder" is redundant inside an app named Forge |
+| + Create your first binder | Create your first binder | Empty-state CTA stays plain |
+| Cards | Cards | Short and clear, especially on mobile |
+| Search | Search | Same |
+| ‹ Prev / Next › | ‹ Prev / Next › | Pagination clarity > theme |
+| + Add Page | + Add Page | Literal |
+| Delete Page | Delete Page | Destructive actions stay unambiguous |
+| Move / Copy Page | Move / Copy Page | Literal |
+| **Sync Prices** | **Temper Prices** | Fill missing market marks — this *is* the Temper action, so the name does double duty as branding |
+| Syncing… | Tempering… | Busy state for the above |
+| **Refresh All** | **Re-Temper All** | Force re-observe every priced card on the page |
+| **Sync Owned (VIP)** | **Sync Owned (Crucible)** | Same action; platform renamed |
+| Highlight Missing | Highlight Missing | Already plain and accurate |
+| Export Wishlist | Export Wishlist | Literal; it produces a store list |
+| Print Page | Print Page | Literal |
+| Delete Binder | Delete Binder | Destructive stays literal |
 
----
+## Shelf / page chrome
 
-## Shelf / spine / page chrome
-
-| Current label | Craft-themed label (guess) | Why | Confidence | Later notes |
-| --- | --- | --- | --- | --- |
-| Binder Vault (brand) | *(internal only)* | Public brand TBD from top 3 | High | Do not ship “Vault” |
-| Your collection, shelved | Your collection, in the fire | Craft tagline sketch | Low | Needs real brand line after top 3 |
-| Spine strip (binders) | Rack | Binders on the rack | Med | Or *Line* |
-| Page tabs | Plates | Working plates in the crucible | Med | |
-| Theme note, set, or hunt… | Intent, set, or run… | Less vault/hunt; more craft intent | Med | |
-| Center = Chase #1 | Center = Keystone | Transformation focus piece | Med | Or keep Chase for TCG feel |
-
----
+| Current | New | Rationale |
+| --- | --- | --- |
+| Binder Vault (brand) | **Forge** | Product rename |
+| Your collection, shelved | *(needs new line)* | Tagline should carry the Craft voice — draft: “Where a collection gets made.” Owner call. |
+| Spine strip | Shelf | Already the mental model |
+| Page tabs | Pages | Literal |
+| Center = Chase #1 | Center = Chase #1 | Keep — real TCG vocabulary |
 
 ## Ledger (value rail)
 
-| Current label | Craft-themed label (guess) | Why | Confidence | Later notes |
-| --- | --- | --- | --- | --- |
-| Ledger | Assay | Value read — ranges, not fake precision | High | Fits VIP rules |
-| Page / Binder (scope) | Plate / Binder | Scope of assay | Med | |
-| Total market | Marked value | Sum of tempered marks | Med | |
-| Owned | Alloyed | Fused into owned set | Med | Align with Alloy Owned |
-| Still need | Still raw | Not yet acquired / seated | Med | Alt: *Unforged* |
-| Delta | Spread | Owned − need | Low | Keep Delta if clearer |
-| Prices as of … | Tempered as of … | Freshness of last temper | High | |
-| Select all | Select all | Neutral | High | |
-| All in scope | Whole plate / Whole binder | | Med | |
-| Own / Need (row) | Alloyed / Raw | Per-line owned flip | Med | |
+The rail is the **Temper** surface inside Forge, so this is where themed
+language earns its place.
 
----
+| Current | New | Rationale |
+| --- | --- | --- |
+| Ledger | Temper | The valuation read for this page/binder |
+| Page / Binder (scope) | Page / Binder | Literal |
+| Total market | Marked value | "Marked" signals observed, not guaranteed |
+| Owned | Owned | Literal |
+| Still need | Still need | Literal |
+| Delta | Delta | Understood by the audience |
+| **Prices as of …** | **Tempered as of …** | Freshness of the last successful observation |
+| Select all / All in scope | Select all / All in scope | Literal |
 
 ## Pocket actions
 
-| Current control | Craft-themed label (guess) | Why | Confidence | Later notes |
-| --- | --- | --- | --- | --- |
-| Owned toggle | Alloy | Mark owned / fused in | High | |
-| Wishlist / ★ | Mark | Want / future temper | Med | |
-| View / zoom | Assay | Inspect without deciding | High | |
-| Remove / clear | Quench | Clear pocket | Med | |
-| Drag rearrange | Reseat | Move between pockets | Med | |
-| Empty pocket | Empty pocket | Keep plain | High | |
-
----
+| Current | New | Rationale |
+| --- | --- | --- |
+| Owned toggle | Owned | Literal |
+| Wishlist / ★ | Wishlist / ★ | Literal |
+| View / zoom | View | Literal |
+| Remove / clear | Clear pocket | Explicit about scope |
+| Drag rearrange | Drag to rearrange | Literal |
 
 ## Search dock / filters
 
-| Current label | Craft-themed label (guess) | Why | Confidence | Later notes |
-| --- | --- | --- | --- | --- |
-| All / TCG.io / TCGdex | Keep | Vendor truth names | High | |
-| Rarity / Type chips | Keep TCG terms | Domain vocabulary | High | |
-| Clear filters | Clear | Neutral | High | |
-| Set chips | Keep set names | Product names | High | |
-| Place / click-to-fill | Seat | Drop into pocket | Med | |
+Unchanged. Vendor names (`TCG.io`, `TCGdex`) and TCG rarity terms (Holo, SIR,
+ACE SPEC) are domain truth and must not be themed.
 
 ---
 
-## Product-name shortlist → face mapping (later)
+## Rename sequence (when the PR happens)
 
-Pending your **top 3**. Best-guess assignment for when public names replace internal ones:
+1. Clear trademarks/domains first — the Vault names died at this step.
+2. Rename the **products** (Binder Vault → Forge, VIP/IQVault → Crucible) across
+   `package.json` names, nav brand, docs, and start scripts.
+3. Then apply the **Temper** label changes above (prices + ledger).
+4. Leave literal labels alone.
 
-| Craft name | Could later name… | Rationale |
-| --- | --- | --- |
-| **Crucible** | Whole platform or collector face | Where value is tested / transformed |
-| **Forge** | Builder surface (today’s Binder Vault) | Where pages/pockets are made |
-| **Temper** | Pricing / quality / sync layer | Refining marks & owned state |
-| **Alloy** | Integration / inventory merge (VIP bridge) | Combining sources into one holding truth |
-| **Anvil** | Stable workspace / mobile show mode | Where decisions get struck |
-| **Catalyst** | Agents / Orchestr8-class layer | What starts the run |
+## Out of scope
 
----
-
-## Explicitly out of scope (for now)
-
-- Applying renames in `BinderVault.tsx` / CSS / routes
-- USPTO / domain filing (tracked in branding conversation, not this file)
-- Picking the public top 3 product names (your call next)
-
-When top 3 are chosen, freeze product names first, then apply this map in a dedicated rename PR.
+- Orchestr8 agent / `allowed_tools` names (internal infrastructure)
+- `AGENTS.md` data vocabulary: `asset`, `holding`, `priced_unit`, `sale`,
+  `market_value`, `collection_hunt`, `external_id`, `assumed_grade`
+- VIP decision verbs (Buy / Hold / Grade / Sell / Lot / Pass) — these stay
+  literal; they're the product's promise, not its branding
