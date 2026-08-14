@@ -16,3 +16,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 scripts/logs/*.log
+clz-inbox/**/*.xml
+clz-inbox/archive/
+clz-inbox/processed/
+clz-inbox/.hashes.json

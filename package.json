@@ -15,7 +15,8 @@
     "web": "npm run dev -w @vip/iqvault-web",
     "orchestr8:console": "npm run dev -w @vip/orchestr8-console",
     "binder": "npm run dev -w @vip/binder-vault",
-    "job:pokemon-drops": "npm run pokemon-drops -w @vip/jobs"
+    "job:pokemon-drops": "npm run pokemon-drops -w @vip/jobs",
+    "job:clz-sync": "npm run clz-sync -w @vip/jobs"
   },
   "engines": {
     "node": ">=20"

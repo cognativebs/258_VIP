@@ -2,10 +2,18 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
+
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+from clz_delta import holding_is_active  # noqa: E402
 
 HOLDINGS_SQL = """
 SELECT
@@ -32,6 +40,8 @@ SELECT
     h.source_row_id,
     h.clz_metadata,
     h.imported_at,
+    h.updated_at,
+    h.dropped_at,
     a.canonical_name,
     a.primary_image_url,
     a.release_year,
@@ -47,6 +57,7 @@ JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
 JOIN vault_comic.issue i ON i.id = v.issue_id
 JOIN vault_comic.series s ON s.id = i.series_id
+WHERE h.dropped_at IS NULL
 ORDER BY s.title, i.issue_number, v.cover_label
 """
 
@@ -120,7 +131,7 @@ def row_from_holding(rec: dict) -> dict:
             row["Is Key Comic"] = "Minor"
         row["Key Comic Reason"] = rec.get("key_reason") or row.get("Key Comic Reason", "")
 
-    imported = rec.get("imported_at")
+    imported = rec.get("updated_at") or rec.get("imported_at")
     row["id"] = rec.get("source_row_id") or row.get("id") or ""
     row["_source"] = "postgres"
     row["_importedAt"] = imported.isoformat() if imported else None
@@ -140,8 +151,6 @@ def build_meta(rows: list[dict], *, snapshot_label: str | None = None) -> dict:
     recs = Counter(r.get("Recommendation", "") for r in rows)
 
     label = snapshot_label or "PostgreSQL live"
-    if rows and rows[0].get("_importedAt"):
-        label = f"PostgreSQL · imported {rows[0]['_importedAt'][:10]}"
 
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -170,13 +179,54 @@ def build_meta(rows: list[dict], *, snapshot_label: str | None = None) -> dict:
     }
 
 
+def _snapshot_label(conn, rows: list[dict]) -> str:
+    """Prefer latest raw CLZ snapshot ingest, else MAX(holding.updated_at)."""
+    cur = conn.cursor()
+    ingested = None
+    try:
+        cur.execute(
+            """
+            SELECT MAX(ingested_at)
+              FROM vault_evidence.raw_snapshots
+             WHERE source = 'clz_xml'
+            """
+        )
+        ingested = cur.fetchone()[0]
+    except Exception:
+        conn.rollback()
+    updated = None
+    try:
+        cur.execute(
+            """
+            SELECT MAX(updated_at)
+              FROM vault_collection.holding
+             WHERE source = 'clz_import' AND dropped_at IS NULL
+            """
+        )
+        updated = cur.fetchone()[0]
+    except Exception:
+        conn.rollback()
+    cur.close()
+    stamp = ingested or updated
+    if stamp is None and rows:
+        iso = rows[0].get("_importedAt")
+        if iso:
+            return f"PostgreSQL · imported {str(iso)[:10]}"
+        return "PostgreSQL live"
+    if stamp is None:
+        return "PostgreSQL live"
+    day = stamp.date().isoformat() if hasattr(stamp, "date") else str(stamp)[:10]
+    return f"PostgreSQL · CLZ {day}"
+
+
 def fetch_inventory(conn) -> tuple[list[dict], dict]:
     cur = conn.cursor()
     cur.execute(HOLDINGS_SQL)
     cols = [d[0] for d in cur.description]
-    rows = [row_from_holding(dict(zip(cols, rec))) for rec in cur.fetchall()]
+    recs = [dict(zip(cols, rec)) for rec in cur.fetchall()]
     cur.close()
-    meta = build_meta(rows)
+    rows = [row_from_holding(rec) for rec in recs if holding_is_active(rec)]
+    meta = build_meta(rows, snapshot_label=_snapshot_label(conn, rows))
     return rows, meta
 
 
@@ -217,10 +267,50 @@ HOLDING_FIELD_MAP: dict[str, tuple[str, Any]] = {
 }
 
 
-HOLDING_BY_ID_SQL = HOLDINGS_SQL.replace(
-    "ORDER BY s.title, i.issue_number, v.cover_label",
-    "WHERE h.source_row_id = %s",
-)
+HOLDING_BY_ID_SQL = """
+SELECT
+    h.quantity,
+    h.purchase_price,
+    h.purchase_date,
+    h.location,
+    h.slab_status,
+    h.assumed_grade,
+    h.grade_rating,
+    h.collection_pillar,
+    h.museum_score,
+    h.investment_score,
+    h.liquidity_score,
+    h.recommendation,
+    h.sell_priority,
+    h.upgrade_candidate,
+    h.needs_grading,
+    h.needs_photo,
+    h.needs_verification,
+    h.verification_notes,
+    h.value_locked,
+    h.current_price_snapshot,
+    h.source_row_id,
+    h.clz_metadata,
+    h.imported_at,
+    h.updated_at,
+    h.dropped_at,
+    a.canonical_name,
+    a.primary_image_url,
+    a.release_year,
+    s.title AS series_title,
+    s.publisher,
+    i.issue_number,
+    i.cover_date,
+    i.is_key_issue,
+    i.key_reason,
+    v.cover_label
+FROM vault_collection.holding h
+JOIN vault_core.asset a ON a.id = h.asset_id
+JOIN vault_comic.variant v ON v.asset_id = a.id
+JOIN vault_comic.issue i ON i.id = v.issue_id
+JOIN vault_comic.series s ON s.id = i.series_id
+WHERE h.source_row_id = %s
+"""
 
 
 def update_holding(conn, source_row_id: str, fields: dict) -> dict:

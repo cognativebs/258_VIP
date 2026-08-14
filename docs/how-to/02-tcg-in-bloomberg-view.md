@@ -1,12 +1,14 @@
 # How-To: See TCG collections in the same Bloomberg view as comics
 
-**Short answer today:** TCG from Binder SQLite now appears in the VIP Portfolio via the API adapter, still in a separate Binder tab/window for layout. A single comics+TCG Bloomberg grid remains a later milestone.
+**Short answer today:** TCG has a **TCG** nav tab (`/collections/tcg`) that is an honest stub — Binder Vault is still the layout surface. Portfolio shows a TCG slice from Binder SQLite. A single comics+TCG Bloomberg grid remains backlog F.
 
 ## What each surface shows
 
 | Face | URL | Inventory |
 |------|-----|-----------|
-| **Comics Bloomberg-style UI** (legacy IQVault) | http://127.0.0.1:5175 | Live Postgres comics via Comics API `:5200` (~thousands of holdings when DB is loaded) |
+| **Comics terminal** | http://127.0.0.1:3000/collections/comics | Live Postgres comics via Comics API `:5200` |
+| **TCG terminal (stub)** | http://127.0.0.1:3000/collections/tcg | Explains Binder; drop zone disabled until TCG ingest exists |
+| **Sports terminal (stub)** | http://127.0.0.1:3000/collections/sports | Catalog schema only (`vault_sports`); no holdings ingest |
 | **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics sample + **live Binder TCG holdings** from Binder SQLite via VIP API |
 | **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | Your TCG binders / pockets / owned-wishlist (shared SQLite truth for TCG) |
 | **Orchestr8 Console Analysis** | http://127.0.0.1:3001 → Analysis | Comics API first, VIP sample fallback — for AI advice, not a card grid |
@@ -18,14 +20,14 @@ Bloomberg restyle of `apps/iqvault-web` is still on the backlog under **Later** 
 ### A. Comics “Bloomberg” / vault analytics (existing)
 
 1. Ensure Postgres + Comics API are up (`:5432`, `:5200`).
-2. Open http://127.0.0.1:5175 — login `greg@iqvault.local` / `vault`.
-3. Use Collections / filters / analytics chat for comics (Museum / Investment / Liquidity scores).
+2. Open http://127.0.0.1:3000/collections/comics (CLZ Cloud / Comic Collector buttons + XML drop zone).
 
-### B. TCG collection (existing, separate app)
+### B. TCG collection (existing, separate app + new tab)
 
-1. Open http://127.0.0.1:3010 (or IQVault web → **Binder** nav link).
-2. Build pages, place cards (pokemontcg / TCGdex).
-3. Click **Sync Owned (VIP)** to mark pockets owned when they match VIP inventory `externalIds` (seed ids like `base1-4`).
+1. IQVault web → **TCG** (`/collections/tcg`) — stub terminal with Binder / CLZ buttons; drop zone disabled.
+2. Open http://127.0.0.1:3010 (or **Binder ↗** / the TCG tab’s Binder button).
+3. Build pages, place cards (pokemontcg / TCGdex).
+4. Click **Sync Owned (VIP)** to mark pockets owned when they match VIP inventory `externalIds` (seed ids like `base1-4`).
 
 ### C. See a tiny TCG slice inside VIP Portfolio
 
@@ -45,8 +47,9 @@ with shared columns (pillar, scores, recommendation, sell priority) and provenan
 Until that ships, the honest workflow is:
 
 ```
-Comics vault UX  →  :5175
-TCG binder UX    →  :3010
+Comics terminal  →  :3000/collections/comics
+TCG stub + Binder →  :3000/collections/tcg  and  :3010
+Sports stub      →  :3000/collections/sports
 Shared AI advice →  Orchestr8 Console Analysis (:3001)
 VIP list/API     →  :3000 / :8787
 ```

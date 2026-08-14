@@ -79,6 +79,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 
 - [x] Bloomberg-style restyle of `apps/iqvault-web` (gold-dark Personal Intelligence shell from `:5175`)
 - [x] Full comics grid + filters on VIP face (`/collections/comics`; Comics API `:5200` with VIP inventory fallback)
+- [x] TCG + Sports collection tabs (`/collections/tcg`, `/collections/sports`) — honest stubs with the same CLZ/Binder source bar; drop zone live on Comics only
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [ ] Analysis/insights panel on collector face (Orchestr8 chat from Vite not yet ported)
@@ -169,6 +170,8 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 
 ### Phase 1 — Canonical data foundation
 - [x] core-model, evidence, ingest, raw_snapshots, round-trip gate
+- [x] CLZ inbox sync job (`npm run job:clz-sync`) — XML drop → raw_snapshots + holdings reconcile (`dropped_at`)
+- [x] Comics terminal CLZ buttons + XML drop zone (`POST /api/comics/inbox` → same inbox folder)
 
 ---
 

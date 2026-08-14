@@ -8,6 +8,8 @@ proofs at the repo root.
 ```bash
 # from repo root, with docker-compose up
 psql "$DATABASE_URL" -f infra/db/migrations/20260720_01_raw_snapshots.sql
+psql "$DATABASE_URL" -f infra/db/migrations/20260814_01_holding_dropped_at.sql
+# or: python scripts/migrate_db.py
 ```
 
 ## Rules

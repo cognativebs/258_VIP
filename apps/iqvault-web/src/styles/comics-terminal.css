@@ -123,6 +123,144 @@
   align-items: center;
 }
 
+/* Collection source bar + drop zone (comics, TCG, sports terminals) */
+.src-drop-root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  width: 100%;
+}
+
+.src-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 8px 16px;
+  background: #0a0a0a;
+  border-bottom: 1px solid var(--bb-border);
+  flex-shrink: 0;
+}
+
+.src-bar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.src-bar-link {
+  font-family: var(--bb-mono);
+  font-size: var(--bb-fs-xs);
+  font-weight: 600;
+  color: var(--bb-orange);
+  border: 1px solid var(--bb-orange);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: transparent;
+}
+
+.src-bar-link:hover {
+  background: rgba(255, 153, 0, 0.12);
+}
+
+.src-drop-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.src-drop-input {
+  display: none;
+}
+
+.src-drop-hit {
+  flex: 1;
+  min-height: 40px;
+  border: 1px dashed var(--bb-border);
+  background: #111;
+  color: var(--bb-dim);
+  font-family: var(--bb-mono);
+  font-size: var(--bb-fs-xs);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+.src-drop-hit:hover:not(:disabled) {
+  border-color: var(--bb-orange);
+  color: var(--bb-amber);
+}
+
+.src-drop-hit:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.src-drop-root.is-over .src-drop-hit {
+  border-color: var(--bb-orange);
+  color: var(--bb-orange);
+  background: rgba(255, 153, 0, 0.08);
+}
+
+.src-drop-msg {
+  color: var(--bb-green);
+  font-family: var(--bb-mono);
+  font-size: var(--bb-fs-xs);
+}
+
+.src-drop-err {
+  color: var(--bb-red);
+  font-family: var(--bb-mono);
+  font-size: var(--bb-fs-xs);
+}
+
+.src-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 5, 5, 0.82);
+  border: 2px dashed var(--bb-orange);
+  color: var(--bb-orange);
+  font-family: var(--bb-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  pointer-events: none;
+  text-align: center;
+  padding: 24px;
+}
+
+.bb-stub-body {
+  padding: 28px 22px 48px;
+  max-width: 72ch;
+}
+
+.bb-stub-kicker {
+  font-family: var(--bb-mono);
+  font-size: var(--bb-fs-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bb-orange);
+  margin: 0 0 12px;
+}
+
+.bb-stub-body p {
+  color: var(--bb-dim);
+  line-height: 1.55;
+}
+
+.bb-stub-body a {
+  color: var(--bb-orange);
+  text-decoration: underline;
+}
+
 /* Buttons */
 .bb-btn {
   font-family: var(--bb-sans);

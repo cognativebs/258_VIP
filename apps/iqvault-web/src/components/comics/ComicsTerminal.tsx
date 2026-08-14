@@ -21,8 +21,21 @@ import {
   fmtMoney,
   pillarShort,
 } from "@/lib/comicEngine";
-import { loadComicsTerminalData, patchComicHolding } from "@/lib/comicsClient";
+import { CollectionSourceBar } from "@/components/CollectionSourceBar";
+import {
+  fetchComicsInboxStatus,
+  loadComicsTerminalData,
+  patchComicHolding,
+  uploadComicsInboxFile,
+  waitForComicsInboxDrain,
+} from "@/lib/comicsClient";
 import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
+import {
+  CLZ_CLOUD_URL,
+  CLZ_COLLECTOR_URL,
+  isAcceptedDropFile,
+  type InboxStatus,
+} from "@/lib/sourceDrop";
 
 const PAGE_SIZE = 50;
 
@@ -40,16 +53,31 @@ export function ComicsTerminal() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [inbox, setInbox] = useState<InboxStatus | null>(null);
+  const [dropBusy, setDropBusy] = useState(false);
+  const [dropMsg, setDropMsg] = useState<string | null>(null);
+  const [dropErr, setDropErr] = useState<string | null>(null);
+
+  const reloadTerminal = useCallback(async () => {
+    const data = await loadComicsTerminalData();
+    setMeta(data.meta);
+    setInventory(data.inventory);
+    setSource(data.source);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await loadComicsTerminalData();
+        const [data, inboxStatus] = await Promise.all([
+          loadComicsTerminalData(),
+          fetchComicsInboxStatus(),
+        ]);
         if (cancelled) return;
         setMeta(data.meta);
         setInventory(data.inventory);
         setSource(data.source);
+        setInbox(inboxStatus);
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
@@ -61,6 +89,52 @@ export function ComicsTerminal() {
       cancelled = true;
     };
   }, []);
+
+  const onInboxFile = useCallback(
+    async (file: File) => {
+      if (!isAcceptedDropFile(file, ".xml")) {
+        setDropErr("Only Comic Collector XML exports (.xml) are accepted");
+        return;
+      }
+      setDropBusy(true);
+      setDropErr(null);
+      setDropMsg(`Saving ${file.name}…`);
+      try {
+        const result = await uploadComicsInboxFile(file);
+        if (!result.ok) {
+          setDropErr(result.error ?? "Upload failed");
+          setDropMsg(null);
+          return;
+        }
+        setInbox((prev) =>
+          prev
+            ? {
+                ...prev,
+                inbox: result.inbox ?? prev.inbox,
+                pendingCount: (prev.pendingCount ?? 0) + 1,
+              }
+            : prev,
+        );
+        setDropMsg(
+          `Saved ${result.savedAs ?? file.name} → ${result.inbox ?? "inbox"} · syncing…`,
+        );
+        const drained = await waitForComicsInboxDrain();
+        if (drained) setInbox(drained);
+        await reloadTerminal();
+        setDropMsg(
+          drained && (drained.pendingCount ?? 0) === 0
+            ? `Inbox processed · ${result.savedAs ?? file.name}`
+            : `Saved ${result.savedAs ?? file.name} — sync still running (or run npm run job:clz-sync)`,
+        );
+      } catch (e) {
+        setDropErr(e instanceof Error ? e.message : "Upload failed");
+        setDropMsg(null);
+      } finally {
+        setDropBusy(false);
+      }
+    },
+    [reloadTerminal],
+  );
 
   const publishers = useMemo(() => getUniquePublishers(inventory), [inventory]);
 
@@ -86,6 +160,26 @@ export function ComicsTerminal() {
     () => buildTickerItems(filtered.length ? filtered : inventory, meta),
     [filtered, inventory, meta],
   );
+
+  const clzLinks = useMemo(
+    () => [
+      {
+        href: inbox?.clzCloudUrl || CLZ_CLOUD_URL,
+        label: "CLZ Cloud",
+        title: "Open CLZ Cloud in a new window",
+      },
+      {
+        href: inbox?.clzCollectorUrl || CLZ_COLLECTOR_URL,
+        label: "Comic Collector",
+        title: "Open Comic Collector on clz.com in a new window",
+      },
+    ],
+    [inbox?.clzCloudUrl, inbox?.clzCollectorUrl],
+  );
+
+  const dropHint = inbox?.inbox
+    ? `Drop CLZ XML here → ${inbox.inbox}`
+    : "Drop CLZ XML here → E:\\ComicArchive\\inbox (or repo clz-inbox)";
 
   useEffect(() => {
     setPage(1);
@@ -118,6 +212,15 @@ export function ComicsTerminal() {
   if (loading) {
     return (
       <div className="bb-terminal bb-terminal-embedded">
+        <CollectionSourceBar
+          links={clzLinks}
+          drop={{
+            acceptHint: dropHint,
+            enabled: false,
+            disabledReason: "Loading comics…",
+            onFile: () => undefined,
+          }}
+        />
         <div className="bb-loading">Loading comics terminal…</div>
       </div>
     );
@@ -126,6 +229,17 @@ export function ComicsTerminal() {
   if (error) {
     return (
       <div className="bb-terminal bb-error bb-terminal-embedded">
+        <CollectionSourceBar
+          links={clzLinks}
+          drop={{
+            acceptHint: dropHint,
+            enabled: true,
+            busy: dropBusy,
+            message: dropMsg,
+            error: dropErr,
+            onFile: (file) => void onInboxFile(file),
+          }}
+        />
         <p>{error}</p>
         <p className="bb-detail-hint-lg">Start VIP API and optionally Comics API:</p>
         <code>npm run api</code>
@@ -136,6 +250,17 @@ export function ComicsTerminal() {
 
   return (
     <div className="bb-terminal bb-terminal-embedded">
+      <CollectionSourceBar
+        links={clzLinks}
+        drop={{
+          acceptHint: dropHint,
+          enabled: true,
+          busy: dropBusy,
+          message: dropMsg,
+          error: dropErr,
+          onFile: (file) => void onInboxFile(file),
+        }}
+      >
       <div className="bb-ticker-wrap">
         <div className="bb-ticker">
           {[...ticker, ...ticker].map((item: { type: string; text: string }, i: number) => (
@@ -481,6 +606,7 @@ export function ComicsTerminal() {
           )}
         </aside>
       </div>
+      </CollectionSourceBar>
     </div>
   );
 }

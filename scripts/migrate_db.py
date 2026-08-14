@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run IQVault SQL migrations 01–07 in order."""
+"""Run IQVault SQL migrations (legacy 01–08 plus infra/db/migrations)."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,8 @@ MIGRATIONS = [
     "06_platform_auth.sql",
     "07_collection_holdings.sql",
     "08_holding_clz_metadata.sql",
+    "infra/db/migrations/20260720_01_raw_snapshots.sql",
+    "infra/db/migrations/20260814_01_holding_dropped_at.sql",
 ]
 
 

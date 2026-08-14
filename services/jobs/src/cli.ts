@@ -2,6 +2,7 @@ import {
   formatEbayBrowseReport,
   runEbayBrowseCompsJob,
 } from "./ebay-browse-comps.js";
+import { formatClzSyncReport, runClzSyncJobAsync } from "./clz-sync.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -23,6 +24,16 @@ async function main() {
     return;
   }
 
+  if (cmd === "clz-sync") {
+    const extraArgs = process.argv.slice(3);
+    const result = await runClzSyncJobAsync({
+      triggeredBy: "cli",
+      extraArgs,
+    });
+    console.log(formatClzSyncReport(result));
+    return;
+  }
+
   if (cmd === "schedule") {
     const handle = startScheduler(
       [
@@ -35,10 +46,19 @@ async function main() {
             });
           },
         },
+        {
+          name: "clz-sync",
+          everyMs: 6 * 60 * 60 * 1000,
+          run: () => {
+            void runClzSyncJobAsync({ triggeredBy: "schedule" }).then((result) => {
+              console.log(formatClzSyncReport(result));
+            });
+          },
+        },
       ],
       { runImmediately: true },
     );
-    console.log("Scheduler started (pokemon-drops). Ctrl+C to stop.");
+    console.log("Scheduler started (pokemon-drops hourly, clz-sync every 6h). Ctrl+C to stop.");
     process.on("SIGINT", () => {
       handle.stop();
       process.exit(0);
