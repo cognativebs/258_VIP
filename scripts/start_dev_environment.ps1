@@ -1,4 +1,4 @@
-# Dev environment launcher - post-restart apps for AI / Cursor / VS Code / VIP tools
+﻿# Dev environment launcher - post-restart apps for AI / Cursor / VS Code / VIP tools
 # Config: scripts/dev-environment.json
 # Shortcut: Start Dev Environment.bat  or  Desktop "Dev Environment.lnk"
 param(
@@ -44,12 +44,42 @@ function Test-ProcessRunning([string]$ProcessName) {
     return $null -ne (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Select-Object -First 1)
 }
 
+function Repair-ProcessPath {
+    $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $user = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @($machine, $user, $env:Path) | Where-Object { $_ }
+    if ($parts.Count -gt 0) {
+        $env:Path = ($parts -join ";")
+    }
+}
+
 function Test-PortListening([int]$Port) {
     try {
-        return $null -ne (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+        $hit = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -ne $hit) { return $true }
+    } catch {}
+    $client = $null
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+        $ok = $iar.AsyncWaitHandle.WaitOne(400)
+        if ($ok -and $client.Connected) { return $true }
     } catch {
         return $false
+    } finally {
+        if ($client) { $client.Close() }
     }
+    return $false
+}
+
+function Wait-Port([int]$Port, [int]$TimeoutSec = 180) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-PortListening $Port) { return $true }
+        Start-Sleep -Seconds 3
+    }
+    return $false
 }
 
 function Get-AppStatus($App) {
@@ -191,8 +221,25 @@ function Start-ConfiguredService($Svc) {
     $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $scriptPath)
     if ($Svc.args) { $argList += @($Svc.args) }
 
-    # Separate minimized window so this menu stays usable
-    Start-Process -FilePath "powershell.exe" -ArgumentList $argList -WorkingDirectory $Root -WindowStyle Minimized | Out-Null
+    $style = "Normal"
+    if ($Svc.windowStyle) { $style = [string]$Svc.windowStyle }
+
+    # Keep this menu usable; the stack window is where errors show.
+    Start-Process -FilePath "powershell.exe" -ArgumentList $argList -WorkingDirectory $Root -WindowStyle $style | Out-Null
+
+    if ($Svc.port) {
+        $port = [int]$Svc.port
+        Write-Step "Waiting for $($Svc.name) on port $port (up to 3 min)..."
+        if (Wait-Port $port 180) {
+            Write-Step "$($Svc.name) is up: http://127.0.0.1:$port/"
+            if ($Svc.openUrl) {
+                Start-Process ([string]$Svc.openUrl)
+            }
+        } else {
+            Write-Host "[dev-env] $($Svc.name) did not bind port $port yet." -ForegroundColor Yellow
+            Write-Host "         Look at the IQVault stack window (not this menu) or scripts\logs\launcher.log" -ForegroundColor Yellow
+        }
+    }
 }
 
 function Start-EnabledApps($Config) {
@@ -313,6 +360,7 @@ function Show-Menu($Config) {
 }
 
 # --- main ---
+Repair-ProcessPath
 if ($InstallStartup) {
     Write-Banner
     Install-StartupShortcut
