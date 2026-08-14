@@ -73,7 +73,7 @@
         "http://127.0.0.1:5210/v1/health"
       ],
       "windowStyle": "Normal",
-      "notes": "Opens collector face + VIP API + Orchestr8 health after stack is up"
+      "notes": "Opens collector + Binder + VIP + Orchestr8 health after the stack is up"
     }
   ],
   "services": [
@@ -84,9 +84,11 @@
       "group": "services",
       "kind": "powershell",
       "script": "scripts\\start_iqvault_ecosystem.ps1",
-      "args": ["-NoBrowser"],
+      "args": [],
       "port": 3000,
-      "notes": "Docker -> Postgres -> Comics API -> VIP API -> collector :3000 -> Binder :3010 -> Orchestr8"
+      "openUrl": "http://127.0.0.1:3000/collections",
+      "windowStyle": "Normal",
+      "notes": "Docker -> Postgres -> VIP API :8787 -> Comics API :5200 -> Orchestr8 :5210 -> collector :3000"
     },
     {
       "id": "binder-vault",
@@ -96,7 +98,7 @@
       "kind": "npm",
       "npmScript": "binder",
       "port": 3010,
-      "notes": "Next.js binder at http://127.0.0.1:3010 (LAN: http://<PC-IP>:3010). VIP API reads its SQLite for TCG inventory — see docs/how-to/04-binder-lan-and-iqvault.md"
+      "notes": "Binder Vault at http://127.0.0.1:3010 (LAN: http://<PC-IP>:3010). TCG layout; VIP reads vault_tcg in Postgres."
     }
   ]
 }
