@@ -4,6 +4,14 @@
 Work may proceed without a Now/Next gate. Prefer Orchestr8 Build Spec → Cursor
 for non-trivial features (ADR 0003). Engineering rules 1–6 in `AGENTS.md` still apply.
 
+**Live-ops weekend track (2026-08-14):** operator asked for live news into
+Orchestr8, live inventories + market ranges (comics / Pokémon / Magic / sports),
+working double-click launch, and bulk scan + bulk eBay list. Audit + gates:
+[`docs/plans/0002-live-ops-weekend.md`](plans/0002-live-ops-weekend.md).
+Launcher fix is merged (PR #27). Prefer **section L + code** over stale J
+(`adapter_pending`); eBay sold + TCGplayer comps shipped idle. ADR 0007
+(Postgres) supersedes historical ADR 0005 “SQLite now” checkboxes below.
+
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
 
@@ -25,6 +33,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
 - [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
 - [ ] Evidence-backed market ranges in analysis context (not CLZ/catalog snapshot as truth)
+- [ ] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
 
 ### B. Orchestr8 — Console UX polish
@@ -146,12 +155,13 @@ third-party-access licence limit).
 ### J. Data foundation leftovers
 
 - [ ] Schema review (Opus) before treating Phase 1 as fully closed
-- [ ] Live comps adapters (eBay etc. still `adapter_pending` on Sources seed)
+- [ ] Live comps adapters — **code shipped idle** (see L); leftover is wiring ranges onto comics/TCG grids + `vault_market.sale` persist (plan 0002 W2)
 - [ ] Liquidation-ready valuations: ranges + evidence count + recency + confidence end-to-end
 
 ### K. DevEx / ops leftovers
 
 - [x] Reliable one-shot VIP stack launcher (`Launch IQVault.bat` → Docker/Postgres/migrate/VIP/Comics/Orchestr8/web; restarts stale listeners) — 2026-08-09
+- [x] Double-click / Dev Environment **[A]** wait-for-`:3000` + empty-`%*` PowerShell 5.1 fix (PR #27, 2026-08-14)
 - [ ] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`)
 - [x] Include `@vip/binder-vault` in monorepo `typecheck` (also `@vip/orchestr8-console`) — 2026-08-08
 - [x] CI on every PR: `build` → `typecheck` → `test` (Node) + Python ingest tests — 2026-08-08
