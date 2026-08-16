@@ -4,6 +4,11 @@ import {
 } from "./ebay-browse-comps.js";
 import { formatClzSyncReport, runClzSyncJobAsync } from "./clz-sync.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
+import {
+  formatPriceHistoryReport,
+  parseArgs as parsePriceHistoryArgs,
+  runPriceHistoryJob,
+} from "./price-history.js";
 import { startScheduler } from "./scheduler.js";
 
 const cmd = process.argv[2] ?? "pokemon-drops";
@@ -34,6 +39,15 @@ async function main() {
     return;
   }
 
+  if (cmd === "price-history") {
+    const report = await runPriceHistoryJob({
+      ...parsePriceHistoryArgs(process.argv.slice(3)),
+      triggeredBy: "cli",
+    });
+    console.log(formatPriceHistoryReport(report));
+    return;
+  }
+
   if (cmd === "schedule") {
     const handle = startScheduler(
       [
@@ -55,10 +69,21 @@ async function main() {
             });
           },
         },
+        {
+          name: "price-history",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void runPriceHistoryJob({ triggeredBy: "schedule" }).then((report) => {
+              console.log(formatPriceHistoryReport(report));
+            });
+          },
+        },
       ],
       { runImmediately: true },
     );
-    console.log("Scheduler started (pokemon-drops hourly, clz-sync every 6h). Ctrl+C to stop.");
+    console.log(
+      "Scheduler started (pokemon-drops hourly, clz-sync every 6h, price-history daily). Ctrl+C to stop.",
+    );
     process.on("SIGINT", () => {
       handle.stop();
       process.exit(0);
