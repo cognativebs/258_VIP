@@ -1,0 +1,270 @@
+{
+  "count": 5,
+  "result": [
+    {
+      "skuId": "2999652",
+      "variant": "Holofoil",
+      "language": "English",
+      "condition": "Near Mint",
+      "averageDailyQuantitySold": "0",
+      "averageDailyTransactionCount": "0",
+      "totalQuantitySold": "7",
+      "totalTransactionCount": "7",
+      "trendingMarketPricePercentages": {},
+      "buckets": [
+        {
+          "marketPrice": "841.22",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-16"
+        },
+        {
+          "marketPrice": "841.22",
+          "quantitySold": "1",
+          "lowSalePrice": "924.48",
+          "lowSalePriceWithShipping": "924.48",
+          "highSalePrice": "924.48",
+          "highSalePriceWithShipping": "924.48",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-13"
+        },
+        {
+          "marketPrice": "825.38",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-10"
+        },
+        {
+          "marketPrice": "820.89",
+          "quantitySold": "1",
+          "lowSalePrice": "899.5",
+          "lowSalePriceWithShipping": "919.49",
+          "highSalePrice": "899.5",
+          "highSalePriceWithShipping": "919.49",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-07"
+        }
+      ]
+    },
+    {
+      "skuId": "2999656",
+      "variant": "Holofoil",
+      "language": "English",
+      "condition": "Damaged",
+      "averageDailyQuantitySold": "0",
+      "averageDailyTransactionCount": "0",
+      "totalQuantitySold": "64",
+      "totalTransactionCount": "61",
+      "trendingMarketPricePercentages": {},
+      "buckets": [
+        {
+          "marketPrice": "198.97",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-15"
+        },
+        {
+          "marketPrice": "198.97",
+          "quantitySold": "11",
+          "lowSalePrice": "189.99",
+          "lowSalePriceWithShipping": "189.99",
+          "highSalePrice": "195.38",
+          "highSalePriceWithShipping": "195.38",
+          "transactionCount": "9",
+          "bucketStartDate": "2026-08-12"
+        },
+        {
+          "marketPrice": "200.06",
+          "quantitySold": "1",
+          "lowSalePrice": "190",
+          "lowSalePriceWithShipping": "192",
+          "highSalePrice": "190",
+          "highSalePriceWithShipping": "192",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-09"
+        },
+        {
+          "marketPrice": "200.06",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-06"
+        }
+      ]
+    },
+    {
+      "skuId": "2999654",
+      "variant": "Holofoil",
+      "language": "English",
+      "condition": "Moderately Played",
+      "averageDailyQuantitySold": "0",
+      "averageDailyTransactionCount": "0",
+      "totalQuantitySold": "41",
+      "totalTransactionCount": "38",
+      "trendingMarketPricePercentages": {},
+      "buckets": [
+        {
+          "marketPrice": "387.1",
+          "quantitySold": "3",
+          "lowSalePrice": "388.45",
+          "lowSalePriceWithShipping": "388.45",
+          "highSalePrice": "400",
+          "highSalePriceWithShipping": "400",
+          "transactionCount": "2",
+          "bucketStartDate": "2026-08-14"
+        },
+        {
+          "marketPrice": "388.18",
+          "quantitySold": "4",
+          "lowSalePrice": "365.49",
+          "lowSalePriceWithShipping": "365.49",
+          "highSalePrice": "372.75",
+          "highSalePriceWithShipping": "372.75",
+          "transactionCount": "4",
+          "bucketStartDate": "2026-08-11"
+        },
+        {
+          "marketPrice": "391.75",
+          "quantitySold": "1",
+          "lowSalePrice": "379.98",
+          "lowSalePriceWithShipping": "379.98",
+          "highSalePrice": "379.98",
+          "highSalePriceWithShipping": "379.98",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-08"
+        },
+        {
+          "marketPrice": "391.88",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-05"
+        }
+      ]
+    },
+    {
+      "skuId": "2999653",
+      "variant": "Holofoil",
+      "language": "English",
+      "condition": "Lightly Played",
+      "averageDailyQuantitySold": "0",
+      "averageDailyTransactionCount": "0",
+      "totalQuantitySold": "23",
+      "totalTransactionCount": "22",
+      "trendingMarketPricePercentages": {},
+      "buckets": [
+        {
+          "marketPrice": "510.79",
+          "quantitySold": "2",
+          "lowSalePrice": "450",
+          "lowSalePriceWithShipping": "450.99",
+          "highSalePrice": "475.99",
+          "highSalePriceWithShipping": "475.99",
+          "transactionCount": "2",
+          "bucketStartDate": "2026-08-14"
+        },
+        {
+          "marketPrice": "513.42",
+          "quantitySold": "1",
+          "lowSalePrice": "567.19",
+          "lowSalePriceWithShipping": "572.18",
+          "highSalePrice": "567.19",
+          "highSalePriceWithShipping": "572.18",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-11"
+        },
+        {
+          "marketPrice": "511.92",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-08"
+        },
+        {
+          "marketPrice": "510.07",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-05"
+        }
+      ]
+    },
+    {
+      "skuId": "2999655",
+      "variant": "Holofoil",
+      "language": "English",
+      "condition": "Heavily Played",
+      "averageDailyQuantitySold": "0",
+      "averageDailyTransactionCount": "0",
+      "totalQuantitySold": "37",
+      "totalTransactionCount": "34",
+      "trendingMarketPricePercentages": {},
+      "buckets": [
+        {
+          "marketPrice": "281.58",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-16"
+        },
+        {
+          "marketPrice": "281.58",
+          "quantitySold": "1",
+          "lowSalePrice": "280",
+          "lowSalePriceWithShipping": "281.31",
+          "highSalePrice": "280",
+          "highSalePriceWithShipping": "281.31",
+          "transactionCount": "1",
+          "bucketStartDate": "2026-08-13"
+        },
+        {
+          "marketPrice": "280.79",
+          "quantitySold": "2",
+          "lowSalePrice": "278.89",
+          "lowSalePriceWithShipping": "279.88",
+          "highSalePrice": "279.99",
+          "highSalePriceWithShipping": "279.99",
+          "transactionCount": "2",
+          "bucketStartDate": "2026-08-10"
+        },
+        {
+          "marketPrice": "279.88",
+          "quantitySold": "0",
+          "lowSalePrice": "0",
+          "lowSalePriceWithShipping": "0",
+          "highSalePrice": "0",
+          "highSalePriceWithShipping": "0",
+          "transactionCount": "0",
+          "bucketStartDate": "2026-08-07"
+        }
+      ]
+    }
+  ]
+}
