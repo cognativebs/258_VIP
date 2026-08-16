@@ -3,6 +3,9 @@
 Companion to ADR 0010. Phases are ordered so that each one is useful alone and
 the risky, metered provider is not the first thing we depend on.
 
+Operator live-ops cut that *uses* these adapters (news, launch, bulk scan,
+eBay drafts): [`0002-live-ops-weekend.md`](0002-live-ops-weekend.md).
+
 Out of scope this round: Yu-Gi-Oh (YGOPRODeck), SportsCardsPro / PriceCharting.
 
 ## Where we are

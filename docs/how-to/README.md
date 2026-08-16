@@ -14,6 +14,8 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |
 | CLZ inbox sync (scheduled XML drop) | [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 
+**Weekend live-ops plan** (news → Orchestr8, inventories + ranges, launch, bulk scan / eBay): [`docs/plans/0002-live-ops-weekend.md`](../plans/0002-live-ops-weekend.md).
+
 ## One-shot launcher (preferred)
 
 Double-click **`Launch IQVault.bat`** (or the Desktop **IQVault** shortcut from
