@@ -4,14 +4,25 @@ Daily price history for the cards in your binders. Same job runs scheduled or
 ad-hoc. TCGplayer is the source of truth; **NM is the condition** unless you ask
 for another.
 
-## Run it now
+## Run it from Binder Vault (easiest)
+
+Open Binder Vault (`npm run binder`, http://127.0.0.1:3010), then in the
+**Ledger** panel under "Prices as of ...":
+
+- **Update Prices** - today's Near Mint prices for the open binder
+- **Backfill 1 yr** - the one-time history pull (see below)
+
+Both record history and refresh the ledger, and report what changed
+("Updated 2 card(s) - 60 new day(s) ... through 2026-08-16").
+
+## Run it from the command line
 
 ```powershell
 cd D:\Projects\Business_Ideas\258_Labs\258_VIP
 npm run job:price-history
 ```
 
-Or double-click **`Update Card Prices.bat`**.
+Or double-click **`Update Card Prices.bat`**. Same code path as the button.
 
 Safe to run repeatedly: history is keyed on card + day + printing + condition, so
 a second run on the same day updates that day's row instead of adding another.
