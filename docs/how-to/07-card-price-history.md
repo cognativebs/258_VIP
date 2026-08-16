@@ -7,12 +7,19 @@ for another.
 ## Run it from Binder Vault (easiest)
 
 Open Binder Vault (`npm run binder`, http://127.0.0.1:3010). There is no
-separate "update prices" control — the existing toolbar buttons write history:
+separate "update prices" control. After a `git pull`, use **Stop IQVault**
+then **Launch IQVault** (or kill port 3010 and re-run `npm run binder`) so
+you are not looking at a leftover Next process.
 
-- **Sync Prices** / **Refresh All** (page toolbar) — today's Near Mint prices
-  for the open page, recorded as daily history
-- **Backfill 1 yr History** (Ledger, under "Prices as of ...") — the one-time
-  year pull (see below)
+On the page toolbar, next to **Sync Prices**:
+
+- **Prices as of ...** - newest Near Mint stamp on this page
+- **Sync Prices** / **Refresh All** - today's Near Mint prices, recorded as
+  daily history
+- **Backfill 1 yr History** - the one-time year pull (see below)
+
+The Ledger rail on the right repeats the as-of line and backfill. On a
+narrow window that rail is hidden; use the **Ledger** toolbar button.
 
 Both paths report what changed
 ("Synced prices — 2 updated · +30 history day(s) · through 2026-08-16").

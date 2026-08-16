@@ -183,6 +183,8 @@ export function BinderVault() {
   const [highlightMissing, setHighlightMissing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  /** Narrow windows hide the Ledger rail; this toggle brings it back. */
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [lanUrl, setLanUrl] = useState("");
   /** Touch rearrange: tap a filled pocket, then tap a destination. */
   const [moveFromSlotId, setMoveFromSlotId] = useState<string | null>(null);
@@ -219,6 +221,13 @@ export function BinderVault() {
     [binders, activeBinderId],
   );
   const activePage = activeBinder?.pages[activePageIndex] ?? null;
+  const pagePricesAsOf = useMemo(
+    () =>
+      activeBinder
+        ? formatPriceAsOf(maxPriceUpdatedAt(activeBinder, "page", activePageIndex))
+        : "",
+    [activeBinder, activePageIndex],
+  );
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -1154,6 +1163,9 @@ export function BinderVault() {
                 >
                   Move / Copy Page
                 </button>
+                <span className="topbar-asof" title="Newest successful Near Mint price on this page">
+                  {pagePricesAsOf}
+                </span>
                 <button
                   className="btn"
                   disabled={syncingPrices}
@@ -1169,6 +1181,23 @@ export function BinderVault() {
                   title="Re-fetch Near Mint prices for every TCGplayer-linked card on this page and record today's history"
                 >
                   Refresh All
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={updatingHistory}
+                  onClick={() => void backfillPriceHistory()}
+                  title="One-time: pull about a year of weekly price history for every card in this binder"
+                >
+                  {updatingHistory ? "Backfilling…" : "Backfill 1 yr History"}
+                </button>
+                <button
+                  type="button"
+                  className="btn ledger-toggle"
+                  aria-pressed={ledgerOpen}
+                  onClick={() => setLedgerOpen((open) => !open)}
+                  title="Show or hide the Ledger (hidden on narrow windows)"
+                >
+                  {ledgerOpen ? "Hide Ledger" : "Ledger"}
                 </button>
                 <button
                   className="btn"
@@ -1430,6 +1459,7 @@ export function BinderVault() {
               onJumpPage={setActivePageIndex}
               onBackfillHistory={backfillPriceHistory}
               updatingHistory={updatingHistory}
+              open={ledgerOpen}
             />
           )}
 
@@ -1637,6 +1667,7 @@ function ValueRail({
   onJumpPage,
   onBackfillHistory,
   updatingHistory,
+  open,
 }: {
   binder: ApiBinder;
   pageIndex: number;
@@ -1649,6 +1680,7 @@ function ValueRail({
   onJumpPage: (pageIndex: number) => void;
   onBackfillHistory: () => void;
   updatingHistory: boolean;
+  open: boolean;
 }) {
   const lines = useMemo(
     () => collectValueLines(binder, scope, pageIndex),
@@ -1678,7 +1710,7 @@ function ValueRail({
   };
 
   return (
-    <aside className="value-rail" aria-label="Page and binder value calculator">
+    <aside className={`value-rail${open ? " open" : ""}`} aria-label="Page and binder value calculator">
       <div className="value-rail-head">
         <div className="value-rail-title">Ledger</div>
         <div className="source-tabs">
