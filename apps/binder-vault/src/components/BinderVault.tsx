@@ -166,6 +166,7 @@ export function BinderVault() {
   const [searching, setSearching] = useState(false);
   const [searchNote, setSearchNote] = useState<string>("");
   const [syncingPrices, setSyncingPrices] = useState(false);
+  const [updatingHistory, setUpdatingHistory] = useState(false);
   const [syncingOwned, setSyncingOwned] = useState(false);
   const [pushingVip, setPushingVip] = useState(false);
   const [showWishlistExport, setShowWishlistExport] = useState(false);
@@ -432,6 +433,58 @@ export function BinderVault() {
       setTransferBusy(false);
     }
   }, [activePage, transferTargetId, transferMode, applyBinder, flash]);
+
+  /**
+   * Update TCGplayer price history for this binder's cards, then reload so the
+   * Ledger's "Prices as of" reflects the run. Same code path as the CLI job and
+   * the daily scheduler; `range: "annual"` is the one-time year backfill.
+   */
+  const updatePriceHistory = useCallback(
+    async (range: "daily" | "annual") => {
+      if (!activeBinder || updatingHistory) return;
+      setUpdatingHistory(true);
+      try {
+        const report = await jsonFetch<{
+          cardsConsidered: number;
+          cardsPriced: number;
+          cardsEmpty: number;
+          cardsFailed: number;
+          rowsWritten: number;
+          rowsUpdated: number;
+          newestObservedOn: string | null;
+        }>("/api/prices/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ binderId: activeBinder.id, range }),
+        });
+
+        const { binder } = await jsonFetch<{ binder: ApiBinder }>(
+          `/api/binders/${activeBinder.id}`,
+        );
+        applyBinder(binder);
+
+        if (report.cardsPriced === 0) {
+          flash(
+            report.cardsConsidered === 0
+              ? "No TCGplayer-linked cards in this binder"
+              : `No prices returned for ${report.cardsConsidered} card(s)`,
+          );
+        } else {
+          flash(
+            `${range === "annual" ? "Backfilled" : "Updated"} ${report.cardsPriced} card(s) — ` +
+              `${report.rowsWritten} new day(s), ${report.rowsUpdated} refreshed` +
+              (report.cardsFailed ? `, ${report.cardsFailed} failed` : "") +
+              (report.newestObservedOn ? ` · through ${report.newestObservedOn}` : ""),
+          );
+        }
+      } catch {
+        flash("Price history update failed — is Postgres up?");
+      } finally {
+        setUpdatingHistory(false);
+      }
+    },
+    [activeBinder, applyBinder, flash, updatingHistory],
+  );
 
   const syncPagePrices = useCallback(
     async (force: boolean) => {
@@ -1362,6 +1415,8 @@ export function BinderVault() {
               onSelected={setValueSelected}
               onToggleOwned={toggleOwned}
               onJumpPage={setActivePageIndex}
+              onUpdatePrices={updatePriceHistory}
+              updatingPrices={updatingHistory}
             />
           )}
 
@@ -1567,6 +1622,8 @@ function ValueRail({
   onSelected,
   onToggleOwned,
   onJumpPage,
+  onUpdatePrices,
+  updatingPrices,
 }: {
   binder: ApiBinder;
   pageIndex: number;
@@ -1577,6 +1634,8 @@ function ValueRail({
   onSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   onToggleOwned: (slotId: string, owned: boolean) => void;
   onJumpPage: (pageIndex: number) => void;
+  onUpdatePrices: (range: "daily" | "annual") => void;
+  updatingPrices: boolean;
 }) {
   const lines = useMemo(
     () => collectValueLines(binder, scope, pageIndex),
@@ -1657,6 +1716,26 @@ function ValueRail({
         </div>
         <div className="value-calc-note value-calc-asof" title="Newest successful price observation in this scope">
           {pricesAsOf}
+        </div>
+        <div className="value-price-actions">
+          <button
+            type="button"
+            className="btn value-tool-btn"
+            disabled={updatingPrices}
+            onClick={() => onUpdatePrices("daily")}
+            title="Fetch today's TCGplayer prices (Near Mint) for this binder and record them in price history"
+          >
+            {updatingPrices ? "Updating…" : "Update Prices"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost value-tool-btn"
+            disabled={updatingPrices}
+            onClick={() => onUpdatePrices("annual")}
+            title="One-time: pull about a year of weekly price history for this binder"
+          >
+            Backfill 1 yr
+          </button>
         </div>
       </div>
 
