@@ -6,7 +6,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ binders: await listBinders() });
+  try {
+    return NextResponse.json({ binders: await listBinders() });
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ binders: [], error }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
