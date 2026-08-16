@@ -6,14 +6,16 @@ for another.
 
 ## Run it from Binder Vault (easiest)
 
-Open Binder Vault (`npm run binder`, http://127.0.0.1:3010), then in the
-**Ledger** panel under "Prices as of ...":
+Open Binder Vault (`npm run binder`, http://127.0.0.1:3010). There is no
+separate "update prices" control — the existing toolbar buttons write history:
 
-- **Update Prices** - today's Near Mint prices for the open binder
-- **Backfill 1 yr** - the one-time history pull (see below)
+- **Sync Prices** / **Refresh All** (page toolbar) — today's Near Mint prices
+  for the open page, recorded as daily history
+- **Backfill 1 yr History** (Ledger, under "Prices as of ...") — the one-time
+  year pull (see below)
 
-Both record history and refresh the ledger, and report what changed
-("Updated 2 card(s) - 60 new day(s) ... through 2026-08-16").
+Both paths report what changed
+("Synced prices — 2 updated · +30 history day(s) · through 2026-08-16").
 
 ## Run it from the command line
 
@@ -22,7 +24,7 @@ cd D:\Projects\Business_Ideas\258_Labs\258_VIP
 npm run job:price-history
 ```
 
-Or double-click **`Update Card Prices.bat`**. Same code path as the button.
+Or double-click **`Update Card Prices.bat`**. Same code path as Sync Prices.
 
 Safe to run repeatedly: history is keyed on card + day + printing + condition, so
 a second run on the same day updates that day's row instead of adding another.

@@ -435,12 +435,12 @@ export function BinderVault() {
   }, [activePage, transferTargetId, transferMode, applyBinder, flash]);
 
   /**
-   * Update TCGplayer price history for this binder's cards, then reload so the
-   * Ledger's "Prices as of" reflects the run. Same code path as the CLI job and
-   * the daily scheduler; `range: "annual"` is the one-time year backfill.
+   * One-time year backfill for this binder. Day-to-day prices come from the
+   * existing Sync Prices / Refresh All buttons, which record history through
+   * the same shared sync.
    */
-  const updatePriceHistory = useCallback(
-    async (range: "daily" | "annual") => {
+  const backfillPriceHistory = useCallback(
+    async () => {
       if (!activeBinder || updatingHistory) return;
       setUpdatingHistory(true);
       try {
@@ -455,7 +455,7 @@ export function BinderVault() {
         }>("/api/prices/history", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ binderId: activeBinder.id, range }),
+          body: JSON.stringify({ binderId: activeBinder.id, range: "annual" }),
         });
 
         const { binder } = await jsonFetch<{ binder: ApiBinder }>(
@@ -471,7 +471,7 @@ export function BinderVault() {
           );
         } else {
           flash(
-            `${range === "annual" ? "Backfilled" : "Updated"} ${report.cardsPriced} card(s) — ` +
+            `Backfilled ${report.cardsPriced} card(s) — ` +
               `${report.rowsWritten} new day(s), ${report.rowsUpdated} refreshed` +
               (report.cardsFailed ? `, ${report.cardsFailed} failed` : "") +
               (report.newestObservedOn ? ` · through ${report.newestObservedOn}` : ""),
@@ -493,17 +493,30 @@ export function BinderVault() {
       try {
         const data = await jsonFetch<{
           binder: ApiBinder;
-          report: { updated: number; unchanged: number; failed: number; slotsChecked: number };
+          report: {
+            updated: number;
+            unchanged: number;
+            failed: number;
+            slotsChecked: number;
+            historyRowsNew: number;
+            newestObservedOn: string | null;
+          };
         }>(`/api/binders/${activeBinder.id}/sync-prices`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pageId: activePage.id, force }),
         });
         applyBinder(data.binder);
-        const verb = force ? "Refreshed" : "Filled";
+        const verb = force ? "Refreshed" : "Synced";
         flash(
           `${verb} prices — ${data.report.updated} updated, ${data.report.unchanged} unchanged` +
-            (data.report.failed ? `, ${data.report.failed} failed` : ""),
+            (data.report.failed ? `, ${data.report.failed} failed` : "") +
+            (data.report.historyRowsNew
+              ? ` · +${data.report.historyRowsNew} history day(s)`
+              : "") +
+            (data.report.newestObservedOn
+              ? ` · through ${data.report.newestObservedOn}`
+              : ""),
         );
       } catch {
         flash("Price sync failed");
@@ -1145,7 +1158,7 @@ export function BinderVault() {
                   className="btn"
                   disabled={syncingPrices}
                   onClick={() => void syncPagePrices(false)}
-                  title="Fill missing TCGplayer market prices on this page"
+                  title="Fetch Near Mint TCGplayer prices for this page and record them in price history"
                 >
                   {syncingPrices ? "Syncing…" : "Sync Prices"}
                 </button>
@@ -1153,7 +1166,7 @@ export function BinderVault() {
                   className="btn btn-ghost"
                   disabled={syncingPrices}
                   onClick={() => void syncPagePrices(true)}
-                  title="Re-fetch market prices for every priced card on this page"
+                  title="Re-fetch Near Mint prices for every TCGplayer-linked card on this page and record today's history"
                 >
                   Refresh All
                 </button>
@@ -1415,8 +1428,8 @@ export function BinderVault() {
               onSelected={setValueSelected}
               onToggleOwned={toggleOwned}
               onJumpPage={setActivePageIndex}
-              onUpdatePrices={updatePriceHistory}
-              updatingPrices={updatingHistory}
+              onBackfillHistory={backfillPriceHistory}
+              updatingHistory={updatingHistory}
             />
           )}
 
@@ -1622,8 +1635,8 @@ function ValueRail({
   onSelected,
   onToggleOwned,
   onJumpPage,
-  onUpdatePrices,
-  updatingPrices,
+  onBackfillHistory,
+  updatingHistory,
 }: {
   binder: ApiBinder;
   pageIndex: number;
@@ -1634,8 +1647,8 @@ function ValueRail({
   onSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   onToggleOwned: (slotId: string, owned: boolean) => void;
   onJumpPage: (pageIndex: number) => void;
-  onUpdatePrices: (range: "daily" | "annual") => void;
-  updatingPrices: boolean;
+  onBackfillHistory: () => void;
+  updatingHistory: boolean;
 }) {
   const lines = useMemo(
     () => collectValueLines(binder, scope, pageIndex),
@@ -1720,21 +1733,12 @@ function ValueRail({
         <div className="value-price-actions">
           <button
             type="button"
-            className="btn value-tool-btn"
-            disabled={updatingPrices}
-            onClick={() => onUpdatePrices("daily")}
-            title="Fetch today's TCGplayer prices (Near Mint) for this binder and record them in price history"
-          >
-            {updatingPrices ? "Updating…" : "Update Prices"}
-          </button>
-          <button
-            type="button"
             className="btn btn-ghost value-tool-btn"
-            disabled={updatingPrices}
-            onClick={() => onUpdatePrices("annual")}
-            title="One-time: pull about a year of weekly price history for this binder"
+            disabled={updatingHistory}
+            onClick={() => onBackfillHistory()}
+            title="One-time: pull about a year of weekly price history for every card in this binder. Day-to-day prices come from Sync Prices / Refresh All."
           >
-            Backfill 1 yr
+            {updatingHistory ? "Backfilling…" : "Backfill 1 yr History"}
           </button>
         </div>
       </div>

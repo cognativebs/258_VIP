@@ -14,7 +14,8 @@ export const maxDuration = 300;
 const RANGES: PriceHistoryRange[] = ["daily", "quarter", "annual"];
 
 /**
- * Update TCGplayer price history from the Binder UI.
+ * Deeper TCGplayer price-history pull from the Binder Ledger (backfill).
+ * Day-to-day updates go through POST /api/binders/:id/sync-prices.
  *
  * Body: `{ binderId?, range?, condition?, limit?, dryRun? }`
  * Same code path as `npm run job:price-history` and the daily scheduler.

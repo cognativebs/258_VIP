@@ -9,9 +9,9 @@ import type {
 } from "./types.js";
 
 /**
- * Price-history sync core, shared by the CLI job, the scheduler, and the
- * Binder Vault button so there is exactly one implementation of "update
- * prices".
+ * Price-history sync core, shared by the CLI job, the scheduler, and Binder
+ * Vault's Sync Prices / Refresh All / Backfill buttons so there is exactly
+ * one implementation of "update prices".
  *
  * The database is reached through an injected runner rather than a driver
  * dependency, so this package stays free of `pg` and each caller supplies its
