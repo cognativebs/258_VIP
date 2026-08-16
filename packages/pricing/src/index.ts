@@ -12,6 +12,18 @@ export {
 } from "./types.js";
 
 export {
+  PRICE_HISTORY_JOB,
+  formatPriceSyncReport,
+  listBinderCards,
+  pickNewest,
+  shouldRefreshSlots,
+  syncPriceHistory,
+  type PriceSyncOptions,
+  type PriceSyncReport,
+  type SqlRunner,
+} from "./sync.js";
+
+export {
   TCGPLAYER_PRICE_RULE,
   TCGPLAYER_SOURCE,
   conditionFromTcgplayer,

@@ -5,9 +5,7 @@ import {
   formatPriceHistoryReport,
   normalizeDsn,
   parseArgs,
-  pickNewest,
   runPriceHistoryJob,
-  shouldRefreshSlots,
 } from "./price-history.js";
 
 function obs(
@@ -75,41 +73,6 @@ describe("normalizeDsn", () => {
   it("passes a URL through untouched", () => {
     const url = "postgresql://postgres:vault@127.0.0.1:5432/iqvault";
     expect(normalizeDsn(url)).toBe(url);
-  });
-});
-
-describe("pickNewest", () => {
-  it("takes the latest day for the requested condition", () => {
-    const newest = pickNewest(
-      [
-        obs({ observedOn: "2026-08-10" }),
-        obs({ observedOn: "2026-08-16" }),
-        obs({ observedOn: "2026-08-01" }),
-      ],
-      "NM",
-    );
-    expect(newest?.observedOn).toBe("2026-08-16");
-  });
-
-  it("ignores other conditions when the wanted one exists", () => {
-    const newest = pickNewest(
-      [
-        obs({ observedOn: "2026-08-16", condition: "LP", marketPrice: 509 }),
-        obs({ observedOn: "2026-08-15", condition: "NM", marketPrice: 852 }),
-      ],
-      "NM",
-    );
-    expect(newest?.marketPrice).toBe(852);
-  });
-});
-
-describe("shouldRefreshSlots", () => {
-  it("only lets NM define the binder's displayed value", () => {
-    // Regression: a --condition=LP run once overwrote a $852 NM slot with $509.
-    expect(shouldRefreshSlots("NM")).toBe(true);
-    expect(shouldRefreshSlots("LP")).toBe(false);
-    expect(shouldRefreshSlots("DMG")).toBe(false);
-    expect(shouldRefreshSlots("UNKNOWN")).toBe(false);
   });
 });
 
