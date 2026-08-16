@@ -9,16 +9,20 @@
     "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
     "clz-sync": "tsx src/cli.ts clz-sync",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "price-history": "tsx src/cli.ts price-history"
   },
   "dependencies": {
     "@vip/signals": "0.1.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@vip/pricing": "0.1.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@types/pg": "^8.21.0"
   }
 }

@@ -89,4 +89,18 @@ export async function closeDb(): Promise<void> {
   _ready = null;
 }
 
+/**
+ * Parameterized raw SQL against the same pool, for shared packages that take an
+ * injected runner (e.g. @vip/pricing's price-history sync) rather than a driver.
+ */
+export async function query(
+  text: string,
+  params: unknown[] = [],
+): Promise<{ rows: Array<Record<string, unknown>>; rowCount: number | null }> {
+  await getDb();
+  if (!_pool) throw new Error("Binder database pool unavailable");
+  const res = await _pool.query(text, params);
+  return { rows: res.rows as Array<Record<string, unknown>>, rowCount: res.rowCount };
+}
+
 export { schema };

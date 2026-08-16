@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * Refresh market prices.
+ * Refresh Near Mint market prices and record the day in price history.
  * Body optional: `{ pageId?: string, firstPages?: number, force?: boolean }`
  * Prefer `pageId` (active page). Otherwise syncs the first N pages (default 5).
+ * Same @vip/pricing path as the CLI job and the daily scheduler.
  */
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;

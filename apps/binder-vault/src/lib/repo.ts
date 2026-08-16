@@ -1,5 +1,6 @@
+import { syncPriceHistory } from "@vip/pricing";
 import { asc, eq } from "drizzle-orm";
-import { getDb, schema } from "@/db/client";
+import { getDb, query, schema } from "@/db/client";
 import { eraByKey, CENTER_INDEX_3x3 } from "./templates";
 import { fetchCardMarketPrice } from "./cards";
 import type {
@@ -817,21 +818,33 @@ export type PriceSyncReport = {
   unchanged: number;
   failed: number;
   skipped: number;
+  /** Daily history rows recorded by this sync. */
+  historyRowsNew: number;
+  historyRowsUpdated: number;
+  /** Newest priced day seen — the honest "prices as of". */
+  newestObservedOn: string | null;
 };
 
 /**
- * Refresh TCGplayer market prices for cards in a binder.
+ * Refresh TCGplayer market prices for cards in a binder, and record the day in
+ * price history while we are already holding the data.
+ *
  * - `pageId`: sync that page only
  * - else first `firstPages` pages (default 5)
- * By default only fills slots that are still missing a price. Pass `force: true`
- * to refresh everything.
+ * `force` is kept for the existing Sync Prices / Refresh All callers; both now
+ * fetch every TCGplayer-linked card in scope so a priced page still writes
+ * today's history instead of no-oping.
+ *
+ * Delegates to the shared @vip/pricing sync so this button, the CLI job, and the
+ * daily schedule cannot drift. That also buys explicit Near Mint selection and
+ * honest provenance: a market price published on a day with no sales is
+ * recorded as normalized, not as a verified observation.
  */
 export async function syncBinderPrices(
   binderId: string,
   opts: { firstPages?: number; pageId?: string | null; force?: boolean } = {},
 ): Promise<{ binder: ApiBinder; report: PriceSyncReport } | null> {
   const firstPages = opts.firstPages ?? 5;
-  const force = opts.force ?? false;
   const binder = await assembleBinder(binderId);
   if (!binder) return null;
 
@@ -848,87 +861,68 @@ export async function syncBinderPrices(
     unchanged: 0,
     failed: 0,
     skipped: 0,
+    historyRowsNew: 0,
+    historyRowsUpdated: 0,
+    newestObservedOn: null,
   };
 
-  type Job = { slotId: string; externalId: string; priceMarket: number | null; rarity: string | null };
-  const jobs: Job[] = [];
+  // One lookup per card, even when a card fills several pockets.
+  const targets = new Map<string, { slotIds: string[]; rarity: string | null }>();
   for (const page of pages) {
     for (const slot of page.slots) {
       const card = slot.card;
-      if (!card) {
+      if (!card || card.source !== "pokemontcg" || !card.externalId) {
         report.skipped++;
-        continue;
-      }
-      if (card.source !== "pokemontcg" || !card.externalId) {
-        report.skipped++;
-        continue;
-      }
-      if (!force && card.priceMarket != null) {
-        report.unchanged++;
         continue;
       }
       report.slotsChecked++;
-      jobs.push({
-        slotId: slot.id,
-        externalId: card.externalId,
-        priceMarket: card.priceMarket,
-        rarity: card.rarity,
-      });
+      const entry = targets.get(card.externalId);
+      if (entry) entry.slotIds.push(slot.id);
+      else targets.set(card.externalId, { slotIds: [slot.id], rarity: card.rarity });
     }
   }
 
-  const concurrency = 4;
-  for (let i = 0; i < jobs.length; i += concurrency) {
-    const batch = jobs.slice(i, i + concurrency);
-    await Promise.all(
-      batch.map(async (job) => {
-        try {
-          const fresh = await fetchCardMarketPrice(job.externalId);
-          const now = Date.now();
-          // Never wipe a known price with a failed lookup.
-          if (fresh.priceMarket == null) {
-            if (fresh.rarity != null && fresh.rarity !== job.rarity) {
-              await db
-                .update(schema.slots)
-                .set({ rarity: fresh.rarity })
-                .where(eq(schema.slots.id, job.slotId));
-              report.updated++;
-              return;
-            }
-            report.failed++;
-            return;
-          }
-          const priceChanged = fresh.priceMarket !== job.priceMarket;
-          const rarityChanged = fresh.rarity != null && fresh.rarity !== job.rarity;
-          if (!priceChanged && !rarityChanged) {
-            // Successful observation — freshen stamp even when value is the same.
-            await db
-              .update(schema.slots)
-              .set({ priceUpdatedAt: now })
-              .where(eq(schema.slots.id, job.slotId));
-            report.unchanged++;
-            return;
-          }
+  if (targets.size > 0) {
+    const priced = await syncPriceHistory({
+      runner: query,
+      cards: [...targets.keys()],
+      range: "daily",
+      condition: "NM",
+      concurrency: 4,
+      triggeredBy: opts.force
+        ? "binder-refresh"
+        : opts.pageId
+          ? "binder-sync-page"
+          : "binder-sync",
+    });
+
+    report.historyRowsNew = priced.rowsWritten;
+    report.historyRowsUpdated = priced.rowsUpdated;
+    report.newestObservedOn = priced.newestObservedOn;
+    // slotsRefreshed counts pockets actually written, which is what "updated"
+    // has always meant to the caller.
+    report.updated = priced.slotsRefreshed;
+    report.failed = priced.cardsFailed + priced.cardsEmpty;
+    const untouched = report.slotsChecked - report.updated;
+    if (untouched > 0) report.unchanged += untouched;
+
+    // Rarity is catalog metadata, not price, so the price adapter does not carry
+    // it. Top it up only where it is still missing rather than on every sync.
+    const needRarity = [...targets.entries()].filter(([, v]) => v.rarity == null);
+    for (const [externalId, { slotIds }] of needRarity) {
+      try {
+        const fresh = await fetchCardMarketPrice(externalId);
+        if (!fresh.rarity) continue;
+        for (const slotId of slotIds) {
           await db
             .update(schema.slots)
-            .set({
-              priceMarket: fresh.priceMarket,
-              priceCurrency: fresh.priceCurrency,
-              priceUpdatedAt: now,
-              ...(fresh.rarity ? { rarity: fresh.rarity } : {}),
-              provenanceSource: fresh.priceSource,
-              provenanceMethod: "api",
-              verificationStatus: "verified",
-              confidence: fresh.priceSource === "tcgplayer.com" ? 0.85 : 0.92,
-            })
-            .where(eq(schema.slots.id, job.slotId));
-          report.updated++;
-        } catch {
-          report.failed++;
+            .set({ rarity: fresh.rarity })
+            .where(eq(schema.slots.id, slotId));
         }
-      }),
-    );
-    if (i + concurrency < jobs.length) await new Promise((r) => setTimeout(r, 40));
+      } catch {
+        /* rarity is a nicety; never fail a price sync over it */
+      }
+    }
   }
 
   await db

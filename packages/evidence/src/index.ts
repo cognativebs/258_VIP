@@ -13,5 +13,6 @@ export {
   ProvenanceError,
   assertVerified,
   markInferred,
+  markNormalized,
   markObserved,
 } from "./helpers.js";

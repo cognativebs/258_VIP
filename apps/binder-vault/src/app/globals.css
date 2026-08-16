@@ -888,6 +888,11 @@ button {
   margin-top: 6px;
   color: var(--muted);
 }
+.value-price-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
 .value-list-tools {
   display: flex;
   gap: 6px;
