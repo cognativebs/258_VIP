@@ -52,6 +52,28 @@ export function markInferred(
   };
 }
 
+/**
+ * Mark a value the provider computed rather than witnessed — e.g. a TCGplayer
+ * market price published on a day with zero sales. Not observed evidence, but
+ * not our inference either, so it stays unverified without pretending to be a
+ * trade.
+ */
+export function markNormalized(
+  partial: Pick<Provenance, "source" | "ruleOrModelVersion"> &
+    Partial<Omit<Provenance, "source" | "ruleOrModelVersion" | "method">>,
+): Provenance {
+  return {
+    source: partial.source,
+    method: "normalized",
+    ruleOrModelVersion: partial.ruleOrModelVersion,
+    confidence: partial.confidence ?? 0.6,
+    confidenceBand: partial.confidenceBand,
+    verificationStatus: partial.verificationStatus ?? "unverified",
+    supersededBy: partial.supersededBy ?? null,
+    notes: partial.notes,
+  };
+}
+
 export function markObserved(
   partial: Pick<Provenance, "source" | "ruleOrModelVersion" | "confidence"> &
     Partial<Omit<Provenance, "source" | "ruleOrModelVersion" | "confidence" | "method">>,
