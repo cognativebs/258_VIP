@@ -410,6 +410,18 @@ button {
   font-size: 14px;
   line-height: 1.65;
 }
+.empty-state-cmd {
+  margin: 14px auto 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--offwhite);
+  background: var(--bg-2);
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+}
 
 /* ---------------- PAGE SHEET ---------------- */
 .stage-spread {

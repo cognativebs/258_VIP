@@ -145,6 +145,7 @@ function slotImageSrc(slot: ApiSlot): string | null {
 
 export function BinderVault() {
   const [binders, setBinders] = useState<ApiBinder[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeBinderId, setActiveBinderId] = useState<string | null>(null);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [booted, setBooted] = useState(false);
@@ -251,6 +252,7 @@ export function BinderVault() {
     const deepBinderId = params?.get("binderId");
     jsonFetch<{ binders: ApiBinder[] }>("/api/binders")
       .then((d) => {
+        setLoadError(null);
         setBinders(d.binders);
         if (!d.binders.length) return;
         const fromLink = deepBinderId
@@ -258,7 +260,11 @@ export function BinderVault() {
           : null;
         setActiveBinderId((fromLink ?? d.binders[0]).id);
       })
-      .catch(() => flash("Could not load binders"))
+      .catch((err: unknown) => {
+        const detail = err instanceof Error ? err.message : "Could not load binders";
+        setLoadError(detail);
+        flash("Could not load binders — collection is still in Postgres");
+      })
       .finally(() => setBooted(true));
   }, [flash]);
 
@@ -1301,20 +1307,39 @@ export function BinderVault() {
           <div className="stage">
             {!activeBinder || !activePage ? (
               <div className="empty-state">
-                <h2>No binder open</h2>
-                <p>
-                  Create a binder on the left — pick a pocket layout (9, 12, 4, 20 or custom) or a
-                  themed era page — then drag cards from the search dock, or drop image files
-                  straight from your computer into any pocket. Everything saves to your local
-                  SQLite vault.
-                </p>
-                <button
-                  className="btn btn-primary"
-                  style={{ marginTop: 14 }}
-                  onClick={() => setShowNewBinder(true)}
-                >
-                  + Create your first binder
-                </button>
+                {loadError ? (
+                  <>
+                    <h2>Could not load binders</h2>
+                    <p>
+                      Your collection is still in Postgres. This page failed to read it
+                      ({loadError}). After a git pull, build shared packages and restart Binder:
+                    </p>
+                    <pre className="empty-state-cmd">
+                      npm run build:packages{"\n"}npm run binder
+                    </pre>
+                    <p>
+                      Or use Stop IQVault then Launch IQVault. Do not create a new binder to
+                      &quot;replace&quot; the old one.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2>No binder open</h2>
+                    <p>
+                      Create a binder on the left — pick a pocket layout (9, 12, 4, 20 or custom)
+                      or a themed era page — then drag cards from the search dock, or drop image
+                      files straight from your computer into any pocket. Everything saves to
+                      Postgres.
+                    </p>
+                    <button
+                      className="btn btn-primary"
+                      style={{ marginTop: 14 }}
+                      onClick={() => setShowNewBinder(true)}
+                    >
+                      + Create your first binder
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="stage-spread">
