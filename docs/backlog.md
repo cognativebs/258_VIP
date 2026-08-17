@@ -93,10 +93,10 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Bloomberg-style restyle of `apps/iqvault-web` (gold-dark Personal Intelligence shell from `:5175`)
 - [x] Full comics grid + filters on VIP face (`/collections/comics`; Comics API `:5200` with VIP inventory fallback)
 - [x] Comics Terminal edits via VIP when `:5200` is down (`POST /api/comics/holding/:id`, same Postgres) — 2026-08-09
-- [x] TCG + Sports collection tabs (`/collections/tcg`, `/collections/sports`) — TCG is live Binder holdings; Sports is a stub; CLZ XML drop zone live on Comics
+- [x] TCG + Sports collection tabs (`/collections/pokemon`, `/collections/sports`) — Pokémon is live Binder holdings; Sports is a stub; CLZ XML drop zone live on Comics
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
-- [x] Collections hub + first-class TCG collection page (`/collections`, `/collections/tcg`) so comics is not the only collection — 2026-08-10
+- [x] Collections hub + first-class Pokémon collection page (`/collections`, `/collections/pokemon`) so comics is not the only collection — 2026-08-10
 - [x] Scan intake in IQVault (`/scan` + `POST /api/scan/import-folder`) — no curl to start/import a batch — 2026-08-10
 - [x] **ADR 0009** identity staging — candidates as rows; canonical inventory written only at resolve — 2026-08-10
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10

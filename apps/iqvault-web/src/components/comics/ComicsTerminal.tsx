@@ -576,7 +576,6 @@ export function ComicsTerminal({
                           key={col.id}
                           className={[
                             col.numeric ? "num" : "",
-                            col.id === "Cover Image URL" ? "bb-tcg-art-cell" : "",
                             col.id === "Title" ? "bb-tcg-name-cell" : "",
                             ["Museum Score", "Investment Score", "Liquidity Score"].includes(col.id)
                               ? scoreClass(Number(row[col.id]) || 0)
@@ -591,20 +590,8 @@ export function ComicsTerminal({
                             .filter(Boolean)
                             .join(" ")}
                         >
-                          {col.id === "Cover Image URL" ? (
-                            String(row["Cover Image URL"] ?? "") ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                className="bb-tcg-art"
-                                src={String(row["Cover Image URL"])}
-                                alt={String(row.Title || "")}
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <span className="bb-tcg-art bb-tcg-thumb-empty" aria-hidden />
-                            )
-                          ) : col.id === "Title" ? (
-                            <strong>{String(row.Title || "—")}</strong>
+                          {col.id === "Title" ? (
+                            <strong>{String(row.Title && row.Title !== "—" ? row.Title : "—")}</strong>
                           ) : col.id === "Collection Pillar" ? (
                             pillarShort(String(row[col.id] ?? ""))
                           ) : (
@@ -680,20 +667,22 @@ export function ComicsTerminal({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={String(selected["Cover Image URL"])}
-                    alt={String(selected.Title || "")}
+                    alt={String(selected.Title || selected.Series || "")}
                     className="bb-cover"
                     loading="lazy"
                     referrerPolicy="no-referrer"
                   />
                 </div>
               ) : (
-                <p className="bb-dim" style={{ marginBottom: 8 }}>
-                  No cover image on this holding.
-                </p>
+                <div className="bb-cover-placeholder">No cover image</div>
               )}
               <h3 className="bb-detail-title">
                 {isPokemon
-                  ? String(selected.Title || selected.Series || "—")
+                  ? String(
+                      selected.Title && selected.Title !== "—"
+                        ? selected.Title
+                        : "—",
+                    )
                   : `${selected.Series} #${selected["Issue Full"] || selected.Issue}`}
               </h3>
               <p className="bb-dim">

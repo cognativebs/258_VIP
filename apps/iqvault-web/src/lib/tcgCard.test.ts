@@ -27,6 +27,30 @@ describe("tcgCardName", () => {
     );
   });
 
+  it("does not treat a copied set name as the printed card", () => {
+    assert.equal(
+      tcgCardName({
+        cardName: "Base Set",
+        assetName: "Base Set #4 Charizard Holo",
+        series: "Base Set",
+        issue: "4",
+      }),
+      "Charizard Holo",
+    );
+  });
+
+  it("finds the printed name after #number even when series does not match the asset prefix", () => {
+    assert.equal(
+      tcgCardName({
+        cardName: null,
+        assetName: "Base Set #4 Charizard Holo",
+        series: "Base",
+        issue: "4",
+      }),
+      "Charizard Holo",
+    );
+  });
+
   it("does not treat the set name as the card", () => {
     const display = tcgCardDisplay({
       cardName: "Pikachu",
@@ -37,6 +61,18 @@ describe("tcgCardName", () => {
     assert.equal(display.cardName, "Pikachu");
     assert.equal(display.setName, "Base Set");
     assert.equal(display.number, "58");
+  });
+
+  it("does not invent a name for Unnamed card", () => {
+    assert.equal(
+      tcgCardName({
+        cardName: "Unnamed card",
+        assetName: "Base Set #4 Unnamed card",
+        series: "Base Set",
+        issue: "4",
+      }),
+      "—",
+    );
   });
 });
 

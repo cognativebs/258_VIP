@@ -34,7 +34,7 @@ export function holdingToComicRow(h: Holding): ComicRow {
   };
 }
 
-/** Pokémon row for the same Bloomberg table as comics — Title + cover always filled when known. */
+/** Pokémon row for the Bloomberg table — Title is the printed name; cover is Inspector-only. */
 export function holdingToPokemonRow(h: Holding): ComicRow {
   const d = tcgCardDisplay(h);
   return {

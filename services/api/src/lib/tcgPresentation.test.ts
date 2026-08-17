@@ -76,4 +76,26 @@ describe("printedTcgName", () => {
       }),
     ).toBeNull();
   });
+
+  it("does not use the set name even when it is copied into cardName", () => {
+    expect(
+      printedTcgName({
+        cardName: "Base Set",
+        assetName: "Base Set #4 Charizard Holo",
+        series: "Base Set",
+        issue: "4",
+      }),
+    ).toBe("Charizard Holo");
+  });
+
+  it("strips the printed name after #number when the set label does not match series", () => {
+    expect(
+      printedTcgName({
+        cardName: null,
+        assetName: "Base Set #4 Charizard Holo",
+        series: "Base",
+        issue: "4",
+      }),
+    ).toBe("Charizard Holo");
+  });
 });
