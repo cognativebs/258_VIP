@@ -1,4 +1,3 @@
-import { syncPriceHistory } from "@vip/pricing";
 import { asc, eq } from "drizzle-orm";
 import { getDb, query, schema } from "@/db/client";
 import { eraByKey, CENTER_INDEX_3x3 } from "./templates";
@@ -883,6 +882,9 @@ export async function syncBinderPrices(
   }
 
   if (targets.size > 0) {
+    // Loaded here, not at module top, so GET /api/binders still works when
+    // @vip/pricing has not been built after a git pull.
+    const { syncPriceHistory } = await import("@vip/pricing");
     const priced = await syncPriceHistory({
       runner: query,
       cards: [...targets.keys()],

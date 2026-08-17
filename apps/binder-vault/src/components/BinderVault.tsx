@@ -133,7 +133,17 @@ const DEFAULT_FORM: NewBinderForm = {
 
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.text();
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: unknown };
+      if (parsed.error) detail = `${detail}: ${JSON.stringify(parsed.error)}`;
+    } catch {
+      if (body) detail = `${detail}: ${body.slice(0, 240)}`;
+    }
+    throw new Error(detail);
+  }
   return (await res.json()) as T;
 }
 
@@ -145,6 +155,7 @@ function slotImageSrc(slot: ApiSlot): string | null {
 
 export function BinderVault() {
   const [binders, setBinders] = useState<ApiBinder[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeBinderId, setActiveBinderId] = useState<string | null>(null);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [booted, setBooted] = useState(false);
@@ -183,6 +194,8 @@ export function BinderVault() {
   const [highlightMissing, setHighlightMissing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  /** Narrow windows hide the Ledger rail; this toggle brings it back. */
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [lanUrl, setLanUrl] = useState("");
   /** Touch rearrange: tap a filled pocket, then tap a destination. */
   const [moveFromSlotId, setMoveFromSlotId] = useState<string | null>(null);
@@ -219,6 +232,13 @@ export function BinderVault() {
     [binders, activeBinderId],
   );
   const activePage = activeBinder?.pages[activePageIndex] ?? null;
+  const pagePricesAsOf = useMemo(
+    () =>
+      activeBinder
+        ? formatPriceAsOf(maxPriceUpdatedAt(activeBinder, "page", activePageIndex))
+        : "",
+    [activeBinder, activePageIndex],
+  );
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -242,6 +262,7 @@ export function BinderVault() {
     const deepBinderId = params?.get("binderId");
     jsonFetch<{ binders: ApiBinder[] }>("/api/binders")
       .then((d) => {
+        setLoadError(null);
         setBinders(d.binders);
         if (!d.binders.length) return;
         const fromLink = deepBinderId
@@ -249,7 +270,11 @@ export function BinderVault() {
           : null;
         setActiveBinderId((fromLink ?? d.binders[0]).id);
       })
-      .catch(() => flash("Could not load binders"))
+      .catch((err: unknown) => {
+        const detail = err instanceof Error ? err.message : "Could not load binders";
+        setLoadError(detail);
+        flash("Could not load binders — collection is still in Postgres");
+      })
       .finally(() => setBooted(true));
   }, [flash]);
 
@@ -1154,6 +1179,9 @@ export function BinderVault() {
                 >
                   Move / Copy Page
                 </button>
+                <span className="topbar-asof" title="Newest successful Near Mint price on this page">
+                  {pagePricesAsOf}
+                </span>
                 <button
                   className="btn"
                   disabled={syncingPrices}
@@ -1169,6 +1197,23 @@ export function BinderVault() {
                   title="Re-fetch Near Mint prices for every TCGplayer-linked card on this page and record today's history"
                 >
                   Refresh All
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={updatingHistory}
+                  onClick={() => void backfillPriceHistory()}
+                  title="One-time: pull about a year of weekly price history for every card in this binder"
+                >
+                  {updatingHistory ? "Backfilling…" : "Backfill 1 yr History"}
+                </button>
+                <button
+                  type="button"
+                  className="btn ledger-toggle"
+                  aria-pressed={ledgerOpen}
+                  onClick={() => setLedgerOpen((open) => !open)}
+                  title="Show or hide the Ledger (hidden on narrow windows)"
+                >
+                  {ledgerOpen ? "Hide Ledger" : "Ledger"}
                 </button>
                 <button
                   className="btn"
@@ -1272,20 +1317,39 @@ export function BinderVault() {
           <div className="stage">
             {!activeBinder || !activePage ? (
               <div className="empty-state">
-                <h2>No binder open</h2>
-                <p>
-                  Create a binder on the left — pick a pocket layout (9, 12, 4, 20 or custom) or a
-                  themed era page — then drag cards from the search dock, or drop image files
-                  straight from your computer into any pocket. Everything saves to your local
-                  SQLite vault.
-                </p>
-                <button
-                  className="btn btn-primary"
-                  style={{ marginTop: 14 }}
-                  onClick={() => setShowNewBinder(true)}
-                >
-                  + Create your first binder
-                </button>
+                {loadError ? (
+                  <>
+                    <h2>Could not load binders</h2>
+                    <p>
+                      Your collection is still in Postgres. This page failed to read it
+                      ({loadError}). After a git pull, build shared packages and restart Binder:
+                    </p>
+                    <pre className="empty-state-cmd">
+                      npm run build:packages{"\n"}npm run binder
+                    </pre>
+                    <p>
+                      Or use Stop IQVault then Launch IQVault. Do not create a new binder to
+                      &quot;replace&quot; the old one.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2>No binder open</h2>
+                    <p>
+                      Create a binder on the left — pick a pocket layout (9, 12, 4, 20 or custom)
+                      or a themed era page — then drag cards from the search dock, or drop image
+                      files straight from your computer into any pocket. Everything saves to
+                      Postgres.
+                    </p>
+                    <button
+                      className="btn btn-primary"
+                      style={{ marginTop: 14 }}
+                      onClick={() => setShowNewBinder(true)}
+                    >
+                      + Create your first binder
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="stage-spread">
@@ -1430,6 +1494,7 @@ export function BinderVault() {
               onJumpPage={setActivePageIndex}
               onBackfillHistory={backfillPriceHistory}
               updatingHistory={updatingHistory}
+              open={ledgerOpen}
             />
           )}
 
@@ -1637,6 +1702,7 @@ function ValueRail({
   onJumpPage,
   onBackfillHistory,
   updatingHistory,
+  open,
 }: {
   binder: ApiBinder;
   pageIndex: number;
@@ -1649,6 +1715,7 @@ function ValueRail({
   onJumpPage: (pageIndex: number) => void;
   onBackfillHistory: () => void;
   updatingHistory: boolean;
+  open: boolean;
 }) {
   const lines = useMemo(
     () => collectValueLines(binder, scope, pageIndex),
@@ -1678,7 +1745,7 @@ function ValueRail({
   };
 
   return (
-    <aside className="value-rail" aria-label="Page and binder value calculator">
+    <aside className={`value-rail${open ? " open" : ""}`} aria-label="Page and binder value calculator">
       <div className="value-rail-head">
         <div className="value-rail-title">Ledger</div>
         <div className="source-tabs">

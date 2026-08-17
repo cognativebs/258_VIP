@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "npm run build --prefix ../.. -w @vip/evidence -w @vip/pricing",
     "dev": "next dev -H 0.0.0.0 -p 3010",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3010",

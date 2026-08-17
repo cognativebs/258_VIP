@@ -8,6 +8,7 @@
 param(
     [switch]$NoBrowser,
     [switch]$WithBinder,
+    [switch]$NoBinder,
     [switch]$InstallShortcut
 )
 
@@ -463,10 +464,13 @@ function Ensure-Web {
 }
 
 function Ensure-Binder {
-    if (-not $WithBinder) { return }
+    # Binder is part of the stack. -WithBinder is kept as a no-op alias;
+    # pass -NoBinder to skip. A leftover next-dev on 3010 is why a git
+    # checkout plus relaunch used to show the old UI.
+    if ($NoBinder) { return }
     if (Test-PortListening $Ports.Binder) {
-        Write-Step "Binder already on port $($Ports.Binder)."
-        return
+        Write-Warn "Restarting Binder on port $($Ports.Binder) so it picks up the current checkout."
+        Stop-ProcessesOnPort $Ports.Binder
     }
     Write-Step "Starting Binder Vault..."
     Start-MinimizedProcess "IQVault Binder" $Root "npm run binder"
@@ -511,7 +515,7 @@ function Write-StackSummary {
     Write-Step ("  Comics API {0}  http://127.0.0.1:{1}" -f $comicsLabel, $Ports.ComicsApi)
     Write-Step ("  Orchestr8  {0}  http://127.0.0.1:{1}  providers={2}" -f $orchLabel, $Ports.Orchestr8, $orchProviders)
     Write-Step ("  Web        {0}  http://127.0.0.1:{1}/collections/comics" -f $webLabel, $Ports.Web)
-    if ($WithBinder) {
+    if (-not $NoBinder) {
         $binderOk = Test-PortListening $Ports.Binder
         $binderLabel = if ($binderOk) { "OK" } else { "DOWN" }
         Write-Step ("  Binder     {0}  http://127.0.0.1:{1}" -f $binderLabel, $Ports.Binder)
@@ -558,6 +562,9 @@ try {
         Start-Sleep -Seconds 1
         Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
         Start-Process "http://127.0.0.1:$($Ports.Web)/collections"
+        if (-not $NoBinder) {
+            Start-Process "http://127.0.0.1:$($Ports.Binder)"
+        }
     }
 
     Write-StackSummary

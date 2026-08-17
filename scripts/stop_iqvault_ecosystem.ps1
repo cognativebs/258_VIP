@@ -1,5 +1,5 @@
 ﻿# Stop every IQVault VIP service window (does not stop Postgres/Docker).
-$Ports = 8787, 5200, 5210, 3000
+$Ports = 8787, 5200, 5210, 3000, 3010
 
 foreach ($port in $Ports) {
     $procIds = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
