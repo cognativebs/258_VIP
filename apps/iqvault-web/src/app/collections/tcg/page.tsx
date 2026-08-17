@@ -1,11 +1,6 @@
-import { Nav } from "@/components/Nav";
-import { TcgTerminal } from "@/components/tcg/TcgTerminal";
+import { redirect } from "next/navigation";
 
-export default function TcgCollectionPage() {
-  return (
-    <div className="shell shell-bleed">
-      <Nav active="/collections/tcg" />
-      <TcgTerminal />
-    </div>
-  );
+/** Old generic TCG tab — the live Pokémon collection is /collections/pokemon. */
+export default function TcgCollectionRedirect() {
+  redirect("/collections/pokemon");
 }

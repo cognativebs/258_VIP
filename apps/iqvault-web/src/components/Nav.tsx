@@ -6,7 +6,7 @@ const links = [
   { href: "/", label: "Portfolio" },
   { href: "/collections", label: "Collections" },
   { href: "/collections/comics", label: "Comics" },
-  { href: "/collections/tcg", label: "TCG" },
+  { href: "/collections/pokemon", label: "Pokémon" },
   { href: "/collections/sports", label: "Sports" },
   { href: "/scan", label: "Scan" },
   { href: "/recommendations", label: "Recs" },

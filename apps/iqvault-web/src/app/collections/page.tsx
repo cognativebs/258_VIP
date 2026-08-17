@@ -16,12 +16,12 @@ export default async function CollectionsPage() {
 
   const holdings = data?.holdings ?? [];
   const comicsCount = data?.comicsCount ?? holdings.filter(isComicHolding).length;
-  const tcg = splitTcgHoldings(holdings);
-  const tcgCount = (tcg.owned.length || tcg.seeds.length) + tcg.need.length;
+  const pokemon = splitTcgHoldings(holdings);
+  const pokemonCount = (pokemon.owned.length || pokemon.seeds.length) + pokemon.need.length;
 
   const counts: Record<string, number> = {
     comics: comicsCount,
-    tcg: tcgCount,
+    pokemon: pokemonCount,
   };
 
   return (
@@ -30,7 +30,7 @@ export default async function CollectionsPage() {
       <h1 className="page-title">Collections</h1>
       <p className="page-sub">
         One backend, one Postgres. Each asset class gets its own terminal instead of a
-        comics-only view.
+        comics-only view. Pokémon lives at <Link href="/collections/pokemon">/collections/pokemon</Link>.
       </p>
 
       {error ? (
