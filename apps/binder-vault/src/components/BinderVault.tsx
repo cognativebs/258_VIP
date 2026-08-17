@@ -147,6 +147,10 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
+}
+
 function slotImageSrc(slot: ApiSlot): string | null {
   if (!slot.card) return null;
   if (slot.card.imageLocal) return `/api/media/${slot.card.imageLocal}`;
@@ -919,13 +923,14 @@ export function BinderVault() {
     [placeCard, moveCard, uploadToSlot, flash],
   );
 
-  // ---- card search (debounced) ----
+  // ---- card search (debounced, stale responses ignored) ----
   useEffect(() => {
     const q = query.trim();
     const canSearch = q.length >= 2 || hasSearchFilters;
     if (!canSearch) {
       setResults([]);
       setSearchNote("");
+      setSearching(false);
       return;
     }
     // All chips off → nothing can match the OR rarity filter.
@@ -936,6 +941,7 @@ export function BinderVault() {
       return;
     }
     setSearching(true);
+    const ac = new AbortController();
     const handle = window.setTimeout(async () => {
       try {
         // Set browse must request the full set — promo sets exceed the old 60/250 caps.
@@ -949,27 +955,38 @@ export function BinderVault() {
         if (rarityNarrowed) params.set("rarity", rarityFilters.join(","));
         const data = await jsonFetch<{ results: CardResult[]; errors: string[] }>(
           `/api/cards/search?${params}`,
+          { signal: ac.signal },
         );
-        setResults(data.results);
+        if (ac.signal.aborted) return;
+        if (data.results.length) setResults(data.results);
         const setNote =
           setFilter && data.results.length
             ? `${data.results.length} card${data.results.length === 1 ? "" : "s"} in set`
             : "";
-        setSearchNote(
-          data.results.length
-            ? setNote
-            : data.errors.length
-              ? "Source error — try again or switch source."
-              : "No cards found for those filters.",
-        );
-      } catch {
-        setSearchNote("Search failed.");
-        setResults([]);
+        if (data.results.length) {
+          setSearchNote(
+            setNote ||
+              (data.errors.length ? `${data.errors.join(" · ")} — showing matches we got.` : ""),
+          );
+        } else if (data.errors.length) {
+          setSearchNote(
+            `${data.errors.join(" · ")} — tap a chip or type again.`,
+          );
+        } else {
+          setSearchNote("No cards found for those filters.");
+          setResults([]);
+        }
+      } catch (err) {
+        if (isAbortError(err) || ac.signal.aborted) return;
+        setSearchNote("Search failed — previous results kept. Try again.");
       } finally {
-        setSearching(false);
+        if (!ac.signal.aborted) setSearching(false);
       }
-    }, 350);
-    return () => window.clearTimeout(handle);
+    }, 450);
+    return () => {
+      ac.abort();
+      window.clearTimeout(handle);
+    };
   }, [query, source, setFilter, rarityFilters, hasSearchFilters, noRaritiesOn, rarityNarrowed]);
 
   const placeInFirstEmpty = useCallback(

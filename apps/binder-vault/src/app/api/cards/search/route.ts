@@ -22,19 +22,31 @@ export async function GET(req: Request) {
   const maxLimit = setId ? 500 : 60;
   const limit = Math.min(Math.max(Number(searchParams.get("limit")) || 24, 1), maxLimit);
 
-  const { results, errors, queryUsed } = await searchCards(q, {
-    source,
-    limit,
-    setId,
-    rarityKeys,
-  });
-  return NextResponse.json({
-    query: q,
-    source,
-    set: setId,
-    rarity: rarityKeys,
-    queryUsed,
-    results,
-    errors,
-  });
+  try {
+    const { results, errors, queryUsed } = await searchCards(q, {
+      source,
+      limit,
+      setId,
+      rarityKeys,
+    });
+    return NextResponse.json({
+      query: q,
+      source,
+      set: setId,
+      rarity: rarityKeys,
+      queryUsed,
+      results,
+      errors,
+    });
+  } catch (e) {
+    return NextResponse.json({
+      query: q,
+      source,
+      set: setId,
+      rarity: rarityKeys,
+      queryUsed: "",
+      results: [],
+      errors: [e instanceof Error ? e.message : String(e)],
+    });
+  }
 }
