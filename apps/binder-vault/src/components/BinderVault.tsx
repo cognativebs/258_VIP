@@ -134,15 +134,27 @@ const DEFAULT_FORM: NewBinderForm = {
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
-    const body = await res.text();
-    let detail = `${res.status} ${res.statusText}`;
+    const text = await res.text();
+    let parsed: { error?: unknown; hint?: string } | null = null;
     try {
-      const parsed = JSON.parse(body) as { error?: unknown };
-      if (parsed.error) detail = `${detail}: ${JSON.stringify(parsed.error)}`;
+      parsed = JSON.parse(text) as { error?: unknown; hint?: string };
     } catch {
-      if (body) detail = `${detail}: ${body.slice(0, 240)}`;
+      parsed = null;
     }
-    throw new Error(detail);
+    if (parsed) {
+      const error =
+        typeof parsed.error === "string"
+          ? parsed.error
+          : parsed.error
+            ? JSON.stringify(parsed.error)
+            : `${res.status} ${res.statusText}`;
+      throw new Error(parsed.hint ? `${error} — ${parsed.hint}` : error);
+    }
+    throw new Error(
+      text
+        ? `${res.status} ${res.statusText}: ${text.slice(0, 240)}`
+        : `${res.status} ${res.statusText}`,
+    );
   }
   return (await res.json()) as T;
 }
