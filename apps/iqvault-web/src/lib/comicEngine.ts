@@ -55,6 +55,18 @@ export const TABLE_COLUMNS = [
   { id: "Location", label: "LOCATION", minWidth: 90 },
 ];
 
+/** Pokémon TCG grid in the same Bloomberg HTML terminal — ART + NAME first. */
+export const POKEMON_TABLE_COLUMNS = [
+  { id: "Cover Image URL", label: "ART", minWidth: 64 },
+  { id: "Title", label: "NAME", minWidth: 180 },
+  { id: "Series", label: "SET", minWidth: 140 },
+  { id: "Issue Full", label: "#", minWidth: 48 },
+  { id: "Edition / Variant", label: "RARITY", minWidth: 90 },
+  { id: "Current Price", label: "VALUE", minWidth: 72, numeric: true },
+  { id: "Collection Pillar", label: "STATUS", minWidth: 110 },
+  { id: "Recommendation", label: "RECOMMENDATION", minWidth: 130 },
+];
+
 export const NUMERIC_FIELDS = new Set([
   "Museum Score",
   "Investment Score",

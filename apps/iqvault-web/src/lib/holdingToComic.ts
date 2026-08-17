@@ -1,5 +1,6 @@
 import type { Holding } from "./api";
 import type { ComicRow, ComicsMeta } from "./comicTypes";
+import { tcgCardDisplay } from "./tcgCard";
 
 /** Map VIP holdings into CLZ keys so the terminal works on the shared API alone. */
 export function holdingToComicRow(h: Holding): ComicRow {
@@ -30,6 +31,19 @@ export function holdingToComicRow(h: Holding): ComicRow {
     Location: null,
     "Is Key Comic": "No",
     "Upgrade Candidate": "No",
+  };
+}
+
+/** Pokémon row for the same Bloomberg table as comics — Title + cover always filled when known. */
+export function holdingToPokemonRow(h: Holding): ComicRow {
+  const d = tcgCardDisplay(h);
+  return {
+    ...holdingToComicRow(h),
+    Title: d.cardName,
+    "Cover Image URL": d.artUrl ?? "",
+    Series: d.setName,
+    "Issue Full": d.number,
+    "Edition / Variant": h.rarity ?? "",
   };
 }
 

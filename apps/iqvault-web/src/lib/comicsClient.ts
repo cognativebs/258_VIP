@@ -1,6 +1,7 @@
 import type { ComicRow, ComicsMeta } from "./comicTypes";
 import { apiGet, type Holding, type InventoryResponse } from "./api";
-import { holdingToComicRow, metaFromHoldings } from "./holdingToComic";
+import { holdingToComicRow, holdingToPokemonRow, metaFromHoldings } from "./holdingToComic";
+import { splitTcgHoldings } from "./collections";
 import {
   INBOX_POLL_MAX_MS,
   INBOX_POLL_MS,
@@ -110,6 +111,30 @@ export async function loadComicsTerminalData(): Promise<{
     source: "vip-api",
     // Same Postgres as Comics API — edits go through VIP /api/comics/holding/:id.
     editable: true,
+  };
+}
+
+/** Pokémon TCG inventory for the Bloomberg terminal at /collections/pokemon. */
+export async function loadPokemonTerminalData(): Promise<{
+  meta: ComicsMeta;
+  inventory: ComicRow[];
+  source: "comics-api" | "vip-api";
+  editable: boolean;
+}> {
+  const data = await apiGet<InventoryResponse>("/api/inventory");
+  const split = splitTcgHoldings(data.holdings ?? []);
+  const rows =
+    split.owned.length > 0
+      ? [...split.owned, ...split.need]
+      : [...split.seeds, ...split.need];
+  const inventory = rows.map(holdingToPokemonRow);
+  const meta = metaFromHoldings(inventory);
+  meta.source = data.tcgSource ? `vip-api · ${data.tcgSource}` : "vip-api";
+  return {
+    meta,
+    inventory,
+    source: "vip-api",
+    editable: false,
   };
 }
 
