@@ -115,6 +115,8 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
     assumedGrade: null,
     gradeRating: null,
     coverImageUrl: row.image_url?.trim() || null,
+    cardName: name === "Unnamed card" ? null : name,
+    rarity: row.rarity?.trim() || null,
     externalIds:
       row.external_id && row.source
         ? [{ source: row.source, externalValue: row.external_id }]

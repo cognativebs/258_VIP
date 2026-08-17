@@ -2340,3 +2340,35 @@
   }
 }
 
+.bb-tcg-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bb-tcg-thumb {
+  width: 36px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: #111;
+  border: 1px solid var(--bb-border, #2a2a2a);
+}
+
+.bb-tcg-thumb-empty {
+  display: inline-block;
+}
+
+.bb-tcg-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bb-tcg-status.owned { color: var(--bb-green, #00d26a); }
+.bb-tcg-status.need { color: var(--bb-amber, #ffb84d); }
+.bb-tcg-status.seed { color: var(--bb-dim, #8a8a8a); }
+
+

@@ -27,6 +27,9 @@ export type ApiHolding = {
   gradeRating: number | null;
   /** CLZ / catalog cover URL when present — never invented. */
   coverImageUrl: string | null;
+  /** Pokémon / TCG printed name when known (not the set). */
+  cardName: string | null;
+  rarity: string | null;
   externalIds: ExternalIdRef[];
   provenance: ReturnType<typeof markObserved> | ReturnType<typeof markInferred>;
 };
@@ -107,6 +110,9 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
       const url = String(row["Cover Image URL"] ?? "").trim();
       return url || null;
     })(),
+    cardName:
+      String(row["Title"] ?? row["Edition / Variant"] ?? "").trim() || null,
+    rarity: String(row["Rarity"] ?? "").trim() || null,
     externalIds,
     provenance: isNmAssumed
       ? markInferred({

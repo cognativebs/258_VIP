@@ -274,13 +274,21 @@ describe("VIP API", () => {
       const res = await fetch(`${base}/api/inventory`);
       const body = (await res.json()) as {
         tcgSource?: string;
-        holdings: { externalIds?: { source: string; externalValue: string }[] }[];
+        holdings: {
+          cardName?: string | null;
+          series?: string;
+          issue?: string;
+          externalIds?: { source: string; externalValue: string }[];
+        }[];
       };
       expect(res.status).toBe(200);
       const withExt = body.holdings.filter((h) => (h.externalIds?.length ?? 0) > 0);
       expect(withExt.length).toBeGreaterThanOrEqual(1);
       expect(body.tcgSource).toBeTruthy();
       if (body.tcgSource === "pokemon_seeds" || body.tcgSource === "binder+seeds") {
+        const zard = body.holdings.find((h) => h.externalIds?.[0]?.externalValue === "base1-4");
+        expect(zard?.cardName).toMatch(/Charizard/i);
+        expect(zard?.series).toBe("Base Set");
         expect(withExt.some((h) => h.externalIds?.[0]?.externalValue === "base1-4")).toBe(true);
       }
     });

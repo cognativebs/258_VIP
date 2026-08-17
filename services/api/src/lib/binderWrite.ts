@@ -426,6 +426,9 @@ export async function loadDurableBinderHoldings(): Promise<
     assetName: string;
     series: string;
     issue: string;
+    cardName: string | null;
+    rarity: string | null;
+    coverImageUrl: string | null;
     quantity: number;
     pillar: string | null;
     currentPrice: number | null;
@@ -474,6 +477,9 @@ export async function loadDurableBinderHoldings(): Promise<
         assetName: String(row.canonical_name),
         series: String(meta.setName ?? meta.set_name ?? ""),
         issue: String(meta.number ?? ""),
+        cardName: String(meta.cardName ?? meta.card_name ?? "").trim() || null,
+        rarity: String(meta.rarity ?? "").trim() || null,
+        coverImageUrl: String(meta.imageUrl ?? meta.image_url ?? "").trim() || null,
         quantity: Number(row.quantity) || 1,
         pillar: row.collection_pillar != null ? String(row.collection_pillar) : null,
         currentPrice:

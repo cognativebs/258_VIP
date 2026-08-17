@@ -156,7 +156,9 @@ function durableBinderToApi(
     currentPrice: row.currentPrice,
     assumedGrade: null,
     gradeRating: null,
-    coverImageUrl: null,
+    coverImageUrl: row.coverImageUrl,
+    cardName: row.cardName,
+    rarity: row.rarity,
     externalIds: row.externalIds,
     provenance,
   };
@@ -186,6 +188,8 @@ function scanHoldingToApi(row: ScanHoldingRow): ApiHolding {
     assumedGrade: row.assumedGrade,
     gradeRating: null,
     coverImageUrl: null,
+    cardName: row.assetName || null,
+    rarity: null,
     externalIds: row.externalIds,
     provenance: markInferred({
       source: "ricoh_fi8170",
