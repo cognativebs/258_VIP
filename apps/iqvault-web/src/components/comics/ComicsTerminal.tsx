@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   WORKSPACES,
   TABLE_COLUMNS,
+  POKEMON_TABLE_COLUMNS,
   DEFAULT_FILTERS,
   RECOMMENDATIONS,
   filterByWorkspace,
@@ -25,6 +26,7 @@ import { CollectionSourceBar } from "@/components/CollectionSourceBar";
 import {
   fetchComicsInboxStatus,
   loadComicsTerminalData,
+  loadPokemonTerminalData,
   patchComicHolding,
   uploadComicsInboxFile,
   waitForComicsInboxDrain,
@@ -37,11 +39,18 @@ import {
   isAcceptedDropFile,
   type InboxStatus,
 } from "@/lib/sourceDrop";
+import { BINDER_URL } from "@/lib/api";
 import { AnalyticsChat } from "./AnalyticsChat";
 
 const PAGE_SIZE = 50;
 
-export function ComicsTerminal() {
+export function ComicsTerminal({
+  vertical = "comics",
+}: {
+  vertical?: "comics" | "pokemon";
+}) {
+  const isPokemon = vertical === "pokemon";
+  const columns = isPokemon ? POKEMON_TABLE_COLUMNS : TABLE_COLUMNS;
   const [meta, setMeta] = useState<ComicsMeta | null>(null);
   const [inventory, setInventory] = useState<ComicRow[]>([]);
   const [source, setSource] = useState<"comics-api" | "vip-api" | null>(null);
@@ -50,11 +59,11 @@ export function ComicsTerminal() {
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState("all");
   const [filters, setFilters] = useState<ComicFilters>({ ...DEFAULT_FILTERS });
-  const [sortKey, setSortKey] = useState("Current Price");
+  const [sortKey, setSortKey] = useState(isPokemon ? "Title" : "Current Price");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(!isPokemon);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [rightPanel, setRightPanel] = useState<"inspector" | "analytics">("inspector");
@@ -64,20 +73,20 @@ export function ComicsTerminal() {
   const [dropErr, setDropErr] = useState<string | null>(null);
 
   const reloadTerminal = useCallback(async () => {
-    const data = await loadComicsTerminalData();
+    const data = isPokemon ? await loadPokemonTerminalData() : await loadComicsTerminalData();
     setMeta(data.meta);
     setInventory(data.inventory);
     setSource(data.source);
     setEditable(data.editable);
-  }, []);
+  }, [isPokemon]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const [data, inboxStatus] = await Promise.all([
-          loadComicsTerminalData(),
-          fetchComicsInboxStatus(),
+          isPokemon ? loadPokemonTerminalData() : loadComicsTerminalData(),
+          isPokemon ? Promise.resolve(null) : fetchComicsInboxStatus(),
         ]);
         if (cancelled) return;
         setMeta(data.meta);
@@ -88,14 +97,14 @@ export function ComicsTerminal() {
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load comics");
+        setError(e instanceof Error ? e.message : "Failed to load collection");
         setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isPokemon]);
 
   const onInboxFile = useCallback(
     async (file: File) => {
@@ -187,13 +196,33 @@ export function ComicsTerminal() {
     [inbox?.clzCloudUrl, inbox?.clzCollectorUrl],
   );
 
-  const dropHint = inbox?.inbox
-    ? `Drop CLZ XML here → ${inbox.inbox}`
-    : "Drop CLZ XML here → E:\\ComicArchive\\inbox (or repo clz-inbox)";
+  const sourceLinks = isPokemon
+    ? [
+        {
+          href: BINDER_URL,
+          label: "Binder Vault",
+          title: "Open Binder Vault in a new window",
+        },
+        {
+          href: CLZ_CLOUD_URL,
+          label: "CLZ Cloud",
+          title: "Open CLZ Cloud in a new window",
+        },
+      ]
+    : clzLinks;
+
   const comicsApiUp = source === "comics-api";
-  const dropDisabledReason = comicsApiUp
-    ? undefined
-    : "Start Comics API (:5200) for CLZ inbox — Launch IQVault or npm run comics. Holding edits still save through VIP.";
+  const dropEnabled = !isPokemon && comicsApiUp;
+  const dropDisabledReason = isPokemon
+    ? "Pokémon drop-to-inbox is not wired — layout and owned flags live in Binder Vault"
+    : comicsApiUp
+      ? undefined
+      : "Start Comics API (:5200) for CLZ inbox — Launch IQVault or npm run comics. Holding edits still save through VIP.";
+  const dropHint = isPokemon
+    ? "Drop TCG export here (not wired yet)"
+    : inbox?.inbox
+      ? `Drop CLZ XML here → ${inbox.inbox}`
+      : "Drop CLZ XML here → E:\\ComicArchive\\inbox (or repo clz-inbox)";
 
   useEffect(() => {
     setPage(1);
@@ -238,15 +267,17 @@ export function ComicsTerminal() {
     return (
       <div className="bb-terminal bb-terminal-embedded">
         <CollectionSourceBar
-          links={clzLinks}
+          links={sourceLinks}
           drop={{
             acceptHint: dropHint,
             enabled: false,
-            disabledReason: "Loading comics…",
+            disabledReason: isPokemon ? "Loading Pokémon…" : "Loading comics…",
             onFile: () => undefined,
           }}
         />
-        <div className="bb-loading">Loading comics terminal…</div>
+        <div className="bb-loading">
+          {isPokemon ? "Loading Pokémon TCG terminal…" : "Loading comics terminal…"}
+        </div>
       </div>
     );
   }
@@ -255,10 +286,10 @@ export function ComicsTerminal() {
     return (
       <div className="bb-terminal bb-error bb-terminal-embedded">
         <CollectionSourceBar
-          links={clzLinks}
+          links={sourceLinks}
           drop={{
             acceptHint: dropHint,
-            enabled: comicsApiUp,
+            enabled: dropEnabled,
             disabledReason: dropDisabledReason,
             busy: dropBusy,
             message: dropMsg,
@@ -277,10 +308,10 @@ export function ComicsTerminal() {
   return (
     <div className="bb-terminal bb-terminal-embedded">
       <CollectionSourceBar
-        links={clzLinks}
+        links={sourceLinks}
         drop={{
           acceptHint: dropHint,
-          enabled: comicsApiUp,
+          enabled: dropEnabled,
           disabledReason: dropDisabledReason,
           busy: dropBusy,
           message: dropMsg,
@@ -301,10 +332,12 @@ export function ComicsTerminal() {
       <div className="bb-topbar">
         <div className="bb-topbar-brand">
           <span className="bb-orange">IQVAULT</span>
-          <span className="bb-dim">COMICS TERMINAL</span>
+          <span className="bb-dim">{isPokemon ? "POKÉMON TCG TERMINAL" : "COMICS TERMINAL"}</span>
           <span className="bb-dim" style={{ marginLeft: 8 }}>
             ·{" "}
-            {comicsTerminalSourceLabel(source)}
+            {isPokemon
+              ? meta?.source ?? "VIP inventory"
+              : comicsTerminalSourceLabel(source)}
             {meta?.snapshotLabel ? ` · ${meta.snapshotLabel}` : ""}
           </span>
         </div>
@@ -501,7 +534,7 @@ export function ComicsTerminal() {
             <table className="bb-table">
               <thead>
                 <tr>
-                  {TABLE_COLUMNS.map((col: { id: string; label: string; minWidth?: number; numeric?: boolean }) => (
+                  {columns.map((col: { id: string; label: string; minWidth?: number; numeric?: boolean }) => (
                     <th
                       key={col.id}
                       style={{ minWidth: col.minWidth }}
@@ -519,8 +552,10 @@ export function ComicsTerminal() {
               <tbody>
                 {paged.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={TABLE_COLUMNS.length} className="bb-empty-row">
-                      No books match these filters.
+                    <td colSpan={columns.length} className="bb-empty-row">
+                      {isPokemon
+                        ? "No cards match. Place cards in Binder, then Push to VIP."
+                        : "No books match these filters."}
                     </td>
                   </tr>
                 ) : (
@@ -536,11 +571,13 @@ export function ComicsTerminal() {
                         .join(" ")}
                       onClick={() => setSelectedId(row.id)}
                     >
-                      {TABLE_COLUMNS.map((col: { id: string; numeric?: boolean }) => (
+                      {columns.map((col: { id: string; numeric?: boolean }) => (
                         <td
                           key={col.id}
                           className={[
                             col.numeric ? "num" : "",
+                            col.id === "Cover Image URL" ? "bb-tcg-art-cell" : "",
+                            col.id === "Title" ? "bb-tcg-name-cell" : "",
                             ["Museum Score", "Investment Score", "Liquidity Score"].includes(col.id)
                               ? scoreClass(Number(row[col.id]) || 0)
                               : "",
@@ -554,9 +591,25 @@ export function ComicsTerminal() {
                             .filter(Boolean)
                             .join(" ")}
                         >
-                          {col.id === "Collection Pillar"
-                            ? pillarShort(String(row[col.id] ?? ""))
-                            : formatCell(col.id, row[col.id])}
+                          {col.id === "Cover Image URL" ? (
+                            String(row["Cover Image URL"] ?? "") ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                className="bb-tcg-art"
+                                src={String(row["Cover Image URL"])}
+                                alt={String(row.Title || "")}
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <span className="bb-tcg-art bb-tcg-thumb-empty" aria-hidden />
+                            )
+                          ) : col.id === "Title" ? (
+                            <strong>{String(row.Title || "—")}</strong>
+                          ) : col.id === "Collection Pillar" ? (
+                            pillarShort(String(row[col.id] ?? ""))
+                          ) : (
+                            formatCell(col.id, row[col.id])
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -627,9 +680,10 @@ export function ComicsTerminal() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={String(selected["Cover Image URL"])}
-                    alt=""
+                    alt={String(selected.Title || "")}
                     className="bb-cover"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
               ) : (
@@ -638,9 +692,17 @@ export function ComicsTerminal() {
                 </p>
               )}
               <h3 className="bb-detail-title">
-                {selected.Series} #{selected["Issue Full"] || selected.Issue}
+                {isPokemon
+                  ? String(selected.Title || selected.Series || "—")
+                  : `${selected.Series} #${selected["Issue Full"] || selected.Issue}`}
               </h3>
-              <p className="bb-dim">{String(selected["Edition / Variant"] || "—")}</p>
+              <p className="bb-dim">
+                {isPokemon
+                  ? [selected.Series, selected["Issue Full"] ? `#${selected["Issue Full"]}` : null, selected["Edition / Variant"]]
+                      .filter(Boolean)
+                      .join(" · ") || "—"
+                  : String(selected["Edition / Variant"] || "—")}
+              </p>
               <div className="bb-detail-grid">
                 <div>
                   <span className="bb-dim">Pillar</span>
