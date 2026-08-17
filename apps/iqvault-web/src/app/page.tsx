@@ -98,20 +98,26 @@ export default async function PortfolioPage() {
           <section className="tcg-panel">
             <div className="tcg-panel-head">
               <div>
-                <h2 className="section-title">TCG / Binder Vault</h2>
+                <h2 className="section-title">Pokémon / Binder Vault</h2>
                 <p className="muted" style={{ margin: 0, fontSize: 13 }}>
                   Layout stays in Binder (new tab). Owned flags and pocket prices feed this
-                  portfolio via VIP.
+                  portfolio via VIP. Full grid:{" "}
+                  <a href="/collections/pokemon">/collections/pokemon</a>.
                 </p>
               </div>
-              <a
-                className="btn-link"
-                href={BINDER_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open Binder ↗
-              </a>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <a className="btn-link" href="/collections/pokemon">
+                  Pokémon terminal
+                </a>
+                <a
+                  className="btn-link"
+                  href={BINDER_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Binder ↗
+                </a>
+              </div>
             </div>
 
             {tcg && !tcg.available ? (

@@ -3,12 +3,13 @@ import type { Holding } from "./api";
 /**
  * Collection registry for the collector face.
  *
- * Comics and TCG already live in the same Postgres and arrive together on
+ * Comics and Pokémon TCG already live in the same Postgres and arrive together on
  * `/api/inventory`; splitting them here keeps one source of truth while giving
  * each asset class its own page instead of a comics-only app.
+ * Live Pokémon face: `/collections/pokemon` (`/collections/tcg` redirects there).
  */
 
-export type CollectionId = "comics" | "tcg" | "sports";
+export type CollectionId = "comics" | "pokemon" | "sports";
 
 export type CollectionDef = {
   id: CollectionId;
@@ -25,10 +26,10 @@ export const COLLECTIONS: CollectionDef[] = [
     blurb: "CLZ import in Postgres — Bloomberg-style terminal with filters and Ask.",
   },
   {
-    id: "tcg",
-    label: "TCG / Binder",
-    href: "/collections/tcg",
-    blurb: "Pokemon binder pockets — owned and still-needed, priced from Binder.",
+    id: "pokemon",
+    label: "Pokémon",
+    href: "/collections/pokemon",
+    blurb: "Pokémon TCG — Binder pockets (owned / need) with card name and art.",
   },
   {
     id: "sports",

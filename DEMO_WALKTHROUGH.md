@@ -259,7 +259,7 @@ Kill the stale process, then restart.
 
 ### IQVault on :3000 looks like an old UI (empty TCG, no card names)
 
-Leftover `next dev` is still bound to 3000. **Stop IQVault.bat**, then **Launch IQVault.bat** (it restarts web). Confirm `/collections/tcg` says **POKÉMON TCG TERMINAL** with a CARD column.
+Leftover `next dev` is still bound to 3000. **Stop IQVault.bat**, then **Launch IQVault.bat** (it restarts web). Confirm `/collections/pokemon` says **POKÉMON TCG TERMINAL** with **ART** and **NAME** columns.
 
 ### QR code panel missing on PC
 

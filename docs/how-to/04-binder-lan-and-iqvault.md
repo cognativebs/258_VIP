@@ -40,7 +40,7 @@ Set these when not using localhost-only desktop:
 
 - **Layout + owned flags** live in Postgres `vault_tcg`.
 - **VIP `GET /api/inventory`** merges comics holdings + Binder owned/need (and durable `source=binder_vault` rows after **Push to VIP**).
-- IQVault **Pokémon TCG Terminal** (`/collections/tcg`) shows card name, set, and number from that inventory.
+- IQVault **Pokémon TCG Terminal** (`/collections/pokemon`) shows card name, art, set, and number from that inventory.
 - IQVault Portfolio shows a **TCG / Binder** section and deep-links into Binder (`?binderId=`).
 
 ## Firewall tip (Windows)

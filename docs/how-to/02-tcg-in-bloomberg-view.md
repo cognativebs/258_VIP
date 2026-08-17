@@ -1,13 +1,13 @@
 # How-To: See TCG collections in the same Bloomberg view as comics
 
-**Short answer today:** TCG has a first-class **TCG** nav tab (`/collections/tcg`) with live Binder holdings plus Binder / CLZ buttons. Drop-to-inbox is still Comics-only. A single comics+TCG Bloomberg grid remains backlog F.
+**Short answer today:** Pokémon has a first-class nav tab at **http://127.0.0.1:3000/collections/pokemon** (Binder holdings + Binder / CLZ buttons). `/collections/tcg` redirects there. Drop-to-inbox is still Comics-only.
 
 ## What each surface shows
 
 | Face | URL | Inventory |
 |------|-----|-----------|
 | **Comics terminal** | http://127.0.0.1:3000/collections/comics | Live Postgres comics via Comics API `:5200` |
-| **TCG / Binder** | http://127.0.0.1:3000/collections/tcg | Pokémon TCG terminal: **ART** + **NAME** columns, set, number, rarity, value, inspector cover |
+| **Pokémon TCG** | http://127.0.0.1:3000/collections/pokemon | **ART** + **NAME** columns, set, number, rarity, value, inspector cover (`/collections/tcg` redirects here) |
 | **Sports terminal (stub)** | http://127.0.0.1:3000/collections/sports | Catalog schema only (`vault_sports`); no holdings ingest |
 | **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics + live Binder TCG holdings from Postgres via VIP API |
 | **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | TCG binders / pockets / owned-wishlist (`vault_tcg` in Postgres) |
@@ -24,7 +24,7 @@ The collector face on `:3000` is already Bloomberg-styled. A **single** comics+T
 
 ### B. TCG collection (existing, separate app + new tab)
 
-1. IQVault web → **TCG** (`/collections/tcg`) — Binder holdings, Binder / CLZ buttons; drop zone disabled.
+1. IQVault web → **Pokémon** (`/collections/pokemon`) — Binder holdings, Binder / CLZ buttons; drop zone disabled.
 2. Open http://127.0.0.1:3010 (or **Binder ↗** / the TCG tab’s Binder button).
 3. Build pages, place cards (pokemontcg / TCGdex).
 4. Click **Sync Owned (VIP)** to mark pockets owned when they match VIP inventory `externalIds` (seed ids like `base1-4`).
@@ -48,7 +48,7 @@ Until that ships, the honest workflow is:
 
 ```
 Comics terminal  →  :3000/collections/comics
-TCG / Binder     →  :3000/collections/tcg  and  :3010
+Pokémon terminal →  :3000/collections/pokemon  and  :3010
 Sports stub      →  :3000/collections/sports
 Shared AI advice →  Orchestr8 Console Analysis (:3001)
 VIP list/API     →  :3000 / :8787
