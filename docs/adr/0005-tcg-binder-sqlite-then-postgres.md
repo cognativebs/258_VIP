@@ -1,9 +1,12 @@
 # ADR 0005 — TCG shared store: Binder SQLite now, Postgres later
 
-**Status:** Accepted  
+**Status:** Superseded by [ADR 0007](0007-binder-vault-postgres.md)  
 **Date:** 2026-08-03  
+**Superseded:** 2026-08-09  
 **Owner:** Gregory Williamson / 258 Services  
-**Phase:** Binder ↔ IQVault integration
+**Phase:** Binder ↔ IQVault integration (historical)
+
+> Binder layout and VIP TCG inventory now live in Postgres `vault_tcg` / `vault_collection`. SQLite is import-only (`scripts/migrate_binder_sqlite_to_postgres.py`). Do not follow the “SQLite now” runtime path below.
 
 ## Context
 

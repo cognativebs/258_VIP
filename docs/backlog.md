@@ -225,8 +225,8 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 - [x] Portfolio TCG section + Binder deep-links (`?binderId=`)
 - [x] Sync Owned filters owned VIP rows only (not Binder needs)
 - [x] LAN / phone Binder UI (responsive drawer search, touch move, PWA lite)
-- [x] ADR 0005 — Binder SQLite now, Postgres later
-- [ ] Postgres migration of durable VIP holdings (ADR 0005 target)
+- [x] ADR 0005 — Binder SQLite now, Postgres later (**superseded by ADR 0007**)
+- [x] Postgres Binder + durable VIP holdings (`vault_tcg`, `source=binder_vault`) — ADR 0007
 
 ### Signals + Binder wire *(2026-08-02)*
 - [x] Job feed → VIP signals API → IQVault Signals

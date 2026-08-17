@@ -3,7 +3,7 @@
 **Status:** Accepted historically; **milestone freeze superseded 2026-08-02** (see ADR 0004)  
 **Date:** 2026-07-23  
 **Owner:** Gregory Williamson / 258 Services  
-**Phase:** Re-sequencing (supersedes phase order in `vip-cursor-build-kit.md`)
+**Phase:** Re-sequencing (supersedes the former root `vip-cursor-build-kit.md`, removed)
 
 > **Update 2026-07-23 — see ADR 0003.** The Orchestr8-first *sequencing* below
 > still holds as guidance, but the **autonomy model (A/B/C)** and the **O1–O4 build-harness**

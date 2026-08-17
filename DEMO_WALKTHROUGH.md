@@ -1,16 +1,20 @@
 # IQVault / VaultOS Demo — Start-to-Finish Walkthrough
 
-This guide takes you from a fresh machine through running the demo, importing photos and short video clips from your iPhone, and testing every major feature.
+> **Live collector face is not this demo.** Double-click **Launch IQVault.bat** and use
+> http://127.0.0.1:3000 (Comics / TCG / Sports). Vite IQVault on `:5175` is archived.
+
+This guide is the **VaultOS store demo** (`demo/` on `:5174`) plus the old bridge. Do not
+follow it to run the production IQVault collector.
 
 ---
 
-## What you're running
+## What you're running (archived demo stack)
 
 | App | Folder | URL | Login |
 |-----|--------|-----|-------|
 | **VaultOS** (store ops demo) | `demo/` | http://127.0.0.1:5174 | `store@vaultos.demo` / `demo` |
-| **IQVault** (personal hunts) | `iqvault/` | http://127.0.0.1:5175 | `greg@iqvault.local` / `vault` |
-| **Bridge** (links the two) | `bridge/` | http://127.0.0.1:5199 | — |
+| **IQVault** (archived Vite proof) | `iqvault/` | do not run — use `:3000` | — |
+| **Bridge** (links the two demos) | `bridge/` | http://127.0.0.1:5199 | — |
 
 For iPhone photo/clip upload, you only need **VaultOS** in mobile mode. IQVault and the bridge are optional.
 
@@ -166,13 +170,12 @@ When complete, review:
 | Email | `store@vaultos.demo` |
 | Password | `demo` |
 
-### IQVault (optional)
+### IQVault (live collector — not this demo)
 
 | Field | Value |
 |-------|-------|
-| URL | http://127.0.0.1:5175 |
-| Email | `greg@iqvault.local` |
-| Password | `vault` |
+| URL | http://127.0.0.1:3000 (`Launch IQVault.bat` / `npm run web`) |
+| Login | none on the Next collector face |
 
 ---
 
@@ -237,7 +240,7 @@ Run through each tab after login on PC:
 Requires the bridge running (`start_ecosystem.bat` or `node bridge/server.js`).
 
 1. Log into **VaultOS** → find **Link account** panel → **Generate code**.
-2. Log into **IQVault** on http://127.0.0.1:5175 → enter the 6-character code.
+2. Open **IQVault** on http://127.0.0.1:3000 (Launch IQVault). The archived Vite login on `:5175` is not the live face.
 3. VaultOS Overview may show hunt progress synced from IQVault.
 
 ---
@@ -254,9 +257,9 @@ netstat -ano | findstr :5174
 
 Kill the stale process, then restart.
 
-### Port 5175 shows VaultOS instead of IQVault
+### IQVault on :3000 looks like an old UI (empty TCG, no card names)
 
-A duplicate `demo` server grabbed 5175. Close all Node/Vite windows and restart with `start_iqvault.bat` only.
+Leftover `next dev` is still bound to 3000. **Stop IQVault.bat**, then **Launch IQVault.bat** (it restarts web). Confirm `/collections/tcg` says **POKÉMON TCG TERMINAL** with a CARD column.
 
 ### QR code panel missing on PC
 
@@ -296,7 +299,8 @@ Install Node.js 18+ and reopen the terminal.
 |--------|---------|
 | `start_vaultos.bat` | VaultOS on PC only (port 5174) |
 | `start_demo_mobile.bat` | VaultOS on LAN + QR for iPhone |
-| `start_iqvault.bat` | IQVault personal app (port 5175) |
+| `Launch IQVault.bat` | Live stack: Postgres, VIP API, Comics API, web `:3000`, Binder `:3010` |
+| `start_iqvault.bat` | Same as Launch IQVault (not Vite `:5175`) |
 | `start_ecosystem.bat` | Bridge + VaultOS + IQVault together |
 
 ---

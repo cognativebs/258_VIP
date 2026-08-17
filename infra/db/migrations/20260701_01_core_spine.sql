@@ -1,5 +1,6 @@
 -- ============================================================================
 -- VaultOS / IQVault Catalog — 01: CORE SPINE
+-- Applied via infra/db/migrations only (formerly repo-root 01_core_spine.sql).
 -- The universal identity layer. Every category attaches to this.
 -- Target: PostgreSQL 15+
 -- ============================================================================

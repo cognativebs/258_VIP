@@ -52,7 +52,7 @@ function loadJson(name: string): Record<string, unknown>[] {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>[];
 }
 
-/** Pokémon bridge seeds — used only when Binder SQLite is empty, never for comics. */
+/** Pokémon bridge seeds — used only when Binder Postgres has no TCG rows, never for comics. */
 const pokemonSeedHoldings: ApiHolding[] = loadJson("pokemon-holdings-sample.json").map(
   mapInventoryRow,
 );

@@ -159,7 +159,8 @@ function IQVaultApp({ session }) {
 
       <footer className="footer">
         Personal program · consumes VaultOS data · Schema:{" "}
-        <code>05_collection_hunts.sql</code> · <code>06_platform_auth.sql</code>
+        <code>infra/db/migrations/20260705_05_collection_hunts.sql</code> ·{" "}
+        <code>20260706_06_platform_auth.sql</code>
       </footer>
     </div>
   );
