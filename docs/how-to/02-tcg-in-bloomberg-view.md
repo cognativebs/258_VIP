@@ -7,7 +7,7 @@
 | Face | URL | Inventory |
 |------|-----|-----------|
 | **Comics terminal** | http://127.0.0.1:3000/collections/comics | Live Postgres comics via Comics API `:5200` |
-| **TCG / Binder** | http://127.0.0.1:3000/collections/tcg | Live Binder owned/need from VIP Postgres; drop zone disabled until TCG ingest exists |
+| **TCG / Binder** | http://127.0.0.1:3000/collections/tcg | Pokémon TCG terminal: **card name**, set, number, rarity, value from VIP inventory |
 | **Sports terminal (stub)** | http://127.0.0.1:3000/collections/sports | Catalog schema only (`vault_sports`); no holdings ingest |
 | **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics sample + **live Binder TCG holdings** from Binder SQLite via VIP API |
 | **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | Your TCG binders / pockets / owned-wishlist (shared SQLite truth for TCG) |

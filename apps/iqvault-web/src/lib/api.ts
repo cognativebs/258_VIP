@@ -97,6 +97,8 @@ export type Holding = {
   assumedGrade: string | null;
   gradeRating: number | null;
   coverImageUrl?: string | null;
+  cardName?: string | null;
+  rarity?: string | null;
   externalIds?: { source: string; externalValue: string }[];
   provenance: Provenance;
 };
