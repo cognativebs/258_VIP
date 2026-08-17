@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../db/client.js";
+import { binderPublicUrl, printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
 /**
  * Binder → VIP write path (ADR 0007 follow-on).
@@ -455,6 +456,7 @@ export async function loadDurableBinderHoldings(): Promise<
         h.sell_priority,
         h.clz_metadata,
         a.canonical_name,
+        a.primary_image_url,
         COALESCE(
           (
             SELECT json_agg(json_build_object('source', e.source, 'externalValue', e.external_value))
@@ -470,21 +472,46 @@ export async function loadDurableBinderHoldings(): Promise<
     `);
 
     return (result.rows as Record<string, unknown>[]).map((row) => {
-      const meta = (row.clz_metadata ?? {}) as Record<string, unknown>;
+      const rawMeta = row.clz_metadata;
+      let meta: Record<string, unknown> = {};
+      if (typeof rawMeta === "string") {
+        try {
+          meta = JSON.parse(rawMeta) as Record<string, unknown>;
+        } catch {
+          meta = {};
+        }
+      } else if (rawMeta && typeof rawMeta === "object") {
+        meta = rawMeta as Record<string, unknown>;
+      }
+      const externalIds =
+        (row.external_ids as { source: string; externalValue: string }[]) ?? [];
+      const assetName = String(row.canonical_name);
+      const series = String(meta.setName ?? meta.set_name ?? "");
+      const issue = String(meta.number ?? "");
       return {
         id: String(row.id),
         sourceRowId: String(row.source_row_id),
-        assetName: String(row.canonical_name),
-        series: String(meta.setName ?? meta.set_name ?? ""),
-        issue: String(meta.number ?? ""),
-        cardName: String(meta.cardName ?? meta.card_name ?? "").trim() || null,
+        assetName,
+        series,
+        issue,
+        cardName: printedTcgName({
+          cardName: String(meta.cardName ?? meta.card_name ?? "").trim() || null,
+          assetName,
+          series,
+          issue,
+        }),
         rarity: String(meta.rarity ?? "").trim() || null,
-        coverImageUrl: String(meta.imageUrl ?? meta.image_url ?? "").trim() || null,
+        coverImageUrl: resolveTcgCover({
+          coverImageUrl: String(meta.imageUrl ?? meta.image_url ?? "").trim() || null,
+          primaryImageUrl: String(row.primary_image_url ?? "").trim() || null,
+          binderPublicUrl: binderPublicUrl(),
+          externalIds,
+        }),
         quantity: Number(row.quantity) || 1,
         pillar: row.collection_pillar != null ? String(row.collection_pillar) : null,
         currentPrice:
           row.current_price_snapshot != null ? Number(row.current_price_snapshot) : null,
-        externalIds: (row.external_ids as { source: string; externalValue: string }[]) ?? [],
+        externalIds,
         needsVerification: Boolean(row.needs_verification),
         verificationNotes:
           row.verification_notes != null ? String(row.verification_notes) : null,

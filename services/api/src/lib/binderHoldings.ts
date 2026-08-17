@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { comicsDsn, getDb, normalizeDsn, redactDsn } from "../db/client.js";
 import { markInferred, markObserved } from "@vip/evidence";
 import type { ApiHolding } from "./holdings.js";
+import { binderPublicUrl, printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
 /**
  * Binder TCG layout → VIP holdings (ADR 0007).
@@ -46,6 +47,7 @@ type SlotJoinRow = {
   number: string | null;
   rarity: string | null;
   image_url: string | null;
+  image_local: string | null;
   price_market: number | null;
   owned: boolean;
   verification_status: string | null;
@@ -114,8 +116,23 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
         : null,
     assumedGrade: null,
     gradeRating: null,
-    coverImageUrl: row.image_url?.trim() || null,
-    cardName: name === "Unnamed card" ? null : name,
+    coverImageUrl: resolveTcgCover({
+      coverImageUrl: row.image_url?.trim() || null,
+      imageLocal: row.image_local?.trim() || null,
+      binderPublicUrl: binderPublicUrl(),
+      externalIds:
+        row.external_id && row.source
+          ? [{ source: row.source, externalValue: row.external_id }]
+          : row.external_id
+            ? [{ source: "pokemontcg", externalValue: row.external_id }]
+            : [],
+    }),
+    cardName: printedTcgName({
+      cardName: name === "Unnamed card" ? null : name,
+      assetName: [setName, number && `#${number}`, name].filter(Boolean).join(" "),
+      series: setName,
+      issue: number,
+    }),
     rarity: row.rarity?.trim() || null,
     externalIds:
       row.external_id && row.source
@@ -147,6 +164,7 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
         s.number AS number,
         s.rarity AS rarity,
         s.image_url AS image_url,
+        s.image_local AS image_local,
         s.price_market AS price_market,
         s.owned AS owned,
         s.verification_status AS verification_status,

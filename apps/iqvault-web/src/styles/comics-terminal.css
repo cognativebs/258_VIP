@@ -388,6 +388,10 @@
   grid-template-columns: 1fr 300px;
 }
 
+.bb-layout-tcg {
+  grid-template-columns: 1fr 320px;
+}
+
 .bb-panel-head {
   padding: 8px 12px;
   background: var(--bb-orange);
@@ -2095,6 +2099,10 @@
   .bb-layout-no-filters {
     grid-template-columns: 1fr;
   }
+
+  .bb-layout-tcg {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -2346,18 +2354,55 @@
   gap: 10px;
 }
 
+.bb-table td.bb-tcg-art-cell {
+  overflow: visible;
+  max-width: none;
+  white-space: normal;
+  width: 64px;
+  vertical-align: middle;
+}
+
+.bb-table td.bb-tcg-name-cell {
+  overflow: hidden;
+  max-width: 280px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.bb-tcg-art,
 .bb-tcg-thumb {
-  width: 36px;
-  height: 50px;
+  width: 52px;
+  height: 72px;
   object-fit: cover;
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
   background: #111;
   border: 1px solid var(--bb-border, #2a2a2a);
+  display: block;
 }
 
 .bb-tcg-thumb-empty {
   display: inline-block;
+  width: 52px;
+  height: 72px;
+  background: repeating-linear-gradient(
+    45deg,
+    #151515 0 6px,
+    #1c1c1c 6px 12px
+  );
+}
+
+.bb-tcg-cover-wrap {
+  margin-bottom: 12px;
+}
+
+.bb-tcg-cover {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  aspect-ratio: 63 / 88;
+  object-fit: contain;
+  background: #111;
 }
 
 .bb-tcg-status {

@@ -1,4 +1,5 @@
 import { markInferred, markObserved } from "@vip/evidence";
+import { printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
 export type ExternalIdRef = {
   source: string;
@@ -106,12 +107,16 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     currentPrice: num(row["Current Price"]),
     assumedGrade: isNmAssumed ? "NM" : assumed || null,
     gradeRating: isNmAssumed || gradeRating === 0 ? null : gradeRating,
-    coverImageUrl: (() => {
-      const url = String(row["Cover Image URL"] ?? "").trim();
-      return url || null;
-    })(),
-    cardName:
-      String(row["Title"] ?? row["Edition / Variant"] ?? "").trim() || null,
+    coverImageUrl: resolveTcgCover({
+      coverImageUrl: String(row["Cover Image URL"] ?? "").trim() || null,
+      externalIds,
+    }),
+    cardName: printedTcgName({
+      cardName: String(row["Title"] ?? row["Edition / Variant"] ?? "").trim() || null,
+      assetName: [series, issue && `#${issue}`, row["Edition / Variant"]].filter(Boolean).join(" "),
+      series,
+      issue,
+    }),
     rarity: String(row["Rarity"] ?? "").trim() || null,
     externalIds,
     provenance: isNmAssumed

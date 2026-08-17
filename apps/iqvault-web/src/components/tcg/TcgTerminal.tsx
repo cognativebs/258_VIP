@@ -6,7 +6,7 @@ import { CollectionSourceBar } from "@/components/CollectionSourceBar";
 import { apiGet, BINDER_URL, type Holding, type InventoryResponse } from "@/lib/api";
 import { splitTcgHoldings } from "@/lib/collections";
 import { CLZ_CLOUD_URL } from "@/lib/sourceDrop";
-import { tcgCardDisplay, tcgCardName } from "@/lib/tcgCard";
+import { tcgCardDisplay } from "@/lib/tcgCard";
 
 function usd(n: number): string {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -46,6 +46,27 @@ export function TcgSourceBar({ children }: { children?: ReactNode }) {
   );
 }
 
+function CardArt({
+  url,
+  name,
+  className,
+}: {
+  url: string | null;
+  name: string;
+  className: string;
+}) {
+  if (!url) return <span className={`${className} bb-tcg-thumb-empty`} aria-hidden />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      src={url}
+      alt={name}
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
 export function TcgTerminal() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [tcgSource, setTcgSource] = useState<string | null>(null);
@@ -53,6 +74,7 @@ export function TcgTerminal() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<"all" | "owned" | "need">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +117,8 @@ export function TcgTerminal() {
     });
   }, [catalog, query]);
 
+  const selected = filtered.find((h) => h.id === selectedId) ?? filtered[0] ?? null;
+  const selectedDisplay = selected ? tcgCardDisplay(selected) : null;
   const ownedValue = split.ownedValue;
   const sourceLine = tcgSource ? `VIP inventory · ${tcgSource}` : "VIP inventory";
 
@@ -176,13 +200,14 @@ export function TcgTerminal() {
         </p>
       ) : null}
 
-      <div className="bb-layout bb-layout-no-filters">
+      <div className="bb-layout bb-layout-tcg">
       <section className="bb-table-panel">
         <div className="bb-table-scroll">
           <table className="bb-table">
             <thead>
               <tr>
-                <th style={{ minWidth: 220 }}>CARD</th>
+                <th style={{ minWidth: 64 }}>ART</th>
+                <th style={{ minWidth: 180 }}>NAME</th>
                 <th style={{ minWidth: 140 }}>SET</th>
                 <th style={{ minWidth: 48 }}>#</th>
                 <th style={{ minWidth: 90 }}>RARITY</th>
@@ -195,7 +220,7 @@ export function TcgTerminal() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="bb-empty-row">
+                  <td colSpan={7} className="bb-empty-row">
                     No cards match. Place cards in Binder, then Push to VIP.
                   </td>
                 </tr>
@@ -204,26 +229,16 @@ export function TcgTerminal() {
                   const d = tcgCardDisplay(h);
                   const st = statusLabel(h);
                   return (
-                    <tr key={h.id}>
-                      <td>
-                        <div className="bb-tcg-name">
-                          {h.coverImageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              className="bb-tcg-thumb"
-                              src={h.coverImageUrl}
-                              alt=""
-                            />
-                          ) : (
-                            <span className="bb-tcg-thumb bb-tcg-thumb-empty" />
-                          )}
-                          <div>
-                            <strong>{d.cardName}</strong>
-                            <div className="bb-dim" style={{ fontSize: 11 }}>
-                              {tcgCardName(h) !== h.assetName ? h.publisher : null}
-                            </div>
-                          </div>
-                        </div>
+                    <tr
+                      key={h.id}
+                      className={selected?.id === h.id ? "selected" : ""}
+                      onClick={() => setSelectedId(h.id)}
+                    >
+                      <td className="bb-tcg-art-cell">
+                        <CardArt url={d.artUrl} name={d.cardName} className="bb-tcg-art" />
+                      </td>
+                      <td className="bb-tcg-name-cell">
+                        <strong>{d.cardName}</strong>
                       </td>
                       <td>{d.setName}</td>
                       <td>{d.number || "—"}</td>
@@ -252,6 +267,40 @@ export function TcgTerminal() {
           </table>
         </div>
       </section>
+      <aside className="bb-right-panel">
+        <div className="bb-panel-head">CARD</div>
+        {selected && selectedDisplay ? (
+          <div className="bb-detail-body">
+            <div className="bb-cover-wrap bb-tcg-cover-wrap">
+              <CardArt
+                url={selectedDisplay.artUrl}
+                name={selectedDisplay.cardName}
+                className="bb-cover bb-tcg-cover"
+              />
+            </div>
+            <h3 className="bb-detail-title">{selectedDisplay.cardName}</h3>
+            <p className="bb-dim">
+              {selectedDisplay.setName}
+              {selectedDisplay.number ? ` · #${selectedDisplay.number}` : ""}
+              {selected.rarity ? ` · ${selected.rarity}` : ""}
+            </p>
+            <div className="bb-detail-grid">
+              <span className="bb-dim">Value</span>
+              <strong>
+                {selected.currentPrice != null ? usd(selected.currentPrice) : "—"}
+              </strong>
+              <span className="bb-dim">Status</span>
+              <strong>{statusLabel(selected)}</strong>
+              <span className="bb-dim">Notes</span>
+              <span>{selected.verificationNotes || "—"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="bb-detail-body">
+            <p className="bb-dim">Select a row to inspect name and art.</p>
+          </div>
+        )}
+      </aside>
       </div>
       </TcgSourceBar>
     </div>

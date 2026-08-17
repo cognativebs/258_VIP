@@ -276,6 +276,7 @@ describe("VIP API", () => {
         tcgSource?: string;
         holdings: {
           cardName?: string | null;
+          coverImageUrl?: string | null;
           series?: string;
           issue?: string;
           externalIds?: { source: string; externalValue: string }[];
@@ -288,6 +289,7 @@ describe("VIP API", () => {
       if (body.tcgSource === "pokemon_seeds" || body.tcgSource === "binder+seeds") {
         const zard = body.holdings.find((h) => h.externalIds?.[0]?.externalValue === "base1-4");
         expect(zard?.cardName).toMatch(/Charizard/i);
+        expect(zard?.coverImageUrl).toMatch(/images\.pokemontcg\.io\/base1\/4/);
         expect(zard?.series).toBe("Base Set");
         expect(withExt.some((h) => h.externalIds?.[0]?.externalValue === "base1-4")).toBe(true);
       }

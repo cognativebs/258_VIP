@@ -35,6 +35,8 @@ describe("Binder → VIP write path", () => {
     expect(holding).toBeTruthy();
     expect(holding?.pillar).toBe("TCG Owned (Binder)");
     expect(holding?.externalIds.some((e) => e.externalValue === "base1-4")).toBe(true);
+    expect(holding?.cardName).toMatch(/Charizard/i);
+    expect(holding?.coverImageUrl).toBeTruthy();
 
     const watch = await loadDurableWatchlist();
     const item = watch.find((w) => w.holdingId === "binder-slot-slot-test-charizard");

@@ -17,6 +17,7 @@ describe("mapInventoryRow Pokémon card name", () => {
       0,
     );
     expect(row.cardName).toBe("Charizard Holo");
+    expect(row.coverImageUrl).toBe("https://images.pokemontcg.io/base1/4.png");
     expect(row.series).toBe("Base Set");
     expect(row.issue).toBe("4");
     expect(row.assetName).toContain("Charizard Holo");

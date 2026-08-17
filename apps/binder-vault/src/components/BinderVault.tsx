@@ -2166,7 +2166,12 @@ function Pocket({
               </span>
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={slot.card?.name ?? "card"} draggable={false} />
+            <img
+              src={src}
+              alt={slot.card?.name ?? "card"}
+              draggable={false}
+              referrerPolicy="no-referrer"
+            />
             {slot.card?.priceMarket != null && (
               <span className="pocket-price">${slot.card.priceMarket.toFixed(2)}</span>
             )}
@@ -2227,6 +2232,11 @@ function Pocket({
           </div>
         )}
       </div>
+      {filled ? (
+        <div className="pocket-card-name" title={slot.card?.name ?? undefined}>
+          {slot.card?.name?.trim() || "Unnamed card"}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2252,7 +2262,13 @@ function ResultCard({
       <div className="result-art">
         {img ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="result-img" src={img} alt={card.name} draggable={false} />
+          <img
+            className="result-img"
+            src={img}
+            alt={card.name}
+            draggable={false}
+            referrerPolicy="no-referrer"
+          />
         ) : (
           <div className="result-img placeholder" />
         )}
