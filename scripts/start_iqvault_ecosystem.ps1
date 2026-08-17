@@ -1,10 +1,9 @@
 ﻿# IQVault VIP stack - one-shot launcher (desktop shortcut / Launch IQVault.bat)
-# Starts only what is missing: Docker -> Postgres -> DB migrations -> VIP API ->
-# Comics API -> Orchestr8 -> web UI, then opens the browser.
+# Docker -> Postgres -> DB migrations -> VIP API -> Comics API -> Orchestr8 ->
+# web UI -> Binder, then opens the browser.
 #
-# A listening port is NOT treated as healthy. Stale or half-dead processes
-# (old VIP sample API, broken Orchestr8 that accepts then closes) are killed
-# and restarted.
+# A listening port is NOT treated as healthy. Stale listeners (old VIP API,
+# leftover next-dev on 3000/3010, leftover Comics API) are killed and restarted.
 param(
     [switch]$NoBrowser,
     [switch]$WithBinder,
@@ -317,22 +316,44 @@ function Ensure-Migrated {
     }
 }
 
+function Get-PidsOnPort([int]$Port) {
+    $ids = @()
+    try {
+        $ids = @(
+            Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -ExpandProperty OwningProcess -Unique
+        )
+    } catch {}
+    if (-not $ids -or @($ids).Count -eq 0) {
+        # Double-click Launch often has no NetTCPIP module; netstat still works.
+        try {
+            foreach ($line in (netstat -ano)) {
+                if ($line -notmatch "LISTENING") { continue }
+                if ($line -notmatch ":$Port\s") { continue }
+                $parts = ($line.Trim() -split "\s+")
+                $procId = $parts[-1]
+                if ($procId -match "^\d+$") { $ids += [int]$procId }
+            }
+            $ids = @($ids | Select-Object -Unique)
+        } catch {}
+    }
+    return @($ids)
+}
+
 function Stop-ProcessesOnPort([int]$Port) {
-    $procIds = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty OwningProcess -Unique
+    $procIds = Get-PidsOnPort $Port
     foreach ($procId in $procIds) {
         try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
     }
-    if ($procIds) {
+    if ($procIds -and @($procIds).Count -gt 0) {
         # Give the OS a moment to actually free the socket before rebinding.
         Start-Sleep -Seconds 2
         # Second pass - Windows sometimes leaves a dying listener briefly.
-        $still = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty OwningProcess -Unique
+        $still = Get-PidsOnPort $Port
         foreach ($procId in $still) {
             try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
         }
-        if ($still) { Start-Sleep -Seconds 1 }
+        if ($still -and @($still).Count -gt 0) { Start-Sleep -Seconds 1 }
     }
 }
 
@@ -377,18 +398,13 @@ function Test-ComicsApiHealthy {
 
 function Ensure-ComicsApi {
     if (Test-PortListening $Ports.ComicsApi) {
-        if (Test-ComicsApiHealthy) {
-            Write-Step "Comics API already healthy on port $($Ports.ComicsApi)."
-            return
-        }
-        Write-Warn "Port $($Ports.ComicsApi) is listening but unhealthy - restarting Comics API."
+        Write-Warn "Restarting Comics API on port $($Ports.ComicsApi) so it is the current 258_VIP process."
         Stop-ProcessesOnPort $Ports.ComicsApi
     }
     Write-Step "Starting Comics API..."
     Start-MinimizedProcess "IQVault Comics API" $Root "python api\comics_server.py"
     if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.ComicsApi)/api/comics/health" { param($j) $j.ok -eq $true } 90)) {
-        Write-Warn "Comics API not healthy yet - the Comics tab will fall back to VIP (read-only)."
-        return
+        throw "Comics API failed to start on port $($Ports.ComicsApi). Check the 'IQVault Comics API' window, or run: npm run comics"
     }
     Write-Step "Comics API ready."
 }
@@ -451,9 +467,11 @@ function Ensure-Orchestr8 {
 }
 
 function Ensure-Web {
+    # Leftover next-dev on 3000 is why Comics Terminal kept showing
+    # "Read-only on VIP fallback" after the VIP path became editable.
     if (Test-PortListening $Ports.Web) {
-        Write-Step "IQVault web already on port $($Ports.Web)."
-        return
+        Write-Warn "Restarting IQVault web on port $($Ports.Web) so it picks up the current checkout."
+        Stop-ProcessesOnPort $Ports.Web
     }
     Write-Step "Starting IQVault web..."
     Start-Process -FilePath "cmd.exe" -ArgumentList "/k title IQVault Web && cd /d `"$Root`" && npm run web" -WorkingDirectory $Root -WindowStyle Normal | Out-Null

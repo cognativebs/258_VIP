@@ -29,6 +29,7 @@ import {
   uploadComicsInboxFile,
   waitForComicsInboxDrain,
 } from "@/lib/comicsClient";
+import { comicsTerminalSourceLabel } from "@/lib/comicsSourceLabel";
 import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
 import {
   CLZ_CLOUD_URL,
@@ -189,6 +190,10 @@ export function ComicsTerminal() {
   const dropHint = inbox?.inbox
     ? `Drop CLZ XML here → ${inbox.inbox}`
     : "Drop CLZ XML here → E:\\ComicArchive\\inbox (or repo clz-inbox)";
+  const comicsApiUp = source === "comics-api";
+  const dropDisabledReason = comicsApiUp
+    ? undefined
+    : "Start Comics API (:5200) for CLZ inbox — Launch IQVault or npm run comics. Holding edits still save through VIP.";
 
   useEffect(() => {
     setPage(1);
@@ -253,7 +258,8 @@ export function ComicsTerminal() {
           links={clzLinks}
           drop={{
             acceptHint: dropHint,
-            enabled: true,
+            enabled: comicsApiUp,
+            disabledReason: dropDisabledReason,
             busy: dropBusy,
             message: dropMsg,
             error: dropErr,
@@ -261,9 +267,9 @@ export function ComicsTerminal() {
           }}
         />
         <p>{error}</p>
-        <p className="bb-detail-hint-lg">Start VIP API and optionally Comics API:</p>
+        <p className="bb-detail-hint-lg">Start the VIP stack (Launch IQVault starts Comics API :5200):</p>
         <code>npm run api</code>
-        <code>python api/comics_server.py</code>
+        <code>npm run comics</code>
       </div>
     );
   }
@@ -274,7 +280,8 @@ export function ComicsTerminal() {
         links={clzLinks}
         drop={{
           acceptHint: dropHint,
-          enabled: true,
+          enabled: comicsApiUp,
+          disabledReason: dropDisabledReason,
           busy: dropBusy,
           message: dropMsg,
           error: dropErr,
@@ -297,11 +304,7 @@ export function ComicsTerminal() {
           <span className="bb-dim">COMICS TERMINAL</span>
           <span className="bb-dim" style={{ marginLeft: 8 }}>
             ·{" "}
-            {source === "comics-api"
-              ? "Postgres live (editable)"
-              : editable
-                ? "VIP → Postgres (editable)"
-                : "VIP → Postgres (read-only)"}
+            {comicsTerminalSourceLabel(source)}
             {meta?.snapshotLabel ? ` · ${meta.snapshotLabel}` : ""}
           </span>
         </div>

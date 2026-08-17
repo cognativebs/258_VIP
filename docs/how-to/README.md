@@ -20,8 +20,8 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 ## One-shot launcher (preferred)
 
 Double-click **`Launch IQVault.bat`** (or the Desktop **IQVault** shortcut from
-`scripts/create_iqvault_shortcut.ps1`). It starts only what is missing and
-health-checks each service before opening Comics:
+`scripts/create_iqvault_shortcut.ps1`). It health-checks each service, restarts
+stale listeners (VIP, Comics API, web, Binder), then opens Comics:
 
 | Order | Service | Port |
 |------|---------|------|
@@ -32,8 +32,17 @@ health-checks each service before opening Comics:
 | 5 | Orchestr8 gateway (`python orchestr8/api/server.py`) | 5210 |
 | 6 | IQVault web (`npm run web`) | 3000 → `/collections/comics` |
 
-Stop app windows with **`Stop IQVault.bat`** (Postgres stays up). Optional Binder:
-`powershell -File scripts\start_iqvault_ecosystem.ps1 -WithBinder`.
+Stop app windows with **`Stop IQVault.bat`** (Postgres stays up). Binder Vault
+(`:3010`) starts with the stack; pass `-NoBinder` to skip it.
+
+`npm run api` is **only** the VIP API (`:8787`). Comics API is a separate
+Python process (`:5200`). Launch IQVault starts both. Piecemeal:
+
+```text
+npm run api
+npm run comics
+npm run web
+```
 
 Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 
@@ -47,9 +56,9 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | — TCG / Binder | http://127.0.0.1:3000/collections/tcg | live Binder holdings |
 | — Sports (stub) | http://127.0.0.1:3000/collections/sports | catalog only until ingest |
 | — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
-| Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` or launcher `-WithBinder` |
+| Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` (Launch starts this; `-NoBinder` skips) |
 | VIP API | http://127.0.0.1:8787 | `npm run api` |
-| Comics API | http://127.0.0.1:5200 | `python api/comics_server.py` (needs Postgres) |
+| Comics API | http://127.0.0.1:5200 | `npm run comics` / `python api/comics_server.py` (needs Postgres) |
 | CLZ sync | drop XML in inbox | `npm run job:clz-sync` — see [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 | Orchestr8 gateway | http://127.0.0.1:5210 | `Launch IQVault.bat` / `start_orchestr8.bat` |
 | Orchestr8 Console | http://127.0.0.1:3001 | `npm run orchestr8:console` |
