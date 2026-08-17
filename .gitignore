@@ -27,3 +27,9 @@ services/api/sources-state-api-test.json
 
 # Per-operator decision constraints (copy from user-constraints.example.json)
 services/api/user-constraints.json
+
+# Leftover Binder SQLite (import-only; live layout is Postgres vault_tcg)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+apps/binder-vault/.data/

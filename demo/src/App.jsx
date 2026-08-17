@@ -803,7 +803,8 @@ function VaultOSApp({ session }) {
 
       <footer className="footer">
         Subscription product · feeds IQVault · Schema:{" "}
-        <code>01_core_spine.sql</code> · <code>04_market_sealed_id.sql</code>
+        <code>infra/db/migrations/20260701_01_core_spine.sql</code> ·{" "}
+        <code>20260704_04_market_sealed_id.sql</code>
       </footer>
     </div>
   );

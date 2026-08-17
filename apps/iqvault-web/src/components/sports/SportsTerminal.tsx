@@ -31,7 +31,8 @@ export function SportsTerminal() {
     >
       <p>
         There was no sportscard Bloomberg tab. Sports exists as a SQL catalog (
-        <code>vault_sports</code> in <code>03_sports_comics.sql</code>) — product / subset /
+        <code>vault_sports</code> in{" "}
+        <code>infra/db/migrations/20260703_03_sports_comics.sql</code>) — product / subset /
         parallel / card — with no collector ingest, no CLZ sports XML job, and no grid.
       </p>
       <p>

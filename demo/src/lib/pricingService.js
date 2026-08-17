@@ -1,5 +1,5 @@
 /**
- * VaultOS Pricing Service — THE SWAP POINT (from vaultos-acquisition-v2.jsx)
+ * VaultOS Pricing Service — THE SWAP POINT (demo catalog offer math).
  *
  * getPricing() takes an identified card and returns market data + comps.
  * DEMO: mock comps grounded in IQVault catalog market windows.

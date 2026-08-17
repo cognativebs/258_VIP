@@ -7,8 +7,9 @@
 
 ## Context
 
-The repo already contains working proofs: SQL catalog spine (`01`–`08`), CLZ ingest,
-IQVault React app, VaultOS demo, Comics API, bridge POC, and Orchastr8 agent runtime.
+The repo already contains working proofs: SQL catalog spine
+(`infra/db/migrations/20260701`–`20260708`), CLZ ingest, IQVault React app,
+VaultOS demo, Comics API, bridge POC, and Orchastr8 agent runtime.
 Without hard boundaries, those proofs drift into forked backends and synonym soup.
 This ADR freezes what each product owns so any feature can be routed in under five minutes.
 
@@ -25,7 +26,7 @@ Orchastr8 is the contracted agent layer that *uses* the core — it does not own
 | **Consumes** | External market/source feeds via adapters; Orchastr8 outputs only after contract validation |
 | **Never touches** | Collector-only UX chrome; store POS UI; hardware glasses; brand/legal naming |
 
-**Maps from today:** `01_core_spine.sql`–`08_*.sql`, `clz_comic_parser.py` / `load_comics.py` (logic to migrate into packages), `api/comics_server.py` (narrow path → future `services/api`).
+**Maps from today:** `infra/db/migrations/` (catalog spine + dated files), `clz_comic_parser.py` / `load_comics.py` (logic to migrate into packages), `api/comics_server.py` (narrow path → future `services/api`).
 
 ### IQVault — collector face
 
@@ -35,7 +36,7 @@ Orchastr8 is the contracted agent layer that *uses* the core — it does not own
 | **Consumes** | VIP API + decision-engine recommendations; Orchastr8 for research/council flows behind contracts |
 | **Never touches** | Direct DB writes; store margin/POS logic; forking decision rules for “collector-only” math |
 
-**Maps from today:** `iqvault/` (Vite React proving ground), hunt workbook proofs, Pokémon run docs/JSON.
+**Maps from today:** `apps/iqvault-web` on `:3000` (live collector face). The Vite tree `iqvault/` is an archived proof, not a runnable product.
 
 ### VaultOS — LGS / store face
 
@@ -93,7 +94,7 @@ Pick any ten features; each must land in exactly one of: VIP / IQVault / VaultOS
 
 ## Related
 
-- Frozen Scope F-01–F-12 (`vip-battle-plan.html`)
+- Frozen Scope F-01–F-12 (`docs/mvp.md`)
 - `docs/entities-v0.1.md`
 - `docs/mvp.md`
 - `AGENTS.md`

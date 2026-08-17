@@ -1,6 +1,7 @@
 # VIP How-Tos
 
-Operator guides for the collector / Orchestr8 faces. Written against the stack as of 2026-08-02.
+Operator guides for the collector / Orchestr8 faces. Written against the live
+stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 
 ## Quick links
 
@@ -11,7 +12,7 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 | Orchestr8 councils (build / comics / agents) | [03-orchestr8-councils.md](03-orchestr8-councils.md) |
 | Binder LAN access + IQVault bridge | [04-binder-lan-and-iqvault.md](04-binder-lan-and-iqvault.md) |
 | Orchestr8 `.env` keys (OpenAI / Anthropic / xAI) | [05-orchestr8-env-keys.md](05-orchestr8-env-keys.md) |
-| Card price history (TCGplayer, daily) | [07-card-price-history.md](07-card-price-history.md) |
+| Card price history (TCGplayer, daily) | [08-card-price-history.md](08-card-price-history.md) |
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |
 | CLZ inbox sync (scheduled XML drop) | [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 
@@ -53,7 +54,7 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | IQVault web (VIP collector face) | http://127.0.0.1:3000 | `Launch IQVault.bat` or `npm run web` |
 | — Collections hub | http://127.0.0.1:3000/collections | Comics + TCG + Sports |
 | — Comics terminal | http://127.0.0.1:3000/collections/comics | CLZ buttons + XML drop zone |
-| — TCG / Binder | http://127.0.0.1:3000/collections/tcg | live Binder holdings |
+| — TCG / Binder | http://127.0.0.1:3000/collections/tcg | Pokémon TCG terminal (card name, set, number) |
 | — Sports (stub) | http://127.0.0.1:3000/collections/sports | catalog only until ingest |
 | — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
 | Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` (Launch starts this; `-NoBinder` skips) |
@@ -62,6 +63,3 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | CLZ sync | drop XML in inbox | `npm run job:clz-sync` — see [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |
 | Orchestr8 gateway | http://127.0.0.1:5210 | `Launch IQVault.bat` / `start_orchestr8.bat` |
 | Orchestr8 Console | http://127.0.0.1:3001 | `npm run orchestr8:console` |
-| Legacy IQVault (archived Vite) | http://127.0.0.1:5175 | `npm run dev --prefix iqvault` |
-
-Login for legacy IQVault UI: `greg@iqvault.local` / `vault`.

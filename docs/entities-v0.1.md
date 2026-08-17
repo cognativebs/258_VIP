@@ -17,7 +17,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 | **AccountLink** | Links the same human across tools | `fromUserId`, `toUserId`, status | UUID |
 | **Tenant** *(new name; not yet in SQL)* | Ownership boundary for inventory & decisions | `type` (`personal` \| `store`), display name | UUID |
 
-*Preserve from `06_platform_auth.sql`: `tool`, `tool_user`, `account_link`, `sync_event`. Do not invent parallel “User” vs “ToolUser” without an ADR.*
+*Preserve from `infra/db/migrations/20260706_06_platform_auth.sql`: `tool`, `tool_user`, `account_link`, `sync_event`. Do not invent parallel “User” vs “ToolUser” without an ADR.*
 
 ---
 
@@ -34,7 +34,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 
 **Category extensions** (not synonyms of Asset): comic `Series` → `Issue` → variant/printing as Assets; TCG `Set` / `Card`; sports product / parallel ladder. Detail tables reference `asset_id`.
 
-*Preserve spine from `01_core_spine.sql`, `02_tcg.sql`, `03_sports_comics.sql`, `04_market_sealed_id.sql`.*
+*Preserve spine from `infra/db/migrations/20260701_01_core_spine.sql`–`20260704_04_market_sealed_id.sql`.*
 
 ---
 
@@ -109,7 +109,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 | **HuntSection** | Grouping within a hunt | slug, name, sort | UUID |
 | **HuntItem** | Wanted / owned / missing line | `assetId?`, status (`owned` \| `wanted` \| `missing`), targets (`buyUnder`, grade), metrics | UUID |
 
-*Preserve from `05_collection_hunts.sql`. Absolute Batman + Pokémon master-set are instances, not entity types.*
+*Preserve from `infra/db/migrations/20260705_05_collection_hunts.sql`. Absolute Batman + Pokémon master-set are instances, not entity types.*
 
 ---
 
@@ -127,7 +127,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 
 | Entity | Purpose | Key fields | Identifier |
 |---|---|---|---|
-| **IdObservation** | Human/model ID attempt | asset hypothesis, confidence, raw cues | from `04_market_sealed_id.sql` |
+| **IdObservation** | Human/model ID attempt | asset hypothesis, confidence, raw cues | from `infra/db/migrations/20260704_04_market_sealed_id.sql` |
 | **CaptureSession** *(Phase 6)* | Controlled imaging session | calibration refs, device, model version, purpose, qualityTier (`intake` \| `museum`) | UUID |
 | **CaptureImage** | Immutable original media | sessionId, hash, face (front/back), qualityTier, preprocessing steps | UUID + content hash |
 | **ScanBatch / ScanUnit** *(ADR 0008)* | Ricoh/ADF intake review queue | duplex pair, ID candidates, duplicate alert, confirm → Holding | UUID |

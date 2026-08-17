@@ -9,11 +9,11 @@
 | **Comics terminal** | http://127.0.0.1:3000/collections/comics | Live Postgres comics via Comics API `:5200` |
 | **TCG / Binder** | http://127.0.0.1:3000/collections/tcg | Pokémon TCG terminal: **card name**, set, number, rarity, value from VIP inventory |
 | **Sports terminal (stub)** | http://127.0.0.1:3000/collections/sports | Catalog schema only (`vault_sports`); no holdings ingest |
-| **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics sample + **live Binder TCG holdings** from Binder SQLite via VIP API |
-| **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | Your TCG binders / pockets / owned-wishlist (shared SQLite truth for TCG) |
+| **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics + live Binder TCG holdings from Postgres via VIP API |
+| **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | TCG binders / pockets / owned-wishlist (`vault_tcg` in Postgres) |
 | **Orchestr8 Console Analysis** | http://127.0.0.1:3001 → Analysis | Comics API first, VIP sample fallback — for AI advice, not a card grid |
 
-Bloomberg restyle of `apps/iqvault-web` is still on the backlog under **Later** (`docs/backlog.md`).
+The collector face on `:3000` is already Bloomberg-styled. A **single** comics+TCG grid is still backlog F.
 
 ## What you can do now
 

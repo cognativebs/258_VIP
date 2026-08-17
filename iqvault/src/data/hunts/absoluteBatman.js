@@ -1,4 +1,4 @@
-// Absolute Batman Master Hunt — seeded from IQVault_Collection_Hunt_Absolute_Batman_Master_Workbook.md
+// Absolute Batman Master Hunt — seeded into this module; live hunts are apps/iqvault-web /hunts.
 
 function item(id, name, opts = {}) {
   return {

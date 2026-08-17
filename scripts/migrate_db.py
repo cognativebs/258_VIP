@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Run the IQVault catalog spine (01–08) then the dated trust-layer migrations.
+"""Apply every SQL file in infra/db/migrations, oldest first.
 
-The trust layer used to need a separate manual psql step, which is how imports
-ended up running without an immutable snapshot table to write to.
+Catalog spine (20260701–20260708) and later trust-layer files live in one
+folder. Duplicate-object errors are treated as already-applied so a second
+run on an existing database still applies newer files.
 """
 from __future__ import annotations
 
@@ -11,23 +12,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SPINE = [
-    "01_core_spine.sql",
-    "02_tcg.sql",
-    "03_sports_comics.sql",
-    "04_market_sealed_id.sql",
-    "05_collection_hunts.sql",
-    "06_platform_auth.sql",
-    "07_collection_holdings.sql",
-    "08_holding_clz_metadata.sql",
-]
-DATED_MIGRATIONS_DIR = ROOT / "infra" / "db" / "migrations"
+MIGRATIONS_DIR = ROOT / "infra" / "db" / "migrations"
 
 
 def migration_paths() -> list[Path]:
-    paths = [ROOT / name for name in SPINE]
-    paths += sorted(p for p in DATED_MIGRATIONS_DIR.glob("*.sql") if not p.name.startswith("_"))
-    return paths
+    return sorted(
+        p for p in MIGRATIONS_DIR.glob("*.sql") if not p.name.startswith("_")
+    )
 
 
 def reset_transaction(cur) -> None:
@@ -75,7 +66,12 @@ def main() -> int:
     )
     failures: list[tuple[str, str]] = []
 
-    for path in migration_paths():
+    paths = migration_paths()
+    if not paths:
+        print(f"No migrations in {MIGRATIONS_DIR}", file=sys.stderr)
+        return 1
+
+    for path in paths:
         if not path.exists():
             print(f"Missing: {path}", file=sys.stderr)
             return 1

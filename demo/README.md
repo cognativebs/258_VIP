@@ -34,7 +34,7 @@ If Windows Firewall prompts, allow Node/Vite on private networks. HEIC photos an
 
 ## Acquisition engine
 
-Offer logic lives in `src/lib/offerEngine.js` (merged from `../vaultos-acquisition.jsx`):
+Offer logic lives in `src/lib/offerEngine.js`:
 
 - Tiered buy percentages by price band (Bulk → Grail)
 - Demand + velocity adjustments
@@ -47,10 +47,10 @@ The **Acquire** tab uses mock photo matching against the IQVault catalog — no 
 
 | File | Layer |
 |------|-------|
-| `../01_core_spine.sql` | Universal asset identity |
-| `../02_tcg.sql` | Pokémon + MTG |
-| `../03_sports_comics.sql` | Sports parallel ladder + comic printings |
-| `../04_market_sealed_id.sql` | Market value, sealed, ID observations |
+| `../infra/db/migrations/20260701_01_core_spine.sql` | Universal asset identity |
+| `../infra/db/migrations/20260702_02_tcg.sql` | Pokémon + MTG |
+| `../infra/db/migrations/20260703_03_sports_comics.sql` | Sports parallel ladder + comic printings |
+| `../infra/db/migrations/20260704_04_market_sealed_id.sql` | Market value, sealed, ID observations |
 
 Mock data in `src/data/mockCatalog.js` mirrors these table structures.
 

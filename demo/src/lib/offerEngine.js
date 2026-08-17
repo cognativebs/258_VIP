@@ -1,5 +1,5 @@
 // Tiered buy-side offer engine — store IP, not AI guessing.
-// Ported from vaultos-acquisition.jsx + v2 comps pipeline; used by Catalog + Acquire flows.
+// Used by Catalog + Acquire flows.
 
 import { getPricing, mergePricing } from "./pricingService.js";
 
@@ -210,7 +210,6 @@ export function mockAnalyzePhotos(photoCount, getAsset) {
 
 /**
  * Two-stage intake: Identify → Price (comps) → Offer.
- * Mirrors vaultos-acquisition-v2.jsx pipeline with demo backends.
  */
 export async function runIntakePipeline(photoCount, getAsset, onProgress) {
   const identified = mockIdentifyPhotos(photoCount, getAsset);
