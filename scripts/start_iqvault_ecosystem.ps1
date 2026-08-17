@@ -359,12 +359,10 @@ function Stop-ProcessesOnPort([int]$Port) {
 
 function Test-VipApiCurrent {
     try {
-        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
-        # comicsAvailable only exists on the current schema. A process left
-        # running from before the live-Postgres correction answers on this same
-        # port with the old 120-sample + 5-seed shape and no such field -
-        # "already on this port" must not be mistaken for "healthy".
-        return $null -ne $r.PSObject.Properties['comicsAvailable']
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/health" -TimeoutSec 5
+        # Current 258_VIP API. Leftover IQVault sqlite-era processes on :8787
+        # either have no /health or a different service name.
+        return ($r.ok -eq $true) -and ($r.service -eq "vip-api")
     } catch {
         return $false
     }
@@ -372,17 +370,13 @@ function Test-VipApiCurrent {
 
 function Ensure-VipApi {
     if (Test-PortListening $Ports.VipApi) {
-        if (Test-VipApiCurrent) {
-            Write-Step "VIP API already healthy on port $($Ports.VipApi)."
-            return
-        }
-        Write-Warn "Port $($Ports.VipApi) is serving an outdated or broken VIP API - restarting it."
+        Write-Warn "Restarting VIP API on port $($Ports.VipApi) so it is the current 258_VIP process."
         Stop-ProcessesOnPort $Ports.VipApi
     }
     Write-Step "Starting VIP API..."
     Start-MinimizedProcess "IQVault VIP API" $Root "npm run api"
-    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/api/inventory" { param($j) $null -ne $j.PSObject.Properties['comicsAvailable'] } 90)) {
-        throw "VIP API failed to start on port $($Ports.VipApi). Check the 'IQVault VIP API' window."
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/health" { param($j) ($j.ok -eq $true) -and ($j.service -eq "vip-api") } 90)) {
+        throw "VIP API failed to start on port $($Ports.VipApi). Check the 'IQVault VIP API' window, or run: npm run api"
     }
     Write-Step "VIP API ready."
 }
@@ -511,7 +505,7 @@ function Write-StackSummary {
     $comicsCount = "?"
     if ($vipOk) {
         try {
-            $inv = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 5
+            $inv = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/api/inventory" -TimeoutSec 30
             if ($null -ne $inv.comicsCount) { $comicsCount = $inv.comicsCount }
         } catch {}
     }
