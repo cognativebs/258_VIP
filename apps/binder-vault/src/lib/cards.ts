@@ -50,33 +50,81 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchPokemonPage(
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof Error && err.name === "AbortError") ||
+    (typeof DOMException !== "undefined" &&
+      err instanceof DOMException &&
+      err.name === "AbortError")
+  );
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ac.signal });
+  } catch (err) {
+    if (isAbortError(err)) throw new Error("timeout");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function pokemonCardsUrl(
   q: string,
   page: number,
   pageSize: number,
-  /** Pass null to omit orderBy (more reliable for set.id browse). */
-  orderBy: string | null = "-set.releaseDate",
-): Promise<{ data: PokemonTcgCard[]; totalCount: number }> {
+  orderBy: string | null,
+): string {
   let url =
     `${POKEMONTCG_BASE}/cards?q=${encodeURIComponent(q)}` +
     `&pageSize=${pageSize}&page=${page}`;
   if (orderBy) url += `&orderBy=${encodeURIComponent(orderBy)}`;
+  return url;
+}
 
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(url, { headers: ptcgHeaders() });
-    lastStatus = res.status;
-    if (res.ok) {
-      const body = (await res.json()) as {
-        data?: PokemonTcgCard[];
-        totalCount?: number;
-      };
-      return { data: body.data ?? [], totalCount: body.totalCount ?? 0 };
+/**
+ * pokemontcg.io 500s often, especially with `orderBy`. Retry with backoff, then
+ * retry the same page without sort — that path is what made set browse stable.
+ */
+export async function fetchPokemonPage(
+  q: string,
+  page: number,
+  pageSize: number,
+  /** Pass null to omit orderBy (more reliable). */
+  orderBy: string | null = null,
+): Promise<{ data: PokemonTcgCard[]; totalCount: number }> {
+  const sorts: Array<string | null> = orderBy ? [orderBy, null] : [null];
+  let lastDetail = "failed";
+
+  for (const sort of sorts) {
+    const url = pokemonCardsUrl(q, page, pageSize, sort);
+    const attempts = sort ? 2 : 5;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const res = await fetchWithTimeout(url, { headers: ptcgHeaders() }, 8000);
+        if (res.ok) {
+          const body = (await res.json()) as {
+            data?: PokemonTcgCard[];
+            totalCount?: number;
+          };
+          return { data: body.data ?? [], totalCount: body.totalCount ?? 0 };
+        }
+        lastDetail = String(res.status);
+        if (res.status !== 429 && res.status < 500) break;
+      } catch (err) {
+        lastDetail = err instanceof Error ? err.message : String(err);
+      }
+      await sleep(Math.min(1200, 200 * 2 ** attempt));
     }
-    if (res.status < 500) break;
-    await sleep(250 * (attempt + 1));
   }
-  throw new Error(`pokemontcg ${lastStatus}`);
+  throw new Error(`pokemontcg ${lastDetail}`);
 }
 
 /** Paginate a safe upstream query (no rarity+set/name combo). */
@@ -86,8 +134,8 @@ async function fetchPokemonPages(
 ): Promise<PokemonTcgCard[]> {
   const pageSize = 250;
   const maxPages = opts.maxPages ?? 8;
-  // undefined → default sort; null → omit (set browse).
-  const orderBy = opts.orderBy === undefined ? "-set.releaseDate" : opts.orderBy;
+  // undefined → omit sort (releaseDate orderBy 500s often); null → omit; string → try then fall back.
+  const orderBy = opts.orderBy === undefined ? null : opts.orderBy;
   const out: PokemonTcgCard[] = [];
   let totalCount = Infinity;
   for (let page = 1; page <= maxPages && out.length < opts.maxCards && out.length < totalCount; page++) {
@@ -132,14 +180,19 @@ async function fetchByExactRarities(
     const q = `rarity:${quote(rarity)}`;
     // Walk pages until we gather enough *exact* matches for this rarity.
     for (let page = 1; page <= 10 && out.length < want; page++) {
-      const { data } = await fetchPokemonPage(q, page, 250);
-      for (const c of data) {
-        if (!exactRarity(c, allow) || seen.has(c.id)) continue;
-        seen.add(c.id);
-        out.push(c);
-        if (out.length >= want) break;
+      try {
+        const { data } = await fetchPokemonPage(q, page, 250);
+        for (const c of data) {
+          if (!exactRarity(c, allow) || seen.has(c.id)) continue;
+          seen.add(c.id);
+          out.push(c);
+          if (out.length >= want) break;
+        }
+        if (data.length < 250) break;
+      } catch {
+        // One rarity page 500ing must not kill the rest of the search.
+        break;
       }
-      if (data.length < 250) break;
     }
   }
   return out;
@@ -439,37 +492,67 @@ async function searchTcgdex(
   const q = query.trim();
   if (!q) return [];
 
-  const url = `${TCGDEX_BASE}/cards?name=eq:${encodeURIComponent(q)}`;
-  const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`tcgdex ${res.status}`);
-  const json = await res.json();
+  // `eq` is exact and used to miss whenever pokemontcg.io 500'd on a partial
+  // name. `like` is the fallback that actually covers "char" / "zard".
+  const urls = [
+    `${TCGDEX_BASE}/cards?name=like:${encodeURIComponent(q)}`,
+    `${TCGDEX_BASE}/cards?name=eq:${encodeURIComponent(q)}`,
+  ];
 
-  let rows: BriefTcgdexCard[] = [];
-  if (Array.isArray(json)) rows = json as BriefTcgdexCard[];
-  else if (json && Array.isArray(json.cards)) rows = json.cards as BriefTcgdexCard[];
-
-  return rows.slice(0, limit).map((c) => {
-    const setId = c.id.includes("-") ? c.id.split("-")[0]! : null;
-    return {
-      source: "tcgdex" as const,
-      externalId: c.id,
-      name: c.name,
-      setName: setId,
-      number: c.localId ?? null,
-      rarity: null,
-      imageSmall: c.image ? `${c.image}/low.webp` : null,
-      imageHigh: c.image ? `${c.image}/high.png` : null,
-      priceMarket: null,
-      priceCurrency: null,
-      provenance: {
-        method: "api" as const,
-        source: "tcgdex.net/v2",
-        modelVersion: "tcgdex-v2",
-        confidence: 0.9,
-        verificationStatus: "verified" as const,
-      },
-    };
-  });
+  let lastDetail = "failed";
+  for (const url of urls) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await fetchWithTimeout(
+          url,
+          { headers: { accept: "application/json" } },
+          8000,
+        );
+        if (!res.ok) {
+          lastDetail = String(res.status);
+          if (res.status !== 429 && res.status < 500) break;
+          await sleep(Math.min(1600, 300 * 2 ** attempt));
+          continue;
+        }
+        const json: unknown = await res.json();
+        let rows: BriefTcgdexCard[] = [];
+        if (Array.isArray(json)) rows = json as BriefTcgdexCard[];
+        else if (
+          json &&
+          typeof json === "object" &&
+          Array.isArray((json as { cards?: unknown }).cards)
+        ) {
+          rows = (json as { cards: BriefTcgdexCard[] }).cards;
+        }
+        return rows.slice(0, limit).map((c) => {
+          const setId = c.id.includes("-") ? c.id.split("-")[0]! : null;
+          return {
+            source: "tcgdex" as const,
+            externalId: c.id,
+            name: c.name,
+            setName: setId,
+            number: c.localId ?? null,
+            rarity: null,
+            imageSmall: c.image ? `${c.image}/low.webp` : null,
+            imageHigh: c.image ? `${c.image}/high.png` : null,
+            priceMarket: null,
+            priceCurrency: null,
+            provenance: {
+              method: "api" as const,
+              source: "tcgdex.net/v2",
+              modelVersion: "tcgdex-v2",
+              confidence: 0.9,
+              verificationStatus: "verified" as const,
+            },
+          };
+        });
+      } catch (err) {
+        lastDetail = err instanceof Error ? err.message : String(err);
+        await sleep(Math.min(1600, 300 * 2 ** attempt));
+      }
+    }
+  }
+  throw new Error(`tcgdex ${lastDetail}`);
 }
 
 /** Pull the first integer from a collector number (handles SM01, SWSH045, 123/185). */
@@ -560,6 +643,35 @@ async function searchPokemonTcg(
 
 export type CardSource = "all" | "tcgdex" | "pokemontcg";
 
+function friendlySearchError(err: unknown, source: string): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/timeout/i.test(raw) || /aborted/i.test(raw)) return `${source} timed out`;
+  if (/\b429\b/.test(raw)) return `${source} rate-limited`;
+  if (/\b5\d\d\b/.test(raw)) return `${source} is busy`;
+  return `${source} failed`;
+}
+
+const SEARCH_CACHE_TTL_MS = 45_000;
+const searchCache = new Map<
+  string,
+  { at: number; payload: { results: CardResult[]; errors: string[]; queryUsed: string } }
+>();
+
+function searchCacheKey(
+  q: string,
+  source: CardSource,
+  filters: SearchFilters,
+  limit: number,
+): string {
+  return JSON.stringify({
+    q: q.toLowerCase(),
+    source,
+    setId: filters.setId,
+    rarityKeys: [...filters.rarityKeys].sort(),
+    limit,
+  });
+}
+
 export async function searchCards(
   query: string,
   opts: {
@@ -581,6 +693,13 @@ export async function searchCards(
 
   const limit = opts.limit ?? 24;
   const source = opts.source ?? "all";
+
+  const cacheKey = searchCacheKey(q, source, filters, limit);
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < SEARCH_CACHE_TTL_MS && cached.payload.results.length) {
+    return cached.payload;
+  }
+
   const errors: string[] = [];
 
   // Set IDs + rarity chips both need pokemontcg — TCGdex set ids don't match.
@@ -594,12 +713,18 @@ export async function searchCards(
   const tasks: Promise<CardResult[]>[] = [];
   if (effectiveSource === "all" || effectiveSource === "pokemontcg") {
     tasks.push(
-      searchPokemonTcg(q, effectiveLimit, filters).catch((e) => (errors.push(String(e)), [])),
+      searchPokemonTcg(q, effectiveLimit, filters).catch((e) => {
+        errors.push(friendlySearchError(e, "TCG.io"));
+        return [];
+      }),
     );
   }
   if (effectiveSource === "all" || effectiveSource === "tcgdex") {
     tasks.push(
-      searchTcgdex(q, effectiveLimit, filters).catch((e) => (errors.push(String(e)), [])),
+      searchTcgdex(q, effectiveLimit, filters).catch((e) => {
+        errors.push(friendlySearchError(e, "TCGdex"));
+        return [];
+      }),
     );
   }
 
@@ -622,11 +747,13 @@ export async function searchCards(
     .filter(Boolean)
     .join(" ");
 
-  return {
+  const payload = {
     results: [...seen.values()].slice(0, effectiveLimit),
     errors,
     queryUsed,
   };
+  if (payload.results.length) searchCache.set(cacheKey, { at: Date.now(), payload });
+  return payload;
 }
 
 function normalizeRarityKeys(raw: string | string[] | null | undefined): string[] {
@@ -672,25 +799,32 @@ async function fetchPokemonSetsPage(pageSize: number): Promise<SetOption[]> {
   // Smaller pages are less likely to 500 on pokemontcg's flaky /sets endpoint.
   const size = Math.min(Math.max(pageSize, 20), 100);
   const url = `${POKEMONTCG_BASE}/sets?orderBy=-releaseDate&pageSize=${size}`;
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers: ptcgHeaders() });
-    lastStatus = res.status;
-    if (res.ok) {
-      const body = (await res.json()) as {
-        data?: Array<{ id: string; name: string; series?: string; releaseDate?: string }>;
-      };
-      return (body.data ?? []).map((s) => ({
-        id: s.id,
-        name: s.name,
-        series: s.series ?? "",
-        releaseDate: s.releaseDate ?? "",
-      }));
+  const urls = [url, `${POKEMONTCG_BASE}/sets?pageSize=${size}`];
+  let lastDetail = "failed";
+  for (const candidate of urls) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await fetchWithTimeout(candidate, { headers: ptcgHeaders() }, 8000);
+        if (res.ok) {
+          const body = (await res.json()) as {
+            data?: Array<{ id: string; name: string; series?: string; releaseDate?: string }>;
+          };
+          return (body.data ?? []).map((s) => ({
+            id: s.id,
+            name: s.name,
+            series: s.series ?? "",
+            releaseDate: s.releaseDate ?? "",
+          }));
+        }
+        lastDetail = String(res.status);
+        if (res.status !== 429 && res.status < 500) break;
+      } catch (err) {
+        lastDetail = err instanceof Error ? err.message : String(err);
+      }
+      await sleep(Math.min(1600, 300 * 2 ** attempt));
     }
-    if (res.status < 500) break;
-    await sleep(200 * (attempt + 1));
   }
-  throw new Error(`pokemontcg sets ${lastStatus}`);
+  throw new Error(`pokemontcg sets ${lastDetail}`);
 }
 
 /**
