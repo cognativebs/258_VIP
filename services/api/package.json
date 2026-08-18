@@ -14,6 +14,7 @@
     "@vip/core-model": "0.1.0",
     "@vip/decision-engine": "0.1.0",
     "@vip/evidence": "0.1.0",
+    "@vip/intelligence": "0.1.0",
     "@vip/signals": "0.1.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",

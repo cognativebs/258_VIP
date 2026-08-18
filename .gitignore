@@ -7,6 +7,9 @@ dist/
 .next/
 out/
 services/jobs/.state/
+scripts/dev-intelligence-state.json
+scripts/dev-environment.json
+services/api/.tmp-intelligence-state.json
 *.tsbuildinfo
 coverage/
 .DS_Store

@@ -1,14 +1,20 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { writeSignalsFeed } from "./lib/signalsFeed.js";
 
 const tmpFeed = join(dirname(fileURLToPath(import.meta.url)), "..", ".tmp-test-signals-feed.json");
+const tmpIntel = join(dirname(fileURLToPath(import.meta.url)), "..", ".tmp-intelligence-state.json");
+
+beforeEach(() => {
+  process.env.VIP_INTELLIGENCE_STATE = tmpIntel;
+});
 
 afterEach(() => {
   delete process.env.VIP_SIGNALS_FEED;
+  delete process.env.VIP_INTELLIGENCE_STATE;
 });
 
 async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
@@ -45,11 +51,14 @@ describe("VIP API", () => {
           supportingEvidence: unknown[];
           opposingEvidence: unknown[];
           marketRange: unknown;
+          evidenceCard: { isStale: boolean; evidence: unknown[] };
         }[];
       };
       expect(body.recommendations[0]?.supportingEvidence.length).toBeGreaterThan(0);
       expect(body.recommendations[0]?.opposingEvidence.length).toBeGreaterThan(0);
       expect(body.recommendations[0]?.marketRange).toBeTruthy();
+      expect(body.recommendations[0]?.evidenceCard.evidence.length).toBeGreaterThan(0);
+      expect(typeof body.recommendations[0]?.evidenceCard.isStale).toBe("boolean");
     });
   });
 
@@ -60,6 +69,14 @@ describe("VIP API", () => {
       const ids = body.hunts.map((h) => h.id);
       expect(ids).toContain("absolute-batman");
       expect(ids).toContain("pokemon-30th");
+      expect(ids).toContain("carla-cohen");
+      expect(ids).toContain("one-piece-female");
+      expect(ids).toContain("gundam");
+      expect(ids).toContain("lorcana");
+      expect(ids).toContain("print-life-swsh");
+      expect(ids).toContain("modern-cover-artists");
+      const cohen = body.hunts.find((h) => h.id === "carla-cohen") as { name?: string };
+      expect(cohen?.name).toMatch(/Museum/);
     });
   });
 
@@ -170,6 +187,99 @@ describe("VIP API", () => {
       });
     });
     delete process.env.VIP_SOURCES_STATE;
+  });
+
+  it("GET /api/intelligence serves Phase 1 fixtures and keeps Phase 2 blocked", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/intelligence`);
+      const body = (await res.json()) as {
+        version: string;
+        signalsIngestion: { live: boolean; blocks: string[] };
+        predictions: { open: { priceAtPrediction: number }[]; calibration: unknown[] };
+        recommendations: { action: string; isStale: boolean; evidence: unknown[] }[];
+        underwriting: { acquisitionCoverageRatio: number; blocked: boolean }[];
+        grading: { flareon: { recommendation: string } };
+        phase2: { scoringEnabled: boolean };
+      };
+      expect(res.status).toBe(200);
+      expect(body.version).toMatch(/^intelligence@/);
+      expect(body.signalsIngestion.live).toBe(false);
+      expect(body.signalsIngestion.blocks).toContain("market_cycle_detector");
+      expect(body.predictions.open[0]?.priceAtPrediction).toBe(230);
+      expect(body.predictions.calibration.length).toBeGreaterThan(0);
+      expect(body.recommendations[0]?.action).toBe("buy");
+      expect(body.recommendations[0]?.evidence.length).toBeGreaterThan(0);
+      expect(body.underwriting[0]?.acquisitionCoverageRatio).toBe(1.493);
+      expect(body.underwriting[0]?.blocked).toBe(false);
+      expect(body.grading.flareon.recommendation).toBe("grade");
+      expect(body.phase2.scoringEnabled).toBe(false);
+    });
+  });
+
+  it("POST /api/intelligence/predictions persists a frozen forecast", async () => {
+    await withServer(async (base) => {
+      const created = await fetch(`${base}/api/intelligence/predictions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          assetId: "test-sir",
+          priceAtPrediction: 50,
+          horizonDays: 30,
+          probabilityDown: 0.4,
+          probabilitySideways: 0.4,
+          probabilityUp: 0.2,
+        }),
+      });
+      expect(created.status).toBe(201);
+      const body = (await created.json()) as { prediction: { priceAtPrediction: number } };
+      expect(body.prediction.priceAtPrediction).toBe(50);
+    });
+  });
+
+  it("POST /api/intelligence/cohen-score marks Ivy #9 buy-cheap", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/intelligence/cohen-score`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "Poison Ivy #9 Harley/Ivy",
+          artistSignificance: 9,
+          characterStrength: 9,
+          imageIconicity: 10,
+          historicalImportance: 7,
+          trueScarcity: 3,
+          entryPrice: 10,
+          variantDilutionPenalty: 3,
+        }),
+      });
+      const body = (await res.json()) as { score: { action: string } };
+      expect(res.status).toBe(200);
+      expect(body.score.action).toBe("buy_cheap");
+    });
+  });
+
+  it("GET /api/sell-queue dogfoods grading + evidence freshness", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/sell-queue`);
+      const body = (await res.json()) as {
+        items: { dogfoodNote: string; gradingRecommendation: string; holding: { id: string } }[];
+      };
+      expect(res.status).toBe(200);
+      expect(body.items.length).toBeGreaterThan(0);
+      expect(body.items[0]?.gradingRecommendation).toBeTruthy();
+      expect(body.items[0]?.dogfoodNote).toBeTruthy();
+    });
+  });
+
+  it("GET /api/signals includes signalsIngestion gate", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/signals`);
+      const body = (await res.json()) as {
+        signalsIngestion?: { live: boolean; mode: string };
+      };
+      expect(body.signalsIngestion?.live).toBe(false);
+      expect(body.signalsIngestion?.mode).toBe("job_feed_json");
+    });
   });
 
   it("signals fall back to seeds when feed missing", async () => {

@@ -1,0 +1,238 @@
+{
+  "iqvplan_version": "1.0",
+  "plan_id": "2026-08-15_intelligence-systems",
+  "title": "VIP Intelligence Systems — Prediction Ledger, Evidence Engine, Cycle Detection, Field Modes",
+  "source": "Conversation synthesis (card-market case testing: Mega Greninja ex SIR, vintage Pokémon lot, Drew Brees HOF, Blastoise/Piplup synergy) + CardSight identification architecture proposal",
+  "prepared": "2026-08-15",
+  "owner": "Gregory Williamson",
+  "compiled_by": "Claude (Sonnet 5)",
+
+  "instructions_for_cursor": "This file is the source of truth for sequencing. Each system has a status. ONLY build 'approved' status items now. 'proposed' items get schema/interfaces only — no scoring logic — so nothing breaks when the blocked dependency lands. 'blocked' items should not be started; their dependency is listed. Do not reorder phases. Do not merge Field Intelligence into Intelligence Core — they are different layers (backend scoring vs. capture/workflow UX) and conflating them was flagged explicitly as a scope risk.",
+
+  "systems": [
+    {
+      "system_id": "prediction_ledger",
+      "name": "Prediction Ledger",
+      "group": "VIP Intelligence Core",
+      "status": "approved",
+      "priority": 1,
+      "rationale": "Highest priority per source conversation. Buildable today against existing holding/asset data. No external dependency.",
+      "depends_on": [],
+      "blocks": ["market_cycle_detector calibration reporting (needs ledger to score itself)"],
+      "migration": "11_prediction_ledger.sql",
+      "core_fields": ["asset_id", "predicted_at", "price_at_prediction", "horizon_days",
+        "probability_down", "probability_sideways", "probability_up",
+        "assumptions", "evidence_ids", "confidence", "resolves_at",
+        "actual_price", "actual_direction", "forecast_error", "explanation", "model_version"],
+      "test_fixture": "Mega Greninja ex SIR — $230, 90-day horizon, 55% down / 30% sideways / 15% up",
+      "acceptance_criteria": [
+        "A prediction, once written, is never mutated except to add resolution fields after resolves_at",
+        "Querying all resolved predictions for an asset category returns a directional-accuracy % and a systematic-bias note (e.g. underestimates post-release compression)",
+        "Unresolved predictions past their resolves_at date surface in a 'needs scoring' view"
+      ]
+    },
+    {
+      "system_id": "recommendation_evidence_engine",
+      "name": "Recommendation Evidence Engine",
+      "group": "VIP Intelligence Core",
+      "status": "approved",
+      "priority": 2,
+      "rationale": "Buildable today. Existing eBay Browse adapter already produces timestamped observations that map directly to evidence rows. Prevents the stale-advice failure mode already identified in conversation.",
+      "depends_on": [],
+      "blocks": ["Every other recommendation-producing system should attach evidence_card_id once this exists — retrofit, not a new dependency"],
+      "migration": "12_evidence_engine.sql",
+      "core_fields": ["recommendation_id", "action", "confidence", "created_at", "expires_at",
+        "evidence_source", "evidence_timestamp", "freshness_hours", "supporting_evidence",
+        "contradictory_evidence", "missing_information", "confidence_would_increase_if"],
+      "test_fixture": "BUY — Crown Zenith PC ETB, confidence 94%, shelf observation 2h old, market comps 14h old, expires 48h",
+      "acceptance_criteria": [
+        "Every row in recommendation carries at least one evidence_card row",
+        "A recommendation past expires_at is flagged stale in any read API, not silently served as current",
+        "evidence_source is a controlled vocabulary (shelf_observation, ebay_browse, sold_comp, ownership_record, collection_fit_score, manual) not free text"
+      ]
+    },
+    {
+      "system_id": "market_cycle_detector",
+      "name": "Market Cycle Detector",
+      "group": "VIP Intelligence Core",
+      "status": "proposed",
+      "priority": 3,
+      "rationale": "Classification logic (FOMO/Cooling/Accumulation/Recovery/Blue Chip/Bubble Risk) needs population growth, sales velocity, listing supply, social intensity — these are Signals system inputs which are still PROPOSED per the reference manual, not built.",
+      "depends_on": ["Signals ingestion (signals_raw / signals_normalized) — currently delegated to Cursor, not confirmed live"],
+      "blocked_reason": "Do not write scoring logic yet. Schema and the table shape may be built now so Prediction Ledger and Evidence Engine can reference cycle_state by FK once populated.",
+      "migration": "13_market_cycle_schema.sql",
+      "core_fields": ["asset_id", "evaluated_at", "cycle_state", "bubble_risk_score",
+        "price_velocity", "price_vs_ath_pct", "sales_velocity", "listing_supply",
+        "population_growth_rate", "release_age_days", "reprint_risk", "popularity_signal", "liquidity_score"],
+      "test_fixture": "Drew Brees post-HOF: catalyst occurred -> attention peaked -> event passed -> commodity cards soften -> evaluate accumulation window",
+      "acceptance_criteria": [
+        "Table exists and accepts manual/backfilled rows so the Brees case can be entered by hand as a validation fixture before automation exists",
+        "cycle_state is a constrained enum, not free text",
+        "No cron job, no automated classification job ships in this phase"
+      ]
+    },
+    {
+      "system_id": "buy_opportunity_scanner",
+      "name": "Lull Candidate / Buy Opportunity Scanner",
+      "group": "VIP Intelligence Core",
+      "status": "proposed",
+      "priority": 4,
+      "rationale": "Same signals dependency as Market Cycle Detector; the two are designed to work together (cycle detector classifies, scanner screens/ranks).",
+      "depends_on": ["Signals ingestion", "market_cycle_detector"],
+      "blocked_reason": "Screening logic needs the same inputs as cycle detector. Build schema only.",
+      "migration": "13_market_cycle_schema.sql",
+      "core_fields": ["asset_id", "scanned_at", "buy_opportunity_score", "decline_from_high_pct",
+        "psa_premium", "liquidity_score", "popularity_signal", "artwork_desirability", "set_quality", "watch_note"],
+      "test_fixture": "Drew Brees entered Accumulation Watch",
+      "acceptance_criteria": ["Table exists; no scheduled scan job ships yet"]
+    },
+    {
+      "system_id": "acquisition_underwriting",
+      "name": "Acquisition Underwriting Engine (incl. Acquisition Coverage Ratio)",
+      "group": "VIP Transaction Intelligence",
+      "status": "approved",
+      "priority": 5,
+      "rationale": "Fully specified with a real worked case (vintage Pokémon lot, $700 offer / $1,045 LP value / 1.49x). Math is deterministic, no external data dependency beyond values the user already supplies at underwriting time.",
+      "depends_on": [],
+      "blocks": [],
+      "migration": "14_transaction_intelligence.sql",
+      "core_fields": ["asking_price", "offer_price", "conservative_raw_value", "likely_raw_value",
+        "museum_keep_value", "liquidation_value", "selling_costs", "expected_days_to_liquidate",
+        "grading_opportunity_ids", "acquisition_coverage_ratio", "expected_profit", "capital_at_risk", "confidence"],
+      "test_fixture": "$700 offer / $1,045 conservative LP value = 1.49x coverage ratio; 1.30x minimum threshold for uncertain vintage lots",
+      "acceptance_criteria": [
+        "acquisition_coverage_ratio is a generated/computed column: conservative_raw_value / offer_price",
+        "Rows below the configurable minimum threshold (default 1.30) are flagged, not blocked — human makes the call",
+        "Underwriting record is immutable once linked to a completed transaction"
+      ]
+    },
+    {
+      "system_id": "grading_optimizer",
+      "name": "Intelligent Submission Manager / Grading Optimizer",
+      "group": "VIP Transaction Intelligence",
+      "status": "approved",
+      "priority": 6,
+      "rationale": "Already an approved concept per source doc, validated against a real case (Flareon, Jolteon, Snorlax, Chansey). Deterministic expected-value math once per-grade probability/value inputs are supplied — no live signals dependency to START; population/pop-report data can be entered manually or backfilled later.",
+      "depends_on": [],
+      "blocks": [],
+      "migration": "14_transaction_intelligence.sql",
+      "core_fields": ["asset_id", "raw_value", "psa7_probability", "psa7_value", "psa8_probability", "psa8_value",
+        "psa9_probability", "psa9_value", "psa10_probability", "psa10_value",
+        "grading_cost", "shipping_cost", "insurance_cost", "selling_expense_pct", "opportunity_cost",
+        "expected_grading_value", "expected_incremental_profit", "grading_opportunity_score", "recommendation"],
+      "test_fixture": "Flareon / Jolteon / Snorlax / Chansey manual PSA-tier calculations",
+      "acceptance_criteria": [
+        "recommendation is a constrained enum: GRADE / HOLD_RAW / SELL_RAW / INSPECT_FURTHER",
+        "grading_opportunity_score is 0-100, stored not just computed on read, so it can be indexed/sorted for a submission queue",
+        "expected_incremental_profit = expected_grading_value - raw_value - grading_cost - shipping_cost - insurance_cost - selling_expense - opportunity_cost, and each term is a separate stored column (no opaque single number)"
+      ]
+    },
+    {
+      "system_id": "portfolio_consolidation",
+      "name": "Portfolio Consolidation Engine (Collection Quality Density)",
+      "group": "VIP Transaction Intelligence",
+      "status": "proposed",
+      "priority": 7,
+      "rationale": "New concept, not yet validated against a worked case the way underwriting/grading were. Formula (museum + investment + scarcity + liquidity + synergy / capital deployed) references collection_synergy_score which does not exist until VIP Collection Intelligence (museum_score system) ships.",
+      "depends_on": ["collection_synergy_score"],
+      "blocked_reason": "Schema may be built now; scoring logic waits for collection_synergy_score to exist.",
+      "migration": "14_transaction_intelligence.sql",
+      "core_fields": ["holding_group_id", "evaluated_at", "collection_quality_density",
+        "consolidation_candidates", "keep_candidates", "redeploy_suggestion", "capital_freed"],
+      "acceptance_criteria": ["Table exists; no automated consolidation suggestions generated until dependency lands"]
+    },
+    {
+      "system_id": "museum_synergy_score",
+      "name": "Collection Synergy / Museum Score",
+      "group": "VIP Collection Intelligence",
+      "status": "approved",
+      "priority": 8,
+      "rationale": "Fully specified with a real case (Blastoise & Piplup). Scores are computed from data already in vault_collection.holding (museum_score, investment_score, liquidity_score already exist as columns) plus new binder/collection-goal linkage.",
+      "depends_on": ["binder_chase_architecture (for the collection-goal linkage inputs)"],
+      "blocks": ["portfolio_consolidation"],
+      "migration": "15_collection_intelligence.sql",
+      "core_fields": ["holding_id", "market_attractiveness", "museum_importance", "investment_score",
+        "liquidity_score", "collection_synergy_score", "contributing_goals", "evaluated_at"],
+      "test_fixture": "Blastoise Master Collection + Tag Team Master Collection dual contribution example",
+      "acceptance_criteria": [
+        "collection_synergy_score is never collapsed into a single opaque number without the component scores also being visible/queryable",
+        "contributing_goals is an array referencing collection_hunt/binder goal IDs, not free text"
+      ]
+    },
+    {
+      "system_id": "binder_chase_architecture",
+      "name": "Binder Chase Architecture (Museum Page tiers)",
+      "group": "VIP Collection Intelligence",
+      "status": "approved",
+      "priority": 9,
+      "rationale": "Concept is locked per user. Directly extends the existing Collection Hunt module (already BUILT/PROVEN per reference manual) rather than introducing a new subsystem.",
+      "depends_on": [],
+      "blocks": ["museum_synergy_score"],
+      "migration": "15_collection_intelligence.sql",
+      "core_fields": ["expansion_id", "page_type", "slot_number", "asset_id", "tier",
+        "is_museum_anchor", "rip_vs_singles_recommendation"],
+      "test_fixture": "9-card Museum Page per Pokémon expansion; Tier 1 Museum Anchor through Tier 4 Filler",
+      "acceptance_criteria": [
+        "tier is a constrained enum: museum_anchor / binder_core / completion / filler",
+        "A page with >=8/9 slots filled and missing slots individually cheap surfaces a rip_vs_singles_recommendation of RIP; a page missing 1-2 expensive slots surfaces BUY_SINGLES",
+        "Cultural Icons binder is a separate page_type from set-based Museum Pages, not a variant of the same type"
+      ]
+    },
+    {
+      "system_id": "field_modes",
+      "name": "Store / Show / Auction / Trade Modes",
+      "group": "VIP Field Intelligence",
+      "status": "proposed",
+      "priority": 10,
+      "rationale": "These are capture/workflow UX layers that CONSUME the intelligence systems above — they are not themselves scoring engines. Explicitly kept as a separate layer per user decision so Cursor does not conflate backend intelligence with mobile/field UX.",
+      "depends_on": ["recommendation_evidence_engine", "acquisition_underwriting", "CardSight identification pipeline (for Store/Show photo capture)"],
+      "blocked_reason": "Interfaces defined now so the intelligence systems expose what Field Modes will need. No mode UI or capture flow is built in this phase.",
+      "migration": "16_field_modes_interfaces.sql",
+      "core_fields": ["mode", "session_id", "started_at", "location_context", "captured_items", "session_recommendations"],
+      "modes": ["store", "show", "auction", "trade"],
+      "acceptance_criteria": [
+        "field_session table exists as a container; no mode-specific business logic ships",
+        "Auction mode's max-bid calc and Trade mode's basket-equality calc are explicitly deferred, not stubbed with fake numbers"
+      ]
+    },
+    {
+      "system_id": "card_identification_pipeline",
+      "name": "CardSight Visual Identification Pipeline",
+      "group": "External / Provider Layer",
+      "status": "proposed",
+      "priority": 11,
+      "rationale": "Validated architecture from a separate design discussion; Cursor Opus reported already building a version of this (CardSight + TCGdex + Scryfall/MTGJSON + Card Hedge) minus Yu-Gi-Oh and SportsCardsPro, which the user correctly scoped down further to avoid creep. This plan formalizes the interface contract so it doesn't diverge from what's being built in parallel.",
+      "depends_on": [],
+      "blocked_reason": "Interfaces only. Do not add YuGiOh or SportsCardsPro. Do not hard-wire any provider.",
+      "migration": "16_field_modes_interfaces.sql",
+      "required_interfaces": ["CardIdentificationProvider", "CatalogProvider", "MarketDataProvider", "MarketplaceCatalogProvider"],
+      "hard_rules": [
+        "VaultOS owns the canonical card_id; external IDs are references only",
+        "Raw scan/import record stays immutable",
+        "Identification candidates stored separately from confirmed identity",
+        "needs_review remains a permanent workflow state, never auto-cleared",
+        "Every identification stores provider + provider_version + timestamp + confidence",
+        "Never silently overwrite a confirmed identity when a provider later disagrees",
+        "Market price is a time-series observation table, never a single current_value field",
+        "Duplicate detection runs on both physical-item fingerprint AND canonical card identity"
+      ],
+      "acceptance_criteria": [
+        "A 100-250 card golden test deck exists with known answers before any pipeline change is considered validated",
+        "False-auto-confirm rate is the primary tracked metric, target well under exact-match accuracy tradeoffs (user explicitly prefers routing to needs_review over confident bad identity)"
+      ]
+    }
+  ],
+
+  "rejected_or_deferred_for_this_phase": [
+    "Yu-Gi-Oh catalog provider (explicit scope-down by user)",
+    "SportsCardsPro provider (explicit scope-down by user)",
+    "AI/smart glasses interface (reference manual: phone-first before glasses, unconditionally)",
+    "Any automated cron/scheduled job for signals-dependent scoring (market_cycle_detector, buy_opportunity_scanner) until Signals ingestion is confirmed live"
+  ],
+
+  "phase_summary": {
+    "phase_1_build_now": ["prediction_ledger", "recommendation_evidence_engine", "acquisition_underwriting", "grading_optimizer", "museum_synergy_score", "binder_chase_architecture"],
+    "phase_2_schema_now_logic_later": ["market_cycle_detector", "buy_opportunity_scanner", "portfolio_consolidation"],
+    "phase_3_interfaces_only": ["field_modes", "card_identification_pipeline"]
+  }
+}

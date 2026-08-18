@@ -1,4 +1,5 @@
 import { recommend } from "@vip/decision-engine";
+import { readRecommendation, wrapEngineRecommendation } from "@vip/intelligence";
 import type { ApiHolding } from "../lib/holdings.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./signalsFeed.js";
 
@@ -72,5 +73,15 @@ export function buildRecommendation(holding: ApiHolding, askPrice?: number | nul
       : null,
     ruleOrModelVersion: rec.ruleOrModelVersion,
     constraintsSnapshot: rec.constraintsSnapshot,
+    evidenceCard: readRecommendation(
+      wrapEngineRecommendation({
+        holdingId: holding.id,
+        action: rec.action,
+        confidence: rec.confidence,
+        supporting: rec.supportingEvidence,
+        opposing: rec.opposingEvidence,
+      }),
+      new Date(),
+    ),
   };
 }

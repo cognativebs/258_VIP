@@ -1,3 +1,12 @@
+import {
+  carlaCohenHunt,
+  gundamHunt,
+  lorcanaHunt,
+  modernArtistWatchHunt,
+  onePieceFemaleHunt,
+  printLifeHunt,
+} from "./hunts-emerging.js";
+
 export type HuntItemStatus = "owned" | "wanted" | "missing";
 
 export type HuntItem = {
@@ -24,11 +33,13 @@ export type Hunt = {
   name: string;
   status: "active" | "paused" | "completed" | "coming_soon";
   description: string;
-  category: "comic" | "pokemon";
+  category: "comic" | "pokemon" | "one_piece" | "gundam" | "lorcana" | "suggested";
+  suggestion?: boolean;
+  suggestionNote?: string | null;
   sections: HuntSection[];
 };
 
-function item(
+export function item(
   id: string,
   name: string,
   opts: Partial<HuntItem> & { status?: HuntItemStatus } = {},
@@ -127,7 +138,25 @@ export const pokemon30thHunt: Hunt = {
   ],
 };
 
-export const HUNTS: Hunt[] = [absoluteBatmanHunt, pokemon30thHunt];
+export {
+  carlaCohenHunt,
+  gundamHunt,
+  lorcanaHunt,
+  modernArtistWatchHunt,
+  onePieceFemaleHunt,
+  printLifeHunt,
+};
+
+export const HUNTS: Hunt[] = [
+  absoluteBatmanHunt,
+  pokemon30thHunt,
+  carlaCohenHunt,
+  onePieceFemaleHunt,
+  gundamHunt,
+  lorcanaHunt,
+  printLifeHunt,
+  modernArtistWatchHunt,
+];
 
 export function huntCompletion(hunt: Hunt) {
   const items = hunt.sections.flatMap((s) => s.items);

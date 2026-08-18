@@ -19,6 +19,7 @@ type Rec = {
     confidenceBand: string;
   } | null;
   ruleOrModelVersion: string;
+  evidenceCard?: { isStale: boolean; expiresAt: string; evidence: { evidenceSource: string }[] };
 };
 
 export default async function RecommendationsPage() {
@@ -52,6 +53,11 @@ export default async function RecommendationsPage() {
               />
               <span className="badge">{r.action}</span>
               <span className="badge badge-info">{r.ruleOrModelVersion}</span>
+              {r.evidenceCard ? (
+                <span className={`badge ${r.evidenceCard.isStale ? "badge-warn" : "badge-ok"}`}>
+                  {r.evidenceCard.isStale ? "stale" : "current"} · {r.evidenceCard.evidence.length} cards
+                </span>
+              ) : null}
             </div>
             <p style={{ margin: "10px 0 0" }}>
               {r.marketRange ? (

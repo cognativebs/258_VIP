@@ -33,6 +33,7 @@ export type ComicRow = {
   "Verification Notes"?: string | null;
   Barcode?: string | null;
   Tags?: string | null;
+  "Cover Image URL"?: string | null;
   [key: string]: unknown;
 };
 
@@ -43,6 +44,7 @@ export type ComicsMeta = {
   pillars?: { name: string; count: number }[];
   locations?: string[];
   source?: string;
+  snapshotLabel?: string;
 };
 
 export type ComicFilters = {

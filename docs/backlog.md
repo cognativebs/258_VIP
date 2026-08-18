@@ -36,7 +36,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
-- [ ] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (launcher broken)
+- [x] Fix `scripts/start_iqvault_ecosystem.ps1` parse failure (ASCII-only UTF-8; live `:8787` / `:3000` / `:3010` stack) — 2026-08-15
 
 ### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
 
@@ -57,7 +57,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Mutable `active` toggle + persistence for sources (`PATCH /api/sources/:id` + `sources-state.json`)
 - [x] Contribution stats per source (signal count, quarantine rate, evidence count)
 - [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
-- [ ] Prediction ledger / Brier calibration visible on Signals page
+- [x] Prediction ledger / Brier calibration visible on Signals page (`@vip/signals` claim ledger + `@vip/intelligence` price-direction ledger) — 2026-08-15
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
 
@@ -78,10 +78,11 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 ### F. Unified Bloomberg / collector terminal *(partial — owner unlock 2026-08-08)*
 
 - [x] Bloomberg-style restyle of `apps/iqvault-web` (gold-dark Personal Intelligence shell from `:5175`)
-- [x] Full comics grid + filters on VIP face (`/collections/comics`; Comics API `:5200` with VIP inventory fallback)
+- [x] Full comics grid + filters on VIP face (`/collections/comic`; Comics API `:5200` with VIP inventory fallback)
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
-- [ ] Analysis/insights panel on collector face (Orchestr8 chat from Vite not yet ported)
+- [x] Analysis/insights panel on collector face (Orchestr8 chat ported to `/collections/*` Inspector | Analytics) — 2026-08-15
+- [x] Collection terminals for TCG + sports (`/collections/pokemon|mtg|football|soccer|basketball|baseball`) — 2026-08-15
 - [ ] Single inventory truth across Comics Postgres, VIP API, Binder SQLite
 
 ### G. Product trial & trust
@@ -100,6 +101,31 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] Store constraints on same engine as VIP
 - [ ] Capture session model (measurement provenance; ML crossover still deferred ideas)
 - [ ] One cooperative store pilot metric
+
+### L. VIP Intelligence Systems *(started 2026-08-15)*
+
+Plan: `2026-08-15_intelligence_systems.iqvplan.json`. Package: `@vip/intelligence`.
+Migrations: `infra/db/migrations/20260815_11`–`16`.
+
+- [x] Phase 1 logic: prediction ledger, evidence engine, acquisition underwriting, grading optimizer, binder chase, museum synergy
+- [x] Conversation fixtures (Mega Greninja, Crown Zenith ETB, vintage lot, Flareon/Jolteon/Snorlax/Chansey, Blastoise & Piplup, Drew Brees manual cycle)
+- [x] Phase 2 schema only (market cycle, buy-opportunity scan, portfolio consolidation) — no scoring jobs
+- [x] Phase 3 interfaces only (field sessions, CardSight contract, golden-case table)
+- [ ] Apply migrations 11–16 to live Postgres (after 01–08 + holdings)
+- [ ] Gate: Signals ingestion confirmed live before any Phase 2 classification logic — currently **not live** (`job_feed_json` only; no `signals_raw` / `signals_normalized`)
+- [x] Wire intelligence read APIs into `@vip/api` (`GET /api/intelligence*`) + IQVault Signals / Intel pages — 2026-08-15
+- [x] Write path + JSON persistence (`POST /api/intelligence/*`, `VIP_INTELLIGENCE_STATE`)
+- [x] Retrofit `/api/recommendations` with evidence cards + `isStale`
+- [x] Binder chase from live Binder SQLite pages (RIP vs singles heuristic)
+- [x] Synergy + collection quality density on real holdings (inferred · unverified scores)
+- [x] Manual cycle desk (no classifier)
+- [x] Store/Show field capture (`needs_review`, no auction/trade math)
+- [x] Golden-case authoring (count toward 100–250; matching still off)
+- [x] Grading queue + needs-scoring on Intel page
+- [x] Sell-queue dogfood (grading + evidence freshness)
+- [x] Suggested hunts filled from 2026-08-15 conversation: Cohen museum (not a variant pillar), One Piece Icons+Heroines, Gundam foundation, Lorcana First Chapter, SWSH print-life watch, modern-cover-artist watch
+- [x] Cohen cover score (geometric mean − dilution) + print-life / emerging-market indexes (manual only)
+- [ ] Grow `identification_golden_case` to 100–250 cards before trusting any ID pipeline change
 
 ### J. Data foundation leftovers
 

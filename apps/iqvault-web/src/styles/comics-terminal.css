@@ -1978,6 +1978,10 @@
   gap: 4px;
 }
 
+a.bb-collection-tab {
+  text-decoration: none;
+}
+
 .bb-collection-tab {
   display: inline-flex;
   align-items: center;

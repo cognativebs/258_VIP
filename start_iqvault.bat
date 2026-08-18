@@ -1,4 +1,4 @@
 @echo off
-REM Same as desktop shortcut — full VIP stack
+REM Alias -- same as Launch IQVault.bat
 cd /d "%~dp0"
-call "%~dp0Launch IQVault.bat"
+call "%~dp0Launch IQVault.bat" %*

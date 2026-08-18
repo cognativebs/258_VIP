@@ -28,11 +28,26 @@ export type BinderSummary = {
   updatedAt: number | null;
 };
 
+export type BinderPageChase = {
+  binderId: string;
+  binderName: string;
+  pageIndex: number;
+  pageTitle: string;
+  pageType: "museum_page" | "cultural_icons";
+  totalSlots: number;
+  filledSlots: number;
+  ownedSlots: number;
+  missingSlots: number;
+  completionPct: number;
+  ripVsSinglesRecommendation: "complete" | "rip_candidate" | "buy_singles";
+};
+
 export type BinderTcgPayload = {
   dbPath: string;
   available: boolean;
   holdings: ApiHolding[];
   binders: BinderSummary[];
+  pages: BinderPageChase[];
   error?: string;
 };
 
@@ -58,6 +73,52 @@ type SlotJoinRow = {
   confidence: number | null;
   binder_updated_at: number | null;
 };
+
+async function loadBinderPageChase(client: Client): Promise<BinderPageChase[]> {
+  const res = await client.execute(`
+    SELECT
+      b.id AS binder_id,
+      b.name AS binder_name,
+      p.page_index AS page_index,
+      p.title AS page_title,
+      COUNT(s.id) AS total_slots,
+      SUM(CASE WHEN s.source IS NOT NULL AND s.source != '' THEN 1 ELSE 0 END) AS filled_slots,
+      SUM(CASE WHEN s.owned THEN 1 ELSE 0 END) AS owned_slots
+    FROM binder_page p
+    JOIN binder b ON b.id = p.binder_id
+    LEFT JOIN binder_slot s ON s.page_id = p.id
+    GROUP BY b.id, b.name, p.page_index, p.title
+    ORDER BY b.name, p.page_index
+  `);
+  return res.rows.map((row) => {
+    const total = Number(row.total_slots) || 0;
+    const filled = Number(row.filled_slots) || 0;
+    const owned = Number(row.owned_slots) || 0;
+    const missing = Math.max(total - owned, 0);
+    const pct = total === 0 ? 0 : Number(((owned / total) * 100).toFixed(1));
+    const title = String(row.page_title ?? "");
+    const pageType = /icon|cultural/i.test(title) ? "cultural_icons" : "museum_page";
+    const ripVsSinglesRecommendation =
+      missing === 0 && total > 0
+        ? "complete"
+        : owned / Math.max(total, 1) >= 0.85
+          ? "rip_candidate"
+          : "buy_singles";
+    return {
+      binderId: String(row.binder_id),
+      binderName: String(row.binder_name),
+      pageIndex: Number(row.page_index) || 0,
+      pageTitle: title,
+      pageType,
+      totalSlots: total,
+      filledSlots: filled,
+      ownedSlots: owned,
+      missingSlots: missing,
+      completionPct: pct,
+      ripVsSinglesRecommendation,
+    };
+  });
+}
 
 function openClient(dbPath: string): Client | null {
   if (!existsSync(dbPath)) return null;
@@ -143,6 +204,7 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
       available: false,
       holdings: [],
       binders: [],
+      pages: [],
       error: `Binder DB not found at ${dbPath}`,
     };
   }
@@ -252,6 +314,7 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
       available: true,
       holdings,
       binders: [...binderMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      pages: await loadBinderPageChase(client),
     };
   } catch (e) {
     return {
@@ -259,6 +322,7 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
       available: false,
       holdings: [],
       binders: [],
+      pages: [],
       error: e instanceof Error ? e.message : String(e),
     };
   } finally {

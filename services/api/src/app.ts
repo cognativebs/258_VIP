@@ -5,7 +5,25 @@ import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
+import { intelligenceSnapshot, SIGNALS_INGESTION } from "./lib/intelligence.js";
+import {
+  EMERGING_MARKET_SEEDS,
+  PRINT_LIFE_WATCHES,
+  scoreCohenCover,
+} from "@vip/intelligence";
+import {
+  addGoldenCaseRow,
+  addGrading,
+  addManualCycle,
+  addPrediction,
+  addUnderwriting,
+  captureFieldItem,
+  lockStoredUnderwriting,
+  resolveStoredPrediction,
+  startFieldSession,
+} from "./lib/intelligenceStore.js";
 import { buildRecommendation } from "./lib/recommendations.js";
+import { dogfoodSellQueue } from "./lib/sellQueue.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
@@ -70,6 +88,43 @@ const theses = [
     horizon: "12 months",
     status: "active",
     linkedAssetNames: ["Absolute Batman #1 Cover A"],
+  },
+  {
+    id: "thesis-cohen-museum",
+    claim:
+      "Carla Cohen is investable as a 9–18 book museum, not a variant pillar. Early + iconic + true scarcity; buy Ivy #9 cheap; verify Die!Namite LTD 500.",
+    horizon: "10–20 years",
+    status: "active",
+    linkedAssetNames: [
+      "Wonder Woman: Black & Gold #1",
+      "Department of Truth #11",
+      "Die!Namite #1 Red Sonja Virgin",
+      "Poison Ivy #9",
+    ],
+  },
+  {
+    id: "thesis-one-piece-heroines",
+    claim:
+      "One Piece hierarchy is still forming. Build Icons (9) + Heroines (Nami/Boa first), prefer OP01/Manga/event over OP-XX chase.",
+    horizon: "3–7 years",
+    status: "active",
+    linkedAssetNames: ["OP01 Nami Parallel", "Nami EB03-053 SP", "Boa Hancock OP07 Manga"],
+  },
+  {
+    id: "thesis-gundam-foundation",
+    claim:
+      "Gundam TCG may be early: first-era + iconic suits/characters + sealed. $300–$500 experiment, then 6–12 month watch.",
+    horizon: "6–12 months review",
+    status: "active",
+    linkedAssetNames: ["RX-78-2 Gundam", "Char Aznable"],
+  },
+  {
+    id: "thesis-lorcana-first-chapter",
+    claim:
+      "Lorcana is Disney art collecting. First Chapter Enchanteds (Elsa especially) outrank newer Iconics on history.",
+    horizon: "10–20 years",
+    status: "active",
+    linkedAssetNames: ["Elsa – Spirit of Winter Enchanted"],
   },
 ];
 
@@ -143,11 +198,7 @@ export function createApp() {
   });
 
   app.get("/api/sell-queue", (_req, res) => {
-    const ranked = [...sellQueue].sort((a, b) => {
-      const rank = { High: 0, Medium: 1, Low: 2 } as const;
-      return (rank[a.sellPriority ?? "Low"] ?? 3) - (rank[b.sellPriority ?? "Low"] ?? 3);
-    });
-    res.json({ count: ranked.length, items: ranked });
+    res.json(dogfoodSellQueue(sellQueue, 20));
   });
 
   app.get("/api/hunts", (_req, res) => {
@@ -182,7 +233,151 @@ export function createApp() {
     res.json({ recommendation: buildRecommendation(holding) });
   });
 
-  app.get("/api/signals", (_req, res) => res.json(loadSignalsResponse()));
+  app.get("/api/signals", (_req, res) =>
+    res.json({
+      ...loadSignalsResponse(),
+      signalsIngestion: SIGNALS_INGESTION,
+    }),
+  );
+
+  async function liveIntelligenceSnapshot() {
+    const { holdings, binder } = await buildInventory();
+    return intelligenceSnapshot(new Date(), {
+      holdings,
+      binderPages: binder.pages,
+    });
+  }
+
+  app.get("/api/intelligence", async (_req, res) => {
+    res.json(await liveIntelligenceSnapshot());
+  });
+  app.get("/api/intelligence/predictions", async (_req, res) => {
+    const snap = await liveIntelligenceSnapshot();
+    res.json({
+      version: snap.version,
+      signalsIngestion: snap.signalsIngestion,
+      ...snap.predictions,
+    });
+  });
+  app.get("/api/intelligence/recommendations", async (_req, res) => {
+    const snap = await liveIntelligenceSnapshot();
+    res.json({
+      version: snap.version,
+      count: snap.recommendations.length,
+      recommendations: snap.recommendations,
+    });
+  });
+  app.get("/api/intelligence/underwriting", async (_req, res) => {
+    const snap = await liveIntelligenceSnapshot();
+    res.json({ version: snap.version, underwriting: snap.underwriting });
+  });
+  app.get("/api/intelligence/grading", async (_req, res) => {
+    const snap = await liveIntelligenceSnapshot();
+    res.json({
+      version: snap.version,
+      grading: snap.grading,
+      queue: snap.gradingQueue,
+    });
+  });
+  app.get("/api/intelligence/collection", async (_req, res) => {
+    const snap = await liveIntelligenceSnapshot();
+    res.json({ version: snap.version, collection: snap.collection });
+  });
+
+  app.post("/api/intelligence/predictions", (req, res) => {
+    try {
+      res.status(201).json({ prediction: addPrediction(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/predictions/:id/resolve", (req, res) => {
+    try {
+      const actualPrice = Number(req.body?.actualPrice);
+      if (!Number.isFinite(actualPrice)) {
+        res.status(400).json({ error: "actualPrice required" });
+        return;
+      }
+      res.json({
+        prediction: resolveStoredPrediction(String(req.params.id), actualPrice, req.body?.explanation),
+      });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/underwriting", (req, res) => {
+    try {
+      res.status(201).json({ underwriting: addUnderwriting(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/underwriting/:id/lock", (req, res) => {
+    try {
+      res.json({ underwriting: lockStoredUnderwriting(String(req.params.id)) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/grading", (req, res) => {
+    try {
+      res.status(201).json({ grading: addGrading(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/cycle", (req, res) => {
+    try {
+      res.status(201).json(addManualCycle(req.body ?? {}));
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/sessions", (req, res) => {
+    try {
+      res.status(201).json({ session: startFieldSession(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/sessions/:id/capture", (req, res) => {
+    try {
+      res.status(201).json({
+        capture: captureFieldItem({ sessionId: String(req.params.id), ...(req.body ?? {}) }),
+      });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.post("/api/intelligence/cohen-score", (req, res) => {
+    try {
+      res.json({ score: scoreCohenCover(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+  app.get("/api/intelligence/print-life", (_req, res) => {
+    res.json({
+      scoringEnabled: false,
+      note: "Manual watch only — Pokémon has no official OOP registry and reprints.",
+      watches: PRINT_LIFE_WATCHES,
+    });
+  });
+  app.get("/api/intelligence/emerging-markets", (_req, res) => {
+    res.json({
+      scoringEnabled: false,
+      experimentBudgetUsd: 1000,
+      note: "90-day experiment seeds. BUY MORE / HOLD / EXIT stays manual until Signals velocity is live.",
+      markets: EMERGING_MARKET_SEEDS,
+    });
+  });
+  app.post("/api/intelligence/golden-cases", (req, res) => {
+    try {
+      res.status(201).json({ goldenCase: addGoldenCaseRow(req.body ?? {}) });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
   app.get("/api/watchlist", async (_req, res) => {
     const { holdings } = await buildInventory();
     const watchlist = holdings.slice(0, 8).map((h) => ({

@@ -1,22 +1,51 @@
-# IQVault VIP stack — one-shot launcher (desktop shortcut / Launch IQVault.bat)
-# Starts only what is missing: Docker Desktop → Postgres → Comics API → Orchestr8 → UI
+# IQVault VIP stack -- one-shot launcher (desktop shortcut / Launch IQVault.bat)
+# Starts only what is missing:
+#   Docker Desktop -> Postgres -> Comics API -> VIP API -> collector -> Binder -> Orchestr8
+# ASCII-only on purpose: Windows PowerShell 5.1 -File mis-parses UTF-8 punctuation (em-dash / arrows).
 param(
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$InstallShortcut
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Container = "iqvault-postgres"
 $ComposeFile = Join-Path $Root "docker-compose.yml"
+$LogDir = Join-Path $PSScriptRoot "logs"
+$LogFile = Join-Path $LogDir "launcher.log"
+$ShortcutName = "IQVault.lnk"
 $Ports = @{
-    Postgres   = 5432
-    ComicsApi  = 5200
-    Orchestr8  = 5210
-    IqVaultUi  = 5175
+    Postgres  = 5432
+    ComicsApi = 5200
+    Orchestr8 = 5210
+    VipApi    = 8787
+    IqVaultUi = 3000
+    Binder    = 3010
 }
 
 function Write-Step([string]$Msg) {
     Write-Host "[IQVault] $Msg" -ForegroundColor Cyan
+}
+
+function Invoke-Native([scriptblock]$Cmd) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Cmd
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
+function Get-NativeOutput([scriptblock]$Cmd) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        return & $Cmd
+    } finally {
+        $ErrorActionPreference = $prev
+    }
 }
 
 function Test-PortListening([int]$Port) {
@@ -36,9 +65,49 @@ function Wait-Port([int]$Port, [int]$TimeoutSec = 90) {
     return $false
 }
 
+function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $r = Invoke-RestMethod -Uri $Url -TimeoutSec 5
+            if (& $Ok $r) { return $true }
+        } catch {
+            # still starting
+        }
+        Start-Sleep -Seconds 2
+    }
+    return $false
+}
+
+function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$CommandLine) {
+    $arg = "/k title $Title && cd /d `"$WorkingDir`" && $CommandLine"
+    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $WorkingDir -WindowStyle Minimized | Out-Null
+}
+
+function Install-DesktopShortcut {
+    $bat = Join-Path $Root "Launch IQVault.bat"
+    if (-not (Test-Path $bat)) {
+        throw "Missing launcher: $bat"
+    }
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    $lnkPath = Join-Path $desktop $ShortcutName
+    $shell = New-Object -ComObject WScript.Shell
+    $sc = $shell.CreateShortcut($lnkPath)
+    $sc.TargetPath = $bat
+    $sc.WorkingDirectory = $Root
+    $sc.Description = "IQVault VIP stack -- Docker, Postgres, APIs, collector, Binder"
+    $sc.WindowStyle = 1
+    $icon = Join-Path $Root "assets\iqvault-icon.ico"
+    if (Test-Path $icon) {
+        $sc.IconLocation = "$icon,0"
+    }
+    $sc.Save()
+    Write-Step "Desktop shortcut: $lnkPath"
+}
+
 function Test-DockerReady {
-    $null = docker info 2>$null
-    return $LASTEXITCODE -eq 0
+    $code = Invoke-Native { docker info 2>$null | Out-Null }
+    return $code -eq 0
 }
 
 function Start-DockerDesktop {
@@ -77,26 +146,26 @@ function Ensure-Docker {
 }
 
 function Ensure-Postgres {
-    $running = docker ps --filter "name=$Container" --format "{{.Names}}" 2>$null
-    if ($running -eq $Container) {
+    $running = @(Get-NativeOutput { docker ps --filter "name=$Container" --format "{{.Names}}" 2>$null })
+    if ($running -contains $Container) {
         Write-Step "Postgres container already running."
     } else {
         Write-Step "Starting Postgres ($Container)..."
         if (Test-Path $ComposeFile) {
             Push-Location $Root
-            docker compose up -d postgres 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                docker start $Container 2>&1 | Out-Null
+            $composeCode = Invoke-Native { docker compose up -d postgres }
+            if ($composeCode -ne 0) {
+                Invoke-Native { docker start $Container } | Out-Null
             }
             Pop-Location
         } else {
-            docker start $Container 2>&1 | Out-Null
+            Invoke-Native { docker start $Container } | Out-Null
         }
-        if ($LASTEXITCODE -ne 0) {
+        $runningNow = @(Get-NativeOutput { docker ps --filter "name=$Container" --format "{{.Names}}" 2>$null })
+        if ($runningNow -notcontains $Container) {
             throw "Could not start Postgres container '$Container'. Run: docker logs $Container"
         }
-        # Auto-start after reboot when Docker Desktop is running
-        docker update --restart unless-stopped $Container 2>$null | Out-Null
+        Invoke-Native { docker update --restart unless-stopped $Container } | Out-Null
     }
 
     Write-Step "Waiting for Postgres on port $($Ports.Postgres)..."
@@ -106,8 +175,8 @@ function Ensure-Postgres {
 
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
-        docker exec $Container pg_isready -U postgres -d iqvault 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+        $code = Invoke-Native { docker exec $Container pg_isready -U postgres -d iqvault 2>$null | Out-Null }
+        if ($code -eq 0) { $ready = $true; break }
         Start-Sleep -Seconds 2
     }
     if (-not $ready) {
@@ -116,23 +185,15 @@ function Ensure-Postgres {
     Write-Step "Postgres ready."
 }
 
-function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $r = Invoke-RestMethod -Uri $Url -TimeoutSec 5
-            if (& $Ok $r) { return $true }
-        } catch {
-            # still starting
-        }
-        Start-Sleep -Seconds 2
+function Ensure-NpmRoot {
+    if (Test-Path (Join-Path $Root "node_modules")) { return }
+    Write-Step "Installing workspace dependencies (first run)..."
+    Push-Location $Root
+    $code = Invoke-Native { npm install --no-fund --no-audit }
+    Pop-Location
+    if ($code -ne 0) {
+        throw "npm install failed in $Root"
     }
-    return $false
-}
-
-function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$CommandLine) {
-    $arg = "/k title $Title && cd /d `"$WorkingDir`" && $CommandLine"
-    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $WorkingDir -WindowStyle Minimized | Out-Null
 }
 
 function Ensure-ComicsApi {
@@ -146,6 +207,48 @@ function Ensure-ComicsApi {
         throw "Comics API failed to start on port $($Ports.ComicsApi)."
     }
     Write-Step "Comics API ready."
+}
+
+function Ensure-VipApi {
+    if (Test-PortListening $Ports.VipApi) {
+        Write-Step "VIP API already on port $($Ports.VipApi)."
+        return
+    }
+    Ensure-NpmRoot
+    Write-Step "Starting VIP API..."
+    Start-MinimizedProcess "IQVault VIP API" $Root "npm run api"
+    if (-not (Wait-HttpJson "http://127.0.0.1:$($Ports.VipApi)/health" { param($j) $j.ok -eq $true } 90)) {
+        throw "VIP API failed to start on port $($Ports.VipApi)."
+    }
+    Write-Step "VIP API ready."
+}
+
+function Ensure-IqVaultUi {
+    if (Test-PortListening $Ports.IqVaultUi) {
+        Write-Step "Collector face already on port $($Ports.IqVaultUi)."
+        return
+    }
+    Ensure-NpmRoot
+    Write-Step "Starting collector face (apps/iqvault-web)..."
+    Start-MinimizedProcess "IQVault Collector" $Root "npm run web"
+    if (-not (Wait-Port $Ports.IqVaultUi 120)) {
+        throw "Collector face failed to bind port $($Ports.IqVaultUi)."
+    }
+    Write-Step "Collector face ready."
+}
+
+function Ensure-Binder {
+    if (Test-PortListening $Ports.Binder) {
+        Write-Step "Binder already on port $($Ports.Binder)."
+        return
+    }
+    Ensure-NpmRoot
+    Write-Step "Starting Binder Vault (apps/binder-vault)..."
+    Start-MinimizedProcess "Vault Binder" $Root "npm run binder"
+    if (-not (Wait-Port $Ports.Binder 120)) {
+        throw "Binder failed to bind port $($Ports.Binder)."
+    }
+    Write-Step "Binder ready."
 }
 
 function Ensure-Orchestr8 {
@@ -163,35 +266,29 @@ function Ensure-Orchestr8 {
     Write-Step "Orchestr8 ready."
 }
 
-function Ensure-IqVaultUi {
-    $iqDir = Join-Path $Root "iqvault"
-    if (-not (Test-Path (Join-Path $iqDir "node_modules"))) {
-        Write-Step "Installing IQVault UI dependencies (first run)..."
-        Push-Location $iqDir
-        npm install --no-fund --no-audit
-        Pop-Location
+function Start-LauncherTranscript {
+    if (-not (Test-Path $LogDir)) {
+        New-Item -ItemType Directory -Path $LogDir | Out-Null
     }
-
-    if (Test-PortListening $Ports.IqVaultUi) {
-        Write-Step "IQVault UI already on port $($Ports.IqVaultUi)."
-        return
+    try {
+        Start-Transcript -Path $LogFile -Append -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Host "[IQVault] WARN: could not start transcript: $($_.Exception.Message)" -ForegroundColor Yellow
     }
-
-    Write-Step "Starting IQVault UI..."
-    $arg = "/k title IQVault UI && cd /d `"$iqDir`" && npm run dev"
-    Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $iqDir -WindowStyle Normal | Out-Null
-
-    if (-not (Wait-Port $Ports.IqVaultUi 120)) {
-        throw "IQVault UI failed to bind port $($Ports.IqVaultUi)."
-    }
-    Write-Step "IQVault UI ready."
 }
 
 # --- main ---
+if ($InstallShortcut) {
+    Install-DesktopShortcut
+}
+
+Start-LauncherTranscript
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  IQVault VIP — starting stack" -ForegroundColor Green
-Write-Host "  http://127.0.0.1:$($Ports.IqVaultUi)" -ForegroundColor Green
+Write-Host "  IQVault VIP - starting stack" -ForegroundColor Green
+Write-Host "  Collector  http://127.0.0.1:$($Ports.IqVaultUi)" -ForegroundColor Green
+Write-Host "  Binder     http://127.0.0.1:$($Ports.Binder)/" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
@@ -199,21 +296,34 @@ try {
     Ensure-Docker
     Ensure-Postgres
     Ensure-ComicsApi
-    Ensure-Orchestr8
+    Ensure-VipApi
     Ensure-IqVaultUi
+    Ensure-Binder
+    Ensure-Orchestr8
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
         Start-Process "http://127.0.0.1:$($Ports.IqVaultUi)/"
+        Start-Process "http://127.0.0.1:$($Ports.Binder)/"
     }
 
     Write-Host ""
-    Write-Step "All services up. Login: greg@iqvault.local / vault"
+    Write-Step "All services up."
+    Write-Host "[IQVault] Collector: http://127.0.0.1:$($Ports.IqVaultUi)"
+    Write-Host "[IQVault] Binder:    http://127.0.0.1:$($Ports.Binder)/"
+    Write-Host "[IQVault] VIP API:   http://127.0.0.1:$($Ports.VipApi)/health"
     Write-Host ""
+
+    if (-not $NoBrowser) {
+        Read-Host "Press Enter to close this window (services keep running)"
+    }
 } catch {
     Write-Host ""
     Write-Host "[IQVault] ERROR: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host ""
     Read-Host "Press Enter to close"
+    try { Stop-Transcript | Out-Null } catch { }
     exit 1
 }
+
+try { Stop-Transcript | Out-Null } catch { }

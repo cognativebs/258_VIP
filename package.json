@@ -7,9 +7,9 @@
     "services/*"
   ],
   "scripts": {
-    "build": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/ingest && npm run build -w @vip/decision-engine && npm run build -w @vip/signals && npm run build -w @vip/iqvault-web",
-    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/ingest && npm run test -w @vip/decision-engine && npm run test -w @vip/signals && npm run test -w @vip/api && npm run test -w @vip/jobs",
-    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/ingest && npm run typecheck -w @vip/decision-engine && npm run typecheck -w @vip/signals && npm run typecheck -w @vip/api && npm run typecheck -w @vip/jobs && npm run typecheck -w @vip/iqvault-web",
+    "build": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/intelligence && npm run build -w @vip/ingest && npm run build -w @vip/decision-engine && npm run build -w @vip/signals && npm run build -w @vip/iqvault-web",
+    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/intelligence && npm run test -w @vip/ingest && npm run test -w @vip/decision-engine && npm run test -w @vip/signals && npm run test -w @vip/api && npm run test -w @vip/jobs",
+    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/intelligence && npm run typecheck -w @vip/ingest && npm run typecheck -w @vip/decision-engine && npm run typecheck -w @vip/signals && npm run typecheck -w @vip/api && npm run typecheck -w @vip/jobs && npm run typecheck -w @vip/iqvault-web",
     "backtest": "npm run backtest -w @vip/decision-engine",
     "api": "npm run start -w @vip/api",
     "web": "npm run dev -w @vip/iqvault-web",

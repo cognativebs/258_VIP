@@ -1,6 +1,8 @@
 import type { ComicRow, ComicsMeta } from "./comicTypes";
 import { apiGet, type Holding } from "./api";
+import type { CollectionTabId } from "./collectionTabs";
 import { holdingToComicRow, metaFromHoldings } from "./holdingToComic";
+import { holdingsForTab } from "./verticalInventory";
 
 const COMICS_BASE = process.env.NEXT_PUBLIC_COMICS_API_URL ?? "";
 
@@ -50,6 +52,23 @@ export async function loadComicsTerminalData(): Promise<{
   const data = await apiGet<{ holdings: Holding[] }>("/api/inventory");
   const inventory = data.holdings.map(holdingToComicRow);
   const meta = metaFromHoldings(inventory);
+  return { meta, inventory, source: "vip-api" };
+}
+
+/** Comics: Postgres API first. Other verticals: VIP holdings classified onto that tab. */
+export async function loadVerticalTerminalData(tabId: CollectionTabId): Promise<{
+  meta: ComicsMeta;
+  inventory: ComicRow[];
+  source: "comics-api" | "vip-api";
+}> {
+  if (tabId === "comic") {
+    return loadComicsTerminalData();
+  }
+  const data = await apiGet<{ holdings: Holding[] }>("/api/inventory");
+  const inventory = holdingsForTab(data.holdings, tabId).map(holdingToComicRow);
+  const meta = metaFromHoldings(inventory);
+  meta.source = "vip-api";
+  meta.snapshotLabel = `${tabId} · VIP inventory · inferred classification`;
   return { meta, inventory, source: "vip-api" };
 }
 

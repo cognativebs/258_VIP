@@ -6,7 +6,6 @@ import {
   TABLE_COLUMNS,
   DEFAULT_FILTERS,
   RECOMMENDATIONS,
-  filterByWorkspace,
   applyComicFilters,
   sortComics,
   paginate,
@@ -21,12 +20,17 @@ import {
   fmtMoney,
   pillarShort,
 } from "@/lib/comicEngine";
-import { loadComicsTerminalData, patchComicHolding } from "@/lib/comicsClient";
+import { loadVerticalTerminalData, patchComicHolding } from "@/lib/comicsClient";
 import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
+import { BINDER_URL } from "@/lib/api";
+import { getCollectionTab, workspaceChips, type CollectionTabId } from "@/lib/collectionTabs";
+import { filterByVerticalWorkspace } from "@/lib/verticalInventory";
+import { ComicsAnalyticsChat } from "./ComicsAnalyticsChat";
 
 const PAGE_SIZE = 50;
 
-export function ComicsTerminal() {
+export function ComicsTerminal({ tabId = "comic" }: { tabId?: CollectionTabId }) {
+  const tab = getCollectionTab(tabId);
   const [meta, setMeta] = useState<ComicsMeta | null>(null);
   const [inventory, setInventory] = useState<ComicRow[]>([]);
   const [source, setSource] = useState<"comics-api" | "vip-api" | null>(null);
@@ -40,12 +44,17 @@ export function ComicsTerminal() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rightPanel, setRightPanel] = useState<"inspector" | "analytics">("inspector");
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setSelectedId(null);
+    setWorkspace("all");
     (async () => {
       try {
-        const data = await loadComicsTerminalData();
+        const data = await loadVerticalTerminalData(tab.id);
         if (cancelled) return;
         setMeta(data.meta);
         setInventory(data.inventory);
@@ -53,22 +62,38 @@ export function ComicsTerminal() {
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load comics");
+        setError(e instanceof Error ? e.message : `Failed to load ${tab.label}`);
         setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
+  }, [tab.id, tab.label]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F11") {
+        e.preventDefault();
+        setRightPanel((p) => (p === "analytics" ? "inspector" : "analytics"));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const publishers = useMemo(() => getUniquePublishers(inventory), [inventory]);
 
+  const workspaceOptions = useMemo(() => {
+    if (tab.kind === "comic") return WORKSPACES;
+    return workspaceChips(tab).map((c) => ({ id: c.id, label: c.label, desc: c.label }));
+  }, [tab]);
+
   const filtered = useMemo(() => {
-    let rows = filterByWorkspace(inventory, workspace);
+    let rows = filterByVerticalWorkspace(inventory, workspace, tab);
     rows = applyComicFilters(rows, filters);
     return sortComics(rows, sortKey, sortDir);
-  }, [inventory, workspace, filters, sortKey, sortDir]);
+  }, [inventory, workspace, filters, sortKey, sortDir, tab]);
 
   const filteredValue = useMemo(
     () => filtered.reduce((s: number, r: ComicRow) => s + (Number(r["Current Price"]) || 0) * (Number(r.Quantity) || 1), 0),
@@ -118,7 +143,7 @@ export function ComicsTerminal() {
   if (loading) {
     return (
       <div className="bb-terminal bb-terminal-embedded">
-        <div className="bb-loading">Loading comics terminal…</div>
+        <div className="bb-loading">Loading {tab.terminalLabel.toLowerCase()}…</div>
       </div>
     );
   }
@@ -149,7 +174,7 @@ export function ComicsTerminal() {
       <div className="bb-topbar">
         <div className="bb-topbar-brand">
           <span className="bb-orange">IQVAULT</span>
-          <span className="bb-dim">COMICS TERMINAL</span>
+          <span className="bb-dim">{tab.terminalLabel}</span>
           <span className="bb-dim" style={{ marginLeft: 8 }}>
             · {source === "comics-api" ? "Postgres live" : "VIP inventory"}
           </span>
@@ -169,6 +194,14 @@ export function ComicsTerminal() {
           </span>
         </div>
         <div className="bb-topbar-actions">
+          <button
+            type="button"
+            className={`bb-btn bb-btn-ghost ${rightPanel === "analytics" ? "bb-btn-active" : ""}`}
+            onClick={() => setRightPanel((p) => (p === "analytics" ? "inspector" : "analytics"))}
+            title="Conversational analytics on current filter (F11)"
+          >
+            Analytics
+          </button>
           <button
             type="button"
             className="bb-btn bb-btn-ghost"
@@ -192,7 +225,7 @@ export function ComicsTerminal() {
         />
         {workspace !== "all" ? (
           <button type="button" className="bb-chip" onClick={() => setWorkspace("all")}>
-            Workspace: {WORKSPACES.find((w: { id: string }) => w.id === workspace)?.label} ×
+            Workspace: {workspaceOptions.find((w: { id: string }) => w.id === workspace)?.label} ×
           </button>
         ) : null}
       </div>
@@ -217,7 +250,7 @@ export function ComicsTerminal() {
             <div className="bb-filter-section">
               <div className="bb-filter-section-title">Quick workspaces</div>
               <div className="bb-ws-grid">
-                {WORKSPACES.map((ws: { id: string; label: string; desc: string }) => (
+                {workspaceOptions.map((ws: { id: string; label: string; desc: string }) => (
                   <button
                     key={ws.id}
                     type="button"
@@ -355,7 +388,7 @@ export function ComicsTerminal() {
                 {paged.rows.length === 0 ? (
                   <tr>
                     <td colSpan={TABLE_COLUMNS.length} className="bb-empty-row">
-                      No books match these filters.
+                      No {tab.unit} match these filters.
                     </td>
                   </tr>
                 ) : (
@@ -418,13 +451,62 @@ export function ComicsTerminal() {
         </section>
 
         <aside className="bb-right-panel">
-          <div className="bb-panel-head">INSPECTOR</div>
-          {!selected ? (
+          <div className="bb-right-tabs">
+            <button
+              type="button"
+              className={rightPanel === "inspector" ? "active" : ""}
+              onClick={() => setRightPanel("inspector")}
+            >
+              Inspector
+            </button>
+            <button
+              type="button"
+              className={rightPanel === "analytics" ? "active" : ""}
+              onClick={() => setRightPanel("analytics")}
+            >
+              Analytics
+            </button>
+          </div>
+          {rightPanel === "analytics" ? (
+            <ComicsAnalyticsChat
+              meta={meta}
+              filtered={filtered}
+              dashboardStats={dashboardStats}
+              filters={filters}
+              workspace={workspace}
+              selectedComic={selected}
+              filteredValue={filteredValue}
+              vertical={tab.id}
+              unit={tab.unit}
+            />
+          ) : !selected ? (
             <div className="bb-detail-body">
               <p className="bb-dim">Select a row to inspect.</p>
+              {tab.group === "tcg" ? (
+                <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
+                  TCG layout lives in Binder.{" "}
+                  <a href={BINDER_URL} target="_blank" rel="noreferrer">Open Binder ↗</a>
+                </p>
+              ) : null}
+              {tab.group === "sports" && inventory.length === 0 ? (
+                <p className="bb-detail-hint-lg" style={{ marginTop: 12 }}>
+                  No sports-card holdings in VIP yet. This terminal is live; rows appear when
+                  inventory is classified into this vertical (inferred · unverified).
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="bb-detail-body">
+              {selected["Cover Image URL"] ? (
+                <div className="bb-cover-wrap">
+                  <img
+                    src={String(selected["Cover Image URL"])}
+                    alt=""
+                    className="bb-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
               <h3 className="bb-detail-title">
                 {selected.Series} #{selected["Issue Full"] || selected.Issue}
               </h3>

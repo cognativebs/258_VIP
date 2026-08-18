@@ -28,6 +28,29 @@ export async function apiGet<T>(path: string, timeoutMs = API_TIMEOUT_MS): Promi
   return res.json() as Promise<T>;
 }
 
+export async function apiPost<T>(path: string, body: unknown, timeoutMs = API_TIMEOUT_MS): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new Error(`API ${path} timed out after ${timeoutMs}ms — is it running but stuck?`);
+    }
+    throw e;
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${path} failed: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export type BinderSummary = {
   id: string;
   name: string;

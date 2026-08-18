@@ -4,11 +4,12 @@ const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010"
 
 const links = [
   { href: "/", label: "Portfolio" },
-  { href: "/collections/comics", label: "Comics" },
+  { href: "/collections/comic", label: "Collections" },
   { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },
   { href: "/sell-queue", label: "Sell" },
   { href: "/signals", label: "Signals" },
+  { href: "/intelligence", label: "Intel" },
   { href: "/watchlist", label: "Watch" },
   { href: "/theses", label: "Theses" },
   { href: "/sources", label: "Sources" },
@@ -31,7 +32,13 @@ export function Nav({ active }: { active?: string }) {
           <Link
             key={l.href}
             href={l.href}
-            className={active === l.href ? "nav-link on" : "nav-link"}
+            className={
+              (l.href.startsWith("/collections")
+                ? active?.startsWith("/collections")
+                : active === l.href)
+                ? "nav-link on"
+                : "nav-link"
+            }
           >
             {l.label}
           </Link>

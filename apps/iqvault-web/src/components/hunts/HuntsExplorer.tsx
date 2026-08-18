@@ -9,12 +9,17 @@ export type HuntItem = {
   priority: string;
   buyUnder: number | null;
   market: number | null;
+  notes?: string | null;
 };
 
 export type Hunt = {
   id: string;
   name: string;
   description: string;
+  status?: string;
+  suggestion?: boolean;
+  suggestionNote?: string | null;
+  category?: string;
   metrics: {
     owned: number;
     wanted: number;
@@ -79,6 +84,12 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
           <div>
             <h1 className="page-title">{hunt.name}</h1>
             <p className="page-sub">{hunt.description}</p>
+            {hunt.suggestion ? (
+              <p className="muted" style={{ fontSize: 13 }}>
+                Suggested hunt — not in the 2026-08-15 plan files.
+                {hunt.suggestionNote ? ` ${hunt.suggestionNote}` : ""}
+              </p>
+            ) : null}
           </div>
           <CompletionRing pct={hunt.metrics.completionPct} size={72} />
         </div>
@@ -141,7 +152,13 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
                   <div className={`status-${item.status}`} style={{ fontSize: 12, marginTop: 4 }}>
                     {item.status.toUpperCase()}
                     {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
+                    {item.market != null ? ` · mkt ${money(item.market)}` : ""}
                   </div>
+                  {item.notes ? (
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                      {item.notes}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -173,6 +190,7 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
               <CompletionRing pct={h.metrics.completionPct} />
             </div>
             <h3 className="hunt-card-title">{h.name}</h3>
+            {h.suggestion ? <span className="badge badge-warn">suggested</span> : null}
             <p className="hunt-card-desc">{h.description}</p>
             <div className="hunt-card-stats">
               <span>

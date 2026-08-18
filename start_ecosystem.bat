@@ -1,17 +1,5 @@
 @echo off
+REM Legacy name. VIP one-click is Launch IQVault.bat
+REM VaultOS demo remains start_vaultos.bat / start_demo.bat
 cd /d "%~dp0"
-echo Starting IQVault Ecosystem...
-echo   Bridge  : http://127.0.0.1:5199
-echo   VaultOS : http://127.0.0.1:5174  (store@vaultos.demo / demo)
-echo   IQVault : http://127.0.0.1:3000  (npm run web — Vite :5175 archived)
-echo.
-
-start "IQVault Bridge" cmd /k node bridge\server.js
-
-timeout /t 2 /nobreak >nul
-
-start "VaultOS" cmd /k call start_vaultos.bat
-timeout /t 2 /nobreak >nul
-start "IQVault" cmd /k call start_iqvault.bat
-
-echo All three services launching in separate windows.
+call "%~dp0Launch IQVault.bat" %*

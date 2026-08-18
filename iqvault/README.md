@@ -11,7 +11,7 @@ As of 2026-08-08 those surfaces are merged into the Next.js collector face:
 | What moved | Where now |
 | --- | --- |
 | Gold-dark Personal Intelligence theme | `apps/iqvault-web` globals |
-| Comics terminal (filters / workspaces / inspector) | `/collections/comics` |
+| Comics terminal (filters / workspaces / inspector / Analytics) | `/collections/comic` |
 | Hunt cards + detail explorer | `/hunts` (VIP `/api/hunts`) |
 | Portfolio / recs / signals / sell queue / … | existing `:3000` routes on VIP API |
 

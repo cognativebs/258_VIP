@@ -15,8 +15,8 @@ Operator guides for the collector / Orchestr8 faces. Written against the stack a
 
 | Service | URL | Start |
 |---------|-----|--------|
-| IQVault (comics / Bloomberg-style) | http://127.0.0.1:5175 | `npm run dev --prefix iqvault` or ecosystem launcher |
-| IQVault web (VIP collector face) | http://127.0.0.1:3000 | `npm run web` |
+| IQVault web (VIP collector face) | http://127.0.0.1:3000/collections/comic | `Launch IQVault.bat` or `npm run web` |
+| IQVault (legacy Vite, archived) | http://127.0.0.1:5175 | `npm run dev --prefix iqvault` |
 | Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` |
 | VIP API | http://127.0.0.1:8787 | `npm run api` |
 | Comics API | http://127.0.0.1:5200 | `python api/comics_server.py` (needs Postgres) |
