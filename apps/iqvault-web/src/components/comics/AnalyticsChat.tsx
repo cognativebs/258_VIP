@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildAnalyticsContext,
   contextToJson,
-  SUGGESTED_PROMPTS,
+  suggestedPrompts,
 } from "@/lib/analyticsContext";
 import {
   fetchOrchestr8Agents,
@@ -50,6 +50,7 @@ export function AnalyticsChat({
   selectedComic,
   filteredValue,
   source,
+  vertical = "comic",
 }: {
   meta: ComicsMeta | null;
   filtered: ComicRow[];
@@ -60,7 +61,10 @@ export function AnalyticsChat({
   selectedComic: ComicRow | null;
   filteredValue: number;
   source: "comics-api" | "vip-api" | null;
+  /** Drives prompt wording — books on comics, cards/pockets on TCG. */
+  vertical?: string;
 }) {
+  const prompts = suggestedPrompts(vertical);
   const [team, setTeam] = useState<TeamSettings>(() => loadTeamSettings());
   const [agents, setAgents] = useState<AgentInfo[]>(FALLBACK_AGENTS);
   const [showTeamPanel, setShowTeamPanel] = useState(false);
@@ -282,7 +286,7 @@ export function AnalyticsChat({
               for council / roles / models.
             </p>
             <div className="bb-prompt-grid">
-              {SUGGESTED_PROMPTS.map((p) => (
+              {prompts.map((p) => (
                 <button
                   key={p}
                   type="button"
