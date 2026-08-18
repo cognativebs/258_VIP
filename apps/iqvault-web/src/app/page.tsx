@@ -209,7 +209,7 @@ export default async function PortfolioPage() {
                       {tcgOwned.slice(0, 24).map((h) => (
                         <tr key={h.id}>
                           <td>
-                            <strong>{h.assetName}</strong>
+                            <strong>{h.cardName?.trim() || h.assetName}</strong>
                           </td>
                           <td>
                             {h.currentPrice != null ? usd(h.currentPrice) : "—"}

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
+import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
   BINDER_WRITE_RULE,
   loadDurableBinderHoldings,
@@ -211,7 +212,10 @@ async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
   ]);
   const scanHoldings = scanRows.map(scanHoldingToApi);
 
-  const durableOwned = durableRows.map(durableBinderToApi);
+  const liveBySlot = liveBinderBySlotId(binder.available ? binder.holdings : []);
+  const durableOwned = durableRows.map((row) =>
+    overlayBinderDisplay(durableBinderToApi(row), liveBySlot.get(row.sourceRowId)),
+  );
   const durableSlotIds = new Set(durableRows.map((r) => r.sourceRowId));
 
   // Need pockets still come from Binder layout; owned pockets prefer the

@@ -2,6 +2,19 @@ import type { ComicRow, ComicsMeta } from "./comicTypes";
 import { apiGet, type Holding, type InventoryResponse } from "./api";
 import { holdingToComicRow, holdingToPokemonRow, metaFromHoldings } from "./holdingToComic";
 import { splitTcgHoldings } from "./collections";
+
+/** Accept camelCase or snake_case inventory JSON for TCG display fields. */
+function normalizeTcgHolding(h: Holding): Holding {
+  const raw = h as Holding & {
+    card_name?: string | null;
+    cover_image_url?: string | null;
+  };
+  return {
+    ...h,
+    cardName: h.cardName ?? raw.card_name ?? null,
+    coverImageUrl: h.coverImageUrl ?? raw.cover_image_url ?? null,
+  };
+}
 import {
   INBOX_POLL_MAX_MS,
   INBOX_POLL_MS,
@@ -122,7 +135,7 @@ export async function loadPokemonTerminalData(): Promise<{
   editable: boolean;
 }> {
   const data = await apiGet<InventoryResponse>("/api/inventory");
-  const split = splitTcgHoldings(data.holdings ?? []);
+  const split = splitTcgHoldings((data.holdings ?? []).map(normalizeTcgHolding));
   const rows =
     split.owned.length > 0
       ? [...split.owned, ...split.need]

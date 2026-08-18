@@ -2364,10 +2364,9 @@
 }
 
 .bb-table td.bb-tcg-name-cell {
-  overflow: hidden;
-  max-width: 320px;
-  white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--bb-text, #e8e8e8);
+  max-width: 360px;
 }
 
 
