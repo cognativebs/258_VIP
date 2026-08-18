@@ -383,7 +383,11 @@ export function ComicsTerminal({
         <input
           className="bb-search"
           type="search"
-          placeholder="Series, issue, variant, barcode, key note…"
+          placeholder={
+            isPokemon
+              ? "Card name, set, number…"
+              : "Series, issue, variant, barcode, key note…"
+          }
           value={filters.query}
           onChange={(e) => setFilters({ ...filters, query: e.target.value })}
           spellCheck={false}

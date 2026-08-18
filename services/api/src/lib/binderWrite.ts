@@ -457,6 +457,12 @@ export async function loadDurableBinderHoldings(): Promise<
         h.clz_metadata,
         a.canonical_name,
         a.primary_image_url,
+        s.card_name AS slot_card_name,
+        s.set_name AS slot_set_name,
+        s.number AS slot_number,
+        s.rarity AS slot_rarity,
+        s.image_url AS slot_image_url,
+        s.image_local AS slot_image_local,
         COALESCE(
           (
             SELECT json_agg(json_build_object('source', e.source, 'externalValue', e.external_value))
@@ -467,6 +473,7 @@ export async function loadDurableBinderHoldings(): Promise<
         ) AS external_ids
       FROM vault_collection.holding h
       JOIN vault_core.asset a ON a.id = h.asset_id
+      LEFT JOIN vault_tcg.binder_slot s ON s.id = h.source_row_id
       WHERE h.source = ${BINDER_HOLDING_SOURCE}
       ORDER BY a.canonical_name
     `);
@@ -486,8 +493,12 @@ export async function loadDurableBinderHoldings(): Promise<
       const externalIds =
         (row.external_ids as { source: string; externalValue: string }[]) ?? [];
       const assetName = String(row.canonical_name);
-      const series = String(meta.setName ?? meta.set_name ?? "");
-      const issue = String(meta.number ?? "");
+      const liveName =
+        String(row.slot_card_name ?? row.slotCardName ?? "").trim() || null;
+      const series = String(
+        row.slot_set_name ?? row.slotSetName ?? meta.setName ?? meta.set_name ?? "",
+      );
+      const issue = String(row.slot_number ?? row.slotNumber ?? meta.number ?? "");
       return {
         id: String(row.id),
         sourceRowId: String(row.source_row_id),
@@ -495,14 +506,20 @@ export async function loadDurableBinderHoldings(): Promise<
         series,
         issue,
         cardName: printedTcgName({
-          cardName: String(meta.cardName ?? meta.card_name ?? "").trim() || null,
+          cardName:
+            liveName ||
+            String(meta.cardName ?? meta.card_name ?? "").trim() ||
+            null,
           assetName,
           series,
           issue,
         }),
-        rarity: String(meta.rarity ?? "").trim() || null,
+        rarity: String(row.slot_rarity ?? meta.rarity ?? "").trim() || null,
         coverImageUrl: resolveTcgCover({
-          coverImageUrl: String(meta.imageUrl ?? meta.image_url ?? "").trim() || null,
+          coverImageUrl:
+            String(row.slot_image_url ?? meta.imageUrl ?? meta.image_url ?? "").trim() ||
+            null,
+          imageLocal: String(row.slot_image_local ?? "").trim() || null,
           primaryImageUrl: String(row.primary_image_url ?? "").trim() || null,
           binderPublicUrl: binderPublicUrl(),
           externalIds,

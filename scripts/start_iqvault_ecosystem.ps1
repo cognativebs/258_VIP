@@ -31,6 +31,21 @@ function Write-Step([string]$Msg) {
     Write-Host "[IQVault] $Msg" -ForegroundColor Cyan
 }
 
+function Write-Checkout {
+    try {
+        Push-Location $Root
+        $branch = (git branch --show-current 2>$null)
+        $sha = (git rev-parse --short HEAD 2>$null)
+        $msg = (git log -1 --pretty=%s 2>$null)
+        if ($sha) {
+            Write-Step ("Checkout {0} @ {1} — {2}" -f $branch, $sha, $msg)
+        }
+    } catch {
+    } finally {
+        Pop-Location
+    }
+}
+
 function Write-Warn([string]$Msg) {
     Write-Host "[IQVault] WARN: $Msg" -ForegroundColor Yellow
 }
@@ -526,7 +541,7 @@ function Write-StackSummary {
     Write-Step ("  VIP API    {0}  http://127.0.0.1:{1}  comicsCount={2}" -f $vipLabel, $Ports.VipApi, $comicsCount)
     Write-Step ("  Comics API {0}  http://127.0.0.1:{1}" -f $comicsLabel, $Ports.ComicsApi)
     Write-Step ("  Orchestr8  {0}  http://127.0.0.1:{1}  providers={2}" -f $orchLabel, $Ports.Orchestr8, $orchProviders)
-    Write-Step ("  Web        {0}  http://127.0.0.1:{1}/collections/comics" -f $webLabel, $Ports.Web)
+    Write-Step ("  Web        {0}  http://127.0.0.1:{1}/collections/pokemon" -f $webLabel, $Ports.Web)
     if (-not $NoBinder) {
         $binderOk = Test-PortListening $Ports.Binder
         $binderLabel = if ($binderOk) { "OK" } else { "DOWN" }
@@ -552,9 +567,10 @@ try {
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  IQVault VIP - starting stack" -ForegroundColor Green
-Write-Host "  http://127.0.0.1:$($Ports.Web)" -ForegroundColor Green
+Write-Host "  http://127.0.0.1:$($Ports.Web)/collections/pokemon" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
+Write-Checkout
 
 try {
     Install-DesktopShortcut
@@ -572,11 +588,10 @@ try {
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
+        Start-Process "http://127.0.0.1:$($Ports.Web)/collections/pokemon"
         Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
-        Start-Process "http://127.0.0.1:$($Ports.Web)/collections"
-        if (-not $NoBinder) {
-            Start-Process "http://127.0.0.1:$($Ports.Binder)"
-        }
+        # Binder stays in the stack but is not opened — it is the pocket editor,
+        # not the collection terminal. Open it from Binder ↗ on the Pokémon tab.
     }
 
     Write-StackSummary

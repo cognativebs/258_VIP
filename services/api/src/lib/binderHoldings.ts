@@ -33,61 +33,70 @@ export type BinderTcgPayload = {
   store: "postgres";
 };
 
-type SlotJoinRow = {
-  slot_id: string;
-  binder_id: string;
-  binder_name: string;
-  page_title: string;
-  page_index: number;
-  role_label: string;
-  source: string | null;
-  external_id: string | null;
-  card_name: string | null;
-  set_name: string | null;
-  number: string | null;
-  rarity: string | null;
-  image_url: string | null;
-  image_local: string | null;
-  price_market: number | null;
-  owned: boolean;
-  verification_status: string | null;
-  provenance_source: string | null;
-  provenance_method: string | null;
-  provenance_model_version: string | null;
-  confidence: number | null;
-  binder_updated_at: number | null;
-};
+/** node-pg may return snake_case or camelCase depending on the driver path. */
+export function pgText(row: Record<string, unknown>, snake: string): string {
+  const camel = snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  const v = row[snake] ?? row[camel];
+  return v == null ? "" : String(v).trim();
+}
 
-function slotToHolding(row: SlotJoinRow): ApiHolding {
-  const setName = row.set_name?.trim() || "Unknown set";
-  const name = row.card_name?.trim() || "Unnamed card";
-  const number = row.number?.trim() || "";
-  const owned = !!row.owned;
-  const verified = (row.verification_status ?? "").toLowerCase() === "verified";
-  const conf =
-    typeof row.confidence === "number" && Number.isFinite(row.confidence)
-      ? row.confidence
+function pgBool(row: Record<string, unknown>, snake: string): boolean {
+  const camel = snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  const v = row[snake] ?? row[camel];
+  return v === true || v === "t" || v === "true" || v === 1 || v === "1";
+}
+
+function pgNum(row: Record<string, unknown>, snake: string): number | null {
+  const camel = snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  const v = row[snake] ?? row[camel];
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function binderSlotToHolding(row: Record<string, unknown>): ApiHolding {
+  const slotId = pgText(row, "slot_id");
+  const setName = pgText(row, "set_name") || "Unknown set";
+  const name = pgText(row, "card_name") || "Unnamed card";
+  const number = pgText(row, "number");
+  const owned = pgBool(row, "owned");
+  const source = pgText(row, "source") || null;
+  const externalId = pgText(row, "external_id") || null;
+  const rarity = pgText(row, "rarity") || null;
+  const verified = pgText(row, "verification_status").toLowerCase() === "verified";
+  const conf = pgNum(row, "confidence");
+  const confidence =
+    conf != null
+      ? conf
       : owned
         ? 0.7
         : 0.55;
 
   const provenance = verified
     ? markObserved({
-        source: row.provenance_source || "binder-vault",
-        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.2.0",
-        confidence: conf,
+        source: pgText(row, "provenance_source") || "binder-vault",
+        ruleOrModelVersion: pgText(row, "provenance_model_version") || "binder-adapter@0.2.0",
+        confidence,
       })
     : markInferred({
-        source: row.provenance_source || "binder-vault",
-        ruleOrModelVersion: row.provenance_model_version || "binder-adapter@0.2.0",
+        source: pgText(row, "provenance_source") || "binder-vault",
+        ruleOrModelVersion: pgText(row, "provenance_model_version") || "binder-adapter@0.2.0",
         notes: owned
           ? "Owned flag from Binder Vault · unverified against physical slab"
           : "Binder pocket placement · need / not marked owned",
       });
 
+  const assetName = [setName, number && `#${number}`, name].filter(Boolean).join(" ");
+  const externalIds =
+    externalId && source
+      ? [{ source, externalValue: externalId }]
+      : externalId
+        ? [{ source: "pokemontcg", externalValue: externalId }]
+        : [];
+
   return {
-    id: `binder-slot-${row.slot_id}`,
-    assetName: [setName, number && `#${number}`, name].filter(Boolean).join(" "),
+    id: `binder-slot-${slotId}`,
+    assetName,
     series: setName,
     issue: number,
     publisher: "The Pokémon Company",
@@ -102,44 +111,33 @@ function slotToHolding(row: SlotJoinRow): ApiHolding {
     needsPhoto: false,
     needsVerification: !verified || !owned,
     verificationNotes: [
-      `Binder: ${row.binder_name}`,
-      row.page_title ? `Page: ${row.page_title}` : `Page ${row.page_index + 1}`,
-      row.role_label ? `Role: ${row.role_label}` : null,
-      row.rarity ? `Rarity: ${row.rarity}` : null,
+      `Binder: ${pgText(row, "binder_name")}`,
+      pgText(row, "page_title")
+        ? `Page: ${pgText(row, "page_title")}`
+        : `Page ${(pgNum(row, "page_index") ?? 0) + 1}`,
+      pgText(row, "role_label") ? `Role: ${pgText(row, "role_label")}` : null,
+      rarity ? `Rarity: ${rarity}` : null,
       owned ? "Owned in Binder" : "Still needed",
     ]
       .filter(Boolean)
       .join(" · "),
-    currentPrice:
-      typeof row.price_market === "number" && Number.isFinite(row.price_market)
-        ? row.price_market
-        : null,
+    currentPrice: pgNum(row, "price_market"),
     assumedGrade: null,
     gradeRating: null,
     coverImageUrl: resolveTcgCover({
-      coverImageUrl: row.image_url?.trim() || null,
-      imageLocal: row.image_local?.trim() || null,
+      coverImageUrl: pgText(row, "image_url") || null,
+      imageLocal: pgText(row, "image_local") || null,
       binderPublicUrl: binderPublicUrl(),
-      externalIds:
-        row.external_id && row.source
-          ? [{ source: row.source, externalValue: row.external_id }]
-          : row.external_id
-            ? [{ source: "pokemontcg", externalValue: row.external_id }]
-            : [],
+      externalIds,
     }),
     cardName: printedTcgName({
       cardName: name === "Unnamed card" ? null : name,
-      assetName: [setName, number && `#${number}`, name].filter(Boolean).join(" "),
+      assetName,
       series: setName,
       issue: number,
     }),
-    rarity: row.rarity?.trim() || null,
-    externalIds:
-      row.external_id && row.source
-        ? [{ source: row.source, externalValue: row.external_id }]
-        : row.external_id
-          ? [{ source: "pokemontcg", externalValue: row.external_id }]
-          : [],
+    rarity,
+    externalIds,
     provenance,
   };
 }
@@ -179,32 +177,30 @@ export async function loadBinderTcg(): Promise<BinderTcgPayload> {
       ORDER BY b.name, p.page_index, s.slot_index
     `);
 
-    const rows = slotsRes.rows as unknown as SlotJoinRow[];
-    const holdings = rows.map(slotToHolding);
+    const rows = slotsRes.rows as unknown as Record<string, unknown>[];
+    const holdings = rows.map(binderSlotToHolding);
 
     const binderMap = new Map<string, BinderSummary>();
     for (const row of rows) {
-      let summary = binderMap.get(row.binder_id);
+      const binderId = pgText(row, "binder_id");
+      let summary = binderMap.get(binderId);
       if (!summary) {
         summary = {
-          id: row.binder_id,
-          name: row.binder_name,
+          id: binderId,
+          name: pgText(row, "binder_name"),
           pages: 0,
           filledSlots: 0,
           ownedSlots: 0,
           needSlots: 0,
           ownedMarketSum: 0,
           needMarketSum: 0,
-          updatedAt: row.binder_updated_at,
+          updatedAt: pgNum(row, "binder_updated_at"),
         };
-        binderMap.set(row.binder_id, summary);
+        binderMap.set(binderId, summary);
       }
       summary.filledSlots += 1;
-      const price =
-        typeof row.price_market === "number" && Number.isFinite(row.price_market)
-          ? row.price_market
-          : 0;
-      if (row.owned) {
+      const price = pgNum(row, "price_market") ?? 0;
+      if (pgBool(row, "owned")) {
         summary.ownedSlots += 1;
         summary.ownedMarketSum += price;
       } else {

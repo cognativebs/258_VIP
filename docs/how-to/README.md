@@ -22,7 +22,8 @@ stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 
 Double-click **`Launch IQVault.bat`** (or the Desktop **IQVault** shortcut from
 `scripts/create_iqvault_shortcut.ps1`). It health-checks each service, restarts
-stale listeners (VIP, Comics API, web, Binder), then opens Comics:
+stale listeners (VIP, Comics API, web, Binder), then opens the Pokémon
+terminal (and Comics). Binder Vault is started but not opened in the browser:
 
 | Order | Service | Port |
 |------|---------|------|
@@ -31,10 +32,11 @@ stale listeners (VIP, Comics API, web, Binder), then opens Comics:
 | 3 | VIP API (`npm run api`) | 8787 |
 | 4 | Comics API (`python api/comics_server.py`) | 5200 |
 | 5 | Orchestr8 gateway (`python orchestr8/api/server.py`) | 5210 |
-| 6 | IQVault web (`npm run web`) | 3000 → `/collections/comics` |
+| 6 | IQVault web (`npm run web`) | 3000 → `/collections/pokemon` |
 
 Stop app windows with **`Stop IQVault.bat`** (Postgres stays up). Binder Vault
-(`:3010`) starts with the stack; pass `-NoBinder` to skip it.
+(`:3010`) starts with the stack (open it from **Binder ↗** on the Pokémon tab);
+pass `-NoBinder` to skip it.
 
 `npm run api` is **only** the VIP API (`:8787`). Comics API is a separate
 Python process (`:5200`). Launch IQVault starts both. Piecemeal:
