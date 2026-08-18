@@ -55,10 +55,9 @@ export const TABLE_COLUMNS = [
   { id: "Location", label: "LOCATION", minWidth: 90 },
 ];
 
-/** Pokémon TCG grid in the same Bloomberg HTML terminal — ART + NAME first. */
+/** Pokémon grid — same Bloomberg table as comics. NAME first; art lives in Inspector. */
 export const POKEMON_TABLE_COLUMNS = [
-  { id: "Cover Image URL", label: "ART", minWidth: 64 },
-  { id: "Title", label: "NAME", minWidth: 180 },
+  { id: "Title", label: "NAME", minWidth: 220 },
   { id: "Series", label: "SET", minWidth: 140 },
   { id: "Issue Full", label: "#", minWidth: 48 },
   { id: "Edition / Variant", label: "RARITY", minWidth: 90 },

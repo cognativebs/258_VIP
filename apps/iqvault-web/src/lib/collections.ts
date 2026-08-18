@@ -6,7 +6,7 @@ import type { Holding } from "./api";
  * Comics and Pokémon TCG already live in the same Postgres and arrive together on
  * `/api/inventory`; splitting them here keeps one source of truth while giving
  * each asset class its own page instead of a comics-only app.
- * Live Pokémon face: `/collections/pokemon` (`/collections/tcg` redirects there).
+ * Live Pokémon face: `/collections/pokemon` (there is no `/collections/tcg` route).
  */
 
 export type CollectionId = "comics" | "pokemon" | "sports";
@@ -29,7 +29,7 @@ export const COLLECTIONS: CollectionDef[] = [
     id: "pokemon",
     label: "Pokémon",
     href: "/collections/pokemon",
-    blurb: "Pokémon TCG — Binder pockets (owned / need) with card name and art.",
+    blurb: "Pokémon TCG — Binder pockets (owned / need); card name in the grid, art in Inspector.",
   },
   {
     id: "sports",

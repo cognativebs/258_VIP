@@ -54,7 +54,7 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | IQVault web (VIP collector face) | http://127.0.0.1:3000 | `Launch IQVault.bat` or `npm run web` |
 | — Collections hub | http://127.0.0.1:3000/collections | Comics + Pokémon + Sports |
 | — Comics terminal | http://127.0.0.1:3000/collections/comics | CLZ buttons + XML drop zone |
-| — Pokémon TCG | http://127.0.0.1:3000/collections/pokemon | Name + art terminal (`/collections/tcg` redirects here) |
+| — Pokémon TCG | http://127.0.0.1:3000/collections/pokemon | NAME in the grid; card art in Inspector (same as comics) |
 | — Sports (stub) | http://127.0.0.1:3000/collections/sports | catalog only until ingest |
 | — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
 | Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` (Launch starts this; `-NoBinder` skips) |

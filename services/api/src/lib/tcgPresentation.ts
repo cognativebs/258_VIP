@@ -44,28 +44,37 @@ export function resolveTcgCover(opts: {
   return null;
 }
 
+function isPrintedCardName(value: string, set: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  const lower = v.toLowerCase();
+  if (lower === "unnamed card" || lower.endsWith(" unnamed card")) return false;
+  if (lower === "unknown set") return false;
+  if (set && lower === set.trim().toLowerCase()) return false;
+  return true;
+}
+
 export function printedTcgName(opts: {
   cardName?: string | null;
   assetName?: string | null;
   series?: string | null;
   issue?: string | null;
 }): string | null {
-  const named = opts.cardName?.trim();
-  if (named && named.toLowerCase() !== "unnamed card") return named;
-
-  const asset = (opts.assetName ?? "").trim();
   const set = (opts.series ?? "").trim();
   const num = (opts.issue ?? "").trim();
-  if (set && num) {
-    const prefix = `${set} #${num} `;
-    if (asset.toLowerCase().startsWith(prefix.toLowerCase())) {
-      const rest = asset.slice(prefix.length).trim();
-      if (rest && rest.toLowerCase() !== "unnamed card") return rest;
+  const named = opts.cardName?.trim() ?? "";
+  if (isPrintedCardName(named, set)) return named;
+
+  const asset = (opts.assetName ?? "").trim();
+  if (num) {
+    const needle = `#${num} `;
+    const idx = asset.toLowerCase().indexOf(needle.toLowerCase());
+    if (idx >= 0) {
+      const rest = asset.slice(idx + needle.length).trim();
+      if (isPrintedCardName(rest, set)) return rest;
     }
   }
-  if (asset && set && asset !== set && !asset.toLowerCase().endsWith("unnamed card")) {
-    return asset;
-  }
+  if (isPrintedCardName(asset, set)) return asset;
   return null;
 }
 

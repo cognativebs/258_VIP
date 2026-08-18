@@ -1,13 +1,13 @@
 # How-To: See TCG collections in the same Bloomberg view as comics
 
-**Short answer today:** Pokémon has a first-class nav tab at **http://127.0.0.1:3000/collections/pokemon** (Binder holdings + Binder / CLZ buttons). `/collections/tcg` redirects there. Drop-to-inbox is still Comics-only.
+**Short answer today:** Pokémon has a first-class nav tab at **http://127.0.0.1:3000/collections/pokemon** (Binder holdings + Binder / CLZ buttons). There is no `/collections/tcg` route. Drop-to-inbox is still Comics-only.
 
 ## What each surface shows
 
 | Face | URL | Inventory |
 |------|-----|-----------|
 | **Comics terminal** | http://127.0.0.1:3000/collections/comics | Live Postgres comics via Comics API `:5200` |
-| **Pokémon TCG** | http://127.0.0.1:3000/collections/pokemon | **ART** + **NAME** columns, set, number, rarity, value, inspector cover (`/collections/tcg` redirects here) |
+| **Pokémon TCG** | http://127.0.0.1:3000/collections/pokemon | **NAME** in the grid (printed card), set, number, rarity, value; cover art in the Inspector tab (same pattern as comics) |
 | **Sports terminal (stub)** | http://127.0.0.1:3000/collections/sports | Catalog schema only (`vault_sports`); no holdings ingest |
 | **VIP collector face** (Next) | http://127.0.0.1:3000 | Comics + live Binder TCG holdings from Postgres via VIP API |
 | **Binder Vault** | http://127.0.0.1:3010 (LAN IP on phone) | TCG binders / pockets / owned-wishlist (`vault_tcg` in Postgres) |

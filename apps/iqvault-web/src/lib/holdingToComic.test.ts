@@ -39,11 +39,16 @@ function seedHolding(): Holding {
 }
 
 describe("holdingToPokemonRow", () => {
-  it("puts printed name in Title and official art in Cover Image URL", () => {
+  it("puts printed name in Title and official art in Cover Image URL for Inspector", () => {
     const row = holdingToPokemonRow(seedHolding());
     assert.equal(row.Title, "Charizard Holo");
     assert.equal(row["Cover Image URL"], "https://images.pokemontcg.io/base1/4.png");
     assert.equal(row.Series, "Base Set");
     assert.equal(row["Issue Full"], "4");
+  });
+
+  it("recovers the printed name from assetName when cardName is missing", () => {
+    const row = holdingToPokemonRow({ ...seedHolding(), cardName: null });
+    assert.equal(row.Title, "Charizard Holo");
   });
 });

@@ -6,15 +6,6 @@ const vipTarget = process.env.VIP_API_URL ?? "http://127.0.0.1:8787";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  async redirects() {
-    return [
-      {
-        source: "/collections/tcg",
-        destination: "/collections/pokemon",
-        permanent: true,
-      },
-    ];
-  },
   async rewrites() {
     return [
       {
