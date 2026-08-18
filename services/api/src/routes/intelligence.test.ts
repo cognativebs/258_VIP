@@ -139,7 +139,7 @@ describe("prediction ledger writes", () => {
     });
   });
 
-  it("rejects a probability distribution that does not sum to 1", async () => {
+  it("rejects a probability distribution that does not sum to 1, readably", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/intelligence/predictions`, {
         method: "POST",
@@ -154,6 +154,10 @@ describe("prediction ledger writes", () => {
         }),
       });
       expect(res.status).toBe(400);
+      const { error } = (await res.json()) as { error: string };
+      // The desk renders this string; it must not be raw zod JSON.
+      expect(error).toMatch(/must sum to ~1\.0 \(got 2\.7\)/);
+      expect(error).not.toMatch(/[{[]/);
     });
   });
 

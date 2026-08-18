@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { ZodError } from "zod";
 import {
   EMERGING_MARKET_SEEDS,
   PRINT_LIFE_WATCHES,
@@ -34,7 +35,18 @@ export type IntelligenceDeps = {
   }>;
 };
 
+/**
+ * Guardrail rejections are shown to the operator in the intelligence desk, so
+ * flatten zod issues into a sentence instead of echoing raw JSON.
+ */
 function fail(res: Response, e: unknown): void {
+  if (e instanceof ZodError) {
+    const detail = e.issues
+      .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
+      .join("; ");
+    res.status(400).json({ error: detail });
+    return;
+  }
   res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
 }
 

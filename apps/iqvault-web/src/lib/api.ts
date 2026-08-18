@@ -44,6 +44,48 @@ export async function apiGet<T>(path: string, timeoutMs?: number): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * VIP writes (intelligence desk). The API answers 400 with `{ error }` on a
+ * rejected write — surface that message instead of a bare status code, since
+ * these rejections are the guardrails (immutable rows, bad probabilities).
+ */
+export async function apiPost<T>(
+  path: string,
+  body: unknown,
+  timeoutMs = API_TIMEOUT_MS,
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${vipApiBase()}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new Error(`API ${path} timed out after ${timeoutMs}ms — is it running but stuck?`);
+    }
+    throw e;
+  }
+  const text = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+  if (!res.ok) {
+    const detail =
+      parsed && typeof parsed === "object" && "error" in parsed
+        ? String((parsed as { error: unknown }).error)
+        : `status ${res.status}`;
+    throw new Error(`API ${path} rejected: ${detail}`);
+  }
+  return parsed as T;
+}
+
 export type BinderSummary = {
   id: string;
   name: string;
