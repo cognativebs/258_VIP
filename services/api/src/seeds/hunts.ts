@@ -18,17 +18,27 @@ export type HuntSection = {
   items: HuntItem[];
 };
 
+export type HuntCategory =
+  | "comic"
+  | "pokemon"
+  | "one_piece"
+  | "gundam"
+  | "lorcana";
+
 export type Hunt = {
   id: string;
   slug: string;
   name: string;
   status: "active" | "paused" | "completed" | "coming_soon";
   description: string;
-  category: "comic" | "pokemon";
+  category: HuntCategory;
   sections: HuntSection[];
+  /** Proposed, not adopted: the operator has not committed to this hunt yet. */
+  suggestion?: boolean;
+  suggestionNote?: string;
 };
 
-function item(
+export function item(
   id: string,
   name: string,
   opts: Partial<HuntItem> & { status?: HuntItemStatus } = {},
