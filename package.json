@@ -7,12 +7,12 @@
     "services/*"
   ],
   "scripts": {
-    "build:packages": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/decision-engine && npm run build -w @vip/signals && npm run build -w @vip/pricing && npm run build -w @vip/scan-ingest",
+    "build:packages": "npm run build -w @vip/evidence && npm run build -w @vip/core-model && npm run build -w @vip/intelligence && npm run build -w @vip/decision-engine && npm run build -w @vip/signals && npm run build -w @vip/pricing && npm run build -w @vip/scan-ingest",
     "build": "npm run build:packages && npm run build -w @vip/iqvault-web",
     "pretest": "npm run build:packages",
-    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/decision-engine && npm run test -w @vip/signals && npm run test -w @vip/pricing && npm run test -w @vip/scan-ingest && npm run test -w @vip/api && npm run test -w @vip/jobs && npm run test -w @vip/binder-vault && npm run test -w @vip/iqvault-web",
+    "test": "npm run test -w @vip/evidence && npm run test -w @vip/core-model && npm run test -w @vip/intelligence && npm run test -w @vip/decision-engine && npm run test -w @vip/signals && npm run test -w @vip/pricing && npm run test -w @vip/scan-ingest && npm run test -w @vip/api && npm run test -w @vip/jobs && npm run test -w @vip/binder-vault && npm run test -w @vip/iqvault-web",
     "pretypecheck": "npm run build:packages",
-    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/decision-engine && npm run typecheck -w @vip/signals && npm run typecheck -w @vip/pricing && npm run typecheck -w @vip/scan-ingest && npm run typecheck -w @vip/api && npm run typecheck -w @vip/jobs && npm run typecheck -w @vip/iqvault-web && npm run typecheck -w @vip/binder-vault && npm run typecheck -w @vip/orchestr8-console",
+    "typecheck": "npm run typecheck -w @vip/evidence && npm run typecheck -w @vip/core-model && npm run typecheck -w @vip/intelligence && npm run typecheck -w @vip/decision-engine && npm run typecheck -w @vip/signals && npm run typecheck -w @vip/pricing && npm run typecheck -w @vip/scan-ingest && npm run typecheck -w @vip/api && npm run typecheck -w @vip/jobs && npm run typecheck -w @vip/iqvault-web && npm run typecheck -w @vip/binder-vault && npm run typecheck -w @vip/orchestr8-console",
     "backtest": "npm run backtest -w @vip/decision-engine",
     "api": "npm run start -w @vip/api",
     "comics": "python api/comics_server.py",
