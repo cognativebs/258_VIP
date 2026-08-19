@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Binder Vault — Digital Card Binder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#121218;
+    --panel:#1b1b23;
+    --panel-edge:#28282f;
+    --page:#e7e0ce;
+    --page-edge:#cfc4a2;
+    --oxblood:#7a2331;
+    --oxblood-hi:#953244;
+    --brass:#b4924c;
+    --brass-hi:#d4b06c;
+    --ink:#26221c;
+    --offwhite:#f3f1ea;
+    --muted:#8b8a93;
+    --muted-dim:#5c5b63;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--offwhite);font-family:'Inter',sans-serif;height:100%;}
+  ::selection{background:var(--oxblood);color:var(--offwhite);}
+  :focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px;}
+
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+
+  .app{display:flex;min-height:100vh;}
+
+  /* ---------- SHELF (sidebar) ---------- */
+  .shelf{
+    width:220px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--panel-edge);
+    padding:22px 14px;display:flex;flex-direction:column;gap:16px;
+  }
+  .shelf-title{font-family:'Oswald',sans-serif;font-weight:600;font-size:20px;letter-spacing:.02em;text-transform:uppercase;color:var(--offwhite);}
+  .shelf-sub{margin-top:-10px;}
+  .spines{display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;padding-right:2px;}
+  .spine{
+    position:relative;display:flex;align-items:center;gap:10px;
+    padding:12px 10px;border-radius:4px;cursor:pointer;border:1px solid transparent;
+    background:linear-gradient(90deg, rgba(255,255,255,.04), transparent);
+  }
+  .spine:hover{border-color:var(--panel-edge);background:rgba(255,255,255,.05);}
+  .spine.active{border-color:var(--brass);background:rgba(180,146,76,.1);}
+  .spine-bar{width:10px;height:38px;border-radius:2px;flex-shrink:0;box-shadow:inset -2px 0 3px rgba(0,0,0,.35);}
+  .spine-label{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.03em;text-transform:uppercase;line-height:1.2;color:var(--offwhite);}
+  .spine-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;}
+
+  .btn{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    background:transparent;color:var(--offwhite);border:1px solid var(--panel-edge);border-radius:3px;
+    padding:9px 12px;cursor:pointer;transition:border-color .15s, background .15s;
+  }
+  @media (prefers-reduced-motion: reduce){.btn{transition:none;}}
+  .btn:hover{border-color:var(--brass);background:rgba(180,146,76,.08);}
+  .btn-primary{background:var(--oxblood);border-color:var(--oxblood);}
+  .btn-primary:hover{background:#8f2a3a;border-color:#8f2a3a;}
+  .btn-ghost{border-color:transparent;}
+  .btn-ghost:hover{border-color:var(--panel-edge);background:rgba(255,255,255,.04);}
+  .btn:disabled{opacity:.35;cursor:not-allowed;}
+  .btn:disabled:hover{border-color:var(--panel-edge);background:transparent;}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    padding:18px 28px;border-bottom:1px solid var(--panel-edge);background:var(--panel);
+  }
+  .binder-name{
+    font-family:'Oswald',sans-serif;font-weight:600;font-size:22px;text-transform:uppercase;letter-spacing:.02em;
+    background:transparent;border:none;color:var(--offwhite);border-bottom:1px dashed transparent;padding:2px 0;min-width:60px;
+  }
+  .binder-name:hover, .binder-name:focus{border-bottom-color:var(--muted-dim);}
+  .pager{display:flex;align-items:center;gap:10px;}
+  .pager-count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);min-width:110px;text-align:center;}
+  .topbar-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .stage{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:38px 24px;overflow:auto;}
+
+  .empty-state{margin:auto;text-align:center;max-width:360px;color:var(--muted);}
+  .empty-state h2{font-family:'Oswald',sans-serif;color:var(--offwhite);text-transform:uppercase;font-size:22px;letter-spacing:.02em;}
+  .empty-state p{font-size:14px;line-height:1.6;}
+
+  /* ---------- PAGE (the sheet) ---------- */
+  .page-wrap{position:relative;}
+  .page{
+    position:relative;background:var(--page);border-radius:3px;
+    box-shadow:0 18px 40px rgba(0,0,0,.45), 0 2px 0 var(--page-edge) inset;
+    padding:34px 30px 30px 56px;
+  }
+  .ring-col{position:absolute;left:16px;top:0;bottom:0;width:20px;display:flex;flex-direction:column;justify-content:space-evenly;align-items:center;}
+  .ring-hole{
+    width:16px;height:16px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #2a2a2a, #0c0c0c 70%);
+    box-shadow:0 1px 0 rgba(255,255,255,.15), inset 0 1px 3px rgba(0,0,0,.8);
+    border:2px solid var(--brass);
+  }
+  .grid{display:grid;gap:14px;}
+  .pocket{
+    position:relative;aspect-ratio:5/7;border-radius:2px;overflow:hidden;
+    background:repeating-linear-gradient(45deg, rgba(0,0,0,.03) 0 10px, transparent 10px 20px);
+    border:1.5px dashed var(--page-edge);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .pocket:hover{border-color:var(--oxblood);}
+  .pocket-empty-inner{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted-dim);}
+  .pocket-plus{font-family:'Oswald',sans-serif;font-size:22px;font-weight:600;line-height:1;}
+  .pocket-coord{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;}
+  .pocket img{width:100%;height:100%;object-fit:cover;display:block;}
+  .pocket-actions{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;
+    background:rgba(18,18,24,0);opacity:0;transition:opacity .15s, background .15s;
+  }
+  .pocket:hover .pocket-actions{opacity:1;background:rgba(18,18,24,.45);}
+  @media (prefers-reduced-motion: reduce){.pocket-actions{transition:none;}}
+  .pocket-icon-btn{
+    width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--brass);
+    color:var(--offwhite);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;
+  }
+  .pocket-icon-btn:hover{background:var(--oxblood);}
+
+  .page-caption{margin-top:12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+
+  /* ---------- MODAL ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(8,8,10,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--panel);border:1px solid var(--panel-edge);border-radius:6px;width:100%;max-width:420px;padding:26px;}
+  .modal h3{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:0 0 18px;font-size:19px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .field input[type=text]{
+    width:100%;background:var(--bg);border:1px solid var(--panel-edge);border-radius:3px;color:var(--offwhite);
+    padding:9px 10px;font-family:'Inter',sans-serif;font-size:14px;
+  }
+  .swatches{display:flex;gap:8px;}
+  .swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
+  .swatch.selected{border-color:var(--offwhite);}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .preset-chip{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    padding:7px 10px;border:1px solid var(--panel-edge);border-radius:3px;cursor:pointer;color:var(--muted);
+  }
+  .preset-chip.selected{border-color:var(--brass);color:var(--offwhite);background:rgba(180,146,76,.1);}
+  .dims-row{display:flex;gap:12px;}
+  .dims-row .field{flex:1;}
+  .dims-row input[type=number]{
+    width:100%;background:var(--bg);border:1px solid var(--panel-edge);border-radius:3px;color:var(--offwhite);
+    padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:14px;
+  }
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+
+  /* ---------- LIGHTBOX ---------- */
+  .lightbox{position:fixed;inset:0;background:rgba(6,6,8,.92);display:flex;align-items:center;justify-content:center;z-index:60;padding:30px;}
+  .lightbox img{max-width:90vw;max-height:88vh;border-radius:4px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .lightbox-close{position:absolute;top:22px;right:26px;background:none;border:1px solid var(--panel-edge);color:var(--offwhite);border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:16px;}
+
+  input[type=file]{display:none;}
+
+  @media (max-width:760px){
+    .app{flex-direction:column;}
+    .shelf{width:100%;flex-direction:row;align-items:center;overflow-x:auto;padding:14px;}
+    .spines{flex-direction:row;overflow-x:auto;}
+    .spine{flex-direction:column;min-width:70px;}
+    .spine-bar{width:100%;height:8px;}
+    .page{padding:26px 16px 20px 40px;}
+    .ring-col{left:8px;width:14px;}
+    .ring-hole{width:11px;height:11px;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+const PRESETS = [
+  {label:'9-Pocket', rows:3, cols:3},
+  {label:'12-Pocket', rows:4, cols:3},
+  {label:'4-Pocket (Toploader)', rows:2, cols:2},
+  {label:'20-Pocket Sheet', rows:5, cols:4},
+  {label:'Custom', rows:3, cols:3, custom:true},
+];
+const SPINE_COLORS = ['#7a2331','#223a5e','#2f4b3c','#4b2e4f','#33323a','#a97d2c'];
+
+let state = {
+  binders: [],
+  activeBinderId: null,
+  activePageIndex: 0,
+  lightboxSrc: null,
+  showNewBinderModal: false,
+  newBinder: { name:'', color: SPINE_COLORS[0], presetIndex: 0, rows: 3, cols: 3 },
+};
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function makePage(rows, cols){
+  return { id: uid(), slots: Array(rows*cols).fill(null) };
+}
+
+function createBinder(){
+  const nb = state.newBinder;
+  const name = nb.name.trim() || 'Untitled Binder';
+  const binder = {
+    id: uid(), name, color: nb.color, rows: nb.rows, cols: nb.cols,
+    pages: [ makePage(nb.rows, nb.cols) ],
+  };
+  state.binders.push(binder);
+  state.activeBinderId = binder.id;
+  state.activePageIndex = 0;
+  state.showNewBinderModal = false;
+  state.newBinder = { name:'', color: SPINE_COLORS[0], presetIndex: 0, rows: 3, cols: 3 };
+  render();
+}
+
+function getActiveBinder(){
+  return state.binders.find(b => b.id === state.activeBinderId) || null;
+}
+
+function addPage(){
+  const b = getActiveBinder(); if(!b) return;
+  b.pages.push(makePage(b.rows, b.cols));
+  state.activePageIndex = b.pages.length - 1;
+  render();
+}
+
+function deletePage(){
+  const b = getActiveBinder(); if(!b || b.pages.length <= 1) return;
+  b.pages.splice(state.activePageIndex, 1);
+  state.activePageIndex = Math.max(0, state.activePageIndex - 1);
+  render();
+}
+
+function setSlotImage(slotIndex, dataUrl){
+  const b = getActiveBinder(); if(!b) return;
+  b.pages[state.activePageIndex].slots[slotIndex] = dataUrl;
+  render();
+}
+
+function removeSlotImage(slotIndex){
+  const b = getActiveBinder(); if(!b) return;
+  b.pages[state.activePageIndex].slots[slotIndex] = null;
+  render();
+}
+
+function handleFilePick(slotIndex, file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => setSlotImage(slotIndex, e.target.result);
+  reader.readAsDataURL(file);
+}
+
+function renderShelf(){
+  const spinesHtml = state.binders.map(b => `
+    <div class="spine ${b.id===state.activeBinderId?'active':''}" data-open-binder="${b.id}" tabindex="0" role="button">
+      <div class="spine-bar" style="background:${b.color}"></div>
+      <div>
+        <div class="spine-label">${escapeHtml(b.name)}</div>
+        <div class="spine-meta">${b.pages.length} PG · ${b.rows}×${b.cols}</div>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="shelf">
+      <div>
+        <div class="shelf-title">Binder Vault</div>
+        <div class="eyebrow shelf-sub">Your collection, shelved</div>
+      </div>
+      <div class="spines">${spinesHtml || `<div class="eyebrow" style="padding:8px 4px;">No binders yet</div>`}</div>
+      <button class="btn btn-primary" id="new-binder-btn">+ New Binder</button>
+    </div>
+  `;
+}
+
+function renderTopbar(binder){
+  if(!binder) return '';
+  const pageCount = binder.pages.length;
+  return `
+    <div class="topbar">
+      <input class="binder-name" id="binder-name-input" value="${escapeHtml(binder.name)}" />
+      <div class="pager">
+        <button class="btn btn-ghost" id="prev-page" ${state.activePageIndex===0?'disabled':''}>‹ Prev</button>
+        <div class="pager-count">PAGE ${state.activePageIndex+1} OF ${pageCount}</div>
+        <button class="btn btn-ghost" id="next-page" ${state.activePageIndex===pageCount-1?'disabled':''}>Next ›</button>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" id="add-page-btn">+ Add Page</button>
+        <button class="btn" id="delete-page-btn" ${pageCount<=1?'disabled':''}>Delete Page</button>
+        <button class="btn" id="print-btn">Print</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderPocket(binder, slotIndex, value, r, c){
+  if(value){
+    return `
+      <div class="pocket" data-slot="${slotIndex}" data-filled="1">
+        <img src="${value}" alt="Card in slot ${r+1}-${c+1}" />
+        <div class="pocket-actions">
+          <button class="pocket-icon-btn" data-view-slot="${slotIndex}" title="View full size">⤢</button>
+          <button class="pocket-icon-btn" data-remove-slot="${slotIndex}" title="Remove">✕</button>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="pocket" data-slot="${slotIndex}" data-filled="0">
+      <div class="pocket-empty-inner">
+        <div class="pocket-plus">+</div>
+        <div class="pocket-coord">R${r+1}·C${c+1}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPage(binder){
+  if(!binder) return `
+    <div class="empty-state">
+      <h2>No binder open</h2>
+      <p>Create a binder on the left, choose a page layout — 9-pocket, 12-pocket, toploader, or a custom grid — and start filling pages with full-resolution card images.</p>
+    </div>
+  `;
+  const page = binder.pages[state.activePageIndex];
+  let pockets = '';
+  for(let r=0;r<binder.rows;r++){
+    for(let c=0;c<binder.cols;c++){
+      const idx = r*binder.cols + c;
+      pockets += renderPocket(binder, idx, page.slots[idx], r, c);
+    }
+  }
+  return `
+    <div class="page-wrap">
+      <div class="page" style="width:${binder.cols*150 + (binder.cols-1)*14 + 86}px; max-width:calc(100vw - 60px);">
+        <div class="ring-col">${'<div class="ring-hole"></div>'.repeat(3)}</div>
+        <div class="grid" style="grid-template-columns:repeat(${binder.cols}, 1fr);">
+          ${pockets}
+        </div>
+      </div>
+      <div class="page-caption">${escapeHtml(binder.name).toUpperCase()} — SHEET ${state.activePageIndex+1} · ${binder.rows}×${binder.cols}</div>
+    </div>
+  `;
+}
+
+function renderNewBinderModal(){
+  if(!state.showNewBinderModal) return '';
+  const nb = state.newBinder;
+  const presetsHtml = PRESETS.map((p,i) => `
+    <div class="preset-chip ${nb.presetIndex===i?'selected':''}" data-preset="${i}">${p.label}</div>
+  `).join('');
+  const swatchesHtml = SPINE_COLORS.map(col => `
+    <div class="swatch ${nb.color===col?'selected':''}" style="background:${col}" data-color="${col}"></div>
+  `).join('');
+  return `
+    <div class="overlay" id="new-binder-overlay">
+      <div class="modal">
+        <h3>New Binder</h3>
+        <div class="field">
+          <label>Binder Name</label>
+          <input type="text" id="nb-name" placeholder="e.g. 2024 Prizm Basketball" value="${escapeHtml(nb.name)}" />
+        </div>
+        <div class="field">
+          <label>Spine Color</label>
+          <div class="swatches">${swatchesHtml}</div>
+        </div>
+        <div class="field">
+          <label>Page Layout</label>
+          <div class="presets">${presetsHtml}</div>
+          <div class="dims-row">
+            <div class="field">
+              <label>Rows</label>
+              <input type="number" id="nb-rows" min="1" max="6" value="${nb.rows}" ${PRESETS[nb.presetIndex].custom?'':'disabled'} />
+            </div>
+            <div class="field">
+              <label>Columns</label>
+              <input type="number" id="nb-cols" min="1" max="6" value="${nb.cols}" ${PRESETS[nb.presetIndex].custom?'':'disabled'} />
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="cancel-new-binder">Cancel</button>
+          <button class="btn btn-primary" id="confirm-new-binder">Create Binder</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLightbox(){
+  if(!state.lightboxSrc) return '';
+  return `
+    <div class="lightbox" id="lightbox-overlay">
+      <button class="lightbox-close" id="lightbox-close">✕</button>
+      <img src="${state.lightboxSrc}" alt="Full resolution card" />
+    </div>
+  `;
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function render(){
+  const binder = getActiveBinder();
+  const html = `
+    ${renderShelf()}
+    <div class="main">
+      ${renderTopbar(binder)}
+      <div class="stage">${renderPage(binder)}</div>
+    </div>
+    ${renderNewBinderModal()}
+    ${renderLightbox()}
+  `;
+  document.getElementById('app').innerHTML = html;
+  bindEvents();
+}
+
+function bindEvents(){
+  const app = document.getElementById('app');
+
+  const newBinderBtn = document.getElementById('new-binder-btn');
+  if(newBinderBtn) newBinderBtn.onclick = () => { state.showNewBinderModal = true; render(); };
+
+  app.querySelectorAll('[data-open-binder]').forEach(el => {
+    el.onclick = () => {
+      state.activeBinderId = el.getAttribute('data-open-binder');
+      state.activePageIndex = 0;
+      render();
+    };
+  });
+
+  const nameInput = document.getElementById('binder-name-input');
+  if(nameInput){
+    nameInput.onchange = () => {
+      const b = getActiveBinder();
+      if(b){ b.name = nameInput.value.trim() || 'Untitled Binder'; render(); }
+    };
+  }
+
+  const prevBtn = document.getElementById('prev-page');
+  if(prevBtn) prevBtn.onclick = () => { state.activePageIndex--; render(); };
+  const nextBtn = document.getElementById('next-page');
+  if(nextBtn) nextBtn.onclick = () => { state.activePageIndex++; render(); };
+  const addPageBtn = document.getElementById('add-page-btn');
+  if(addPageBtn) addPageBtn.onclick = addPage;
+  const deletePageBtn = document.getElementById('delete-page-btn');
+  if(deletePageBtn) deletePageBtn.onclick = deletePage;
+  const printBtn = document.getElementById('print-btn');
+  if(printBtn) printBtn.onclick = () => window.print();
+
+  app.querySelectorAll('.pocket[data-filled="0"]').forEach(el => {
+    el.onclick = () => {
+      const slotIndex = parseInt(el.getAttribute('data-slot'));
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*';
+      input.onchange = () => handleFilePick(slotIndex, input.files[0]);
+      input.click();
+    };
+  });
+
+  app.querySelectorAll('[data-view-slot]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const idx = parseInt(el.getAttribute('data-view-slot'));
+      const b = getActiveBinder();
+      state.lightboxSrc = b.pages[state.activePageIndex].slots[idx];
+      render();
+    };
+  });
+  app.querySelectorAll('[data-remove-slot]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const idx = parseInt(el.getAttribute('data-remove-slot'));
+      removeSlotImage(idx);
+    };
+  });
+
+  const lightboxClose = document.getElementById('lightbox-close');
+  if(lightboxClose) lightboxClose.onclick = () => { state.lightboxSrc = null; render(); };
+  const lightboxOverlay = document.getElementById('lightbox-overlay');
+  if(lightboxOverlay) lightboxOverlay.onclick = (e) => { if(e.target===lightboxOverlay){ state.lightboxSrc=null; render(); } };
+
+  // new binder modal
+  const cancelBtn = document.getElementById('cancel-new-binder');
+  if(cancelBtn) cancelBtn.onclick = () => { state.showNewBinderModal=false; render(); };
+  const confirmBtn = document.getElementById('confirm-new-binder');
+  if(confirmBtn) confirmBtn.onclick = createBinder;
+  const overlay = document.getElementById('new-binder-overlay');
+  if(overlay) overlay.onclick = (e) => { if(e.target===overlay){ state.showNewBinderModal=false; render(); } };
+
+  const nbName = document.getElementById('nb-name');
+  if(nbName) nbName.oninput = () => { state.newBinder.name = nbName.value; };
+
+  app.querySelectorAll('[data-color]').forEach(el => {
+    el.onclick = () => { state.newBinder.color = el.getAttribute('data-color'); render(); };
+  });
+  app.querySelectorAll('[data-preset]').forEach(el => {
+    el.onclick = () => {
+      const i = parseInt(el.getAttribute('data-preset'));
+      state.newBinder.presetIndex = i;
+      const p = PRESETS[i];
+      if(!p.custom){ state.newBinder.rows = p.rows; state.newBinder.cols = p.cols; }
+      render();
+    };
+  });
+  const nbRows = document.getElementById('nb-rows');
+  if(nbRows) nbRows.onchange = () => { state.newBinder.rows = Math.max(1, Math.min(6, parseInt(nbRows.value)||1)); };
+  const nbCols = document.getElementById('nb-cols');
+  if(nbCols) nbCols.onchange = () => { state.newBinder.cols = Math.max(1, Math.min(6, parseInt(nbCols.value)||1)); };
+}
+
+render();
+</script>
+</body>
+</html>
