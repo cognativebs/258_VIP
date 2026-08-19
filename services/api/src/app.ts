@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
+import { SIGNALS_INGESTION } from "./lib/intelligence.js";
+import { registerIntelligenceRoutes } from "./routes/intelligence.js";
 import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
   BINDER_WRITE_RULE,
@@ -340,6 +342,13 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ ok: true, service: "vip-api", version: "0.3.0" });
   });
 
+  registerIntelligenceRoutes(app, {
+    loadSnapshotInputs: async () => {
+      const { holdings, binder } = await buildInventory(deps);
+      return { holdings, binders: binder.available ? binder.binders : [] };
+    },
+  });
+
   app.get("/api/inventory", async (_req, res) => {
     const { holdings, comics, tcgSource, binder, comicsSource, durableBinderHoldings } =
       await buildInventory(deps);
@@ -466,7 +475,9 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ recommendation: await buildRecommendation(holding) });
   });
 
-  app.get("/api/signals", (_req, res) => res.json(loadSignalsResponse()));
+  app.get("/api/signals", (_req, res) =>
+    res.json({ ...loadSignalsResponse(), signalsIngestion: SIGNALS_INGESTION }),
+  );
 
   app.get("/api/watchlist", async (_req, res) => {
     const { holdings, comics, comicsSource } = await buildInventory(deps);
