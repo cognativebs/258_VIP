@@ -157,7 +157,7 @@ export function contextToJson(ctx: unknown): string {
   return JSON.stringify(ctx, null, 2);
 }
 
-export const SUGGESTED_PROMPTS = [
+export const COMICS_PROMPTS = [
   "What should I sell or lot first from this filter — focus on high liquidity?",
   "Which books look mis-assigned to General Inventory?",
   "Summarize this slice: value, risk, and top 3 actions.",
@@ -165,3 +165,29 @@ export const SUGGESTED_PROMPTS = [
   "Compare museum keepers vs sell candidates in this set.",
   "If I need $500 fast, which 5 books should I move?",
 ];
+
+export const TCG_PROMPTS = [
+  "What should I sell or hold from this TCG slice — liquidity first?",
+  "Which owned cards look like grade candidates vs keep raw?",
+  "Summarize this binder slice: value range, gaps, and top 3 actions.",
+  "If I need cash this week, which 5 cards should I move?",
+  "Compare owned vs still-needed pockets in this filter.",
+];
+
+export const SPORTS_PROMPTS = [
+  "Any rookies or autos in this slice worth grading?",
+  "Summarize this sports-card slice: value, risk, and top 3 actions.",
+  "What should I sell first if liquidity is the goal?",
+];
+
+/** @deprecated prefer suggestedPrompts(vertical) — comics wording only. */
+export const SUGGESTED_PROMPTS = COMICS_PROMPTS;
+
+/** Ask prompts worded for the vertical on screen: books vs cards vs pockets. */
+export function suggestedPrompts(vertical: string): string[] {
+  if (vertical === "pokemon" || vertical === "mtg") return TCG_PROMPTS;
+  if (["football", "soccer", "basketball", "baseball"].includes(vertical)) {
+    return SPORTS_PROMPTS;
+  }
+  return COMICS_PROMPTS;
+}

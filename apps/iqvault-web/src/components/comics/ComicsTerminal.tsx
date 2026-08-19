@@ -655,6 +655,7 @@ export function ComicsTerminal({
               selectedComic={selected}
               filteredValue={filteredValue}
               source={source}
+              vertical={vertical}
             />
           ) : !selected ? (
             <div className="bb-detail-body">

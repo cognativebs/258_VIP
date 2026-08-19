@@ -12,6 +12,16 @@ Launcher fix is merged (PR #27). Prefer **section L + code** over stale J
 (`adapter_pending`); eBay sold + TCGplayer comps shipped idle. ADR 0007
 (Postgres) supersedes historical ADR 0005 “SQLite now” checkboxes below.
 
+**Intelligence core (2026-08-18):** the work stranded in the second `IQVault`
+clone on branch `orchestr8-first-o0` is now on `main` in five reviewed PRs:
+`@vip/intelligence` package, `vault_core` migrations `20260815_11..16`,
+`/api/intelligence/*`, the `/intelligence` desk, and vertical-aware Ask prompts.
+Phase 2 (market cycle / buy-opportunity scoring) stays **manual-only** — it is
+gated on `signals_raw` / `signals_normalized` being confirmed live, and every
+endpoint reports `scoringEnabled: false` until then. The manual intelligence
+store still writes JSON (`VIP_INTELLIGENCE_STATE`); moving it onto the new
+Postgres tables is the next step.
+
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
 
@@ -102,6 +112,17 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10
 - [x] Catalog adapter seam (`CatalogAdapter`) so the fixture catalog is swappable — 2026-08-10
 - [ ] Bulk review actions (confirm all `auto`, reject all `none`)
+
+### O. Intelligence core *(landed 2026-08-18 · PRs #41–#45)*
+
+- [x] `@vip/intelligence` — prediction ledger, evidence engine, underwriting, grading EV, binder goals, synergy, identification contracts, Cohen scoring, print life, emerging markets (25 tests)
+- [x] `vault_core` migrations `20260815_11..16`, applied and acceptance-tested against Postgres
+- [x] `/api/intelligence/*`, `/api/hunts/emerging`, `/api/sell-queue/dogfood`
+- [x] `/intelligence` desk on the collector face; vertical-aware Ask prompts
+- [ ] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables
+- [ ] Resolution workflow driven by `vault_core.prediction_needs_scoring` (nothing polls it yet)
+- [ ] Per-page binder chase completion from `vault_tcg` (API reports `available: false`)
+- [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live
 
 ### N. Catalog + market adapters *(ADR 0010 · [plan](plans/0001-catalog-adapter-rollout.md))*
 
