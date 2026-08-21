@@ -1,9 +1,19 @@
 # Orchestr8 model catalog — source of truth for per-role model pickers
 # Apps fetch via GET /v1/models; agents reference model ids in agent.yaml
 #
+# Shape is enforced by config/models.schema.json.
+#
+# Any model here can be assigned to any agent — a model family is not tied to a
+# role. Per-agent `allowed_models` is the *recommended* short list the UI marks
+# first; it no longer gates selection.
+#
+# Each key is the provider's API model id and is sent verbatim on the wire, so
+# it must match the provider's published id exactly.
+#
 # price_in / price_out are USD per 1,000,000 tokens. These are EDITABLE ESTIMATES
 # used for the in-app cost readout — reconcile against each provider's billing
 # console periodically. Update here and POST /v1/reload (no restart needed).
+# Prices below were reconciled against provider docs on 2026-08-20.
 
 currency: USD
 pricing_note: "USD per 1M tokens; editable estimates — reconcile with provider billing."
@@ -24,6 +34,35 @@ providers:
 
 models:
   # —— OpenAI ——
+  # GPT-5.6 family: reasoning-tier chat completions. The adapter sends
+  # max_completion_tokens and omits temperature for these (see providers/llm.py).
+  gpt-5.6-sol:
+    provider: openai
+    label: GPT-5.6 Sol
+    tier: flagship
+    context: 1050000
+    cost: high
+    price_in: 5.00
+    price_out: 30.00
+    strengths: [reasoning, coding, planning, long_context]
+  gpt-5.6-terra:
+    provider: openai
+    label: GPT-5.6 Terra
+    tier: strong
+    context: 1050000
+    cost: medium
+    price_in: 2.00
+    price_out: 12.00
+    strengths: [general, balance, long_context]
+  gpt-5.6-luna:
+    provider: openai
+    label: GPT-5.6 Luna
+    tier: economy
+    context: 1050000
+    cost: low
+    price_in: 0.20
+    price_out: 1.20
+    strengths: [bulk, routing, cheap_parse]
   gpt-4.1:
     provider: openai
     label: GPT-4.1
@@ -62,20 +101,47 @@ models:
     strengths: [reasoning, math, analysis]
 
   # —— Anthropic ——
+  claude-fable-5:
+    provider: anthropic
+    label: Claude Fable 5
+    tier: flagship
+    context: 1000000
+    cost: very_high
+    price_in: 10.00
+    price_out: 50.00
+    strengths: [deep_analysis, judgment, long_running_agents]
+  claude-opus-5:
+    provider: anthropic
+    label: Claude Opus 5
+    tier: flagship
+    context: 1000000
+    cost: high
+    price_in: 5.00
+    price_out: 25.00
+    strengths: [deep_analysis, coding, judgment]
+  claude-sonnet-5:
+    provider: anthropic
+    label: Claude Sonnet 5
+    tier: strong
+    context: 1000000
+    cost: medium
+    price_in: 2.00
+    price_out: 10.00
+    strengths: [research, coding, balance]
   claude-opus-4-6:
     provider: anthropic
     label: Claude Opus 4.6
     tier: flagship
-    context: 200000
-    cost: very_high
-    price_in: 15.00
-    price_out: 75.00
+    context: 1000000
+    cost: high
+    price_in: 5.00
+    price_out: 25.00
     strengths: [deep_analysis, writing, judgment]
   claude-sonnet-4-6:
     provider: anthropic
     label: Claude Sonnet 4.6
     tier: strong
-    context: 200000
+    context: 1000000
     cost: medium
     price_in: 3.00
     price_out: 15.00
@@ -100,6 +166,40 @@ models:
     strengths: [speed, bulk, triage]
 
   # —— Grok / xAI ——
+  # xAI doubles every rate on requests whose prompt reaches 200k tokens. The
+  # figures below are the under-200k rates, so long-prompt runs cost ~2x the
+  # readout.
+  grok-4.6:
+    provider: grok
+    label: Grok 4.6
+    tier: flagship
+    context: 500000
+    cost: medium
+    price_in: 2.00
+    price_out: 6.00
+    strengths: [reasoning, coding, critique, long_context]
+  grok-4.5:
+    provider: grok
+    label: Grok 4.5
+    tier: strong
+    context: 500000
+    cost: medium
+    price_in: 2.00
+    price_out: 6.00
+    strengths: [reasoning, coding, agentic]
+  grok-4.3:
+    provider: grok
+    label: Grok 4.3
+    tier: strong
+    context: 1000000
+    cost: low
+    price_in: 1.25
+    price_out: 2.50
+    strengths: [long_context, bulk, drafts]
+
+  # grok-3 / grok-3-mini / grok-4 are no longer listed in xAI's published model
+  # catalog. Kept so existing agent defaults still resolve; move defaults to the
+  # 4.x ids above before relying on them.
   grok-3:
     provider: grok
     label: Grok 3
@@ -130,6 +230,6 @@ models:
 
 # Sensible fallbacks when a preferred model is unavailable
 fallbacks:
-  openai: [gpt-4.1, gpt-4o, gpt-4o-mini]
-  anthropic: [claude-sonnet-4-6, claude-sonnet-4-5, claude-haiku-4-5]
-  grok: [grok-3, grok-3-mini]
+  openai: [gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
+  anthropic: [claude-opus-5, claude-sonnet-5, claude-haiku-4-5]
+  grok: [grok-4.6, grok-4.5, grok-4.3]
