@@ -25,6 +25,15 @@ from services.custom_agents import (  # noqa: E402
     CustomAgentError,
     create_custom_agent,
     slugify,
+    update_custom_agent,
+)
+from services.registry import (  # noqa: E402
+    agent_public_detail,
+    agents_public_list,
+    clear_agent_cache,
+    load_agents,
+    load_skill_text,
+    resolve_model,
 )
 from services.registry import (  # noqa: E402
     agents_public_list,
@@ -197,3 +206,80 @@ def test_default_model_prefers_a_provider_that_has_a_key(
     monkeypatch.setenv("XAI_API_KEY", "xai-EXAMPLE")
     create_custom_agent(VALID)
     assert resolve_model("reprint_scout")["provider"] == "grok"
+
+
+# --- edit ---------------------------------------------------------------------
+
+def test_update_rewrites_name_description_and_skill_in_place(isolated_custom_dir):
+    create_custom_agent(VALID)
+    update_custom_agent(
+        "reprint_scout",
+        {
+            "name": "Reprint Watch",
+            "description": "Watches announced reprints before a grading spend",
+            "skill": "Prioritise official reprint notices over rumour. State confidence.",
+        },
+    )
+    meta = load_agents()["reprint_scout"]
+    assert meta["id"] == "reprint_scout"
+    assert meta["label"] == "Reprint Watch"
+    assert meta["description"].startswith("Watches announced reprints")
+    assert "official reprint notices" in load_skill_text("reprint_scout")
+    assert load_contract("reprint_scout")["mission"].startswith("Watches announced")
+
+
+def test_update_does_not_change_the_agent_id():
+    create_custom_agent(VALID)
+    updated = update_custom_agent(
+        "reprint_scout",
+        {
+            "name": "Totally Different Name",
+            "description": "Still the same role under a new label for the card",
+            "skill": "Keep the original id so saved teams keep resolving this role.",
+        },
+    )
+    assert updated["id"] == "reprint_scout"
+    assert "reprint_scout" in load_agents()
+    assert "totally_different_name" not in load_agents()
+
+
+def test_edit_of_a_shipped_role_writes_an_overlay_not_the_source(isolated_custom_dir):
+    from pathlib import Path
+
+    shipped = Path(ORCH_ROOT) / "agents" / "critic" / "agent.yaml"
+    before = shipped.read_text(encoding="utf-8")
+    update_custom_agent(
+        "critic",
+        {
+            "name": "Chief Critic",
+            "description": "Locally retitled critic for a one-off challenge pass",
+            "skill": "Be harsher on unverified grades. Still veto on critical gaps.",
+        },
+    )
+    assert shipped.read_text(encoding="utf-8") == before
+    assert (isolated_custom_dir / "critic" / "agent.yaml").exists()
+    meta = load_agents()["critic"]
+    assert meta["label"] == "Chief Critic"
+    card = next(a for a in agents_public_list() if a["id"] == "critic")
+    assert card["edited"] is True
+    assert card["custom"] is False
+    assert "harsher on unverified grades" in load_skill_text("critic")
+
+
+def test_unknown_agent_cannot_be_edited():
+    with pytest.raises(CustomAgentError, match="Unknown agent"):
+        update_custom_agent(
+            "no_such_role",
+            {
+                "name": "Ghost",
+                "description": "Does not exist and must not be created this way",
+                "skill": "Editing a missing role is not a back door into create.",
+            },
+        )
+
+
+def test_detail_returns_skill_text_for_the_editor():
+    create_custom_agent(VALID)
+    detail = agent_public_detail("reprint_scout")
+    assert VALID["skill"] in detail["skill"]
+    assert detail["label"] == "Reprint Scout"

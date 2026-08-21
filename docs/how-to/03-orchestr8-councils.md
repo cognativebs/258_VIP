@@ -123,8 +123,12 @@ Limits worth knowing before you rely on one:
 - They are **not council members**. Run them via **Custom roles**.
 - They are badged `custom · unverified` because no council reviewed them. Treat
   their output accordingly, and put a Critic in the team for anything that costs money.
-- No edit or delete in the UI yet. Edit the YAML under `custom_agents/<id>/` and
-  `POST /v1/reload`, or delete the folder.
+- **Edit** on any card (shipped or custom) opens name, description and skills.
+  The id never changes. Shipped roles are copied into `custom_agents/<id>/` so
+  git-tracked files stay clean; delete that folder to revert. Custom roles are
+  rewritten in place.
+- No delete in the UI yet. Delete the folder under `custom_agents/<id>/` and
+  `POST /v1/reload`.
 
 To make one permanent and reviewed, promote it: run a Build Spec for it (below),
 then move the files into `agents/<id>/` so it ships with the repo.
