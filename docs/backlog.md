@@ -54,6 +54,9 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Always-visible Council Strip (roles · provider · model; click for skill blurb)
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
+- [x] Create an agent role from the Team panel (name / description / skills → live card; `POST /v1/agents`, auto contract, unverified provenance) — 2026-08-21
+- [ ] Edit and delete custom roles from the Team panel (today: edit YAML under `custom_agents/<id>/` + `POST /v1/reload`, or delete the folder)
+- [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
 - [x] Fix `scripts/start_iqvault_ecosystem.ps1` — parse failure rewritten 2026-08-09; retarget VIP `:8787` + collector `:3000` (2026-08-13)
 

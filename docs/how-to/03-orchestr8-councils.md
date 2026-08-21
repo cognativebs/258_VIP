@@ -74,7 +74,9 @@ Steps:
 
 ## 3) Building, deleting, or modifying Agent Roles / Skills
 
-Orchestr8 does **not** give agents a “delete yourself” tool. Role/skill changes are **config + Build Spec**, then Cursor edits files.
+Orchestr8 does **not** give agents a “delete yourself” tool. Agents never author
+roles — you do, either from the Console (quick, unverified) or through a Build
+Spec that Cursor implements (reviewed, permanent).
 
 ### Understand what exists
 
@@ -99,6 +101,33 @@ List live agents: Console Team panel, or `GET /v1/agents`.
 4. Implement in Cursor (edit YAML/MD/presets; run `validate_contracts.py` if contracts change).
 5. `POST /v1/reload` or restart gateway so registry picks up agents.
 6. Optional **Challenge** pass on the diff vs the spec.
+
+### Create a role from the Console (unverified)
+
+Team → **New role** → Name, Short description, Skills → **Create role**. The card
+appears immediately and is ticked into your current custom team.
+
+What the gateway derives for you, and why:
+
+| Derived | Value |
+|---------|-------|
+| Agent id | slug of the name (`Reprint Scout` → `reprint_scout`); refuses to shadow a built-in or legacy alias |
+| Contract | auto-generated, **no tools**, `degrade` on failure, escalates to human below 0.5 confidence |
+| Model | head of the first fallback chain whose provider has a key — change it on the card |
+| Provenance | `source: console_ui`, `verification_status: unverified` |
+
+Limits worth knowing before you rely on one:
+
+- Roles are written to `orchestr8/custom_agents/`, which is **gitignored** — local
+  to this machine, like `.runs/`. They survive restarts, not a fresh clone.
+- They are **not council members**. Run them via **Custom roles**.
+- They are badged `custom · unverified` because no council reviewed them. Treat
+  their output accordingly, and put a Critic in the team for anything that costs money.
+- No edit or delete in the UI yet. Edit the YAML under `custom_agents/<id>/` and
+  `POST /v1/reload`, or delete the folder.
+
+To make one permanent and reviewed, promote it: run a Build Spec for it (below),
+then move the files into `agents/<id>/` so it ships with the repo.
 
 ### Custom team without editing YAML
 
