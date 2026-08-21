@@ -79,9 +79,30 @@ export async function fetchAgents() {
       councils?: string[];
       tier?: number;
       configured?: boolean;
+      custom?: boolean;
+      verificationStatus?: string;
     }>;
     pipelineOrder?: string[];
   }>("/v1/agents");
+}
+
+/** Create an operator-authored role. The gateway derives id, contract and provenance. */
+export async function createAgent(input: {
+  name: string;
+  description: string;
+  skill: string;
+}) {
+  const res = await fetch(`${BASE}/v1/agents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { detail?: string; error?: string };
+    throw new Error(err.detail || err.error || `Create role failed (${res.status})`);
+  }
+  return data as { id: string; path?: string };
 }
 
 export async function fetchCouncils() {
