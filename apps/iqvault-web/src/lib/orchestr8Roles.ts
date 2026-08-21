@@ -94,10 +94,10 @@ export const FALLBACK_AGENTS: AgentInfo[] = [
     provider: "grok",
     providerLabel: "Grok",
     description: "Challenge assumptions, find gaps",
-    defaultModel: "grok-3",
+    defaultModel: "grok-4.6",
     allowedModels: [
-      { id: "grok-3", label: "Grok 3", provider: "grok" },
-      { id: "grok-4", label: "Grok 4", provider: "grok" },
+      { id: "grok-4.6", label: "Grok 4.6", provider: "grok" },
+      { id: "grok-4.5", label: "Grok 4.5", provider: "grok" },
     ],
     councils: ["challenge"],
     tier: 1,

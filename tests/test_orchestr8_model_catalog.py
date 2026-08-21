@@ -73,6 +73,24 @@ def test_every_agent_model_reference_exists():
     assert unknown == [], f"agent.yaml references models missing from the catalog: {unknown}"
 
 
+# Still in the catalog so old run bundles and saved team settings resolve, but
+# xAI no longer publishes them — nothing should route to one by default.
+RETIRED_MODEL_IDS = {"grok-3", "grok-3-mini", "grok-4"}
+
+
+def test_no_agent_defaults_to_or_recommends_a_retired_model():
+    stale: list[str] = []
+    for aid, meta in load_agents().items():
+        if meta.get("enabled") is False:
+            continue
+        if meta["default_model"] in RETIRED_MODEL_IDS:
+            stale.append(f"{aid} default -> {meta['default_model']}")
+        for mid in meta.get("allowed_models") or []:
+            if mid in RETIRED_MODEL_IDS:
+                stale.append(f"{aid} recommends -> {mid}")
+    assert stale == [], f"agents point at models xAI no longer publishes: {stale}"
+
+
 # --- open selection -----------------------------------------------------------
 
 def test_any_model_can_be_assigned_to_any_role():
