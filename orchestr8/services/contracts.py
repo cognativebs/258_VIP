@@ -30,11 +30,11 @@ def load_schema() -> dict:
 
 
 def contract_path(agent_id: str) -> Path:
-    shipped = AGENTS_DIR / agent_id / "contract.yaml"
-    if shipped.exists():
-        return shipped
+    """Prefer a local overlay, then the shipped contract."""
     custom = CUSTOM_AGENTS_DIR / agent_id / "contract.yaml"
-    return custom if custom.exists() else shipped
+    if custom.exists():
+        return custom
+    return AGENTS_DIR / agent_id / "contract.yaml"
 
 
 def load_contract(agent_id: str) -> dict | None:

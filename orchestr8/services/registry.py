@@ -41,8 +41,10 @@ def load_registry_index() -> dict:
 def load_agents() -> dict[str, dict]:
     """Return {agent_id: agent_meta} from agents/*/agent.yaml plus custom roles.
 
-    Operator-authored roles from custom_agents/ are overlaid last but can never
-    shadow a built-in: create_custom_agent() refuses an id that already exists.
+    Operator-authored roles from custom_agents/ overlay last and win on id
+    collision, so a Console edit of a shipped role takes effect without
+    rewriting git-tracked files. Creating a *new* role with a reserved id is
+    still refused in create_custom_agent().
     """
     from services.custom_agents import load_custom_agents
 
@@ -56,7 +58,7 @@ def load_agents() -> dict[str, dict]:
             agents[aid] = meta
 
     for aid, meta in load_custom_agents().items():
-        agents.setdefault(aid, meta)
+        agents[aid] = meta
     return agents
 
 
@@ -88,11 +90,12 @@ def load_skill_text(agent_id: str, *, brief: bool = False) -> str:
     rel = meta.get(key) or meta.get("skill")
     if not rel:
         return ""
-    candidates = [ROOT / rel]
+    candidates = []
     # A custom role keeps its skill beside its agent.yaml, which is not always
-    # under orchestr8/ — fall back to the directory the agent was loaded from.
+    # under orchestr8/ — prefer the directory the agent was loaded from.
     if meta.get("_dir"):
         candidates.append(Path(meta["_dir"]) / Path(rel).name)
+    candidates.append(ROOT / rel)
     for path in candidates:
         if path.exists():
             return path.read_text(encoding="utf-8")
@@ -240,13 +243,27 @@ def agents_public_list() -> list[dict]:
                 "recommendedModels": list(recommended),
                 "councils": meta.get("councils") or [],
                 "configured": providers.get(meta["provider"], False),
-                "custom": bool(meta.get("custom")),
+                "custom": bool(meta.get("custom")) and not _is_shipped(aid),
+                "edited": bool(meta.get("custom")) and _is_shipped(aid),
                 "verificationStatus": (meta.get("provenance") or {}).get(
                     "verification_status"
                 ),
             }
         )
     return out
+
+
+def _is_shipped(agent_id: str) -> bool:
+    return (AGENTS_DIR / agent_id / "agent.yaml").exists()
+
+
+def agent_public_detail(agent_id: str) -> dict:
+    """List card plus the skill text the editor needs."""
+    resolved = resolve_agent_id(agent_id)
+    card = next((a for a in agents_public_list() if a["id"] == resolved), None)
+    if card is None:
+        raise ValueError(f"Unknown agent: {agent_id}")
+    return {**card, "skill": load_skill_text(resolved)}
 
 
 def get_council(council_id: str) -> dict | None:

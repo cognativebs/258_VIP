@@ -113,6 +113,125 @@ def _reserved_ids() -> set[str]:
     return set(load_agents()) | set(index.get("legacy_aliases") or {})
 
 
+def _is_shipped(agent_id: str) -> bool:
+    return (ROOT / "agents" / agent_id / "agent.yaml").exists()
+
+
+def _materialize_overlay(agent_id: str) -> Path:
+    """Copy a shipped role into custom_agents/ so a Console edit does not dirty git."""
+    from services.contracts import contract_path
+    from services.registry import get_agent, load_skill_text
+
+    target = custom_agent_dir(agent_id)
+    if (target / "agent.yaml").exists():
+        return target
+
+    if not _is_shipped(agent_id):
+        raise CustomAgentError(f"Unknown agent: {agent_id}")
+
+    meta = {k: v for k, v in get_agent(agent_id).items() if not str(k).startswith("_")}
+    edited_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    meta["skill"] = f"custom_agents/{agent_id}/skill.md"
+    meta["custom"] = True
+    meta["provenance"] = {
+        **(meta.get("provenance") or {}),
+        "source": "console_ui",
+        "method": "operator_edited",
+        "overlay_of": f"agents/{agent_id}",
+        "edited_at": edited_at,
+        "verification_status": "unverified",
+    }
+
+    target.mkdir(parents=True, exist_ok=True)
+    _write_yaml(
+        target / "agent.yaml",
+        meta,
+        header=f"# Orchestr8 local overlay — {meta.get('label', agent_id)}\n"
+        f"# Console edit of shipped agents/{agent_id}/ on {edited_at}.\n"
+        f"# Git-tracked source is unchanged. Delete this folder to revert.\n",
+    )
+    src_contract = contract_path(agent_id)
+    if src_contract.exists():
+        (target / "contract.yaml").write_text(
+            src_contract.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    (target / "skill.md").write_text(load_skill_text(agent_id), encoding="utf-8")
+    return target
+
+
+def update_custom_agent(agent_id: str, payload: dict) -> dict:
+    """Patch name, description and skill of a live role. The id never changes."""
+    from services.registry import clear_agent_cache, get_agent, load_models
+
+    try:
+        agent_id = get_agent(agent_id)["id"]
+    except ValueError as e:
+        raise CustomAgentError(str(e)) from e
+
+    cleaned = validate_request(payload)
+    target = custom_agent_dir(agent_id)
+    if not (target / "agent.yaml").exists():
+        target = _materialize_overlay(agent_id)
+
+    with open(target / "agent.yaml", encoding="utf-8") as f:
+        agent = yaml.safe_load(f) or {}
+
+    name = cleaned["name"]
+    edited_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    agent["label"] = name
+    agent["description"] = cleaned["description"]
+    agent["skill"] = f"custom_agents/{agent_id}/skill.md"
+    agent["custom"] = True
+    prov = dict(agent.get("provenance") or {})
+    prov.update(
+        {
+            "source": "console_ui",
+            "method": "operator_edited" if _is_shipped(agent_id) else "operator_authored",
+            "edited_at": edited_at,
+            "verification_status": "unverified",
+        }
+    )
+    agent["provenance"] = prov
+
+    if cleaned.get("defaultModel"):
+        catalog = load_models().get("models") or {}
+        model_id = cleaned["defaultModel"]
+        if model_id not in catalog:
+            raise CustomAgentError(f"Unknown model in catalog: {model_id}")
+        agent["default_model"] = model_id
+        agent["provider"] = catalog[model_id]["provider"]
+        agent["provider_label"] = (
+            ((load_models().get("providers") or {}).get(agent["provider"]) or {}).get(
+                "label"
+            )
+            or agent["provider"]
+        )
+
+    _write_yaml(
+        target / "agent.yaml",
+        {k: v for k, v in agent.items() if not str(k).startswith("_")},
+        header=f"# Orchestr8 custom agent — {name}\n"
+        f"# Last edited from the Console team panel on {edited_at}.\n"
+        f"# Unverified: not reviewed by a Build Spec council.\n",
+    )
+
+    contract_file = target / "contract.yaml"
+    if contract_file.exists():
+        with open(contract_file, encoding="utf-8") as f:
+            contract = yaml.safe_load(f) or {}
+        contract["mission"] = cleaned["description"]
+        _write_yaml(
+            contract_file,
+            contract,
+            header=f"# Orchestr8 contract — {name}\n"
+            f"# Schema: config/contract.schema.json\n",
+        )
+
+    (target / "skill.md").write_text(cleaned["skill"].rstrip() + "\n", encoding="utf-8")
+    clear_agent_cache()
+    return {"id": agent_id, "path": _display_path(target)}
+
+
 def create_custom_agent(payload: dict) -> dict:
     """Validate, write agent.yaml + contract.yaml + skill.md, return the agent id."""
     from services.registry import clear_agent_cache, load_models
