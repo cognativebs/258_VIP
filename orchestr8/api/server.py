@@ -14,6 +14,7 @@ sys.path.insert(0, ROOT)
 from providers.billing import accounts_snapshot  # noqa: E402
 from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
 from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
+from services.custom_agents import CustomAgentError, create_custom_agent  # noqa: E402
 from services.orchestrator import run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
@@ -172,6 +173,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
             json_response(self, 200, {"ok": True, "agents": len(agents_public_list())})
             return
 
+        if path == "/v1/agents":
+            try:
+                created = create_custom_agent(read_json(self))
+                agent = next(
+                    (a for a in agents_public_list() if a["id"] == created["id"]), None
+                )
+                json_response(self, 201, {"ok": True, **created, "agent": agent})
+            except CustomAgentError as e:
+                json_response(self, 400, {"error": "invalid_agent", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
+
         if path == "/v1/plan":
             try:
                 body = read_json(self)
@@ -296,6 +310,7 @@ def main() -> None:
     print("  GET  /v1/runs/:id")
     print("  GET  /v1/specs")
     print("  GET  /v1/specs/:id")
+    print("  POST /v1/agents")
     print("  POST /v1/jobs")
     print("  POST /v1/jobs/stream (SSE)")
     print("  POST /v1/plan")

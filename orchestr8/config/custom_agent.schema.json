@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestr8 Custom Agent Create Request",
+  "description": "Payload for POST /v1/agents — the operator-authored role form in the Console team panel. Name, description and skill are the only operator inputs; id, provider, model, contract and provenance are derived by services.custom_agents.",
+  "type": "object",
+  "required": ["name", "description", "skill"],
+  "properties": {
+    "name": {
+      "description": "Display label. Slugified into the agent id.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 60
+    },
+    "description": {
+      "description": "One-line summary shown on the role card and used as the contract mission.",
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 280
+    },
+    "skill": {
+      "description": "Long-form instructions written to the role's skill.md and loaded as its system prompt.",
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 20000
+    },
+    "defaultModel": {
+      "description": "Optional catalog model id. Defaults to the first configured provider's fallback head.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

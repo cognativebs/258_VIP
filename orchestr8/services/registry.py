@@ -39,16 +39,24 @@ def load_registry_index() -> dict:
 
 @lru_cache(maxsize=1)
 def load_agents() -> dict[str, dict]:
-    """Return {agent_id: agent_meta} from agents/*/agent.yaml."""
+    """Return {agent_id: agent_meta} from agents/*/agent.yaml plus custom roles.
+
+    Operator-authored roles from custom_agents/ are overlaid last but can never
+    shadow a built-in: create_custom_agent() refuses an id that already exists.
+    """
+    from services.custom_agents import load_custom_agents
+
     agents: dict[str, dict] = {}
-    if not AGENTS_DIR.exists():
-        return agents
-    for path in sorted(AGENTS_DIR.glob("*/agent.yaml")):
-        meta = _read_yaml(path)
-        aid = meta.get("id") or path.parent.name
-        meta["id"] = aid
-        meta["_path"] = str(path.relative_to(ROOT))
-        agents[aid] = meta
+    if AGENTS_DIR.exists():
+        for path in sorted(AGENTS_DIR.glob("*/agent.yaml")):
+            meta = _read_yaml(path)
+            aid = meta.get("id") or path.parent.name
+            meta["id"] = aid
+            meta["_path"] = str(path.relative_to(ROOT))
+            agents[aid] = meta
+
+    for aid, meta in load_custom_agents().items():
+        agents.setdefault(aid, meta)
     return agents
 
 
@@ -80,10 +88,15 @@ def load_skill_text(agent_id: str, *, brief: bool = False) -> str:
     rel = meta.get(key) or meta.get("skill")
     if not rel:
         return ""
-    path = ROOT / rel
-    if not path.exists():
-        return ""
-    return path.read_text(encoding="utf-8")
+    candidates = [ROOT / rel]
+    # A custom role keeps its skill beside its agent.yaml, which is not always
+    # under orchestr8/ — fall back to the directory the agent was loaded from.
+    if meta.get("_dir"):
+        candidates.append(Path(meta["_dir"]) / Path(rel).name)
+    for path in candidates:
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return ""
 
 
 @lru_cache(maxsize=1)
@@ -227,6 +240,10 @@ def agents_public_list() -> list[dict]:
                 "recommendedModels": list(recommended),
                 "councils": meta.get("councils") or [],
                 "configured": providers.get(meta["provider"], False),
+                "custom": bool(meta.get("custom")),
+                "verificationStatus": (meta.get("provenance") or {}).get(
+                    "verification_status"
+                ),
             }
         )
     return out

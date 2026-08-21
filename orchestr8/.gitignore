@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 .venv/
 .runs/
+# Operator-authored roles from the Console team panel — local data, like .runs/
+custom_agents/
