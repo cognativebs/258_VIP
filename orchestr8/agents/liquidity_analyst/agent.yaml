@@ -9,7 +9,7 @@ default_model: claude-sonnet-4-6
 allowed_models:
 - claude-sonnet-4-6
 - gpt-4.1
-- grok-3
+- grok-4.6
 - claude-haiku-4-5
 councils:
 - analysis
