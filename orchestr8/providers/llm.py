@@ -15,8 +15,10 @@ DEFAULT_TEMPERATURE = 0.3
 # Build-spec Architect can take minutes (large context + 8k completion).
 DEFAULT_HTTP_TIMEOUT = 120
 
-# OpenAI reasoning models: use max_completion_tokens and reject custom temperature.
-_OPENAI_REASONING_PREFIXES = ("o1", "o3", "o4")
+# OpenAI reasoning-tier models take max_completion_tokens instead of max_tokens
+# and reject a custom temperature (it is pinned server-side). Covers the o-series
+# and every GPT-5.x family, including gpt-5.6-sol / -terra / -luna.
+_OPENAI_REASONING_PREFIXES = ("o1", "o3", "o4", "gpt-5")
 
 
 def _http_timeout_for(max_tokens: int) -> int:
@@ -42,6 +44,7 @@ def _post_json(url: str, headers: dict, body: dict, *, timeout: int = DEFAULT_HT
 
 
 def _is_openai_reasoning(model: str) -> bool:
+    """True when the model needs the reasoning-tier chat-completions parameters."""
     return model.lower().startswith(_OPENAI_REASONING_PREFIXES)
 
 
@@ -66,7 +69,7 @@ def chat_openai(
         ],
     }
     if reasoning:
-        # o-series: separate token param, temperature fixed at default
+        # o-series and GPT-5.x: separate token param, temperature fixed server-side
         body["max_completion_tokens"] = max_tokens
     else:
         body["max_tokens"] = max_tokens

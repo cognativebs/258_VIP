@@ -54,7 +54,7 @@ roles:
 
   qc_qa:
     provider: grok
-    model: grok-3
+    model: grok-4.6
     label: QC / QA
     provider_label: Grok
     description: Challenge assumptions, find gaps, verify logic
@@ -65,7 +65,7 @@ roles:
 
   predictor:
     provider: grok
-    model: grok-3
+    model: grok-4.6
     label: Predictor
     provider_label: Grok
     description: Forward-looking estimates, timing, and scenario outcomes
@@ -75,7 +75,7 @@ roles:
 
   re_evaluator:
     provider: grok
-    model: grok-3
+    model: grok-4.6
     label: Re-evaluator
     provider_label: Grok
     description: Second-pass review after new facts or changed assumptions

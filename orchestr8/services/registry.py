@@ -1,6 +1,7 @@
 """Agent registry — load agent.yaml, models.yaml, councils.yaml."""
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 AGENTS_DIR = ROOT / "agents"
 CONFIG_DIR = ROOT / "config"
+MODELS_SCHEMA_PATH = CONFIG_DIR / "models.schema.json"
 
 
 def _read_yaml(path: Path) -> dict:
@@ -52,6 +54,7 @@ def load_agents() -> dict[str, dict]:
 
 def clear_agent_cache() -> None:
     load_models.cache_clear()
+    load_models_schema.cache_clear()
     load_councils.cache_clear()
     load_registry_index.cache_clear()
     load_agents.cache_clear()
@@ -83,6 +86,45 @@ def load_skill_text(agent_id: str, *, brief: bool = False) -> str:
     return path.read_text(encoding="utf-8")
 
 
+@lru_cache(maxsize=1)
+def load_models_schema() -> dict:
+    return json.loads(MODELS_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def validate_model_catalog() -> list[str]:
+    """Return human-readable problems with models.yaml ([] means valid).
+
+    Every catalog model is selectable by every agent, so a malformed entry is a
+    gateway-wide fault rather than one role's problem — this is the gate that
+    keeps a bad edit from surfacing as a provider 400 mid-run.
+    """
+    from services.contracts import validate_instance
+
+    schema = load_models_schema()
+    cfg = load_models()
+    errs = validate_instance(cfg, schema)
+
+    provider_schema = schema["definitions"]["provider"]
+    for pid, meta in (cfg.get("providers") or {}).items():
+        errs += validate_instance(meta, provider_schema, f"providers.{pid}")
+
+    model_schema = schema["definitions"]["model"]
+    known_providers = set(cfg.get("providers") or {})
+    for mid, meta in (cfg.get("models") or {}).items():
+        errs += validate_instance(meta, model_schema, f"models.{mid}")
+        provider = (meta or {}).get("provider")
+        if provider and provider not in known_providers:
+            errs.append(f"models.{mid}: provider {provider!r} has no providers entry")
+
+    catalog = set(cfg.get("models") or {})
+    for pid, chain in (cfg.get("fallbacks") or {}).items():
+        for mid in chain or []:
+            if mid not in catalog:
+                errs.append(f"fallbacks.{pid}: {mid!r} is not in the catalog")
+
+    return errs
+
+
 def model_pricing(model_id: str) -> dict[str, float]:
     """Return {'in': usd_per_1M, 'out': usd_per_1M} for a model (0 if unknown)."""
     m = (load_models().get("models") or {}).get(model_id, {})
@@ -95,20 +137,32 @@ def usd_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
     return round((input_tokens / 1_000_000) * p["in"] + (output_tokens / 1_000_000) * p["out"], 6)
 
 
+def recommended_models(agent_id: str) -> list[str]:
+    """The agent's curated short list — surfaced first in pickers, not a gate."""
+    meta = get_agent(agent_id)
+    return list(meta.get("allowed_models") or [meta["default_model"]])
+
+
 def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
-    """Pick model for an agent; validate override against allowed_models."""
+    """Pick the model for an agent.
+
+    Any catalog model may be assigned to any agent, including one from a
+    different provider than the agent's home provider — the provider is taken
+    from the catalog entry, so the request is dispatched to whichever API owns
+    the chosen model. The agent's ``allowed_models`` is a recommendation and is
+    reported as ``recommended`` rather than enforced.
+    """
     meta = get_agent(agent_id)
     models_cfg = load_models()
     models = models_cfg.get("models") or {}
     provider_meta = models_cfg.get("providers") or {}
     model_id = override or meta["default_model"]
-    allowed = meta.get("allowed_models") or [meta["default_model"]]
-    if model_id not in allowed:
-        raise ValueError(
-            f"Model {model_id!r} not allowed for {meta['id']}. Allowed: {allowed}"
-        )
     if model_id not in models:
-        raise ValueError(f"Unknown model in catalog: {model_id}")
+        raise ValueError(
+            f"Unknown model in catalog: {model_id}. "
+            f"Add it to config/models.yaml, then POST /v1/reload."
+        )
+    recommended = recommended_models(agent_id)
     catalog = models[model_id]
     provider = catalog["provider"]
     return {
@@ -122,7 +176,8 @@ def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
         "temperature": meta.get("temperature", 0.3),
         "max_tokens": meta.get("max_tokens", 2048),
         "default_model": meta["default_model"],
-        "allowed_models": allowed,
+        "allowed_models": recommended,
+        "recommended": model_id in recommended,
         "home_provider": meta["provider"],
         "price_in": float(catalog.get("price_in", 0.0)),
         "price_out": float(catalog.get("price_out", 0.0)),
@@ -130,7 +185,13 @@ def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
 
 
 def agents_public_list() -> list[dict]:
-    """API-safe agent list for IQVault team panel."""
+    """API-safe agent list for IQVault team panel.
+
+    ``allowedModels`` is the whole catalog: every model can be assigned to every
+    agent. Each entry carries ``recommended`` (on the agent's curated short list)
+    and ``configured`` (that model's provider has a key), so a picker can mark
+    the house pick and grey out providers with no key.
+    """
     from services.roles import configured_providers
 
     providers = configured_providers()
@@ -139,18 +200,20 @@ def agents_public_list() -> list[dict]:
     for aid, meta in load_agents().items():
         if meta.get("enabled") is False:
             continue
-        allowed = []
-        for mid in meta.get("allowed_models") or []:
-            m = models.get(mid, {})
-            allowed.append(
-                {
-                    "id": mid,
-                    "label": m.get("label", mid),
-                    "provider": m.get("provider", meta["provider"]),
-                    "tier": m.get("tier"),
-                    "cost": m.get("cost"),
-                }
-            )
+        recommended = meta.get("allowed_models") or [meta["default_model"]]
+        selectable = [
+            {
+                "id": mid,
+                "label": m.get("label", mid),
+                "provider": m.get("provider"),
+                "tier": m.get("tier"),
+                "cost": m.get("cost"),
+                "context": m.get("context"),
+                "recommended": mid in recommended,
+                "configured": providers.get(m.get("provider"), False),
+            }
+            for mid, m in models.items()
+        ]
         out.append(
             {
                 "id": aid,
@@ -160,7 +223,8 @@ def agents_public_list() -> list[dict]:
                 "provider": meta["provider"],
                 "providerLabel": meta.get("provider_label", meta["provider"]),
                 "defaultModel": meta["default_model"],
-                "allowedModels": allowed,
+                "allowedModels": selectable,
+                "recommendedModels": list(recommended),
                 "councils": meta.get("councils") or [],
                 "configured": providers.get(meta["provider"], False),
             }

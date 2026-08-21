@@ -64,7 +64,18 @@ export async function fetchAgents() {
       providerLabel?: string;
       description?: string;
       defaultModel: string;
-      allowedModels: Array<{ id: string; label: string; provider?: string }>;
+      /** The whole catalog — any model can be assigned to any role. */
+      allowedModels: Array<{
+        id: string;
+        label: string;
+        provider?: string;
+        tier?: string;
+        cost?: string;
+        context?: number;
+        recommended?: boolean;
+        configured?: boolean;
+      }>;
+      recommendedModels?: string[];
       councils?: string[];
       tier?: number;
       configured?: boolean;

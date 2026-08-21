@@ -10,7 +10,7 @@ allowed_models:
 - gpt-4.1
 - gpt-4o
 - claude-sonnet-4-6
-- grok-3
+- grok-4.6
 councils:
 - curation
 temperature: 0.35

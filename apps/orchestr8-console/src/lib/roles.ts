@@ -8,6 +8,11 @@ export type AllowedModel = {
   provider?: string;
   tier?: string;
   cost?: string;
+  context?: number;
+  /** On the agent's curated short list. Selection is not restricted to these. */
+  recommended?: boolean;
+  /** This model's provider has an API key set on the gateway. */
+  configured?: boolean;
 };
 
 export type Agent = {
@@ -17,11 +22,31 @@ export type Agent = {
   providerLabel?: string;
   description?: string;
   defaultModel: string;
+  /** Every catalog model — any model can be assigned to any role. */
   allowedModels: AllowedModel[];
+  recommendedModels?: string[];
   councils?: string[];
   tier?: number;
   configured?: boolean;
 };
+
+/** Split a model list into the agent's house picks and the rest of the catalog. */
+export function groupModelChoices(models: AllowedModel[], defaultModel: string) {
+  const recommended = models.filter((m) => m.recommended || m.id === defaultModel);
+  const rest = models.filter((m) => !recommended.includes(m));
+  const byProvider: Record<string, AllowedModel[]> = {};
+  for (const m of rest) {
+    const key = m.provider || "other";
+    (byProvider[key] ||= []).push(m);
+  }
+  return { recommended, byProvider };
+}
+
+/** Dropdown text — flags models whose provider has no key on the gateway. */
+export function modelOptionLabel(model: AllowedModel) {
+  const name = model.label || model.id;
+  return model.configured === false ? `${name} · no key` : name;
+}
 
 export type TeamMode = "single" | "pipeline" | "parallel";
 
@@ -106,10 +131,10 @@ export const FALLBACK_AGENTS: Agent[] = [
     provider: "grok",
     providerLabel: "Grok",
     description: "Edge cases and acceptance tests",
-    defaultModel: "grok-3",
+    defaultModel: "grok-4.6",
     allowedModels: [
-      { id: "grok-3", label: "Grok 3", provider: "grok" },
-      { id: "grok-4", label: "Grok 4", provider: "grok" },
+      { id: "grok-4.6", label: "Grok 4.6", provider: "grok" },
+      { id: "grok-4.3", label: "Grok 4.3", provider: "grok" },
     ],
     councils: ["challenge", "build_spec"],
     tier: 1,
@@ -120,10 +145,10 @@ export const FALLBACK_AGENTS: Agent[] = [
     provider: "grok",
     providerLabel: "Grok",
     description: "Challenge assumptions, find gaps",
-    defaultModel: "grok-3",
+    defaultModel: "grok-4.6",
     allowedModels: [
-      { id: "grok-3", label: "Grok 3", provider: "grok" },
-      { id: "grok-4", label: "Grok 4", provider: "grok" },
+      { id: "grok-4.6", label: "Grok 4.6", provider: "grok" },
+      { id: "grok-4.5", label: "Grok 4.5", provider: "grok" },
     ],
     councils: ["challenge", "build_spec"],
     tier: 1,

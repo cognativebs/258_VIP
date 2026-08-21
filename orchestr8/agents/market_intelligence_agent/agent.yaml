@@ -5,10 +5,10 @@ tier: 9
 description: External catalysts, hobby news frameworks, segment watchlists
 provider: grok
 provider_label: Grok
-default_model: grok-3
+default_model: grok-4.6
 allowed_models:
-- grok-3
-- grok-4
+- grok-4.6
+- grok-4.5
 - claude-sonnet-4-6
 - gpt-4o
 councils:

@@ -6,6 +6,8 @@ import {
   PROVIDERS,
   FALLBACK_AGENTS,
   agentsByProvider,
+  groupModelChoices,
+  modelOptionLabel,
   sortRoleIds,
   teamSummary,
   agentMap,
@@ -66,6 +68,7 @@ export function TeamPanel({
             description: a.description,
             defaultModel: a.defaultModel,
             allowedModels: a.allowedModels || [],
+            recommendedModels: a.recommendedModels,
             councils: a.councils,
             tier: a.tier,
             configured: a.configured,
@@ -262,6 +265,10 @@ export function TeamPanel({
                     agent.allowedModels?.length > 0
                       ? agent.allowedModels
                       : [{ id: agent.defaultModel, label: agent.defaultModel }];
+                  const { recommended, byProvider } = groupModelChoices(
+                    models,
+                    agent.defaultModel
+                  );
                   return (
                     <div key={agent.id} className={`role-card ${active ? "active" : ""}`}>
                       <label>
@@ -279,10 +286,24 @@ export function TeamPanel({
                         <label className="field" style={{ marginTop: 8, marginBottom: 0 }}>
                           <span>Model</span>
                           <select value={modelId} onChange={(e) => setModel(agent.id, e.target.value)}>
-                            {models.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.label || m.id}
-                              </option>
+                            <optgroup label="Recommended">
+                              {recommended.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {modelOptionLabel(m)}
+                                </option>
+                              ))}
+                            </optgroup>
+                            {Object.entries(byProvider).map(([provId, choices]) => (
+                              <optgroup
+                                key={provId}
+                                label={PROVIDERS[provId]?.label ?? provId}
+                              >
+                                {choices.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {modelOptionLabel(m)}
+                                  </option>
+                                ))}
+                              </optgroup>
                             ))}
                           </select>
                         </label>

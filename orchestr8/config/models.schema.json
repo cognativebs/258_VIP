@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestr8 Model Catalog",
+  "description": "Contract for config/models.yaml. Any catalog model may be assigned to any agent; per-agent allowed_models is a recommendation, not a gate. Validated by services.registry.validate_model_catalog() using the draft-07 subset validator in services.contracts.",
+  "type": "object",
+  "required": ["providers", "models"],
+  "properties": {
+    "currency": { "type": "string" },
+    "pricing_note": { "type": "string" },
+    "providers": { "type": "object" },
+    "models": { "type": "object" },
+    "fallbacks": { "type": "object" }
+  },
+  "definitions": {
+    "provider": {
+      "description": "One upstream API. Keyed by provider id in models.yaml.",
+      "type": "object",
+      "required": ["label", "api", "env_key"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "api": { "type": "string", "enum": ["chat_completions", "messages"] },
+        "env_key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "model": {
+      "description": "One selectable model. Keyed by the provider's API model id in models.yaml — the key is sent verbatim as the `model` field on the wire.",
+      "type": "object",
+      "required": ["provider", "label", "tier", "context", "cost", "price_in", "price_out"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["openai", "anthropic", "grok"] },
+        "label": { "type": "string", "minLength": 1 },
+        "tier": {
+          "type": "string",
+          "enum": ["flagship", "strong", "reasoning", "economy"]
+        },
+        "context": {
+          "description": "Advertised context window in tokens. Catalog metadata only — Orchestr8 does not enforce it.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "cost": {
+          "type": "string",
+          "enum": ["very_high", "high", "medium", "low"]
+        },
+        "price_in": {
+          "description": "USD per 1,000,000 input tokens. Estimate for the in-app cost readout.",
+          "type": "number",
+          "minimum": 0
+        },
+        "price_out": {
+          "description": "USD per 1,000,000 output tokens. Estimate for the in-app cost readout.",
+          "type": "number",
+          "minimum": 0
+        },
+        "strengths": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
