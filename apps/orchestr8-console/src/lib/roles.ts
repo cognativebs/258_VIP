@@ -30,6 +30,8 @@ export type Agent = {
   configured?: boolean;
   /** Operator-authored from the team panel rather than shipped in agents/. */
   custom?: boolean;
+  /** Local overlay of a shipped role — git-tracked source is unchanged. */
+  edited?: boolean;
   verificationStatus?: string;
 };
 

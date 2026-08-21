@@ -16,7 +16,7 @@ import {
   type TeamSettings,
 } from "@/lib/roles";
 import { applyPreset, saveTeamSettings } from "@/lib/teamSettings";
-import { createAgent, fetchAgents, fetchCouncils, type Health } from "@/lib/orchestr8Api";
+import { createAgent, fetchAgent, fetchAgents, fetchCouncils, updateAgent, type Health } from "@/lib/orchestr8Api";
 
 type Council = {
   id: string;
@@ -52,6 +52,10 @@ export function TeamPanel({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", description: "", skill: "" });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadRegistry = useCallback(async () => {
     setLoading(true);
@@ -74,6 +78,7 @@ export function TeamPanel({
           tier: a.tier,
           configured: a.configured,
           custom: a.custom,
+          edited: a.edited,
           verificationStatus: a.verificationStatus,
         })
       );
@@ -153,10 +158,10 @@ export function TeamPanel({
         description: newRole.description.trim(),
         skill: newRole.skill.trim(),
       });
-      const list = await loadRegistry();
-      const created = list?.find((a) => a.id === id);
       setNewRole({ name: "", description: "", skill: "" });
       setCreatedId(id);
+      const list = await loadRegistry();
+      const created = list?.find((a) => a.id === id);
       if (created) {
         setDraft((d) => ({
           ...d,
@@ -168,6 +173,7 @@ export function TeamPanel({
         }));
       }
     } catch (e) {
+      setCreatedId(null);
       setCreateError(e instanceof Error ? e.message : "Could not create the role");
     } finally {
       setCreating(false);
@@ -180,6 +186,50 @@ export function TeamPanel({
       presetId: "custom",
       modelOverrides: { ...d.modelOverrides, [roleId]: modelId },
     }));
+  };
+
+  const openEdit = async (agent: Agent) => {
+    setEditingId(agent.id);
+    setEditError(null);
+    setEditDraft({
+      name: agent.label,
+      description: agent.description || "",
+      skill: "",
+    });
+    try {
+      const detail = await fetchAgent(agent.id);
+      setEditDraft({
+        name: detail.label,
+        description: detail.description || "",
+        skill: detail.skill || "",
+      });
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not load this role");
+    }
+  };
+
+  const canSaveEdit =
+    editDraft.name.trim().length >= 2 &&
+    editDraft.description.trim().length >= 10 &&
+    editDraft.skill.trim().length >= 20;
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await updateAgent(editingId, {
+        name: editDraft.name.trim(),
+        description: editDraft.description.trim(),
+        skill: editDraft.skill.trim(),
+      });
+      await loadRegistry();
+      setEditingId(null);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not save this role");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const save = () => {
@@ -326,9 +376,82 @@ export function TeamPanel({
                               custom · {agent.verificationStatus ?? "unverified"}
                             </em>
                           )}
+                          {agent.edited && (
+                            <em
+                              className="dim"
+                              style={{ marginLeft: 6, fontStyle: "normal" }}
+                              title="Local overlay of a shipped role. Git-tracked source is unchanged."
+                            >
+                              edited locally · {agent.verificationStatus ?? "unverified"}
+                            </em>
+                          )}
                           <small>{agent.description}</small>
                         </span>
                       </label>
+                      <div className="role-card-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() =>
+                            editingId === agent.id ? setEditingId(null) : openEdit(agent)
+                          }
+                        >
+                          {editingId === agent.id ? "Close" : "Edit"}
+                        </button>
+                      </div>
+                      {editingId === agent.id && (
+                        <div className="role-edit">
+                          <label className="field">
+                            <span>Name</span>
+                            <input
+                              type="text"
+                              value={editDraft.name}
+                              maxLength={60}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, name: e.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Short description</span>
+                            <input
+                              type="text"
+                              value={editDraft.description}
+                              maxLength={280}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  description: e.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Skills</span>
+                            <textarea
+                              rows={8}
+                              value={editDraft.skill}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, skill: e.target.value }))
+                              }
+                            />
+                          </label>
+                          <p className="dim">
+                            Id stays <code>{agent.id}</code>. Saved as a local overlay
+                            under <code>orchestr8/custom_agents/</code> — shipped files
+                            are not rewritten.
+                          </p>
+                          {editError && <div className="banner warn">{editError}</div>}
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={!canSaveEdit || savingEdit}
+                            onClick={saveEdit}
+                          >
+                            {savingEdit ? "Saving…" : "Save role"}
+                          </button>
+                        </div>
+                      )}
                       {active && (
                         <label className="field" style={{ marginTop: 8, marginBottom: 0 }}>
                           <span>Model</span>
@@ -406,7 +529,7 @@ export function TeamPanel({
           {createError && <div className="banner warn">{createError}</div>}
           {createdId && !createError && (
             <p className="dim">
-              Created <code>{createdId}</code> — its card is selected below.
+              Created <code>{createdId}</code> — its card is in the list above.
             </p>
           )}
           <button

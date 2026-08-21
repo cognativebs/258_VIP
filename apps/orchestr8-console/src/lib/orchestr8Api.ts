@@ -80,10 +80,29 @@ export async function fetchAgents() {
       tier?: number;
       configured?: boolean;
       custom?: boolean;
+      edited?: boolean;
       verificationStatus?: string;
     }>;
     pipelineOrder?: string[];
   }>("/v1/agents");
+}
+
+async function agentWrite<T>(
+  path: string,
+  method: "POST" | "PATCH",
+  input: { name: string; description: string; skill: string }
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { detail?: string; error?: string };
+    throw new Error(err.detail || err.error || `Role ${method} failed (${res.status})`);
+  }
+  return data as T;
 }
 
 /** Create an operator-authored role. The gateway derives id, contract and provenance. */
@@ -92,17 +111,33 @@ export async function createAgent(input: {
   description: string;
   skill: string;
 }) {
-  const res = await fetch(`${BASE}/v1/agents`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = data as { detail?: string; error?: string };
-    throw new Error(err.detail || err.error || `Create role failed (${res.status})`);
-  }
-  return data as { id: string; path?: string };
+  return agentWrite<{ id: string; path?: string }>("/v1/agents", "POST", input);
+}
+
+export async function fetchAgent(id: string) {
+  const data = await getJson<{
+    agent: {
+      id: string;
+      label: string;
+      description?: string;
+      skill?: string;
+      custom?: boolean;
+      edited?: boolean;
+    };
+  }>(`/v1/agents/${encodeURIComponent(id)}`);
+  return data.agent;
+}
+
+/** Patch name, description and skill. The agent id never changes. */
+export async function updateAgent(
+  id: string,
+  input: { name: string; description: string; skill: string }
+) {
+  return agentWrite<{ id: string; path?: string }>(
+    `/v1/agents/${encodeURIComponent(id)}`,
+    "PATCH",
+    input
+  );
 }
 
 export async function fetchCouncils() {
