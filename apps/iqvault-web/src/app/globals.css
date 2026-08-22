@@ -376,6 +376,13 @@ th {
   color: var(--red);
 }
 
+.ext-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .ext-link {
   font-family: var(--mono);
   font-size: 12px;
