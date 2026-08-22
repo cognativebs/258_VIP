@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   TEAM_PRESETS,
   PROVIDERS,
@@ -16,7 +16,7 @@ import {
   type TeamSettings,
 } from "@/lib/roles";
 import { applyPreset, saveTeamSettings } from "@/lib/teamSettings";
-import { fetchAgents, fetchCouncils, type Health } from "@/lib/orchestr8Api";
+import { createAgent, fetchAgent, fetchAgents, fetchCouncils, updateAgent, type Health } from "@/lib/orchestr8Api";
 
 type Council = {
   id: string;
@@ -48,54 +48,61 @@ export function TeamPanel({
   const [councils, setCouncils] = useState<Council[]>([]);
   const [registryError, setRegistryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [newRole, setNewRole] = useState({ name: "", description: "", skill: "" });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", description: "", skill: "" });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadRegistry = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [agentsRes, councilsRes] = await Promise.all([
+        fetchAgents(),
+        fetchCouncils().catch(() => ({ councils: [] as Council[] })),
+      ]);
+      const list: Agent[] = (agentsRes.agents?.length ? agentsRes.agents : FALLBACK_AGENTS).map(
+        (a) => ({
+          id: a.id,
+          label: a.label,
+          provider: a.provider,
+          providerLabel: a.providerLabel,
+          description: a.description,
+          defaultModel: a.defaultModel,
+          allowedModels: a.allowedModels || [],
+          recommendedModels: a.recommendedModels,
+          councils: a.councils,
+          tier: a.tier,
+          configured: a.configured,
+          custom: a.custom,
+          edited: a.edited,
+          verificationStatus: a.verificationStatus,
+        })
+      );
+      setAgents(list);
+      setPipelineOrder(agentsRes.pipelineOrder || list.map((a) => a.id));
+      setCouncils(councilsRes.councils || []);
+      setRegistryError(null);
+      setDraft((d) => ({
+        ...d,
+        modelOverrides: { ...defaultModelOverrides(list, d.roles), ...d.modelOverrides },
+      }));
+      return list;
+    } catch (e) {
+      setAgents(FALLBACK_AGENTS);
+      setRegistryError(e instanceof Error ? e.message : "Registry unavailable");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const [agentsRes, councilsRes] = await Promise.all([
-          fetchAgents(),
-          fetchCouncils().catch(() => ({ councils: [] as Council[] })),
-        ]);
-        if (cancelled) return;
-        const list: Agent[] = (agentsRes.agents?.length ? agentsRes.agents : FALLBACK_AGENTS).map(
-          (a) => ({
-            id: a.id,
-            label: a.label,
-            provider: a.provider,
-            providerLabel: a.providerLabel,
-            description: a.description,
-            defaultModel: a.defaultModel,
-            allowedModels: a.allowedModels || [],
-            recommendedModels: a.recommendedModels,
-            councils: a.councils,
-            tier: a.tier,
-            configured: a.configured,
-          })
-        );
-        setAgents(list);
-        setPipelineOrder(agentsRes.pipelineOrder || list.map((a) => a.id));
-        setCouncils(councilsRes.councils || []);
-        setRegistryError(null);
-        setDraft((d) => ({
-          ...d,
-          modelOverrides: { ...defaultModelOverrides(list, d.roles), ...d.modelOverrides },
-        }));
-      } catch (e) {
-        if (!cancelled) {
-          setAgents(FALLBACK_AGENTS);
-          setRegistryError(e instanceof Error ? e.message : "Registry unavailable");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadRegistry();
+  }, [loadRegistry]);
 
   const byId = useMemo(() => agentMap(agents), [agents]);
   const grouped = useMemo(() => agentsByProvider(agents), [agents]);
@@ -136,12 +143,93 @@ export function TeamPanel({
     });
   };
 
+  const canCreate =
+    newRole.name.trim().length >= 2 &&
+    newRole.description.trim().length >= 10 &&
+    newRole.skill.trim().length >= 20;
+
+  /** Create the role, then reload the registry so its card renders immediately. */
+  const saveNewRole = async () => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const { id } = await createAgent({
+        name: newRole.name.trim(),
+        description: newRole.description.trim(),
+        skill: newRole.skill.trim(),
+      });
+      setNewRole({ name: "", description: "", skill: "" });
+      setCreatedId(id);
+      const list = await loadRegistry();
+      const created = list?.find((a) => a.id === id);
+      if (created) {
+        setDraft((d) => ({
+          ...d,
+          presetId: "custom",
+          council: null,
+          roles: sortRoleIds([...d.roles, id], pipelineOrder),
+          modelOverrides: { ...d.modelOverrides, [id]: created.defaultModel },
+          mode: d.mode === "single" ? "pipeline" : d.mode,
+        }));
+      }
+    } catch (e) {
+      setCreatedId(null);
+      setCreateError(e instanceof Error ? e.message : "Could not create the role");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const setModel = (roleId: string, modelId: string) => {
     setDraft((d) => ({
       ...d,
       presetId: "custom",
       modelOverrides: { ...d.modelOverrides, [roleId]: modelId },
     }));
+  };
+
+  const openEdit = async (agent: Agent) => {
+    setEditingId(agent.id);
+    setEditError(null);
+    setEditDraft({
+      name: agent.label,
+      description: agent.description || "",
+      skill: "",
+    });
+    try {
+      const detail = await fetchAgent(agent.id);
+      setEditDraft({
+        name: detail.label,
+        description: detail.description || "",
+        skill: detail.skill || "",
+      });
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not load this role");
+    }
+  };
+
+  const canSaveEdit =
+    editDraft.name.trim().length >= 2 &&
+    editDraft.description.trim().length >= 10 &&
+    editDraft.skill.trim().length >= 20;
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await updateAgent(editingId, {
+        name: editDraft.name.trim(),
+        description: editDraft.description.trim(),
+        skill: editDraft.skill.trim(),
+      });
+      await loadRegistry();
+      setEditingId(null);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not save this role");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const save = () => {
@@ -279,9 +367,91 @@ export function TeamPanel({
                         />
                         <span>
                           <strong>{agent.label}</strong>
+                          {agent.custom && (
+                            <em
+                              className="dim"
+                              style={{ marginLeft: 6, fontStyle: "normal" }}
+                              title="Operator-authored from this panel; not reviewed by a Build Spec council"
+                            >
+                              custom · {agent.verificationStatus ?? "unverified"}
+                            </em>
+                          )}
+                          {agent.edited && (
+                            <em
+                              className="dim"
+                              style={{ marginLeft: 6, fontStyle: "normal" }}
+                              title="Local overlay of a shipped role. Git-tracked source is unchanged."
+                            >
+                              edited locally · {agent.verificationStatus ?? "unverified"}
+                            </em>
+                          )}
                           <small>{agent.description}</small>
                         </span>
                       </label>
+                      <div className="role-card-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() =>
+                            editingId === agent.id ? setEditingId(null) : openEdit(agent)
+                          }
+                        >
+                          {editingId === agent.id ? "Close" : "Edit"}
+                        </button>
+                      </div>
+                      {editingId === agent.id && (
+                        <div className="role-edit">
+                          <label className="field">
+                            <span>Name</span>
+                            <input
+                              type="text"
+                              value={editDraft.name}
+                              maxLength={60}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, name: e.target.value }))
+                              }
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Short description</span>
+                            <input
+                              type="text"
+                              value={editDraft.description}
+                              maxLength={280}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  description: e.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Skills</span>
+                            <textarea
+                              rows={8}
+                              value={editDraft.skill}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, skill: e.target.value }))
+                              }
+                            />
+                          </label>
+                          <p className="dim">
+                            Id stays <code>{agent.id}</code>. Saved as a local overlay
+                            under <code>orchestr8/custom_agents/</code> — shipped files
+                            are not rewritten.
+                          </p>
+                          {editError && <div className="banner warn">{editError}</div>}
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={!canSaveEdit || savingEdit}
+                            onClick={saveEdit}
+                          >
+                            {savingEdit ? "Saving…" : "Save role"}
+                          </button>
+                        </div>
+                      )}
                       {active && (
                         <label className="field" style={{ marginTop: 8, marginBottom: 0 }}>
                           <span>Model</span>
@@ -315,6 +485,62 @@ export function TeamPanel({
             </div>
           ) : null
         )}
+
+        <p className="dim" style={{ marginBottom: 8 }}>
+          New role
+        </p>
+        <div style={{ marginBottom: 16 }}>
+          <label className="field">
+            <span>Name</span>
+            <input
+              type="text"
+              value={newRole.name}
+              placeholder="Reprint Scout"
+              maxLength={60}
+              onChange={(e) => setNewRole((r) => ({ ...r, name: e.target.value }))}
+            />
+          </label>
+          <label className="field">
+            <span>Short description</span>
+            <input
+              type="text"
+              value={newRole.description}
+              placeholder="Flags reprint risk before a grading spend"
+              maxLength={280}
+              onChange={(e) =>
+                setNewRole((r) => ({ ...r, description: e.target.value }))
+              }
+            />
+          </label>
+          <label className="field">
+            <span>Skills</span>
+            <textarea
+              rows={6}
+              value={newRole.skill}
+              placeholder="How this role thinks: mission, what it looks at, what it must never do, how it states confidence."
+              onChange={(e) => setNewRole((r) => ({ ...r, skill: e.target.value }))}
+            />
+          </label>
+          <p className="dim">
+            Saved to <code>orchestr8/custom_agents/</code> with a conservative
+            contract and no tools. It runs under <strong>Custom roles</strong>; pick
+            its model on the new card.
+          </p>
+          {createError && <div className="banner warn">{createError}</div>}
+          {createdId && !createError && (
+            <p className="dim">
+              Created <code>{createdId}</code> — its card is in the list above.
+            </p>
+          )}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={!canCreate || creating}
+            onClick={saveNewRole}
+          >
+            {creating ? "Creating…" : "Create role"}
+          </button>
+        </div>
 
         <p className="mono dim">
           Active: {summary}

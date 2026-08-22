@@ -39,15 +39,25 @@ def load_registry_index() -> dict:
 
 @lru_cache(maxsize=1)
 def load_agents() -> dict[str, dict]:
-    """Return {agent_id: agent_meta} from agents/*/agent.yaml."""
+    """Return {agent_id: agent_meta} from agents/*/agent.yaml plus custom roles.
+
+    Operator-authored roles from custom_agents/ overlay last and win on id
+    collision, so a Console edit of a shipped role takes effect without
+    rewriting git-tracked files. Creating a *new* role with a reserved id is
+    still refused in create_custom_agent().
+    """
+    from services.custom_agents import load_custom_agents
+
     agents: dict[str, dict] = {}
-    if not AGENTS_DIR.exists():
-        return agents
-    for path in sorted(AGENTS_DIR.glob("*/agent.yaml")):
-        meta = _read_yaml(path)
-        aid = meta.get("id") or path.parent.name
-        meta["id"] = aid
-        meta["_path"] = str(path.relative_to(ROOT))
+    if AGENTS_DIR.exists():
+        for path in sorted(AGENTS_DIR.glob("*/agent.yaml")):
+            meta = _read_yaml(path)
+            aid = meta.get("id") or path.parent.name
+            meta["id"] = aid
+            meta["_path"] = str(path.relative_to(ROOT))
+            agents[aid] = meta
+
+    for aid, meta in load_custom_agents().items():
         agents[aid] = meta
     return agents
 
@@ -80,10 +90,55 @@ def load_skill_text(agent_id: str, *, brief: bool = False) -> str:
     rel = meta.get(key) or meta.get("skill")
     if not rel:
         return ""
-    path = ROOT / rel
-    if not path.exists():
-        return ""
-    return path.read_text(encoding="utf-8")
+    candidates = []
+    # A custom role keeps its skill beside its agent.yaml, which is not always
+    # under orchestr8/ — prefer the directory the agent was loaded from.
+    if meta.get("_dir"):
+        candidates.append(Path(meta["_dir"]) / Path(rel).name)
+    candidates.append(ROOT / rel)
+    for path in candidates:
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return ""
+
+
+@lru_cache(maxsize=1)
+def load_models_schema() -> dict:
+    return json.loads(MODELS_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def validate_model_catalog() -> list[str]:
+    """Return human-readable problems with models.yaml ([] means valid).
+
+    Every catalog model is selectable by every agent, so a malformed entry is a
+    gateway-wide fault rather than one role's problem — this is the gate that
+    keeps a bad edit from surfacing as a provider 400 mid-run.
+    """
+    from services.contracts import validate_instance
+
+    schema = load_models_schema()
+    cfg = load_models()
+    errs = validate_instance(cfg, schema)
+
+    provider_schema = schema["definitions"]["provider"]
+    for pid, meta in (cfg.get("providers") or {}).items():
+        errs += validate_instance(meta, provider_schema, f"providers.{pid}")
+
+    model_schema = schema["definitions"]["model"]
+    known_providers = set(cfg.get("providers") or {})
+    for mid, meta in (cfg.get("models") or {}).items():
+        errs += validate_instance(meta, model_schema, f"models.{mid}")
+        provider = (meta or {}).get("provider")
+        if provider and provider not in known_providers:
+            errs.append(f"models.{mid}: provider {provider!r} has no providers entry")
+
+    catalog = set(cfg.get("models") or {})
+    for pid, chain in (cfg.get("fallbacks") or {}).items():
+        for mid in chain or []:
+            if mid not in catalog:
+                errs.append(f"fallbacks.{pid}: {mid!r} is not in the catalog")
+
+    return errs
 
 
 @lru_cache(maxsize=1)
@@ -227,9 +282,27 @@ def agents_public_list() -> list[dict]:
                 "recommendedModels": list(recommended),
                 "councils": meta.get("councils") or [],
                 "configured": providers.get(meta["provider"], False),
+                "custom": bool(meta.get("custom")) and not _is_shipped(aid),
+                "edited": bool(meta.get("custom")) and _is_shipped(aid),
+                "verificationStatus": (meta.get("provenance") or {}).get(
+                    "verification_status"
+                ),
             }
         )
     return out
+
+
+def _is_shipped(agent_id: str) -> bool:
+    return (AGENTS_DIR / agent_id / "agent.yaml").exists()
+
+
+def agent_public_detail(agent_id: str) -> dict:
+    """List card plus the skill text the editor needs."""
+    resolved = resolve_agent_id(agent_id)
+    card = next((a for a in agents_public_list() if a["id"] == resolved), None)
+    if card is None:
+        raise ValueError(f"Unknown agent: {agent_id}")
+    return {**card, "skill": load_skill_text(resolved)}
 
 
 def get_council(council_id: str) -> dict | None:

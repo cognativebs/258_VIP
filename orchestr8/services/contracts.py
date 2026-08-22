@@ -18,6 +18,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 AGENTS_DIR = ROOT / "agents"
+# Operator-authored roles (services/custom_agents.py) carry a contract too, so
+# the O0 gate covers them exactly like a shipped agent.
+CUSTOM_AGENTS_DIR = ROOT / "custom_agents"
 SCHEMA_PATH = ROOT / "config" / "contract.schema.json"
 
 
@@ -27,6 +30,10 @@ def load_schema() -> dict:
 
 
 def contract_path(agent_id: str) -> Path:
+    """Prefer a local overlay, then the shipped contract."""
+    custom = CUSTOM_AGENTS_DIR / agent_id / "contract.yaml"
+    if custom.exists():
+        return custom
     return AGENTS_DIR / agent_id / "contract.yaml"
 
 
@@ -39,14 +46,15 @@ def load_contract(agent_id: str) -> dict | None:
 
 
 def list_contracts() -> dict[str, dict]:
-    """Return {agent_id: contract} for every agents/*/contract.yaml."""
+    """Return {agent_id: contract} for every shipped and custom contract.yaml."""
     out: dict[str, dict] = {}
-    if not AGENTS_DIR.exists():
-        return out
-    for path in sorted(AGENTS_DIR.glob("*/contract.yaml")):
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        out[data.get("id") or path.parent.name] = data
+    for base in (AGENTS_DIR, CUSTOM_AGENTS_DIR):
+        if not base.exists():
+            continue
+        for path in sorted(base.glob("*/contract.yaml")):
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            out[data.get("id") or path.parent.name] = data
     return out
 
 

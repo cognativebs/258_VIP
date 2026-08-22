@@ -28,6 +28,11 @@ export type Agent = {
   councils?: string[];
   tier?: number;
   configured?: boolean;
+  /** Operator-authored from the team panel rather than shipped in agents/. */
+  custom?: boolean;
+  /** Local overlay of a shipped role — git-tracked source is unchanged. */
+  edited?: boolean;
+  verificationStatus?: string;
 };
 
 /** Split a model list into the agent's house picks and the rest of the catalog. */

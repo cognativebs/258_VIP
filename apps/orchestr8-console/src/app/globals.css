@@ -499,6 +499,18 @@ textarea {
   margin-top: 2px;
 }
 
+.role-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.role-edit {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 .actions {
   display: flex;
   gap: 8px;

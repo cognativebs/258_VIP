@@ -14,10 +14,12 @@ sys.path.insert(0, ROOT)
 from providers.billing import accounts_snapshot  # noqa: E402
 from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
 from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
+from services.custom_agents import CustomAgentError, create_custom_agent, update_custom_agent  # noqa: E402
 from services.orchestrator import run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
     agents_public_list,
+    agent_public_detail,
     clear_agent_cache,
     councils_public_list,
     load_registry_index,
@@ -30,12 +32,22 @@ from services.roles import load_config  # noqa: E402
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
 
 
+def _agent_id_from_path(path: str) -> str | None:
+    prefix = "/v1/agents/"
+    if not path.startswith(prefix):
+        return None
+    agent_id = path[len(prefix) :]
+    if not agent_id or "/" in agent_id:
+        return None
+    return agent_id
+
+
 def json_response(handler: BaseHTTPRequestHandler, status: int, body: dict) -> None:
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    handler.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
     handler.send_header("Access-Control-Allow-Headers", "Content-Type")
     handler.send_header("Content-Length", str(len(data)))
     handler.end_headers()
@@ -59,7 +71,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
@@ -111,6 +123,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
             )
             return
 
+        agent_id = _agent_id_from_path(path)
+        if agent_id:
+            try:
+                json_response(self, 200, {"ok": True, "agent": agent_public_detail(agent_id)})
+            except ValueError as e:
+                json_response(self, 404, {"error": "not_found", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
+
         if path in ("/v1/models", "/v1/pricing"):
             json_response(self, 200, models_public_list())
             return
@@ -153,6 +175,25 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
         json_response(self, 404, {"error": "Not found"})
 
+    def _update_agent(self, agent_id: str) -> None:
+        try:
+            updated = update_custom_agent(agent_id, read_json(self))
+            agent = next(
+                (a for a in agents_public_list() if a["id"] == updated["id"]), None
+            )
+            json_response(self, 200, {"ok": True, **updated, "agent": agent})
+        except CustomAgentError as e:
+            json_response(self, 400, {"error": "invalid_agent", "detail": str(e)})
+        except Exception as e:  # noqa: BLE001
+            json_response(self, 500, {"error": str(e)})
+
+    def do_PATCH(self) -> None:
+        agent_id = _agent_id_from_path(urlparse(self.path).path)
+        if not agent_id:
+            json_response(self, 404, {"error": "Not found"})
+            return
+        self._update_agent(agent_id)
+
     def do_DELETE(self) -> None:
         path = urlparse(self.path).path
         if path == "/v1/runs" or path.startswith("/v1/runs/"):
@@ -170,6 +211,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if path == "/v1/reload":
             clear_agent_cache()
             json_response(self, 200, {"ok": True, "agents": len(agents_public_list())})
+            return
+
+        if path == "/v1/agents":
+            try:
+                created = create_custom_agent(read_json(self))
+                agent = next(
+                    (a for a in agents_public_list() if a["id"] == created["id"]), None
+                )
+                json_response(self, 201, {"ok": True, **created, "agent": agent})
+            except CustomAgentError as e:
+                json_response(self, 400, {"error": "invalid_agent", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
+
+        agent_id = _agent_id_from_path(path)
+        if agent_id:
+            self._update_agent(agent_id)
             return
 
         if path == "/v1/plan":
@@ -288,6 +347,9 @@ def main() -> None:
     print("  GET  /v1/health")
     print("  GET  /v1/roles")
     print("  GET  /v1/agents")
+    print("  GET  /v1/agents/:id")
+    print("  POST /v1/agents")
+    print("  PATCH /v1/agents/:id")
     print("  GET  /v1/models")
     print("  GET  /v1/councils")
     print("  GET  /v1/pricing")
