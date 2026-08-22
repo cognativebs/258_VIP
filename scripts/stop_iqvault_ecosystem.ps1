@@ -1,5 +1,5 @@
 ﻿# Stop every IQVault VIP service window (does not stop Postgres/Docker).
-$Ports = 8787, 5200, 5210, 3000, 3010
+$Ports = 8787, 5200, 5210, 3000, 3001, 3010
 
 function Get-PidsOnPort([int]$Port) {
     $ids = @()

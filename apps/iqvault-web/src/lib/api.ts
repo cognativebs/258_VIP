@@ -10,7 +10,7 @@ function vipApiBase(): string {
   return "http://127.0.0.1:8787";
 }
 
-export const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
+export { BINDER_URL, ORCHESTR8_CONSOLE_URL } from "./popoutLinks";
 
 /**
  * Default timeout for VIP API calls. Without this, a backend that accepts a

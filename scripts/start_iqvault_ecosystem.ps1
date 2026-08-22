@@ -22,9 +22,10 @@ $Ports = @{
     Postgres  = 5432
     VipApi    = 8787
     ComicsApi = 5200
-    Orchestr8 = 5210
-    Web       = 3000
-    Binder    = 3010
+    Orchestr8        = 5210
+    Web              = 3000
+    Orchestr8Console = 3001
+    Binder           = 3010
 }
 
 function Write-Step([string]$Msg) {
@@ -508,6 +509,22 @@ function Ensure-Binder {
     Write-Step "Binder ready on http://127.0.0.1:$($Ports.Binder)"
 }
 
+function Ensure-Orchestr8Console {
+    # Companion app, same as Binder: started with the stack, not auto-opened.
+    # Open it from Orchestr8 ↗ in the IQVault header.
+    if (Test-PortListening $Ports.Orchestr8Console) {
+        Write-Warn "Restarting Orchestr8 Console on port $($Ports.Orchestr8Console) so it picks up the current checkout."
+        Stop-ProcessesOnPort $Ports.Orchestr8Console
+    }
+    Write-Step "Starting Orchestr8 Console..."
+    Start-MinimizedProcess "IQVault Orchestr8 Console" $Root "npm run orchestr8:console"
+    if (-not (Wait-Port $Ports.Orchestr8Console 120)) {
+        Write-Warn "Orchestr8 Console did not bind port $($Ports.Orchestr8Console) - skip or start later with: npm run orchestr8:console"
+        return
+    }
+    Write-Step "Orchestr8 Console ready on http://127.0.0.1:$($Ports.Orchestr8Console)"
+}
+
 function Write-StackSummary {
     Write-Host ""
     Write-Step "Stack health check:"
@@ -541,7 +558,10 @@ function Write-StackSummary {
     Write-Step ("  VIP API    {0}  http://127.0.0.1:{1}  comicsCount={2}" -f $vipLabel, $Ports.VipApi, $comicsCount)
     Write-Step ("  Comics API {0}  http://127.0.0.1:{1}" -f $comicsLabel, $Ports.ComicsApi)
     Write-Step ("  Orchestr8  {0}  http://127.0.0.1:{1}  providers={2}" -f $orchLabel, $Ports.Orchestr8, $orchProviders)
-    Write-Step ("  Web        {0}  http://127.0.0.1:{1}/collections/pokemon" -f $webLabel, $Ports.Web)
+    Write-Step ("  Web        {0}  http://127.0.0.1:{1}/" -f $webLabel, $Ports.Web)
+    $consoleOk = Test-PortListening $Ports.Orchestr8Console
+    $consoleLabel = if ($consoleOk) { "OK" } else { "DOWN" }
+    Write-Step ("  Console    {0}  http://127.0.0.1:{1}" -f $consoleLabel, $Ports.Orchestr8Console)
     if (-not $NoBinder) {
         $binderOk = Test-PortListening $Ports.Binder
         $binderLabel = if ($binderOk) { "OK" } else { "DOWN" }
@@ -567,7 +587,7 @@ try {
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  IQVault VIP - starting stack" -ForegroundColor Green
-Write-Host "  http://127.0.0.1:$($Ports.Web)/collections/pokemon" -ForegroundColor Green
+Write-Host "  http://127.0.0.1:$($Ports.Web)/" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Checkout
@@ -585,13 +605,13 @@ try {
     Ensure-Orchestr8
     Ensure-Web
     Ensure-Binder
+    Ensure-Orchestr8Console
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
-        Start-Process "http://127.0.0.1:$($Ports.Web)/collections/pokemon"
-        Start-Process "http://127.0.0.1:$($Ports.Web)/collections/comics"
-        # Binder stays in the stack but is not opened — it is the pocket editor,
-        # not the collection terminal. Open it from Binder ↗ on the Pokémon tab.
+        Start-Process "http://127.0.0.1:$($Ports.Web)/"
+        # One IQVault tab. Binder and Orchestr8 Console stay in the stack
+        # and open from Binder ↗ / Orchestr8 ↗ in the header.
     }
 
     Write-StackSummary
