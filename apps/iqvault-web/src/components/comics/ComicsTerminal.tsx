@@ -39,10 +39,16 @@ import {
   isAcceptedDropFile,
   type InboxStatus,
 } from "@/lib/sourceDrop";
-import { BINDER_URL } from "@/lib/api";
+import { BINDER_URL, ORCHESTR8_CONSOLE_URL } from "@/lib/api";
 import { AnalyticsChat } from "./AnalyticsChat";
 
 const PAGE_SIZE = 50;
+
+const ORCHESTR8_SOURCE_LINK = {
+  href: ORCHESTR8_CONSOLE_URL,
+  label: "Orchestr8",
+  title: "Open Orchestr8 Console in a new window",
+};
 
 export function ComicsTerminal({
   vertical = "comics",
@@ -192,6 +198,7 @@ export function ComicsTerminal({
         label: "Comic Collector",
         title: "Open Comic Collector on clz.com in a new window",
       },
+      ORCHESTR8_SOURCE_LINK,
     ],
     [inbox?.clzCloudUrl, inbox?.clzCollectorUrl],
   );
@@ -208,6 +215,7 @@ export function ComicsTerminal({
           label: "CLZ Cloud",
           title: "Open CLZ Cloud in a new window",
         },
+        ORCHESTR8_SOURCE_LINK,
       ]
     : clzLinks;
 
