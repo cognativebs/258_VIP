@@ -141,6 +141,45 @@ def validate_model_catalog() -> list[str]:
     return errs
 
 
+@lru_cache(maxsize=1)
+def load_models_schema() -> dict:
+    return json.loads(MODELS_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def validate_model_catalog() -> list[str]:
+    """Return human-readable problems with models.yaml ([] means valid).
+
+    Every catalog model is selectable by every agent, so a malformed entry is a
+    gateway-wide fault rather than one role's problem — this is the gate that
+    keeps a bad edit from surfacing as a provider 400 mid-run.
+    """
+    from services.contracts import validate_instance
+
+    schema = load_models_schema()
+    cfg = load_models()
+    errs = validate_instance(cfg, schema)
+
+    provider_schema = schema["definitions"]["provider"]
+    for pid, meta in (cfg.get("providers") or {}).items():
+        errs += validate_instance(meta, provider_schema, f"providers.{pid}")
+
+    model_schema = schema["definitions"]["model"]
+    known_providers = set(cfg.get("providers") or {})
+    for mid, meta in (cfg.get("models") or {}).items():
+        errs += validate_instance(meta, model_schema, f"models.{mid}")
+        provider = (meta or {}).get("provider")
+        if provider and provider not in known_providers:
+            errs.append(f"models.{mid}: provider {provider!r} has no providers entry")
+
+    catalog = set(cfg.get("models") or {})
+    for pid, chain in (cfg.get("fallbacks") or {}).items():
+        for mid in chain or []:
+            if mid not in catalog:
+                errs.append(f"fallbacks.{pid}: {mid!r} is not in the catalog")
+
+    return errs
+
+
 def model_pricing(model_id: str) -> dict[str, float]:
     """Return {'in': usd_per_1M, 'out': usd_per_1M} for a model (0 if unknown)."""
     m = (load_models().get("models") or {}).get(model_id, {})
