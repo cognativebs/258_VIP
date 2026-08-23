@@ -18,13 +18,18 @@ const DEFAULT: TeamSettings = {
   council: "build_spec",
 };
 
+/** Stable SSR/client first paint — never reads localStorage. */
+export function defaultTeamSettings(): TeamSettings {
+  return { ...DEFAULT, roles: [...DEFAULT.roles], modelOverrides: {} };
+}
+
 export function loadTeamSettings(): TeamSettings {
   if (typeof window === "undefined") {
-    return { ...DEFAULT, roles: [...DEFAULT.roles], modelOverrides: {} };
+    return defaultTeamSettings();
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT, roles: [...DEFAULT.roles], modelOverrides: {} };
+    if (!raw) return defaultTeamSettings();
     const parsed = JSON.parse(raw) as Partial<TeamSettings> & { legacyAliases?: Record<string, string> };
     const aliases = parsed.legacyAliases || LEGACY_ALIASES;
     const roles = migrateRoleIds(
@@ -45,7 +50,7 @@ export function loadTeamSettings(): TeamSettings {
       council: parsed.council ?? preset?.council ?? null,
     };
   } catch {
-    return { ...DEFAULT, roles: [...DEFAULT.roles], modelOverrides: {} };
+    return defaultTeamSettings();
   }
 }
 

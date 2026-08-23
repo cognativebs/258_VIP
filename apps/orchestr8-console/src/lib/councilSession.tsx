@@ -26,7 +26,7 @@ import {
   type Agent,
   type TeamSettings,
 } from "@/lib/roles";
-import { loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
+import { defaultTeamSettings, loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
 
 export type ConsoleTab = "analysis" | "build" | "runs" | "specs";
 export type SessionKind = "analysis" | "build";
@@ -213,7 +213,7 @@ function rosterFromSession(s: LiveSession, councils: CouncilInfo[]): EffectiveRo
 
 export function CouncilSessionProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<ConsoleTab>("analysis");
-  const [team, setTeamState] = useState<TeamSettings>(() => loadTeamSettings());
+  const [team, setTeamState] = useState<TeamSettings>(defaultTeamSettings);
   const [agents, setAgents] = useState<Agent[]>(FALLBACK_AGENTS);
   const [councils, setCouncils] = useState<CouncilInfo[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
@@ -228,6 +228,10 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
   const setTeam = useCallback((t: TeamSettings) => {
     setTeamState(t);
     saveTeamSettings(t);
+  }, []);
+
+  useEffect(() => {
+    setTeamState(loadTeamSettings());
   }, []);
 
   useEffect(() => {
