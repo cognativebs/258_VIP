@@ -124,3 +124,43 @@ def test_resume_retries_failed_role_only():
 
 def test_non_credit_error_is_not_a_pause_step():
     assert not step_is_credit_pause({"role": "tester", "error": "timed out", "text": "nope"})
+
+
+def test_pipeline_stops_when_coordinator_plan_fails():
+    """Empty / generic plan failure must not cascade into every later role."""
+    pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
+    from services import orchestrator as orch
+
+    calls: list[str] = []
+
+    def fake_run(agent_id, **_kwargs):
+        calls.append(agent_id)
+        out = {
+            "role": agent_id,
+            "role_label": agent_id,
+            "provider": "openai",
+            "provider_label": "OpenAI",
+            "model": "gpt-5.6-sol",
+            "text": "ok",
+            "usage": {"input": 1, "output": 1, "total": 2},
+            "costUsd": 0.01,
+        }
+        if agent_id == "orchestrator":
+            out["text"] = "[Orchestrator unavailable: Empty OpenAI response]"
+            out["error"] = "Empty OpenAI response"
+            out["costUsd"] = 0.0
+        return out
+
+    orch._run_agent = fake_run  # type: ignore[method-assign]
+    result = orch._execute_job(
+        task="build_spec",
+        roles=["orchestrator", "architect", "domain_expert", "tester", "critic"],
+        mode="pipeline",
+        question="Spec the HUD",
+        context_json="{}",
+        council="build_spec",
+    )
+    assert calls == ["orchestrator"]
+    assert not result.get("paused")
+    assert result["usage"]["errors"] == 1
+    assert [s["role"] for s in result["trace"]] == ["orchestrator"]

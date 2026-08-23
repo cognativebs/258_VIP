@@ -109,8 +109,11 @@ def chat_openai(
         ],
     }
     if reasoning:
-        # o-series and GPT-5.x: separate token param, temperature fixed server-side
+        # o-series and GPT-5.x: separate token param, temperature fixed server-side.
+        # Default reasoning_effort is medium/high and can spend the whole cap
+        # on hidden tokens (empty content, finish_reason=length).
         body["max_completion_tokens"] = max_tokens
+        body["reasoning_effort"] = "low"
     else:
         body["max_tokens"] = max_tokens
         body["temperature"] = temperature

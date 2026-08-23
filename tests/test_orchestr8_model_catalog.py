@@ -191,6 +191,7 @@ def test_gpt5_request_omits_the_parameters_openai_rejects(
 ):
     body = _sent_body(monkeypatch, "gpt-5.6-sol")
     assert body["max_completion_tokens"] == 4096
+    assert body["reasoning_effort"] == "low"
     assert "max_tokens" not in body
     assert "temperature" not in body
 
@@ -202,6 +203,7 @@ def test_classic_model_request_keeps_max_tokens_and_temperature(
     assert body["max_tokens"] == 4096
     assert "temperature" in body
     assert "max_completion_tokens" not in body
+    assert "reasoning_effort" not in body
 
 
 def test_openai_choice_text_joins_content_parts():

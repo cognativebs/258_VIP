@@ -857,6 +857,20 @@ def _execute_job(
             emit(plan_step)
             if step_is_credit_pause(plan_step):
                 return pause_now(plan_step, "plan", [coordinator] + execution_order)
+            if plan_step.get("error"):
+                progress(
+                    "abort",
+                    f"{label} plan failed — stopping so later roles are not called.",
+                    coordinator,
+                )
+                return _finalize(
+                    text=plan_step["text"],
+                    trace=trace,
+                    mode="pipeline",
+                    roles=unique,
+                    overrides=overrides,
+                    council=council,
+                )
 
     done_workers = {s.get("role") for s in seed_trace(trace) if s.get("role") != coordinator}
     for agent_id in execution_order:

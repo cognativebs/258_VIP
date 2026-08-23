@@ -172,28 +172,18 @@ export function analysisEffective(team: TeamSettings): EffectiveRoster {
   };
 }
 
-export function buildEffective(team: TeamSettings): EffectiveRoster {
-  if (team.council === "build_spec" || team.presetId === "build_spec") {
-    return {
-      label: "Build Spec Council",
-      councilId: "build_spec",
-      councilLabel: "Build Spec Council",
-      purpose: "Produce a critic-passed Cursor work order",
-      mode: "pipeline",
-      voting: "veto_on_critical",
-      roles: ["architect", "domain_expert", "tester", "critic"],
-      source: "build-default",
-    };
-  }
-  const preset = TEAM_PRESETS.find((p) => p.id === team.presetId);
+export function buildEffective(_team?: TeamSettings): EffectiveRoster {
+  // ADR 0003: this tab always runs the 4-role council. A leftover custom
+  // 9-agent team in localStorage must not hijack the run.
   return {
-    label: preset?.label || "Build team",
-    councilId: team.council,
-    councilLabel: team.council || preset?.label || "Custom",
-    purpose: preset?.description,
-    mode: team.mode,
-    roles: team.roles,
-    source: "team",
+    label: "Build Spec Council",
+    councilId: "build_spec",
+    councilLabel: "Build Spec Council",
+    purpose: "Produce a critic-passed Cursor work order",
+    mode: "pipeline",
+    voting: "veto_on_critical",
+    roles: ["architect", "domain_expert", "tester", "critic"],
+    source: "build-default",
   };
 }
 
