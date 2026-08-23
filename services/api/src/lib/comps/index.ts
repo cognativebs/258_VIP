@@ -34,14 +34,12 @@ export async function fetchCompsForHolding(
   // Explicit test seam — never a silent production fallback with invented prices.
   if (process.env.VIP_COMPS_USE_FIXTURE === "1") {
     const raw = process.env.VIP_COMPS_FIXTURE_JSON;
-    if (raw) {
-      const parsed = JSON.parse(raw) as CompSale[];
-      const sales = parsed.map(toSaleComp);
-      return {
-        sales,
-        adapters: [{ adapterId: "fixture", sales: parsed }],
-      };
-    }
+    const parsed = raw ? (JSON.parse(raw) as CompSale[]) : [];
+    const sales = parsed.map(toSaleComp);
+    return {
+      sales,
+      adapters: [{ adapterId: "fixture", sales: parsed }],
+    };
   }
 
   const applicable = adapters.filter((a) => a.matches(holding));

@@ -210,6 +210,11 @@ describe("manual watch surfaces", () => {
 
 describe("GET /api/sell-queue/dogfood", () => {
   it("ranks with grading EV and marks stale evidence without touching /api/sell-queue", async () => {
+    const prevFixture = process.env.VIP_COMPS_USE_FIXTURE;
+    const prevJson = process.env.VIP_COMPS_FIXTURE_JSON;
+    process.env.VIP_COMPS_USE_FIXTURE = "1";
+    process.env.VIP_COMPS_FIXTURE_JSON = "[]";
+    try {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/sell-queue/dogfood`);
       const body = (await res.json()) as {
@@ -230,5 +235,11 @@ describe("GET /api/sell-queue/dogfood", () => {
       expect(body.items[0]?.compsSource).toBe("none");
       expect(body.items[0]?.dogfoodNote).toMatch(/stale/i);
     });
+    } finally {
+      if (prevFixture === undefined) delete process.env.VIP_COMPS_USE_FIXTURE;
+      else process.env.VIP_COMPS_USE_FIXTURE = prevFixture;
+      if (prevJson === undefined) delete process.env.VIP_COMPS_FIXTURE_JSON;
+      else process.env.VIP_COMPS_FIXTURE_JSON = prevJson;
+    }
   });
 });
