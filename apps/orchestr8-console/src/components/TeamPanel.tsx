@@ -437,9 +437,31 @@ export function TeamPanel({
           </select>
         </label>
 
-        <p className="dim" style={{ marginBottom: 8 }}>
-          Agents · {draft.roles.length} selected
-        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+          <p className="dim" style={{ marginBottom: 0 }}>
+            Agents · {draft.roles.length} selected
+          </p>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              const all = sortRoleIds(
+                agents.map((a) => a.id),
+                pipelineOrder
+              );
+              setDraft((d) => ({
+                ...d,
+                presetId: "council_full",
+                council: "full",
+                roles: all,
+                mode: "pipeline",
+                modelOverrides: { ...defaultModelOverrides(agents, all), ...d.modelOverrides },
+              }));
+            }}
+          >
+            Select all ({agents.length})
+          </button>
+        </div>
         {Object.entries(grouped).map(([provId, list]) =>
           list.length ? (
             <div key={provId} style={{ marginBottom: 16 }}>

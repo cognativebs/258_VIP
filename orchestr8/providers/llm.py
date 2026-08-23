@@ -220,7 +220,7 @@ def chat_grok(
         },
         timeout=_http_timeout_for(max_tokens),
     )
-    text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+    text = _openai_choice_text((data.get("choices") or [{}])[0])
     if not text:
         raise RuntimeError("Empty Grok response")
     usage = data.get("usage") or {}

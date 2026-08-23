@@ -140,18 +140,31 @@ function highlightFromStep(step: JobStep, index: number): Highlight {
   };
 }
 
+function rosterFromTeam(team: TeamSettings, fallbackLabel: string): EffectiveRoster {
+  const preset = TEAM_PRESETS.find((p) => p.id === team.presetId);
+  return {
+    label: preset?.label || fallbackLabel,
+    councilId: team.council,
+    councilLabel: team.council || preset?.label || "Custom",
+    purpose: preset?.description,
+    mode: team.roles.length === 1 ? "single" : team.mode,
+    voting: team.council === "full" || team.presetId === "council_full" ? "veto_on_critical" : undefined,
+    roles: team.roles,
+    source: "team",
+  };
+}
+
 export function analysisEffective(team: TeamSettings): EffectiveRoster {
-  if (team.presetId === "comics_vip" || team.council === "analysis") {
-    const preset = TEAM_PRESETS.find((p) => p.id === team.presetId);
-    return {
-      label: preset?.label || "Analysis team",
-      councilId: team.council,
-      councilLabel: team.council === "analysis" ? "Analysis Council" : preset?.label || "Custom",
-      purpose: preset?.description,
-      mode: team.mode,
-      roles: team.roles,
-      source: "team",
-    };
+  const honorTeam =
+    team.roles.length > 0 &&
+    (team.presetId === "comics_vip" ||
+      team.presetId === "custom" ||
+      team.presetId === "council_full" ||
+      team.council === "analysis" ||
+      team.council === "full" ||
+      team.roles.length > 6);
+  if (honorTeam) {
+    return rosterFromTeam(team, "Analysis team");
   }
   return {
     label: "Analysis Council",
@@ -172,9 +185,10 @@ export function analysisEffective(team: TeamSettings): EffectiveRoster {
   };
 }
 
-export function buildEffective(_team?: TeamSettings): EffectiveRoster {
-  // ADR 0003: this tab always runs the 4-role council. A leftover custom
-  // 9-agent team in localStorage must not hijack the run.
+export function buildEffective(team: TeamSettings): EffectiveRoster {
+  if (team.roles.length) {
+    return rosterFromTeam(team, "Build team");
+  }
   return {
     label: "Build Spec Council",
     councilId: "build_spec",
@@ -357,9 +371,11 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
             (s.highlights.length ? s.highlights[s.highlights.length - 1]!.at : s.startedAt);
           const stallMs = now - lastActivity;
           const ageMs = now - s.startedAt;
-          const noStepsStuck = s.steps.length === 0 && stallMs > 5 * 60_000;
-          const midRunStuck = s.steps.length > 0 && stallMs > 6 * 60_000;
-          const hardCap = ageMs > 20 * 60_000;
+          const roleCount = Math.max(s.roles.length, 1);
+          // Socket timeout for large completions is up to 480s; stall must sit above that.
+          const noStepsStuck = s.steps.length === 0 && stallMs > 10 * 60_000;
+          const midRunStuck = s.steps.length > 0 && stallMs > 10 * 60_000;
+          const hardCap = ageMs > Math.max(20 * 60_000, roleCount * 8 * 60_000);
           if (noStepsStuck || midRunStuck || hardCap) {
             changed = true;
             next[k] = {
