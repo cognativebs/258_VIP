@@ -48,6 +48,30 @@ def print_agent_message(event: Any, out: TextIO = sys.stdout) -> None:
         out.flush()
 
 
+def format_cli_error(exc: BaseException) -> str:
+    """Human-readable chain for SDK 'Connection error.' wrappers."""
+    parts = [f"{type(exc).__name__}: {exc}"]
+    cause: BaseException | None = exc.__cause__ or exc.__context__
+    seen: set[int] = set()
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        parts.append(f"  caused by {type(cause).__name__}: {cause}")
+        cause = cause.__cause__ or cause.__context__
+    if "connection error" in str(exc).lower():
+        parts.append(
+            "  hint: PowerShell must be in the repo, ANTHROPIC_API_KEY set in THIS window, "
+            "and https://api.anthropic.com reachable (VPN/proxy/firewall)."
+        )
+    return "\n".join(parts)
+
+
+def require_api_key() -> str | None:
+    key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    if key:
+        return None
+    return "ANTHROPIC_API_KEY is not set in this PowerShell window."
+
+
 def stream_session(
     client: Any,
     *,
@@ -94,6 +118,10 @@ def stream_session(
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     prompt = " ".join(args).strip() or "Hello — introduce yourself in one sentence."
+    missing = require_api_key()
+    if missing:
+        sys.stderr.write(f"error: {missing}\n")
+        return 2
     try:
         import anthropic
 
@@ -103,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write("\nInterrupted.\n")
         return 130
     except Exception as exc:  # noqa: BLE001 — CLI must exit cleanly
-        sys.stderr.write(f"error: {exc}\n")
+        sys.stderr.write(f"error: {format_cli_error(exc)}\n")
         return 1
 
 
