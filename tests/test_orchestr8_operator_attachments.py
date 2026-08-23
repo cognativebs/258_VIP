@@ -19,7 +19,9 @@ from services.operator_attachments import (  # noqa: E402
     normalize_ref_paths,
     summarize_for_collection_json,
 )
-from services.orchestrator import _build_user_prompt, _ensure_repo_context  # noqa: E402
+
+# Heavy imports (registry → PyYAML) stay inside tests so the ingest CI job
+# can collect this module without orchestr8/requirements.txt.
 
 
 def test_normalize_drops_empty_and_caps_count():
@@ -35,6 +37,7 @@ def test_ref_paths_reject_parent_and_absolute():
 
 
 def test_merge_reads_repo_path():
+    pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
     ctx = merge_into_context(
         {
             "operatorAttachments": [{"name": "notes.md", "text": "from upload", "source": "upload"}],
@@ -49,6 +52,9 @@ def test_merge_reads_repo_path():
 
 
 def test_user_prompt_includes_attachments():
+    pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
+    from services.orchestrator import _build_user_prompt
+
     ctx = json.dumps(
         {
             "operatorAttachments": [
@@ -72,6 +78,9 @@ def test_user_prompt_includes_attachments():
 
 
 def test_ensure_repo_context_keeps_attachments():
+    pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
+    from services.orchestrator import _ensure_repo_context
+
     raw = json.dumps(
         {
             "operatorAttachments": [{"name": "a.md", "text": "keep me"}],

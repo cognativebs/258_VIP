@@ -69,3 +69,45 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
 - Types + zod schema first, then implementation, then tests.
 - Provenance fields populated on any derived data.
 - A short note in the PR body: user, decision, input evidence, output action.
+
+## Cursor Cloud specific instructions
+The docs assume Windows (`Launch IQVault.bat`). On the Linux cloud VM, use the
+manual commands from `docs/how-to/README.md` (§"Service map (local / manual)")
+and root `package.json` scripts. The startup-time update script only runs
+`npm ci` + `pip install -r requirements-dev.txt`; everything below is manual.
+
+- `python` resolves to Python 3.12 (`python-is-python3`). Python deps install
+  to the user site with `--break-system-packages` (Ubuntu externally-managed).
+- Docker is installed for Docker-in-Docker (fuse-overlayfs storage driver,
+  iptables-legacy). The daemon is NOT auto-started on boot — if `docker ps`
+  fails, start it once with `sudo nohup dockerd >/tmp/dockerd.log 2>&1 &`.
+  The `ubuntu` user is in the `docker` group; a fresh shell can run `docker`
+  without sudo (already-open shells may still need `sudo docker`).
+
+### Bring the stack up (in order — order matters)
+1. `docker compose up -d` → Postgres 16 + pgvector on `:5432` (container
+   `iqvault-postgres`, volume `iqvault_pgdata` persists data). Wait for healthy.
+2. `python scripts/migrate_db.py` → applies `infra/db/migrations/*.sql`
+   (idempotent; safe to re-run). Default DSN
+   `dbname=iqvault user=postgres password=vault host=localhost`.
+3. `npm run build:packages` → shared `@vip/*` packages resolve through their
+   `dist/`, so this MUST run before `npm run api`/`typecheck`/`test`. The root
+   `pretest`/`pretypecheck` hooks already do this automatically for those two.
+4. Services (each long-running; run in its own tmux window):
+   `npm run api` (VIP API `:8787`, `/health`),
+   `npm run comics` (Python Comics API `:5200`, `/api/comics/health`),
+   `npm run web` (IQVault Next.js `:3000` → `/collections/comics`).
+   `npm run binder` (`:3010`) and `npm run orchestr8:console` (`:3001`) are optional.
+
+### Data / tests
+- The comics collection (2,700 holdings) is empty until you import the committed
+  CLZ export: `python scripts/import_clz.py --xml comic_2026-07-04_19-11-11-export.xml`.
+  Without it, `services/api` test `comicsHoldings.test.ts` and the Comics API
+  return 0 holdings. Re-running the import rewrites `iqvault/public/comics/meta.json`
+  (`generatedAt` + random `snapshotId`) — that churn is transient; do not commit it.
+  The CI byte-identity gate only covers `iqvault_comics_parser_package` and
+  `iqvault/public/comics/inventory.json`.
+- Tests need Postgres up + migrated (some Python/TS tests hit live Postgres).
+  TS: `npm run typecheck` and `npm test`. Python: `python -m pytest`.
+- Orchestr8 Ask (`:5210`) and eBay/Pokémon-API features need provider keys and
+  are off by default; the core collector stack runs fine without them.
