@@ -7,6 +7,10 @@ Follows the official stream-first pattern from the managed-agents skill:
   2. open client.beta.sessions.events.stream
   3. send user.message via client.beta.sessions.events.send
   4. print agent.message text; exit on session.status_idle or error
+
+Self-hosted environments reject `file` and `github_repository` resources
+with HTTP 400. This client never sends `resources`. Repo paths go in
+`metadata` only. See docs/how-to/09-claude-ma-wsl.md.
 """
 from __future__ import annotations
 
@@ -19,6 +23,21 @@ AGENT_ID = os.environ.get("ANTHROPIC_AGENT_ID", "agent_01B8ziCmNADfRwKexa969qQg"
 ENVIRONMENT_ID = os.environ.get(
     "ANTHROPIC_ENVIRONMENT_ID", "env_01HgSHypqTtC6hNjRwYEucLs"
 )
+# Operator-placed tree. Anthropic will not mount it (self-hosted 400).
+REPO_WINDOWS = os.environ.get("ORCHESTR8_WINDOWS_PATH", r"C:\258Labs\orchestr8")
+REPO_WSL = os.environ.get("ORCHESTR8_WSL_PATH", "/mnt/c/258Labs/orchestr8")
+
+
+def session_metadata(
+    *,
+    windows_path: str = REPO_WINDOWS,
+    wsl_path: str = REPO_WSL,
+) -> dict[str, str]:
+    """Hint paths for the already-placed repo. Never a mount request."""
+    return {
+        "repo_windows": windows_path,
+        "repo_wsl": wsl_path,
+    }
 
 
 def _event_type(event: Any) -> str:
@@ -48,6 +67,33 @@ def print_agent_message(event: Any, out: TextIO = sys.stdout) -> None:
         out.flush()
 
 
+def load_prompt_file(path: str) -> str:
+    """Load a mission file. Prefer a fenced block whose body starts with MISSION."""
+    text = open(path, encoding="utf-8").read()
+    chunks = text.split("```")
+    for i in range(1, len(chunks), 2):
+        raw = chunks[i]
+        if "\n" in raw:
+            first, rest = raw.split("\n", 1)
+            body = rest if first.strip() else raw
+            if first.strip() and first.strip() not in {"text", "markdown"}:
+                if not rest.strip().startswith("MISSION"):
+                    continue
+                body = rest
+        else:
+            body = raw
+        stripped = body.strip()
+        if stripped.startswith("MISSION"):
+            return stripped
+    return text.strip()
+
+
+def parse_cli_args(argv: list[str]) -> str:
+    if len(argv) >= 2 and argv[0] in {"--file", "-f"}:
+        return load_prompt_file(argv[1])
+    return " ".join(argv).strip() or "Hello — introduce yourself in one sentence."
+
+
 def format_cli_error(exc: BaseException) -> str:
     """Human-readable chain for SDK 'Connection error.' wrappers."""
     parts = [f"{type(exc).__name__}: {exc}"]
@@ -59,7 +105,8 @@ def format_cli_error(exc: BaseException) -> str:
         cause = cause.__cause__ or cause.__context__
     if "connection error" in str(exc).lower():
         parts.append(
-            "  hint: PowerShell must be in the repo, ANTHROPIC_API_KEY set in THIS window, "
+            "  hint: cwd must be the repo (C:\\258Labs\\orchestr8 or /mnt/c/258Labs/orchestr8), "
+            "ANTHROPIC_API_KEY set in THIS shell, "
             "and https://api.anthropic.com reachable (VPN/proxy/firewall)."
         )
     return "\n".join(parts)
@@ -69,7 +116,7 @@ def require_api_key() -> str | None:
     key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
     if key:
         return None
-    return "ANTHROPIC_API_KEY is not set in this PowerShell window."
+    return "ANTHROPIC_API_KEY is not set in this shell."
 
 
 def stream_session(
@@ -82,9 +129,11 @@ def stream_session(
     err: TextIO = sys.stderr,
 ) -> int:
     """Create a session, stream events, print agent text. Returns a process exit code."""
+    # Do not pass resources= — self-hosted rejects file / github_repository (400).
     session = client.beta.sessions.create(
         agent={"type": "agent", "id": agent_id},
         environment_id=environment_id,
+        metadata=session_metadata(),
     )
     session_id = getattr(session, "id", None) or session.get("id")
     err.write(f"session {session_id}\n")
@@ -117,7 +166,11 @@ def stream_session(
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    prompt = " ".join(args).strip() or "Hello — introduce yourself in one sentence."
+    try:
+        prompt = parse_cli_args(args)
+    except OSError as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
     missing = require_api_key()
     if missing:
         sys.stderr.write(f"error: {missing}\n")

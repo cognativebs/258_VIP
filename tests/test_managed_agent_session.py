@@ -6,14 +6,20 @@ import os
 import sys
 from types import SimpleNamespace
 
-import pytest
-
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_ROOT = os.path.join(REPO_ROOT, "apps", "managed-agent-session")
 if APP_ROOT not in sys.path:
     sys.path.insert(0, APP_ROOT)
 
-from session_chat import format_cli_error, print_agent_message, require_api_key, stream_session  # noqa: E402
+from session_chat import (  # noqa: E402
+    format_cli_error,
+    load_prompt_file,
+    parse_cli_args,
+    print_agent_message,
+    require_api_key,
+    session_metadata,
+    stream_session,
+)
 
 
 class _Stream:
@@ -48,8 +54,9 @@ class _Sessions:
         self.events = _Events(events)
         self.created = []
 
-    def create(self, agent, environment_id):
-        self.created.append((agent, environment_id))
+    def create(self, agent, environment_id, **kwargs):
+        assert "resources" not in kwargs, "self-hosted rejects file/github_repository"
+        self.created.append((agent, environment_id, kwargs.get("metadata")))
         return SimpleNamespace(id="sesn_test", status="running")
 
 
@@ -88,8 +95,12 @@ def test_prints_agent_message_and_finishes_on_idle():
         (
             {"type": "agent", "id": "agent_01B8ziCmNADfRwKexa969qQg"},
             "env_01HgSHypqTtC6hNjRwYEucLs",
+            session_metadata(),
         )
     ]
+    assert "resources" not in (client.beta.sessions.created[0][2] or {})
+    assert client.beta.sessions.created[0][2]["repo_wsl"] == "/mnt/c/258Labs/orchestr8"
+    assert client.beta.sessions.created[0][2]["repo_windows"] == r"C:\258Labs\orchestr8"
     sent = client.beta.sessions.events.sent
     assert sent[0][1][0]["type"] == "user.message"
     assert sent[0][1][0]["content"][0]["text"] == "hi"
@@ -101,6 +112,23 @@ def test_error_event_exits_nonzero():
         client, prompt="hi", out=io.StringIO(), err=io.StringIO()
     )
     assert code == 1
+
+
+def test_load_prompt_file_uses_first_fence(tmp_path):
+    p = tmp_path / "mission.md"
+    p.write_text(
+        "# Title\n\n```powershell\nGet-Location\n```\n\n```\nMISSION — do the work\n```\n",
+        encoding="utf-8",
+    )
+    assert load_prompt_file(str(p)) == "MISSION — do the work"
+    assert parse_cli_args(["--file", str(p)]).startswith("MISSION")
+
+
+def test_session_metadata_is_paths_not_resources():
+    meta = session_metadata()
+    assert set(meta) == {"repo_windows", "repo_wsl"}
+    assert meta["repo_windows"] == r"C:\258Labs\orchestr8"
+    assert meta["repo_wsl"] == "/mnt/c/258Labs/orchestr8"
 
 
 def test_format_cli_error_includes_cause_and_hint():
