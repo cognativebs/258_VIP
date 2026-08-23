@@ -21,6 +21,7 @@ import {
 
 export function BuildSpecPanel() {
   const { team, runJob, sessions, liveKind, setTab } = useCouncilSession();
+  const rosterPreview = buildEffective(team);
   const session = sessions.build;
   const [goal, setGoal] = useState(
     "Sources registry API + IQVault Sources editor with active toggle and contribution stats."
@@ -99,7 +100,7 @@ export function BuildSpecPanel() {
         question,
         roles: roster.roles,
         mode: roster.roles.length === 1 ? "single" : roster.mode,
-        council: roster.councilId || "build_spec",
+        council: roster.councilId || (roster.roles.length <= 4 ? "build_spec" : null),
         contextJson: JSON.stringify({
           backlogItem: question,
           adr: "0003",
@@ -120,10 +121,9 @@ export function BuildSpecPanel() {
     <div className="panel">
       <h2>Build Spec</h2>
       <p className="sub">
-        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). This tab always
-        runs Architect → Domain Expert → Tester → Critic — a leftover custom team is not used
-        here. Attach reference files, watch the council chat, then copy .md / JSON / Cursor prompt.
-        After a veto: one revision max.
+        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). Uses the team
+        selected in AI team — including Full Council. Attach reference files, watch the council
+        chat, then copy .md / JSON / Cursor prompt. After a veto: one revision max.
       </p>
 
       <label className="field">
@@ -153,7 +153,9 @@ export function BuildSpecPanel() {
           disabled={busy || !goal.trim()}
           onClick={() => void run()}
         >
-          {loading ? "Running council…" : "Run Build Spec Council"}
+          {loading
+            ? "Running council…"
+            : `Run ${rosterPreview.label}${rosterPreview.roles.length > 4 ? ` · ${rosterPreview.roles.length}` : ""}`}
         </button>
         {canRevise && (
           <button type="button" className="btn" onClick={loadRevisionDraft}>

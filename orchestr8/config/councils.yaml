@@ -83,6 +83,38 @@ councils:
     output_owner: synthesizer
     gate: high_stakes_only
 
+  # Every shipped role, pipeline order. Operator can run this from the team panel.
+  full:
+    id: full
+    label: Full Council
+    purpose: Every shipped role in pipeline order — plan, specialists, challenge, synthesize
+    mode: pipeline
+    agents:
+      - orchestrator
+      - project_manager
+      - domain_expert
+      - researcher
+      - critic
+      - tester
+      - architect
+      - analyst
+      - innovator
+      - synthesizer
+      - collection_curator
+      - investment_analyst
+      - market_intelligence_agent
+      - pricing_agent
+      - liquidity_analyst
+      - grading_advisor
+      - acquisition_scout
+      - sell_advisor
+      - portfolio_manager
+      - thesis_manager
+      - signal_hunter
+      - prediction_engine
+    voting: veto_on_critical
+    output_owner: synthesizer
+
   # ADR 0003 · O1 — Orchestr8 authors build specs; Cursor builds them.
   build_spec:
     id: build_spec

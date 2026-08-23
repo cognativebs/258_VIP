@@ -124,6 +124,16 @@ def test_off_list_model_resolves_but_is_flagged_unrecommended():
     assert resolve_model("architect", "claude-sonnet-4-6")["recommended"] is True
 
 
+def test_full_council_lists_every_pipeline_agent():
+    from services.registry import get_council, pipeline_order
+
+    council = get_council("full")
+    assert council is not None
+    assert council["mode"] == "pipeline"
+    assert council["voting"] == "veto_on_critical"
+    assert council["agents"] == pipeline_order()
+
+
 def test_unknown_model_is_still_rejected():
     with pytest.raises(ValueError, match="Unknown model in catalog"):
         resolve_model("architect", "gpt-9-imaginary")
