@@ -5,10 +5,13 @@ Gateway keys live only in `orchestr8/.env` (gitignored). Template: `orchestr8/.e
 ## Reset a mixed-up file (Windows)
 
 ```powershell
-cd D:\Projects\Business_Ideas\258_Labs\258_VIP
+Set-Location "C:\258Labs\orchestr8"
 copy /Y orchestr8\.env.example orchestr8\.env
 notepad orchestr8\.env
 ```
+
+Claude MA from WSL uses the same tree at `/mnt/c/258Labs/orchestr8` — see
+[09-claude-ma-wsl.md](09-claude-ma-wsl.md). Do not copy the repo into WSL ext4.
 
 Paste each key on the matching line, save, then restart Orchestr8 (or Launch IQVault.bat).
 

@@ -12,6 +12,7 @@ stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 | Orchestr8 councils (build / comics / agents) | [03-orchestr8-councils.md](03-orchestr8-councils.md) |
 | Binder LAN access + IQVault bridge | [04-binder-lan-and-iqvault.md](04-binder-lan-and-iqvault.md) |
 | Orchestr8 `.env` keys (OpenAI / Anthropic / xAI) | [05-orchestr8-env-keys.md](05-orchestr8-env-keys.md) |
+| Claude MA from WSL2 (placement, billing, no repo mount) | [09-claude-ma-wsl.md](09-claude-ma-wsl.md) |
 | Card price history (TCGplayer, daily) | [08-card-price-history.md](08-card-price-history.md) |
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |
 | CLZ inbox sync (scheduled XML drop) | [07-clz-inbox-sync.md](07-clz-inbox-sync.md) |

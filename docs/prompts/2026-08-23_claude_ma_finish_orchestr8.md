@@ -9,21 +9,38 @@ Send the fenced block in §2 as the `user.message` to the MA session.
 
 ---
 
-## 1. How this is run (Windows)
+## 1. How this is run (WSL2 on the Windows drive)
 
-Gateway keys stay in `orchestr8/.env`. The MA client uses `ANTHROPIC_API_KEY` in the same PowerShell window.
+Full prereqs, Skill.ai / Claude Platform links, billing, and placement:
+[docs/how-to/09-claude-ma-wsl.md](../how-to/09-claude-ma-wsl.md).
+
+Leave the tree on NTFS. Do **not** copy it into the WSL filesystem.
+
+| Side | Path |
+|------|------|
+| Windows | `C:\258Labs\orchestr8` |
+| WSL2 | `/mnt/c/258Labs/orchestr8` |
+
+Gateway keys stay in `orchestr8/.env`. The MA client uses `ANTHROPIC_API_KEY` in the same shell. Sessions bill **$0.08 / running session-hour** plus tokens; idle/terminated time is free. Never pass `file` or `github_repository` resources (self-hosted → HTTP 400).
+
+```bash
+cd /mnt/c/258Labs/orchestr8
+export ANTHROPIC_API_KEY="sk-ant-...rotated..."
+python3 apps/managed-agent-session/session_chat.py \
+  --file docs/prompts/2026-08-23_claude_ma_finish_orchestr8.md
+```
+
+Windows (same tree):
 
 ```powershell
-Set-Location "D:\Projects\Business_Ideas\258_Labs\258_VIP"
-git checkout main
-git pull origin main
+Set-Location "C:\258Labs\orchestr8"
 $env:ANTHROPIC_API_KEY = 'sk-ant-...rotated...'
 python apps\managed-agent-session\session_chat.py --file docs\prompts\2026-08-23_claude_ma_finish_orchestr8.md
 ```
 
 (`--file` sends §2 only.)
 
-MA runs on Anthropic's environment. It can edit the **repo**. It cannot see Greg's `127.0.0.1:5210`. Local verify is still: `start_orchestr8.bat` + `npm run orchestr8:console` + `Invoke-RestMethod http://127.0.0.1:5210/v1/health`.
+MA runs on Anthropic's environment. The repo is already placed; Anthropic will not mount it. MA cannot see Greg's `127.0.0.1:5210`. Local verify is still Windows: `start_orchestr8.bat` + `npm run orchestr8:console` + `Invoke-RestMethod http://127.0.0.1:5210/v1/health`.
 
 ---
 

@@ -7,6 +7,10 @@ Follows the official stream-first pattern from the managed-agents skill:
   2. open client.beta.sessions.events.stream
   3. send user.message via client.beta.sessions.events.send
   4. print agent.message text; exit on session.status_idle or error
+
+Self-hosted environments reject `file` and `github_repository` resources
+with HTTP 400. This client never sends `resources`. Repo paths go in
+`metadata` only. See docs/how-to/09-claude-ma-wsl.md.
 """
 from __future__ import annotations
 
@@ -19,6 +23,21 @@ AGENT_ID = os.environ.get("ANTHROPIC_AGENT_ID", "agent_01B8ziCmNADfRwKexa969qQg"
 ENVIRONMENT_ID = os.environ.get(
     "ANTHROPIC_ENVIRONMENT_ID", "env_01HgSHypqTtC6hNjRwYEucLs"
 )
+# Operator-placed tree. Anthropic will not mount it (self-hosted 400).
+REPO_WINDOWS = os.environ.get("ORCHESTR8_WINDOWS_PATH", r"C:\258Labs\orchestr8")
+REPO_WSL = os.environ.get("ORCHESTR8_WSL_PATH", "/mnt/c/258Labs/orchestr8")
+
+
+def session_metadata(
+    *,
+    windows_path: str = REPO_WINDOWS,
+    wsl_path: str = REPO_WSL,
+) -> dict[str, str]:
+    """Hint paths for the already-placed repo. Never a mount request."""
+    return {
+        "repo_windows": windows_path,
+        "repo_wsl": wsl_path,
+    }
 
 
 def _event_type(event: Any) -> str:
@@ -85,9 +104,11 @@ def stream_session(
     err: TextIO = sys.stderr,
 ) -> int:
     """Create a session, stream events, print agent text. Returns a process exit code."""
+    # Do not pass resources= — self-hosted rejects file / github_repository (400).
     session = client.beta.sessions.create(
         agent={"type": "agent", "id": agent_id},
         environment_id=environment_id,
+        metadata=session_metadata(),
     )
     session_id = getattr(session, "id", None) or session.get("id")
     err.write(f"session {session_id}\n")
