@@ -19,7 +19,11 @@ if ORCH_ROOT not in sys.path:
 
 yaml = pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
 
-from providers.llm import _is_openai_reasoning  # noqa: E402
+from providers.llm import (  # noqa: E402
+    _is_openai_reasoning,
+    _openai_choice_text,
+    _openai_empty_detail,
+)
 from services.registry import (  # noqa: E402
     agents_public_list,
     load_agents,
@@ -198,3 +202,95 @@ def test_classic_model_request_keeps_max_tokens_and_temperature(
     assert body["max_tokens"] == 4096
     assert "temperature" in body
     assert "max_completion_tokens" not in body
+
+
+def test_openai_choice_text_joins_content_parts():
+    choice = {
+        "message": {
+            "content": [
+                {"type": "text", "text": "Hello"},
+                {"type": "text", "text": "world"},
+            ]
+        }
+    }
+    assert _openai_choice_text(choice) == "Hello\nworld"
+
+
+def test_openai_choice_text_uses_refusal_when_content_empty():
+    choice = {"message": {"content": None, "refusal": "I can't do that."}}
+    assert _openai_choice_text(choice) == "I can't do that."
+
+
+def test_openai_empty_detail_includes_finish_and_reasoning_tokens():
+    data = {
+        "choices": [{"finish_reason": "length", "message": {"content": None}}],
+        "usage": {
+            "completion_tokens": 2048,
+            "completion_tokens_details": {"reasoning_tokens": 2048},
+        },
+    }
+    detail = _openai_empty_detail(data)
+    assert "finish_reason=length" in detail
+    assert "reasoning_tokens=2048" in detail
+
+
+def test_gpt5_empty_content_retries_with_higher_completion_cap(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import providers.llm as llm
+
+    calls: list[dict] = []
+
+    def fake_post(url, headers, body, *, timeout=0):
+        calls.append(dict(body))
+        if len(calls) == 1:
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": None},
+                    }
+                ],
+                "usage": {
+                    "completion_tokens": 2048,
+                    "completion_tokens_details": {"reasoning_tokens": 2048},
+                },
+            }
+        return {"choices": [{"message": {"content": "recovered"}}], "usage": {}}
+
+    monkeypatch.setattr(llm, "_post_json", fake_post)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-EXAMPLE")
+    result = llm.chat_openai(
+        model="gpt-5.6-sol", system="s", user="u", max_tokens=2048
+    )
+    assert result["text"] == "recovered"
+    assert len(calls) == 2
+    assert calls[0]["max_completion_tokens"] == 2048
+    assert calls[1]["max_completion_tokens"] == 8192
+
+
+def test_empty_openai_error_is_retryable_at_orchestrator():
+    from services.orchestrator import _is_retryable_provider_error
+
+    err = RuntimeError(
+        "Empty OpenAI response (finish_reason=length, completion_tokens=2048, "
+        "reasoning_tokens=2048)"
+    )
+    assert _is_retryable_provider_error(err) is True
+
+
+def test_empty_openai_error_names_finish_reason(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import providers.llm as llm
+
+    def fake_post(url, headers, body, *, timeout=0):
+        return {
+            "choices": [{"finish_reason": "stop", "message": {"content": ""}}],
+            "usage": {},
+        }
+
+    monkeypatch.setattr(llm, "_post_json", fake_post)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-EXAMPLE")
+    with pytest.raises(RuntimeError, match="finish_reason=stop"):
+        llm.chat_openai(model="gpt-4.1", system="s", user="u", max_tokens=128)

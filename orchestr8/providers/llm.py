@@ -48,6 +48,46 @@ def _is_openai_reasoning(model: str) -> bool:
     return model.lower().startswith(_OPENAI_REASONING_PREFIXES)
 
 
+def _openai_choice_text(choice: dict) -> str:
+    """Pull visible text from a chat-completions choice (string, parts, or refusal)."""
+    msg = choice.get("message") if isinstance(choice, dict) else None
+    if not isinstance(msg, dict):
+        msg = {}
+    content = msg.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str) and block.strip():
+                parts.append(block.strip())
+            elif isinstance(block, dict):
+                text = block.get("text") or block.get("content")
+                if isinstance(text, str) and text.strip():
+                    parts.append(text.strip())
+        if parts:
+            return "\n".join(parts)
+    refusal = msg.get("refusal")
+    if isinstance(refusal, str) and refusal.strip():
+        return refusal.strip()
+    legacy = choice.get("text") if isinstance(choice, dict) else None
+    if isinstance(legacy, str) and legacy.strip():
+        return legacy.strip()
+    return ""
+
+
+def _openai_empty_detail(data: dict) -> str:
+    choice = (data.get("choices") or [{}])[0] if isinstance(data, dict) else {}
+    usage = (data.get("usage") or {}) if isinstance(data, dict) else {}
+    details = usage.get("completion_tokens_details") or {}
+    finish = choice.get("finish_reason") or "unknown"
+    return (
+        f"Empty OpenAI response (finish_reason={finish}"
+        f", completion_tokens={usage.get('completion_tokens', 0)}"
+        f", reasoning_tokens={details.get('reasoning_tokens', 0)})"
+    )
+
+
 def chat_openai(
     *,
     model: str,
@@ -75,15 +115,28 @@ def chat_openai(
         body["max_tokens"] = max_tokens
         body["temperature"] = temperature
 
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
     data = _post_json(
         "https://api.openai.com/v1/chat/completions",
-        {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+        headers,
         body,
         timeout=_http_timeout_for(max_tokens),
     )
-    text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+    text = _openai_choice_text((data.get("choices") or [{}])[0])
+    # Reasoning models often spend the whole budget on hidden tokens and return
+    # empty content. One retry with a larger completion cap usually recovers.
+    if not text and reasoning:
+        retry_tokens = max(int(max_tokens) * 2, 8192)
+        body["max_completion_tokens"] = retry_tokens
+        data = _post_json(
+            "https://api.openai.com/v1/chat/completions",
+            headers,
+            body,
+            timeout=_http_timeout_for(retry_tokens),
+        )
+        text = _openai_choice_text((data.get("choices") or [{}])[0])
     if not text:
-        raise RuntimeError("Empty OpenAI response")
+        raise RuntimeError(_openai_empty_detail(data))
     usage = data.get("usage") or {}
     return {
         "text": text,
