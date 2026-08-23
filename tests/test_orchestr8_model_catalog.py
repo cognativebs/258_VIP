@@ -20,7 +20,9 @@ if ORCH_ROOT not in sys.path:
 yaml = pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
 
 from providers.llm import (  # noqa: E402
+    _anthropic_omits_temperature,
     _is_openai_reasoning,
+    _is_temperature_rejected,
     _openai_choice_text,
     _openai_empty_detail,
 )
@@ -306,3 +308,63 @@ def test_empty_openai_error_names_finish_reason(
     monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-EXAMPLE")
     with pytest.raises(RuntimeError, match="finish_reason=stop"):
         llm.chat_openai(model="gpt-4.1", system="s", user="u", max_tokens=128)
+
+
+def test_anthropic_sonnet5_omits_temperature():
+    assert _anthropic_omits_temperature("claude-sonnet-5") is True
+    assert _anthropic_omits_temperature("claude-opus-5") is True
+    assert _anthropic_omits_temperature("claude-fable-5") is True
+    assert _anthropic_omits_temperature("claude-sonnet-4-6") is False
+
+
+def test_temperature_deprecated_message_is_detected():
+    assert _is_temperature_rejected(
+        RuntimeError("`temperature` is deprecated for this model.")
+    )
+
+
+def test_anthropic_sonnet5_request_omits_temperature(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import providers.llm as llm
+
+    captured: dict = {}
+
+    def fake_post(url, headers, body, *, timeout=0):
+        captured.update(body)
+        return {
+            "content": [{"type": "text", "text": "ok"}],
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+
+    monkeypatch.setattr(llm, "_post_json", fake_post)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-EXAMPLE")
+    llm.chat_anthropic(model="claude-sonnet-5", system="s", user="u", max_tokens=256)
+    assert "temperature" not in captured
+    assert captured["max_tokens"] == 256
+
+
+def test_anthropic_retries_without_temperature_when_api_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import providers.llm as llm
+
+    calls: list[dict] = []
+
+    def fake_post(url, headers, body, *, timeout=0):
+        calls.append(dict(body))
+        if "temperature" in body:
+            raise RuntimeError("`temperature` is deprecated for this model.")
+        return {
+            "content": [{"type": "text", "text": "recovered"}],
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+
+    monkeypatch.setattr(llm, "_post_json", fake_post)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-EXAMPLE")
+    result = llm.chat_anthropic(
+        model="claude-sonnet-4-6", system="s", user="u", max_tokens=256
+    )
+    assert result["text"] == "recovered"
+    assert "temperature" in calls[0]
+    assert "temperature" not in calls[1]

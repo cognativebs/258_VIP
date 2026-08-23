@@ -20,6 +20,22 @@ DEFAULT_HTTP_TIMEOUT = 120
 # and every GPT-5.x family, including gpt-5.6-sol / -terra / -luna.
 _OPENAI_REASONING_PREFIXES = ("o1", "o3", "o4", "gpt-5")
 
+# Anthropic Opus 4.7+ / Sonnet 5+ / Fable 5 reject temperature (HTTP 400).
+_ANTHROPIC_NO_TEMPERATURE_MARKERS = (
+    "claude-fable-5",
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-haiku-5",
+    "opus-4-7",
+    "opus-4-8",
+    "opus-4-9",
+    "sonnet-4-7",
+    "sonnet-4-8",
+    "sonnet-5",
+    "fable-5",
+    "mythos",
+)
+
 
 def _http_timeout_for(max_tokens: int) -> int:
     """Scale socket timeout with requested completion size."""
@@ -46,6 +62,22 @@ def _post_json(url: str, headers: dict, body: dict, *, timeout: int = DEFAULT_HT
 def _is_openai_reasoning(model: str) -> bool:
     """True when the model needs the reasoning-tier chat-completions parameters."""
     return model.lower().startswith(_OPENAI_REASONING_PREFIXES)
+
+
+def _anthropic_omits_temperature(model: str) -> bool:
+    """True when Anthropic returns 400 if temperature is sent."""
+    mid = model.lower()
+    return any(marker in mid for marker in _ANTHROPIC_NO_TEMPERATURE_MARKERS)
+
+
+def _is_temperature_rejected(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    if "temperature" not in msg:
+        return False
+    return any(
+        needle in msg
+        for needle in ("deprecated", "unsupported", "not supported", "unknown parameter")
+    )
 
 
 def _openai_choice_text(choice: dict) -> str:
@@ -163,22 +195,37 @@ def chat_anthropic(
     key = provider_keys().get("anthropic")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not configured in orchestr8/.env")
-    data = _post_json(
-        "https://api.anthropic.com/v1/messages",
-        {
-            "Content-Type": "application/json",
-            "x-api-key": key,
-            "anthropic-version": "2023-06-01",
-        },
-        {
-            "model": model,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "system": system,
-            "messages": [{"role": "user", "content": user}],
-        },
-        timeout=_http_timeout_for(max_tokens),
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+    }
+    body: dict = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+    }
+    if not _anthropic_omits_temperature(model):
+        body["temperature"] = temperature
+    try:
+        data = _post_json(
+            "https://api.anthropic.com/v1/messages",
+            headers,
+            body,
+            timeout=_http_timeout_for(max_tokens),
+        )
+    except RuntimeError as e:
+        if "temperature" in body and _is_temperature_rejected(e):
+            body.pop("temperature", None)
+            data = _post_json(
+                "https://api.anthropic.com/v1/messages",
+                headers,
+                body,
+                timeout=_http_timeout_for(max_tokens),
+            )
+        else:
+            raise
     blocks = data.get("content") or []
     text = next((b.get("text", "") for b in blocks if b.get("type") == "text"), "").strip()
     if not text:
