@@ -12,9 +12,11 @@ if APP_ROOT not in sys.path:
     sys.path.insert(0, APP_ROOT)
 
 from session_chat import (  # noqa: E402
+    format_cli_error,
     load_prompt_file,
     parse_cli_args,
     print_agent_message,
+    require_api_key,
     session_metadata,
     stream_session,
 )
@@ -127,6 +129,23 @@ def test_session_metadata_is_paths_not_resources():
     assert set(meta) == {"repo_windows", "repo_wsl"}
     assert meta["repo_windows"] == r"C:\258Labs\orchestr8"
     assert meta["repo_wsl"] == "/mnt/c/258Labs/orchestr8"
+
+
+def test_format_cli_error_includes_cause_and_hint():
+    root = ConnectionError("[Errno 11001] getaddrinfo failed")
+    wrapped = RuntimeError("Connection error.")
+    wrapped.__cause__ = root
+    text = format_cli_error(wrapped)
+    assert "RuntimeError: Connection error." in text
+    assert "getaddrinfo failed" in text
+    assert "api.anthropic.com" in text
+
+
+def test_require_api_key_reports_missing(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert require_api_key() is not None
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert require_api_key() is None
 
 
 def test_print_agent_message_reads_dict_blocks():
