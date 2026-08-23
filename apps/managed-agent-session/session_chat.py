@@ -48,6 +48,33 @@ def print_agent_message(event: Any, out: TextIO = sys.stdout) -> None:
         out.flush()
 
 
+def load_prompt_file(path: str) -> str:
+    """Load a mission file. Prefer a fenced block whose body starts with MISSION."""
+    text = open(path, encoding="utf-8").read()
+    chunks = text.split("```")
+    for i in range(1, len(chunks), 2):
+        raw = chunks[i]
+        if "\n" in raw:
+            first, rest = raw.split("\n", 1)
+            body = rest if first.strip() else raw
+            if first.strip() and first.strip() not in {"text", "markdown"}:
+                if not rest.strip().startswith("MISSION"):
+                    continue
+                body = rest
+        else:
+            body = raw
+        stripped = body.strip()
+        if stripped.startswith("MISSION"):
+            return stripped
+    return text.strip()
+
+
+def parse_cli_args(argv: list[str]) -> str:
+    if len(argv) >= 2 and argv[0] in {"--file", "-f"}:
+        return load_prompt_file(argv[1])
+    return " ".join(argv).strip() or "Hello — introduce yourself in one sentence."
+
+
 def stream_session(
     client: Any,
     *,
@@ -93,7 +120,11 @@ def stream_session(
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    prompt = " ".join(args).strip() or "Hello — introduce yourself in one sentence."
+    try:
+        prompt = parse_cli_args(args)
+    except OSError as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
     try:
         import anthropic
 

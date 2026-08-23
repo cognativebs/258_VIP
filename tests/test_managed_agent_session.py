@@ -11,7 +11,7 @@ APP_ROOT = os.path.join(REPO_ROOT, "apps", "managed-agent-session")
 if APP_ROOT not in sys.path:
     sys.path.insert(0, APP_ROOT)
 
-from session_chat import print_agent_message, stream_session  # noqa: E402
+from session_chat import load_prompt_file, parse_cli_args, print_agent_message, stream_session  # noqa: E402
 
 
 class _Stream:
@@ -99,6 +99,16 @@ def test_error_event_exits_nonzero():
         client, prompt="hi", out=io.StringIO(), err=io.StringIO()
     )
     assert code == 1
+
+
+def test_load_prompt_file_uses_first_fence(tmp_path):
+    p = tmp_path / "mission.md"
+    p.write_text(
+        "# Title\n\n```powershell\nGet-Location\n```\n\n```\nMISSION — do the work\n```\n",
+        encoding="utf-8",
+    )
+    assert load_prompt_file(str(p)) == "MISSION — do the work"
+    assert parse_cli_args(["--file", str(p)]).startswith("MISSION")
 
 
 def test_print_agent_message_reads_dict_blocks():
