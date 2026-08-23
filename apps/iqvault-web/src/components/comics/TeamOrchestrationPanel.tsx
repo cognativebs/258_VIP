@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   TEAM_PRESETS,
   PROVIDERS,
@@ -15,11 +15,15 @@ import {
 } from "@/lib/orchestr8Roles";
 import { applyPreset, saveTeamSettings, type TeamSettings } from "@/lib/orchestr8TeamSettings";
 import {
+  createOrchestr8Council,
+  deleteOrchestr8Council,
   fetchOrchestr8Agents,
   fetchOrchestr8Councils,
+  updateOrchestr8Council,
   type CouncilInfo,
   type Orchestr8Health,
 } from "@/lib/orchestr8Api";
+import { savedCouncilInputSchema } from "@/lib/savedCouncil";
 
 export function TeamOrchestrationPanel({
   settings,
@@ -43,43 +47,50 @@ export function TeamOrchestrationPanel({
   const [registryError, setRegistryError] = useState<string | null>(null);
   const [loadingRegistry, setLoadingRegistry] = useState(true);
   const [groupBy, setGroupBy] = useState<"provider" | "tier">("provider");
+  const [savedCouncilId, setSavedCouncilId] = useState<string | null>(null);
+  const [askName, setAskName] = useState(false);
+  const [councilName, setCouncilName] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savingTeam, setSavingTeam] = useState(false);
+
+  const loadRegistry = useCallback(async () => {
+    setLoadingRegistry(true);
+    try {
+      const [agentsRes, councilsRes] = await Promise.all([
+        fetchOrchestr8Agents(),
+        fetchOrchestr8Councils().catch(() => ({ councils: [] as CouncilInfo[] })),
+      ]);
+      const list = agentsRes.agents?.length ? agentsRes.agents : FALLBACK_AGENTS;
+      const nextCouncils = councilsRes.councils || [];
+      setAgents(list);
+      setPipelineOrder(agentsRes.pipelineOrder || list.map((a) => a.id));
+      setCouncils(nextCouncils);
+      setRegistryError(null);
+      const match = nextCouncils.find((c) => c.custom && c.id === settings.council);
+      if (match) {
+        setSavedCouncilId(match.id);
+        setCouncilName(match.label);
+      }
+      setDraft((d) => {
+        const defaults = defaultModelOverrides(list, d.roles);
+        return {
+          ...d,
+          modelOverrides: { ...defaults, ...d.modelOverrides },
+        };
+      });
+      return list;
+    } catch (e) {
+      setAgents(FALLBACK_AGENTS);
+      setRegistryError(e instanceof Error ? e.message : "Could not load agent registry");
+      return null;
+    } finally {
+      setLoadingRegistry(false);
+    }
+  }, [settings.council]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoadingRegistry(true);
-      try {
-        const [agentsRes, councilsRes] = await Promise.all([
-          fetchOrchestr8Agents(),
-          fetchOrchestr8Councils().catch(() => ({ councils: [] as CouncilInfo[] })),
-        ]);
-        if (cancelled) return;
-        const list = agentsRes.agents?.length ? agentsRes.agents : FALLBACK_AGENTS;
-        setAgents(list);
-        setPipelineOrder(agentsRes.pipelineOrder || list.map((a) => a.id));
-        setCouncils(councilsRes.councils || []);
-        setRegistryError(null);
-        setDraft((d) => {
-          const defaults = defaultModelOverrides(list, d.roles);
-          return {
-            ...d,
-            modelOverrides: { ...defaults, ...d.modelOverrides },
-          };
-        });
-      } catch (e) {
-        if (!cancelled) {
-          setAgents(FALLBACK_AGENTS);
-          setRegistryError(e instanceof Error ? e.message : "Could not load agent registry");
-        }
-      } finally {
-        if (!cancelled) setLoadingRegistry(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadRegistry();
+  }, [loadRegistry]);
 
   const byId = useMemo(() => agentMap(agents), [agents]);
   const grouped = useMemo(() => agentsByProvider(agents), [agents]);
@@ -90,12 +101,20 @@ export function TeamOrchestrationPanel({
   const pickPreset = (presetId: string) => {
     const next = applyPreset(presetId);
     const defaults = defaultModelOverrides(agents, next.roles);
+    setSavedCouncilId(null);
+    setAskName(false);
+    setCouncilName("");
+    setSaveError(null);
     setDraft({ ...next, modelOverrides: defaults });
   };
 
   const pickCouncil = (council: CouncilInfo) => {
     const roles = sortRoleIds(council.agents || [], pipelineOrder);
     const mode = council.mode === "pipeline" ? "pipeline" : "parallel";
+    setSavedCouncilId(council.custom ? council.id : null);
+    setAskName(Boolean(council.custom));
+    setCouncilName(council.custom ? council.label : "");
+    setSaveError(null);
     setDraft({
       presetId: `council_${council.id}`,
       roles,
@@ -103,6 +122,32 @@ export function TeamOrchestrationPanel({
       modelOverrides: defaultModelOverrides(agents, roles),
       council: council.id,
     });
+  };
+
+  const editCouncil = (council: CouncilInfo) => {
+    pickCouncil(council);
+    setAskName(true);
+    setCouncilName(council.label);
+  };
+
+  const removeCouncil = async (council: CouncilInfo) => {
+    if (!council.custom) return;
+    if (!window.confirm(`Delete “${council.label}”? Roles stay; only this saved team is removed.`)) {
+      return;
+    }
+    setSaveError(null);
+    try {
+      await deleteOrchestr8Council(council.id);
+      await loadRegistry();
+      if (draft.council === council.id || savedCouncilId === council.id) {
+        setSavedCouncilId(null);
+        setAskName(false);
+        setCouncilName("");
+        setDraft((d) => ({ ...d, presetId: "custom", council: null }));
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not delete this council");
+    }
   };
 
   const toggleRole = (roleId: string) => {
@@ -131,7 +176,13 @@ export function TeamOrchestrationPanel({
     }));
   };
 
-  const save = () => {
+  const persistTeam = (payload: TeamSettings) => {
+    saveTeamSettings(payload);
+    onChange(payload);
+    onClose();
+  };
+
+  const save = async () => {
     const roles = sortRoleIds(draft.roles, pipelineOrder);
     const modelOverrides: Record<string, string> = {};
     for (const id of roles) {
@@ -139,16 +190,71 @@ export function TeamOrchestrationPanel({
       const chosen = draft.modelOverrides?.[id] || agent?.defaultModel;
       if (chosen) modelOverrides[id] = chosen;
     }
-    const payload: TeamSettings = {
-      presetId: draft.presetId,
-      roles,
-      mode: roles.length === 1 ? "single" : draft.mode,
-      modelOverrides,
-      council: draft.council ?? null,
-    };
-    saveTeamSettings(payload);
-    onChange(payload);
-    onClose();
+    const mode: TeamSettings["mode"] = roles.length === 1 ? "single" : draft.mode;
+    const persist = (councilId: string | null, presetId: string) =>
+      persistTeam({
+        presetId,
+        roles,
+        mode,
+        modelOverrides,
+        council: councilId,
+      });
+
+    if (savedCouncilId) {
+      const parsed = savedCouncilInputSchema.safeParse({
+        name: councilName.trim(),
+        agents: roles,
+        mode,
+      });
+      if (!parsed.success) {
+        setAskName(true);
+        setSaveError(parsed.error.issues[0]?.message || "Name the council.");
+        return;
+      }
+      setSavingTeam(true);
+      setSaveError(null);
+      try {
+        await updateOrchestr8Council(savedCouncilId, parsed.data);
+        await loadRegistry();
+        persist(savedCouncilId, `council_${savedCouncilId}`);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Could not update this council");
+      } finally {
+        setSavingTeam(false);
+      }
+      return;
+    }
+
+    if (draft.presetId === "custom") {
+      const parsed = savedCouncilInputSchema.safeParse({
+        name: councilName.trim(),
+        agents: roles,
+        mode,
+      });
+      if (!askName || !parsed.success) {
+        setAskName(true);
+        setSaveError(
+          askName && !parsed.success
+            ? parsed.error.issues[0]?.message || "Name the council."
+            : null,
+        );
+        return;
+      }
+      setSavingTeam(true);
+      setSaveError(null);
+      try {
+        const created = await createOrchestr8Council(parsed.data);
+        await loadRegistry();
+        persist(created.id, `council_${created.id}`);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Could not save this council");
+      } finally {
+        setSavingTeam(false);
+      }
+      return;
+    }
+
+    persist(draft.council ?? null, draft.presetId);
   };
 
   const renderAgentChip = (agent: AgentInfo) => {
@@ -246,21 +352,37 @@ export function TeamOrchestrationPanel({
             <p className="bb-settings-keys-title">Councils</p>
             <div className="bb-preset-grid">
               {councils.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`bb-preset-btn ${draft.presetId === `council_${c.id}` ? "active" : ""}`}
-                  onClick={() => pickCouncil(c)}
-                  title={`${c.purpose ?? ""}${c.voting && c.voting !== "none" ? ` · voting: ${c.voting}` : ""}`}
-                >
-                  {c.label}
-                  {c.voting === "veto_on_critical" ? (
-                    <span className="bb-vote-badge veto">veto</span>
+                <div key={c.id} className="bb-council-chip">
+                  <button
+                    type="button"
+                    className={`bb-preset-btn ${draft.presetId === `council_${c.id}` ? "active" : ""}`}
+                    onClick={() => pickCouncil(c)}
+                    title={`${c.purpose ?? ""}${c.voting && c.voting !== "none" ? ` · voting: ${c.voting}` : ""}`}
+                  >
+                    {c.label}
+                    {c.custom ? <span className="bb-vote-badge">custom</span> : null}
+                    {c.voting === "veto_on_critical" ? (
+                      <span className="bb-vote-badge veto">veto</span>
+                    ) : null}
+                    {c.voting === "dissent_required" ? (
+                      <span className="bb-vote-badge dissent">dissent</span>
+                    ) : null}
+                  </button>
+                  {c.custom ? (
+                    <div className="bb-council-chip-actions">
+                      <button type="button" className="bb-btn bb-btn-ghost" onClick={() => editCouncil(c)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="bb-btn bb-btn-ghost"
+                        onClick={() => void removeCouncil(c)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   ) : null}
-                  {c.voting === "dissent_required" ? (
-                    <span className="bb-vote-badge dissent">dissent</span>
-                  ) : null}
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -380,12 +502,31 @@ export function TeamOrchestrationPanel({
           ) : null}
         </div>
 
+        {askName ? (
+          <label className="bb-settings-field">
+            <span>Council name</span>
+            <input
+              type="text"
+              value={councilName}
+              maxLength={60}
+              placeholder="Grading Board"
+              onChange={(e) => setCouncilName(e.target.value)}
+            />
+          </label>
+        ) : null}
+        {saveError ? <div className="bb-team-warn">{saveError}</div> : null}
+
         <div className="bb-settings-actions">
           <button type="button" className="bb-btn bb-btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="bb-btn bb-btn-analytics" onClick={save}>
-            Save team
+          <button
+            type="button"
+            className="bb-btn bb-btn-analytics"
+            disabled={savingTeam}
+            onClick={() => void save()}
+          >
+            {savingTeam ? "Saving…" : askName || savedCouncilId ? "Save council" : "Save team"}
           </button>
         </div>
       </div>

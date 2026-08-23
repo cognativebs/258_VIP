@@ -1605,6 +1605,22 @@
   color: var(--bb-orange);
 }
 
+.bb-council-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bb-council-chip-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.bb-council-chip-actions .bb-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
 .bb-team-provider-block {
   margin-bottom: 14px;
 }

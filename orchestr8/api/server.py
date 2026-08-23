@@ -15,6 +15,12 @@ from providers.billing import accounts_snapshot  # noqa: E402
 from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
 from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
 from services.custom_agents import CustomAgentError, create_custom_agent, update_custom_agent  # noqa: E402
+from services.custom_councils import (  # noqa: E402
+    CustomCouncilError,
+    create_custom_council,
+    delete_custom_council,
+    update_custom_council,
+)
 from services.orchestrator import run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
@@ -32,14 +38,21 @@ from services.roles import load_config  # noqa: E402
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
 
 
-def _agent_id_from_path(path: str) -> str | None:
-    prefix = "/v1/agents/"
+def _id_from_path(path: str, prefix: str) -> str | None:
     if not path.startswith(prefix):
         return None
-    agent_id = path[len(prefix) :]
-    if not agent_id or "/" in agent_id:
+    rest = path[len(prefix) :]
+    if not rest or "/" in rest:
         return None
-    return agent_id
+    return rest
+
+
+def _agent_id_from_path(path: str) -> str | None:
+    return _id_from_path(path, "/v1/agents/")
+
+
+def _council_id_from_path(path: str) -> str | None:
+    return _id_from_path(path, "/v1/councils/")
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, body: dict) -> None:
@@ -47,7 +60,7 @@ def json_response(handler: BaseHTTPRequestHandler, status: int, body: dict) -> N
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+    handler.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
     handler.send_header("Access-Control-Allow-Headers", "Content-Type")
     handler.send_header("Content-Length", str(len(data)))
     handler.end_headers()
@@ -71,7 +84,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
@@ -187,8 +200,22 @@ class GatewayHandler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             json_response(self, 500, {"error": str(e)})
 
+    def _update_council(self, council_id: str) -> None:
+        try:
+            updated = update_custom_council(council_id, read_json(self))
+            json_response(self, 200, {"ok": True, **updated})
+        except CustomCouncilError as e:
+            json_response(self, 400, {"error": "invalid_council", "detail": str(e)})
+        except Exception as e:  # noqa: BLE001
+            json_response(self, 500, {"error": str(e)})
+
     def do_PATCH(self) -> None:
-        agent_id = _agent_id_from_path(urlparse(self.path).path)
+        path = urlparse(self.path).path
+        council_id = _council_id_from_path(path)
+        if council_id:
+            self._update_council(council_id)
+            return
+        agent_id = _agent_id_from_path(path)
         if not agent_id:
             json_response(self, 404, {"error": "Not found"})
             return
@@ -198,6 +225,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/v1/runs" or path.startswith("/v1/runs/"):
             json_response(self, 405, {"error": "method_not_allowed", "detail": "Runs API is read-only"})
+            return
+        council_id = _council_id_from_path(path)
+        if council_id:
+            try:
+                deleted = delete_custom_council(council_id)
+                json_response(self, 200, {"ok": True, **deleted})
+            except CustomCouncilError as e:
+                json_response(self, 400, {"error": "invalid_council", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
             return
         json_response(self, 404, {"error": "Not found"})
 
@@ -222,6 +259,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 json_response(self, 201, {"ok": True, **created, "agent": agent})
             except CustomAgentError as e:
                 json_response(self, 400, {"error": "invalid_agent", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
+
+        if path == "/v1/councils":
+            try:
+                created = create_custom_council(read_json(self))
+                json_response(self, 201, {"ok": True, **created})
+            except CustomCouncilError as e:
+                json_response(self, 400, {"error": "invalid_council", "detail": str(e)})
             except Exception as e:  # noqa: BLE001
                 json_response(self, 500, {"error": str(e)})
             return

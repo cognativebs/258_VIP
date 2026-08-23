@@ -16,16 +16,18 @@ import {
   type TeamSettings,
 } from "@/lib/roles";
 import { applyPreset, saveTeamSettings } from "@/lib/teamSettings";
-import { createAgent, fetchAgent, fetchAgents, fetchCouncils, updateAgent, type Health } from "@/lib/orchestr8Api";
-
-type Council = {
-  id: string;
-  label: string;
-  purpose?: string;
-  mode?: string;
-  agents?: string[];
-  voting?: string;
-};
+import {
+  createAgent,
+  createCouncil,
+  deleteCouncil,
+  fetchAgent,
+  fetchAgents,
+  fetchCouncils,
+  updateAgent,
+  updateCouncil,
+  type Council,
+  type Health,
+} from "@/lib/orchestr8Api";
 
 export function TeamPanel({
   settings,
@@ -56,6 +58,11 @@ export function TeamPanel({
   const [editDraft, setEditDraft] = useState({ name: "", description: "", skill: "" });
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savedCouncilId, setSavedCouncilId] = useState<string | null>(null);
+  const [askName, setAskName] = useState(false);
+  const [councilName, setCouncilName] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savingTeam, setSavingTeam] = useState(false);
 
   const loadRegistry = useCallback(async () => {
     setLoading(true);
@@ -84,8 +91,14 @@ export function TeamPanel({
       );
       setAgents(list);
       setPipelineOrder(agentsRes.pipelineOrder || list.map((a) => a.id));
-      setCouncils(councilsRes.councils || []);
+      const nextCouncils = councilsRes.councils || [];
+      setCouncils(nextCouncils);
       setRegistryError(null);
+      const match = nextCouncils.find((c) => c.custom && c.id === settings.council);
+      if (match) {
+        setSavedCouncilId(match.id);
+        setCouncilName(match.label);
+      }
       setDraft((d) => ({
         ...d,
         modelOverrides: { ...defaultModelOverrides(list, d.roles), ...d.modelOverrides },
@@ -110,12 +123,20 @@ export function TeamPanel({
 
   const pickPreset = (presetId: string) => {
     const next = applyPreset(presetId);
+    setSavedCouncilId(null);
+    setAskName(false);
+    setCouncilName("");
+    setSaveError(null);
     setDraft({ ...next, modelOverrides: defaultModelOverrides(agents, next.roles) });
   };
 
   const pickCouncil = (council: Council) => {
     const roles = sortRoleIds(council.agents || [], pipelineOrder);
     const mode = council.mode === "pipeline" ? "pipeline" : "parallel";
+    setSavedCouncilId(council.custom ? council.id : null);
+    setAskName(Boolean(council.custom));
+    setCouncilName(council.custom ? council.label : "");
+    setSaveError(null);
     setDraft({
       presetId: `council_${council.id}`,
       roles,
@@ -123,6 +144,32 @@ export function TeamPanel({
       modelOverrides: defaultModelOverrides(agents, roles),
       council: council.id,
     });
+  };
+
+  const editCouncil = (council: Council) => {
+    pickCouncil(council);
+    setAskName(true);
+    setCouncilName(council.label);
+  };
+
+  const removeCouncil = async (council: Council) => {
+    if (!council.custom) return;
+    if (!window.confirm(`Delete “${council.label}”? Roles stay; only this saved team is removed.`)) {
+      return;
+    }
+    setSaveError(null);
+    try {
+      await deleteCouncil(council.id);
+      await loadRegistry();
+      if (draft.council === council.id || savedCouncilId === council.id) {
+        setSavedCouncilId(null);
+        setAskName(false);
+        setCouncilName("");
+        setDraft((d) => ({ ...d, presetId: "custom", council: null }));
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not delete this council");
+    }
   };
 
   const toggleRole = (roleId: string) => {
@@ -232,7 +279,13 @@ export function TeamPanel({
     }
   };
 
-  const save = () => {
+  const persistTeam = (payload: TeamSettings) => {
+    saveTeamSettings(payload);
+    onChange(payload);
+    onClose();
+  };
+
+  const save = async () => {
     const roles = sortRoleIds(draft.roles, pipelineOrder);
     const modelOverrides: Record<string, string> = {};
     for (const id of roles) {
@@ -240,16 +293,59 @@ export function TeamPanel({
       const chosen = draft.modelOverrides?.[id] || agent?.defaultModel;
       if (chosen) modelOverrides[id] = chosen;
     }
-    const payload: TeamSettings = {
-      presetId: draft.presetId,
-      roles,
-      mode: roles.length === 1 ? "single" : draft.mode,
-      modelOverrides,
-      council: draft.council ?? null,
-    };
-    saveTeamSettings(payload);
-    onChange(payload);
-    onClose();
+    const mode: TeamSettings["mode"] = roles.length === 1 ? "single" : draft.mode;
+    const persist = (councilId: string | null, presetId: string) =>
+      persistTeam({
+        presetId,
+        roles,
+        mode,
+        modelOverrides,
+        council: councilId,
+      });
+
+    if (savedCouncilId) {
+      const name = councilName.trim();
+      if (name.length < 2) {
+        setAskName(true);
+        setSaveError("Name the council (at least 2 characters).");
+        return;
+      }
+      setSavingTeam(true);
+      setSaveError(null);
+      try {
+        await updateCouncil(savedCouncilId, { name, agents: roles, mode });
+        await loadRegistry();
+        persist(savedCouncilId, `council_${savedCouncilId}`);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Could not update this council");
+      } finally {
+        setSavingTeam(false);
+      }
+      return;
+    }
+
+    if (draft.presetId === "custom") {
+      const name = councilName.trim();
+      if (!askName || name.length < 2) {
+        setAskName(true);
+        setSaveError(name.length < 2 && askName ? "Name the council (at least 2 characters)." : null);
+        return;
+      }
+      setSavingTeam(true);
+      setSaveError(null);
+      try {
+        const created = await createCouncil({ name, agents: roles, mode });
+        await loadRegistry();
+        persist(created.id, `council_${created.id}`);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Could not save this council");
+      } finally {
+        setSavingTeam(false);
+      }
+      return;
+    }
+
+    persist(draft.council ?? null, draft.presetId);
   };
 
   return (
@@ -295,16 +391,28 @@ export function TeamPanel({
             </p>
             <div className="preset-grid">
               {councils.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`preset-btn ${draft.presetId === `council_${c.id}` || draft.council === c.id ? "active" : ""}`}
-                  onClick={() => pickCouncil(c)}
-                  title={c.purpose}
-                >
-                  {c.label}
-                  {c.voting && c.voting !== "none" ? ` · ${c.voting}` : ""}
-                </button>
+                <div key={c.id} className="council-chip">
+                  <button
+                    type="button"
+                    className={`preset-btn ${draft.presetId === `council_${c.id}` || draft.council === c.id ? "active" : ""}`}
+                    onClick={() => pickCouncil(c)}
+                    title={c.purpose}
+                  >
+                    {c.label}
+                    {c.custom ? " · custom" : ""}
+                    {c.voting && c.voting !== "none" ? ` · ${c.voting}` : ""}
+                  </button>
+                  {c.custom ? (
+                    <>
+                      <button type="button" className="btn btn-ghost" onClick={() => editCouncil(c)}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn btn-ghost" onClick={() => void removeCouncil(c)}>
+                        Delete
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               ))}
             </div>
           </>
@@ -547,12 +655,31 @@ export function TeamPanel({
           {draft.council ? ` · council ${draft.council}` : ""}
         </p>
 
+        {askName ? (
+          <label className="field" style={{ maxWidth: 360 }}>
+            <span>Council name</span>
+            <input
+              type="text"
+              value={councilName}
+              maxLength={60}
+              placeholder="Grading Board"
+              onChange={(e) => setCouncilName(e.target.value)}
+            />
+          </label>
+        ) : null}
+        {saveError ? <div className="banner warn">{saveError}</div> : null}
+
         <div className="actions">
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={save}>
-            Save team
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={savingTeam}
+            onClick={() => void save()}
+          >
+            {savingTeam ? "Saving…" : askName || savedCouncilId ? "Save council" : "Save team"}
           </button>
         </div>
       </div>

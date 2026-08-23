@@ -1,6 +1,5 @@
 import Link from "next/link";
-
-const BINDER_URL = process.env.NEXT_PUBLIC_BINDER_URL ?? "http://localhost:3010";
+import { popoutLinks } from "@/lib/popoutLinks";
 
 const links = [
   { href: "/", label: "Portfolio" },
@@ -42,15 +41,20 @@ export function Nav({ active }: { active?: string }) {
           </Link>
         ))}
       </nav>
-      <a
-        className="ext-link"
-        href={BINDER_URL}
-        target="_blank"
-        rel="noreferrer"
-        title="Open Binder Vault"
-      >
-        Binder ↗
-      </a>
+      <div className="ext-links">
+        {popoutLinks().map((l) => (
+          <a
+            key={l.id}
+            className="ext-link"
+            href={l.href}
+            target="_blank"
+            rel="noreferrer"
+            title={l.title}
+          >
+            {l.label} ↗
+          </a>
+        ))}
+      </div>
     </header>
   );
 }

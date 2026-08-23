@@ -66,17 +66,27 @@ def _build_user_prompt(
     meta = get_agent(agent_id)
     repo_context = ""
     collection_ctx = context_json or "{}"
-    if task == "build_spec":
+    attached_block = ""
+    try:
         import json
 
-        try:
-            parsed = json.loads(context_json) if context_json else {}
-            if isinstance(parsed, dict) and parsed.get("repoContext"):
+        from services.operator_attachments import (
+            attachments_from_context_json,
+            format_for_prompt,
+            summarize_for_collection_json,
+        )
+
+        parsed = json.loads(context_json) if context_json else {}
+        if isinstance(parsed, dict):
+            if task == "build_spec" and parsed.get("repoContext"):
                 repo_context = str(parsed.get("repoContext"))
                 rest = {k: v for k, v in parsed.items() if k != "repoContext"}
-                collection_ctx = json.dumps(rest)
-        except json.JSONDecodeError:
-            pass
+            else:
+                rest = parsed
+            collection_ctx = json.dumps(summarize_for_collection_json(rest))
+        attached_block = format_for_prompt(attachments_from_context_json(context_json))
+    except Exception:  # noqa: BLE001 — attachment formatting must never break a job
+        pass
 
     parts = [
         f"TASK TYPE: {task}",
@@ -90,6 +100,8 @@ def _build_user_prompt(
     ]
     if repo_context:
         parts += ["", "--- REPO CONTEXT (read-only tools) ---", repo_context]
+    if attached_block:
+        parts += ["", attached_block]
     if task == "build_spec":
         parts.append(
             "\n--- BUILD SPEC RULES ---\n"
@@ -420,6 +432,13 @@ def _ensure_repo_context(context_json: str) -> str:
             ctx = {"raw": context_json}
     except json.JSONDecodeError:
         ctx = {"raw": context_json}
+
+    try:
+        from services.operator_attachments import merge_into_context
+
+        ctx = merge_into_context(ctx)
+    except Exception:  # noqa: BLE001
+        pass
 
     if ctx.get("repoContext"):
         return json.dumps(ctx)
