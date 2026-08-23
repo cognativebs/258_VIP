@@ -18,6 +18,9 @@ export function SpecsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [markdown, setMarkdown] = useState<string | null>(null);
+  const [jsonText, setJsonText] = useState<string>("");
+  const [cursorPrompt, setCursorPrompt] = useState<string>("");
+  const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -41,9 +44,13 @@ export function SpecsPanel() {
   const open = async (id: string) => {
     setSelectedId(id);
     setMarkdown(null);
+    setJsonText("");
+    setCursorPrompt("");
     try {
       const data = await fetchSpec(id);
       setMarkdown(data.markdown || JSON.stringify(data.spec, null, 2));
+      setJsonText(data.spec ? JSON.stringify(data.spec, null, 2) : "");
+      setCursorPrompt(typeof data.spec?.cursor_prompt === "string" ? data.spec.cursor_prompt : "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load spec");
     }
@@ -90,6 +97,41 @@ export function SpecsPanel() {
       {markdown && (
         <div className="detail">
           <h3 className="orange mono">{selectedId}</h3>
+          <div className="council-chat-actions" style={{ margin: "8px 0" }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                void navigator.clipboard.writeText(markdown);
+                setCopied("md");
+              }}
+            >
+              Copy .md
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={!jsonText}
+              onClick={() => {
+                void navigator.clipboard.writeText(jsonText);
+                setCopied("json");
+              }}
+            >
+              Copy JSON
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={!cursorPrompt}
+              onClick={() => {
+                void navigator.clipboard.writeText(cursorPrompt);
+                setCopied("prompt");
+              }}
+            >
+              Copy Cursor prompt
+            </button>
+            {copied ? <span className="dim">Copied {copied}</span> : null}
+          </div>
           <div className="markdown">{markdown}</div>
         </div>
       )}

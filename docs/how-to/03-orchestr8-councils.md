@@ -39,12 +39,17 @@ Steps:
 
 1. Open Console → **Build Spec**.
 2. Write a backlog-sized goal (one feature, schemas-first, acceptance tests).
-3. Run **Run Build Spec Council**.
-4. Watch steps: Architect → Domain Expert → Tester → Critic.
-5. Outcomes:
+3. Attach reference files (upload `.md` / `.json` / `.txt` / …) and/or list **repo paths**
+   (one per line). Those go into the run as `operatorAttachments` — the council can
+   read them. There is no mid-run file chat; attach before Run.
+4. Run **Run Build Spec Council**.
+5. Watch the **Council chat** (expand a bubble or **Expand all**) and the Progress dock.
+   Critic questions appear after the run — not mid-run. Use **Insert council
+   questions into goal**, fill answers, then **Revise from veto (1×)** if vetoed.
+6. Outcomes:
    - **VETOED** — click **Revise from veto (1×)** (loads Critic notes into the goal). Review, then Run once. If still blocked → park or fill by hand — **no second revision loop**.
-   - **emit / path under `docs/specs/`** — use **Open Specs** on the banner, or paste `cursor_prompt` into Cursor and build.
-6. Optional second pass: Team → **Challenge Council**, paste the implemented diff + acceptance criteria (Phase O2).
+   - **emit / path under `docs/specs/`** — **Copy .md / JSON / Cursor prompt** from the chat or Specs tab, then paste `cursor_prompt` into Cursor and build.
+7. Optional second pass: Team → **Challenge Council**, paste the implemented diff + acceptance criteria (Phase O2).
 
 **Veto revision budget:** at most one paid council pass after a veto per source run. Approving the Critic’s catch is good; endless “improve the spec” rounds are not.
 
