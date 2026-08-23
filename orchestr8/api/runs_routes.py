@@ -58,6 +58,7 @@ def handle_list_runs() -> tuple[int, dict[str, Any]]:
                 "retrieved_at": retrieved_at,
                 "costUsd": row.get("costUsd", 0.0),
                 "vetoed": bool(row.get("vetoed")),
+                "paused": bool(row.get("paused")),
                 "verification": row.get("verification"),
             }
         )

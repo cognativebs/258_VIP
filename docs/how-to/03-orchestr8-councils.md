@@ -51,6 +51,8 @@ Steps:
    - **emit / path under `docs/specs/`** — **Copy .md / JSON / Cursor prompt** from the chat or Specs tab, then paste `cursor_prompt` into Cursor and build.
 7. Optional second pass: Team → **Challenge Council**, paste the implemented diff + acceptance criteria (Phase O2).
 
+**Credit / billing pause:** if a provider rejects a role for quota, prepaid balance, or HTTP 402, the council **stops**. Later roles are not called. A detailed alert names the role, provider, model, exact error, spend so far, and which steps are kept. Top up that provider, then **Resume after top-off**. Resume retries only the failed role, then the remaining ones — completed calls are not re-run. The paused bundle is under **Runs** as `PAUSED`.
+
 **Veto revision budget:** at most one paid council pass after a veto per source run. Approving the Critic’s catch is good; endless “improve the spec” rounds are not.
 
 **What “graded feedback” looks like:** Critic verdict, veto summary, cost, `runId` under **Runs**, and the written spec JSON/Markdown.

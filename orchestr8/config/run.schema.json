@@ -63,8 +63,12 @@
           }
         },
         "vote_summary": { "type": "string" },
-        "vetoed": { "type": "boolean" }
+        "vetoed": { "type": "boolean" },
+        "paused": { "type": "boolean" }
       }
-    }
+    },
+    "paused": { "type": "boolean" },
+    "pause": { "type": "object" },
+    "resume": { "type": "object" }
   }
 }

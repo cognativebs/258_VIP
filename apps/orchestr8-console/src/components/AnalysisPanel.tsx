@@ -10,6 +10,7 @@ import {
 } from "@/lib/analysisContext";
 import { loadInventory, type InventoryBundle } from "@/lib/inventoryApi";
 import { analysisEffective, useCouncilSession } from "@/lib/councilSession";
+import { CreditPauseAlert } from "@/components/CreditPauseAlert";
 
 const SLICES: { id: SliceId; label: string }[] = [
   { id: "all", label: "All loaded" },
@@ -179,11 +180,32 @@ export function AnalysisPanel() {
 
       {session.error && <div className="banner error">{session.error}</div>}
 
+      {session.result?.paused && session.result.pause && (
+        <CreditPauseAlert
+          pause={session.result.pause}
+          runId={session.result.runId}
+          resuming={loading}
+          onResume={() => {
+            const pausedId = session.result?.runId;
+            if (!pausedId || busy) return;
+            void runJob({
+              kind: "analysis",
+              task: "comics_collection_analysis",
+              question: session.question || question,
+              roles: session.roles,
+              mode: session.mode,
+              council: session.council,
+              resumeFromRunId: pausedId,
+            });
+          }}
+        />
+      )}
+
       {loading && (
         <p className="dim">Council running — see Progress dock below (safe to open other tabs).</p>
       )}
 
-      {session.result && (
+      {session.result && !session.result.paused && (
         <div className={`banner ${session.result.vote?.vetoed ? "error" : "ok"}`}>
           <div>
             <strong>{session.result.vote?.vetoed ? "VETOED" : "done"}</strong>

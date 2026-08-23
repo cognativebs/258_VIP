@@ -87,6 +87,7 @@ type RunJobArgs = {
   mode: string;
   council: string | null;
   contextJson?: string;
+  resumeFromRunId?: string;
 };
 
 type CouncilSessionValue = {
@@ -397,19 +398,21 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
         ...prev,
         [args.kind]: {
           kind: args.kind,
-          question: args.question,
-          roles: args.roles,
-          mode: args.mode,
-          council: args.council,
+          question: args.question || prev[args.kind].question,
+          roles: args.roles.length ? args.roles : prev[args.kind].roles,
+          mode: args.mode || prev[args.kind].mode,
+          council: args.council ?? prev[args.kind].council,
           loading: true,
-          startedAt: Date.now(),
+          startedAt: args.resumeFromRunId ? prev[args.kind].startedAt || Date.now() : Date.now(),
           lastActivityAt: Date.now(),
-          steps: [],
-          highlights: [],
+          steps: args.resumeFromRunId ? prev[args.kind].steps : [],
+          highlights: args.resumeFromRunId ? prev[args.kind].highlights : [],
           result: null,
           error: null,
-          progressMessage: "Connecting to gateway stream…",
-          activeRole: args.roles[0] || null,
+          progressMessage: args.resumeFromRunId
+            ? "Resuming after top-off — retrying the failed role only…"
+            : "Connecting to gateway stream…",
+          activeRole: args.roles[0] || prev[args.kind].activeRole,
         },
       }));
 
@@ -423,6 +426,7 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
             contextJson: args.contextJson,
             modelOverrides: team.modelOverrides,
             council: args.council,
+            resumeFromRunId: args.resumeFromRunId,
           },
           {
             onStart: () => {

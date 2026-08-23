@@ -10,6 +10,7 @@ import {
   type OperatorAttachment,
 } from "@/lib/operatorAttachments";
 import { CouncilChat } from "@/components/CouncilChat";
+import { CreditPauseAlert } from "@/components/CreditPauseAlert";
 import { OperatorAttach } from "@/components/OperatorAttach";
 import {
   VETO_REVISION_MAX,
@@ -174,7 +175,28 @@ export function BuildSpecPanel() {
 
       {session.error && <div className="banner error">{session.error}</div>}
 
-      {session.result && (
+      {session.result?.paused && session.result.pause && (
+        <CreditPauseAlert
+          pause={session.result.pause}
+          runId={session.result.runId}
+          resuming={loading}
+          onResume={() => {
+            const pausedId = session.result?.runId;
+            if (!pausedId || busy) return;
+            void runJob({
+              kind: "build",
+              task: "build_spec",
+              question: session.question || goal,
+              roles: session.roles,
+              mode: session.mode,
+              council: session.council,
+              resumeFromRunId: pausedId,
+            });
+          }}
+        />
+      )}
+
+      {session.result && !session.result.paused && (
         <div
           className={`banner ${vetoed ? "error" : status?.startsWith("emit_failed") ? "warn" : "ok"}`}
         >
