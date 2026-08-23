@@ -26,7 +26,7 @@ import {
   type Agent,
   type TeamSettings,
 } from "@/lib/roles";
-import { loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
+import { defaultTeamSettings, loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
 
 export type ConsoleTab = "analysis" | "build" | "runs" | "specs";
 export type SessionKind = "analysis" | "build";
@@ -172,28 +172,18 @@ export function analysisEffective(team: TeamSettings): EffectiveRoster {
   };
 }
 
-export function buildEffective(team: TeamSettings): EffectiveRoster {
-  if (team.council === "build_spec" || team.presetId === "build_spec") {
-    return {
-      label: "Build Spec Council",
-      councilId: "build_spec",
-      councilLabel: "Build Spec Council",
-      purpose: "Produce a critic-passed Cursor work order",
-      mode: "pipeline",
-      voting: "veto_on_critical",
-      roles: ["architect", "domain_expert", "tester", "critic"],
-      source: "build-default",
-    };
-  }
-  const preset = TEAM_PRESETS.find((p) => p.id === team.presetId);
+export function buildEffective(_team?: TeamSettings): EffectiveRoster {
+  // ADR 0003: this tab always runs the 4-role council. A leftover custom
+  // 9-agent team in localStorage must not hijack the run.
   return {
-    label: preset?.label || "Build team",
-    councilId: team.council,
-    councilLabel: team.council || preset?.label || "Custom",
-    purpose: preset?.description,
-    mode: team.mode,
-    roles: team.roles,
-    source: "team",
+    label: "Build Spec Council",
+    councilId: "build_spec",
+    councilLabel: "Build Spec Council",
+    purpose: "Produce a critic-passed Cursor work order",
+    mode: "pipeline",
+    voting: "veto_on_critical",
+    roles: ["architect", "domain_expert", "tester", "critic"],
+    source: "build-default",
   };
 }
 
@@ -213,7 +203,7 @@ function rosterFromSession(s: LiveSession, councils: CouncilInfo[]): EffectiveRo
 
 export function CouncilSessionProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<ConsoleTab>("analysis");
-  const [team, setTeamState] = useState<TeamSettings>(() => loadTeamSettings());
+  const [team, setTeamState] = useState<TeamSettings>(defaultTeamSettings);
   const [agents, setAgents] = useState<Agent[]>(FALLBACK_AGENTS);
   const [councils, setCouncils] = useState<CouncilInfo[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
@@ -228,6 +218,10 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
   const setTeam = useCallback((t: TeamSettings) => {
     setTeamState(t);
     saveTeamSettings(t);
+  }, []);
+
+  useEffect(() => {
+    setTeamState(loadTeamSettings());
   }, []);
 
   useEffect(() => {

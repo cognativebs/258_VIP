@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from providers.llm import chat_role
+from providers.llm import _is_openai_reasoning, chat_role
 from services.registry import (
     get_agent,
     get_council,
@@ -165,6 +165,12 @@ def _run_agent(
         "temperature": routed.get("temperature"),
     }
     max_tokens = int(routed.get("max_tokens", 2048) or 2048)
+    # GPT-5.x / o-series spend hidden reasoning tokens against the same cap.
+    # A 2048 budget often returns empty content (finish_reason=length).
+    if routed.get("provider") == "openai" and _is_openai_reasoning(
+        str(routed.get("model") or "")
+    ):
+        max_tokens = max(max_tokens, 8192)
     # Build Spec needs larger completions; Domain Expert often drafts/repairs the JSON too.
     if task == "build_spec":
         if resolved == "architect":
@@ -180,7 +186,7 @@ def _run_agent(
             user=user,
             temperature=routed.get("temperature", 0.3),
             max_tokens=max_tokens,
-            retries=1 if (task == "build_spec" and resolved == "architect") else 0,
+            retries=1,
         )
     except Exception as e:
         # Degrade gracefully for ordinary errors. Credit/billing pauses the
@@ -238,6 +244,9 @@ def _is_retryable_provider_error(exc: BaseException) -> bool:
             "529",
             "rate limit",
             "connection reset",
+            "empty openai response",
+            "empty anthropic response",
+            "empty grok response",
         )
     )
 
@@ -848,6 +857,20 @@ def _execute_job(
             emit(plan_step)
             if step_is_credit_pause(plan_step):
                 return pause_now(plan_step, "plan", [coordinator] + execution_order)
+            if plan_step.get("error"):
+                progress(
+                    "abort",
+                    f"{label} plan failed — stopping so later roles are not called.",
+                    coordinator,
+                )
+                return _finalize(
+                    text=plan_step["text"],
+                    trace=trace,
+                    mode="pipeline",
+                    roles=unique,
+                    overrides=overrides,
+                    council=council,
+                )
 
     done_workers = {s.get("role") for s in seed_trace(trace) if s.get("role") != coordinator}
     for agent_id in execution_order:

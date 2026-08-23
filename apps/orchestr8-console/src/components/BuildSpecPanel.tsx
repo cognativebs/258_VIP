@@ -120,9 +120,10 @@ export function BuildSpecPanel() {
     <div className="panel">
       <h2>Build Spec</h2>
       <p className="sub">
-        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). Attach reference
-        files, watch the council chat, then copy .md / JSON / Cursor prompt. Live progress also stays
-        in the dock. After a veto: one revision max.
+        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). This tab always
+        runs Architect → Domain Expert → Tester → Critic — a leftover custom team is not used
+        here. Attach reference files, watch the council chat, then copy .md / JSON / Cursor prompt.
+        After a veto: one revision max.
       </p>
 
       <label className="field">
