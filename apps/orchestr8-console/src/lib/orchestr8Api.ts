@@ -21,6 +21,23 @@ export type JobStep = {
   usage?: { total?: number };
 };
 
+export type CreditPause = {
+  reason?: "credit";
+  role?: string;
+  role_label?: string;
+  provider?: string;
+  provider_label?: string;
+  model?: string;
+  model_label?: string;
+  detail?: string;
+  headline?: string;
+  topup_url?: string;
+  completed_roles?: string[];
+  remaining_roles?: string[];
+  spent_usd?: number;
+  instruction?: string;
+};
+
 export type JobResult = {
   text?: string;
   trace?: JobStep[];
@@ -33,6 +50,8 @@ export type JobResult = {
   buildSpecId?: string;
   buildSpecPath?: string;
   buildSpecStatus?: string;
+  paused?: boolean;
+  pause?: CreditPause;
 };
 
 const BASE = "/api/orchestr8";
@@ -260,6 +279,7 @@ export async function streamJob(
     contextJson?: string;
     modelOverrides?: Record<string, string>;
     council?: string | null;
+    resumeFromRunId?: string;
   },
   handlers: {
     onStart?: (evt: unknown) => void;
@@ -281,6 +301,7 @@ export async function streamJob(
       roles: payload.roles,
       mode: payload.mode,
       council: payload.council || undefined,
+      resumeFromRunId: payload.resumeFromRunId || undefined,
       model_overrides:
         payload.modelOverrides && Object.keys(payload.modelOverrides).length
           ? payload.modelOverrides

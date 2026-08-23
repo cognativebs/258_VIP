@@ -95,7 +95,7 @@ export function buildCouncilTranscript(args: {
     messages.push({
       id: "final",
       kind: "final",
-      title: args.result.vote?.vetoed ? "Vetoed" : "Final",
+      title: args.result.paused ? "Paused" : args.result.vote?.vetoed ? "Vetoed" : "Final",
       preview: previewOf(args.result.text),
       body: args.result.text,
       meta: args.result.vote?.summary,

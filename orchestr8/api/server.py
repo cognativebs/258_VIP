@@ -21,7 +21,7 @@ from services.custom_councils import (  # noqa: E402
     delete_custom_council,
     update_custom_council,
 )
-from services.orchestrator import run_job  # noqa: E402
+from services.orchestrator import resume_job, run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
     agents_public_list,
@@ -347,6 +347,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             json_response(self, 400, {"error": f"Bad request: {e}"})
             return
 
+        resume_id = body.get("resumeFromRunId") or body.get("resume_from_run_id")
         roles = body.get("roles") or []
         mode = body.get("mode") or ("single" if len(roles) <= 1 else "pipeline")
         inp = body.get("input") or {}
@@ -368,18 +369,25 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         try:
-            self._sse({"type": "start", "roles": roles, "mode": mode})
-            result = run_job(
-                task=body.get("task") or "general",
-                roles=roles,
-                mode=mode,
-                question=question,
-                context_json=context_json,
-                model_overrides=model_overrides,
-                council=body.get("council") or None,
-                on_step=lambda step: self._sse({"type": "step", "step": step}),
-                on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
-            )
+            self._sse({"type": "start", "roles": roles, "mode": mode, "resumeFromRunId": resume_id})
+            if resume_id:
+                result = resume_job(
+                    str(resume_id),
+                    on_step=lambda step: self._sse({"type": "step", "step": step}),
+                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
+                )
+            else:
+                result = run_job(
+                    task=body.get("task") or "general",
+                    roles=roles,
+                    mode=mode,
+                    question=question,
+                    context_json=context_json,
+                    model_overrides=model_overrides,
+                    council=body.get("council") or None,
+                    on_step=lambda step: self._sse({"type": "step", "step": step}),
+                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
+                )
             self._sse({"type": "done", "result": result})
         except Exception as e:  # noqa: BLE001
             try:
@@ -406,7 +414,7 @@ def main() -> None:
     print("  GET  /v1/specs")
     print("  GET  /v1/specs/:id")
     print("  POST /v1/jobs")
-    print("  POST /v1/jobs/stream (SSE)")
+    print("  POST /v1/jobs/stream (SSE; resumeFromRunId to continue a credit pause)")
     print("  POST /v1/plan")
     print("  POST /v1/reload")
     print(f"  Providers: {configured_providers()}")

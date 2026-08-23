@@ -12,6 +12,7 @@ type RunRow = {
   retrieved_at?: string;
   costUsd?: number;
   vetoed?: boolean;
+  paused?: boolean;
   verification?: string;
 };
 
@@ -150,7 +151,9 @@ export function RunsPanel() {
                 <td>{r.task}</td>
                 <td title={r.question}>{r.question}</td>
                 <td>{typeof r.costUsd === "number" ? `$${r.costUsd.toFixed(4)}` : "—"}</td>
-                <td className={r.vetoed ? "red" : ""}>{r.vetoed ? "VETOED" : "ok"}</td>
+                <td className={r.vetoed || r.paused ? "red" : ""}>
+                  {r.paused ? "PAUSED" : r.vetoed ? "VETOED" : "ok"}
+                </td>
               </tr>
             ))}
           </tbody>

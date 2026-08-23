@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Orchestr8 Credit Pause",
+  "description": "Operator-resolved pause when a provider rejects a call for credits/billing. Pipeline stops. Resume retries only the failed role, then remaining roles. Successful steps are never re-called.",
+  "type": "object",
+  "required": ["reason", "role", "detail"],
+  "properties": {
+    "reason": { "type": "string", "enum": ["credit"] },
+    "role": { "type": "string" },
+    "role_label": { "type": "string" },
+    "provider": { "type": "string" },
+    "provider_label": { "type": "string" },
+    "model": { "type": "string" },
+    "model_label": { "type": "string" },
+    "detail": { "type": "string" },
+    "headline": { "type": "string" },
+    "topup_url": { "type": "string" },
+    "completed_roles": { "type": "array", "items": { "type": "string" } },
+    "remaining_roles": { "type": "array", "items": { "type": "string" } },
+    "spent_usd": { "type": "number" },
+    "instruction": { "type": "string" }
+  }
+}

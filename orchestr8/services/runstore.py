@@ -45,7 +45,8 @@ def build_bundle(
     contracts = list_contracts()
     contract_versions = {r: (contracts.get(r) or {}).get("version") for r in roles}
     vote = result.get("vote") or {}
-    return {
+    paused = bool(result.get("paused"))
+    bundle = {
         "run_id": run_id or new_run_id(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "orchestr8_version": ORCHESTR8_VERSION,
@@ -61,11 +62,20 @@ def build_bundle(
             "contract_versions": contract_versions,
             "model_overrides": result.get("modelOverrides", {}),
             "council": result.get("council"),
-            "verification": {"status": "unverified", "gate": "none"},
-            "vote_summary": vote.get("summary", ""),
+            "verification": {
+                "status": "failed" if paused else "unverified",
+                "gate": "credit_pause" if paused else "none",
+            },
+            "vote_summary": (result.get("pause") or {}).get("headline") or vote.get("summary", ""),
             "vetoed": bool(vote.get("vetoed")),
+            "paused": paused,
         },
     }
+    if paused:
+        bundle["paused"] = True
+        bundle["pause"] = result.get("pause") or {}
+        bundle["resume"] = result.get("resume") or {}
+    return bundle
 
 
 def persist_run(bundle: dict) -> Path:
@@ -89,6 +99,7 @@ def persist_run(bundle: dict) -> Path:
         "roles": bundle["roles"],
         "costUsd": (bundle.get("usage") or {}).get("costUsd", 0.0),
         "vetoed": bundle["provenance"]["vetoed"],
+        "paused": bool(bundle.get("paused") or bundle["provenance"].get("paused")),
         "verification": bundle["provenance"]["verification"]["status"],
     }
     with open(RUNS_DIR / "index.jsonl", "a", encoding="utf-8") as f:
@@ -138,6 +149,7 @@ def list_runs() -> list[dict]:
                 "question": data.get("question") or "",
                 "costUsd": usage.get("costUsd", 0.0),
                 "vetoed": bool(prov.get("vetoed")),
+                "paused": bool(data.get("paused") or prov.get("paused")),
                 "verification": verification.get("status"),
             }
         )

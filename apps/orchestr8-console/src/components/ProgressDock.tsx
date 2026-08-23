@@ -7,6 +7,7 @@ import {
   useCouncilSession,
   type SessionKind,
 } from "@/lib/councilSession";
+import { CreditPauseAlert } from "@/components/CreditPauseAlert";
 
 function formatElapsed(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -16,7 +17,7 @@ function formatElapsed(ms: number) {
 }
 
 export function ProgressDock() {
-  const { sessions, liveKind, team, stopJob, clearSession, setTab } = useCouncilSession();
+  const { sessions, liveKind, team, stopJob, clearSession, setTab, runJob } = useCouncilSession();
   const agents = useAgentLookup();
   const [now, setNow] = useState(Date.now());
   const [collapsed, setCollapsed] = useState(false);
@@ -96,7 +97,16 @@ export function ProgressDock() {
           <strong>{kind === "build" ? "Build Spec" : "Analysis"}</strong>
           <span className="dim">
             {" "}
-            · {session.loading ? "running" : vetoed ? "vetoed" : session.error ? "error" : "done"}
+            ·{" "}
+            {session.loading
+              ? "running"
+              : session.result?.paused
+                ? "paused"
+                : vetoed
+                  ? "vetoed"
+                  : session.error
+                    ? "error"
+                    : "done"}
             {" · "}
             {elapsed}
             {typeof session.result?.usage?.costUsd === "number"
@@ -188,7 +198,27 @@ export function ProgressDock() {
           </div>
 
           {session.error && <div className="banner error">{session.error}</div>}
-          {session.result?.vote?.summary && (
+          {session.result?.paused && session.result.pause && kind && (
+            <CreditPauseAlert
+              pause={session.result.pause}
+              runId={session.result.runId}
+              resuming={session.loading}
+              onResume={() => {
+                const pausedId = session.result?.runId;
+                if (!pausedId || session.loading) return;
+                void runJob({
+                  kind,
+                  task: kind === "build" ? "build_spec" : "comics_collection_analysis",
+                  question: session.question,
+                  roles: session.roles,
+                  mode: session.mode,
+                  council: session.council,
+                  resumeFromRunId: pausedId,
+                });
+              }}
+            />
+          )}
+          {session.result?.vote?.summary && !session.result.paused && (
             <div className={`banner ${vetoed ? "error" : "ok"}`}>{session.result.vote.summary}</div>
           )}
           {session.question && (

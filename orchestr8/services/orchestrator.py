@@ -183,10 +183,18 @@ def _run_agent(
             retries=1 if (task == "build_spec" and resolved == "architect") else 0,
         )
     except Exception as e:
-        # Degrade gracefully: one agent failing must not sink the whole job.
+        # Degrade gracefully for ordinary errors. Credit/billing pauses the
+        # pipeline (no walk-around) so the operator can top up and resume.
         step["text"] = f"[{meta['label']} unavailable: {e}]"
         step["error"] = str(e)
         step["usage"] = {"input": 0, "output": 0, "total": 0}
+        try:
+            from services.credit_pause import is_credit_error
+
+            if is_credit_error(e):
+                step["pause"] = "credit"
+        except Exception:  # noqa: BLE001
+            pass
         return step
 
     raw_text = result["text"]
@@ -319,11 +327,14 @@ def _finalize(
     roles: list[str],
     overrides: dict,
     council: str | None,
+    paused: bool = False,
+    pause: dict | None = None,
+    resume: dict | None = None,
 ) -> dict:
     council_meta = get_council(council) if council else None
     vote = evaluate_votes(trace, council_meta)
     gated = apply_gate(text, vote)
-    return {
+    out = {
         "text": gated,
         "trace": trace,
         "mode": mode,
@@ -333,6 +344,76 @@ def _finalize(
         "council": council,
         "vote": vote,
     }
+    if paused and pause:
+        out["paused"] = True
+        out["pause"] = pause
+        out["resume"] = resume or {}
+        out["text"] = pause.get("headline") or gated
+    return out
+
+
+def _spent_usd(trace: list[dict]) -> float:
+    return round(sum((s.get("costUsd") or 0.0) for s in trace), 6)
+
+
+def _pause_credit(
+    *,
+    step: dict,
+    trace: list[dict],
+    unique: list[str],
+    overrides: dict,
+    council: str | None,
+    mode: str,
+    task: str,
+    question: str,
+    context_json: str,
+    failed_phase: str,
+    remaining_roles: list[str],
+    on_progress=None,
+) -> dict:
+    from services.credit_pause import build_pause, build_resume_payload, seed_trace
+
+    seed = seed_trace(trace)
+    pause = build_pause(
+        step,
+        seed=seed,
+        remaining_roles=remaining_roles,
+        spent_usd=_spent_usd(trace),
+    )
+    if on_progress:
+        try:
+            on_progress(
+                {
+                    "phase": "paused",
+                    "message": pause["headline"],
+                    "role": step.get("role"),
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    resume = build_resume_payload(
+        task=task,
+        mode=mode,
+        roles=unique,
+        question=question,
+        context_json=context_json,
+        council=council,
+        model_overrides=overrides,
+        seed=seed,
+        failed_role=str(step.get("role") or ""),
+        failed_phase=failed_phase,
+    )
+    return _finalize(
+        text=pause["headline"],
+        trace=trace,
+        mode=mode,
+        roles=unique,
+        overrides=overrides,
+        council=council,
+        paused=True,
+        pause=pause,
+        resume=resume,
+    )
 
 
 def _aggregate_usage(trace: list[dict]) -> dict:
@@ -382,6 +463,7 @@ def run_job(
     council: str | None = None,
     on_step=None,
     on_progress=None,
+    resume: dict | None = None,
 ) -> dict:
     """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
 
@@ -414,13 +496,63 @@ def run_job(
         council=council,
         on_step=on_step,
         on_progress=on_progress,
+        resume=resume,
     )
+    if result.get("paused") and isinstance(result.get("resume"), dict):
+        result["resume"]["context_json"] = context_json
+        result["resume"]["question"] = question
+        result["resume"]["task"] = task
+        if resume and resume.get("prior_run_id"):
+            result["resume"]["prior_run_id"] = resume.get("prior_run_id")
     _persist_run(result, task=task, question=question, context_json=context_json)
 
-    if task == "build_spec":
+    if task == "build_spec" and not result.get("paused"):
         _emit_build_spec(result, question=question)
 
     return result
+
+
+def resume_job(
+    run_id: str,
+    *,
+    on_step=None,
+    on_progress=None,
+) -> dict:
+    """Continue a credit-paused run. Successful steps are not re-called."""
+    from services.credit_pause import load_resume_from_bundle
+    from services.runstore import load_run
+
+    bundle = load_run(run_id)
+    if not bundle:
+        raise ValueError(f"Run not found: {run_id}")
+    payload = load_resume_from_bundle(bundle)
+    payload["prior_run_id"] = run_id
+    if on_progress:
+        try:
+            on_progress(
+                {
+                    "phase": "resume",
+                    "message": (
+                        f"Resuming after top-off — retry {payload.get('failed_role')}, "
+                        "skip completed roles."
+                    ),
+                    "role": payload.get("failed_role"),
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    return run_job(
+        task=payload.get("task") or bundle.get("task") or "general",
+        roles=list(payload.get("roles") or bundle.get("roles") or []),
+        mode=str(payload.get("mode") or bundle.get("mode") or "pipeline"),
+        question=str(payload.get("question") or bundle.get("question") or ""),
+        context_json=str(payload.get("context_json") or "{}"),
+        model_overrides=payload.get("model_overrides") or {},
+        council=payload.get("council") or (bundle.get("provenance") or {}).get("council"),
+        on_step=on_step,
+        on_progress=on_progress,
+        resume=payload,
+    )
 
 
 def _ensure_repo_context(context_json: str) -> str:
@@ -505,6 +637,7 @@ def _execute_job(
     council: str | None = None,
     on_step=None,
     on_progress=None,
+    resume: dict | None = None,
 ) -> dict:
     if not roles:
         raise ValueError("At least one role is required")
@@ -543,10 +676,29 @@ def _execute_job(
         unique = sorted(unique, key=lambda r: rank.get(r, 999))
     else:
         unique = sort_agent_ids(unique)
-    trace: list[dict] = []
+    from services.credit_pause import seed_trace, step_is_credit_pause
+
+    resume = resume or {}
+    trace: list[dict] = list(resume.get("seed_trace") or [])
 
     def override_for(aid: str) -> str | None:
         return overrides.get(aid) or overrides.get(resolve_agent_id(aid))
+
+    def pause_now(step: dict, phase: str, remaining: list[str]) -> dict:
+        return _pause_credit(
+            step=step,
+            trace=trace,
+            unique=unique,
+            overrides=overrides,
+            council=council,
+            mode=mode if mode in ("single", "pipeline", "parallel") else "pipeline",
+            task=task,
+            question=question,
+            context_json=context_json,
+            failed_phase=phase,
+            remaining_roles=remaining,
+            on_progress=on_progress,
+        )
 
     if len(unique) == 1 or mode == "single":
         label0 = get_agent(unique[0])["label"]
@@ -561,6 +713,8 @@ def _execute_job(
             model_override=override_for(unique[0]),
         )
         emit(step)
+        if step_is_credit_pause(step):
+            return pause_now(step, "single", [unique[0]])
         return _finalize(
             text=step["text"],
             trace=[step],
@@ -572,53 +726,82 @@ def _execute_job(
 
     coordinator = _coordinator_id(unique)
     workers = [r for r in unique if r != coordinator]
+    done_ok = {s.get("role") for s in seed_trace(trace)}
 
     if mode == "parallel" and len(workers) > 1:
-        progress(
-            "role_start",
-            f"Calling {len(workers)} roles in parallel…",
-            workers[0] if workers else None,
-        )
-        parallel_results: list[dict] = []
-        with ThreadPoolExecutor(max_workers=min(6, len(workers))) as pool:
-            futures = [
-                pool.submit(
-                    _run_agent,
-                    rid,
-                    task=task,
-                    question=question,
-                    context_json=context_json,
-                    trace=[],
-                    mode="parallel",
-                    model_override=override_for(rid),
-                )
-                for rid in workers
+        pending = [r for r in workers if r not in done_ok]
+        credit_hit: dict | None = None
+        if pending:
+            progress(
+                "role_start",
+                f"Calling {len(pending)} roles in parallel…",
+                pending[0],
+            )
+            parallel_results: list[dict] = []
+            with ThreadPoolExecutor(max_workers=min(6, len(pending))) as pool:
+                futures = [
+                    pool.submit(
+                        _run_agent,
+                        rid,
+                        task=task,
+                        question=question,
+                        context_json=context_json,
+                        trace=[],
+                        mode="parallel",
+                        model_override=override_for(rid),
+                    )
+                    for rid in pending
+                ]
+                for fut in as_completed(futures):
+                    if fut.cancelled():
+                        continue
+                    res = fut.result()
+                    parallel_results.append(res)
+                    emit(res)
+                    if step_is_credit_pause(res):
+                        credit_hit = credit_hit or res
+                        for other in futures:
+                            other.cancel()
+            order = {r: i for i, r in enumerate(sort_agent_ids([t["role"] for t in parallel_results]))}
+            parallel_results.sort(key=lambda t: order.get(t["role"], 99))
+            trace.extend(parallel_results)
+        if credit_hit:
+            leftover = [
+                r
+                for r in workers
+                if r not in {s.get("role") for s in seed_trace(trace)}
             ]
-            for fut in as_completed(futures):
-                res = fut.result()
-                parallel_results.append(res)
-                emit(res)
-        order = {r: i for i, r in enumerate(sort_agent_ids([t["role"] for t in parallel_results]))}
-        parallel_results.sort(key=lambda t: order.get(t["role"], 99))
-        trace.extend(parallel_results)
+            leftover = leftover + ([coordinator] if coordinator else [])
+            return pause_now(credit_hit, "parallel", leftover)
 
         synth_id = coordinator or _synthesizer_id(unique)
-        progress("role_start", f"Calling {get_agent(synth_id)['label']} (Synthesis)…", synth_id)
-        synth = _run_agent(
-            synth_id,
-            task=task,
-            question=f"Synthesize a final answer for the collector.\n\nOriginal question: {question}",
-            context_json=context_json,
-            trace=trace,
-            mode="pipeline",
-            model_override=override_for(synth_id),
+        final_done = any(
+            s.get("role") == synth_id and "Synthesis" in (s.get("role_label") or "")
+            for s in seed_trace(trace)
         )
-        label = get_agent(synth_id)["label"]
-        synth_step = {**synth, "role_label": f"{label} (Synthesis)"}
-        trace.append(synth_step)
-        emit(synth_step)
+        if not final_done:
+            progress("role_start", f"Calling {get_agent(synth_id)['label']} (Synthesis)…", synth_id)
+            synth = _run_agent(
+                synth_id,
+                task=task,
+                question=f"Synthesize a final answer for the collector.\n\nOriginal question: {question}",
+                context_json=context_json,
+                trace=trace,
+                mode="pipeline",
+                model_override=override_for(synth_id),
+            )
+            label = get_agent(synth_id)["label"]
+            synth_step = {**synth, "role_label": f"{label} (Synthesis)"}
+            trace.append(synth_step)
+            emit(synth_step)
+            if step_is_credit_pause(synth_step):
+                return pause_now(synth_step, "final", [synth_id])
+        else:
+            synth_step = next(
+                s for s in reversed(trace) if s.get("role") == synth_id
+            )
         return _finalize(
-            text=synth["text"],
+            text=synth_step["text"],
             trace=trace,
             mode="parallel",
             roles=unique,
@@ -635,28 +818,41 @@ def _execute_job(
         owner = council_meta.get("output_owner")
         if owner in execution_order:
             execution_order = [r for r in execution_order if r != owner] + [owner]
+    plan_done = bool(
+        coordinator
+        and any(
+            s.get("role") == coordinator and "Plan" in (s.get("role_label") or "")
+            for s in seed_trace(trace)
+        )
+    )
     if coordinator:
-        progress(
-            "role_start",
-            f"Calling {get_agent(coordinator)['label']} (Plan)…",
-            coordinator,
-        )
-        plan = _run_agent(
-            coordinator,
-            task=task,
-            question=question,
-            context_json=context_json,
-            trace=[],
-            mode="pipeline",
-            model_override=override_for(coordinator),
-        )
-        label = get_agent(coordinator)["label"]
-        plan_step = {**plan, "role_label": f"{label} (Plan)"}
-        trace.append(plan_step)
-        emit(plan_step)
         execution_order = [r for r in execution_order if r != coordinator]
+        if not plan_done:
+            progress(
+                "role_start",
+                f"Calling {get_agent(coordinator)['label']} (Plan)…",
+                coordinator,
+            )
+            plan = _run_agent(
+                coordinator,
+                task=task,
+                question=question,
+                context_json=context_json,
+                trace=[],
+                mode="pipeline",
+                model_override=override_for(coordinator),
+            )
+            label = get_agent(coordinator)["label"]
+            plan_step = {**plan, "role_label": f"{label} (Plan)"}
+            trace.append(plan_step)
+            emit(plan_step)
+            if step_is_credit_pause(plan_step):
+                return pause_now(plan_step, "plan", [coordinator] + execution_order)
 
+    done_workers = {s.get("role") for s in seed_trace(trace) if s.get("role") != coordinator}
     for agent_id in execution_order:
+        if agent_id in done_workers:
+            continue
         progress(
             "role_start",
             f"Calling {get_agent(agent_id)['label']}…",
@@ -673,6 +869,11 @@ def _execute_job(
         )
         trace.append(step)
         emit(step)
+        if step_is_credit_pause(step):
+            leftover = [r for r in execution_order if r not in done_workers and r != agent_id]
+            if coordinator:
+                leftover.append(coordinator)
+            return pause_now(step, "worker", [agent_id] + leftover)
         # Don't burn Domain/Tester/Critic spend when Architect never produced a spec.
         if (
             task == "build_spec"
@@ -693,7 +894,14 @@ def _execute_job(
                 council=council,
             )
 
-    if coordinator:
+    final_done = bool(
+        coordinator
+        and any(
+            s.get("role") == coordinator and "Final" in (s.get("role_label") or "")
+            for s in seed_trace(trace)
+        )
+    )
+    if coordinator and not final_done:
         progress(
             "role_start",
             f"Calling {get_agent(coordinator)['label']} (Final)…",
@@ -712,6 +920,8 @@ def _execute_job(
         final_step = {**synth, "role_label": f"{label} (Final)"}
         trace.append(final_step)
         emit(final_step)
+        if step_is_credit_pause(final_step):
+            return pause_now(final_step, "final", [coordinator])
         final_text = synth["text"]
     else:
         final_text = trace[-1]["text"] if trace else ""
