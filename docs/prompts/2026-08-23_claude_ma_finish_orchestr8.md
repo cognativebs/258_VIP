@@ -21,7 +21,7 @@ Leave the tree on NTFS. Do **not** copy it into the WSL filesystem.
 | Windows | `C:\258Labs\orchestr8` |
 | WSL2 | `/mnt/c/258Labs/orchestr8` |
 
-Gateway keys stay in `orchestr8/.env`. The MA client uses `ANTHROPIC_API_KEY` in the same shell. Sessions bill **$0.08 / running session-hour** plus tokens; idle/terminated time is free. Never pass `file` or `github_repository` resources (self-hosted → HTTP 400).
+Gateway keys stay in `orchestr8/.env`. The MA client uses `ANTHROPIC_API_KEY` in the same shell. Sessions bill **$0.08 / running session-hour** plus tokens; idle/terminated time is free. Never pass `file` or `github_repository` resources (self-hosted → HTTP 400). The MA sandbox does **not** see your Windows disk — the mission tells it to `git clone https://github.com/cognativebs/258_VIP.git`.
 
 ```bash
 cd /mnt/c/258Labs/orchestr8
@@ -51,6 +51,11 @@ MISSION — Finish Orchestr8 so a Build Spec council can succeed. Do not work on
 
 SUCCESS (this mission)
 Orchestr8 is reliable enough that an operator can start the gateway (:5210) and console (:3001), run a Build Spec council, and get a critic-passed emit under docs/specs/ without empty-provider deaths, temperature 400s, or a leftover team hijacking the roster. You may use any tools, subagents, and repo roles you need. You do not need to start the glasses app.
+
+REPO (you cannot see the operator's disk)
+You are in Anthropic's session sandbox. Greg's D:\\ and C:\\258Labs\\orchestr8 are not mounted. If orchestr8/ and AGENTS.md are missing, immediately:
+  git clone https://github.com/cognativebs/258_VIP.git
+That public URL is 258 Labs' tree. Do not hunt for another orchestr8. Do not ask for a zip or token.
 
 WHAT ORCHESTR8 IS
 Python gateway orchestr8/ on :5210 (keys only in orchestr8/.env). Console apps/orchestr8-console on :3001. 22 shipped roles, councils in orchestr8/config/councils.yaml, Full Council id=full. ADR 0003: Orchestr8 authors specs; Cursor builds VIP features. This mission is to make that authoring path work. AGENTS.md applies to any VIP schema/product change — do not add tables/columns not required to fix Orchestr8.
