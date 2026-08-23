@@ -6,12 +6,14 @@ import os
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_ROOT = os.path.join(REPO_ROOT, "apps", "managed-agent-session")
 if APP_ROOT not in sys.path:
     sys.path.insert(0, APP_ROOT)
 
-from session_chat import print_agent_message, stream_session  # noqa: E402
+from session_chat import format_cli_error, print_agent_message, require_api_key, stream_session  # noqa: E402
 
 
 class _Stream:
@@ -99,6 +101,23 @@ def test_error_event_exits_nonzero():
         client, prompt="hi", out=io.StringIO(), err=io.StringIO()
     )
     assert code == 1
+
+
+def test_format_cli_error_includes_cause_and_hint():
+    root = ConnectionError("[Errno 11001] getaddrinfo failed")
+    wrapped = RuntimeError("Connection error.")
+    wrapped.__cause__ = root
+    text = format_cli_error(wrapped)
+    assert "RuntimeError: Connection error." in text
+    assert "getaddrinfo failed" in text
+    assert "api.anthropic.com" in text
+
+
+def test_require_api_key_reports_missing(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert require_api_key() is not None
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert require_api_key() is None
 
 
 def test_print_agent_message_reads_dict_blocks():
