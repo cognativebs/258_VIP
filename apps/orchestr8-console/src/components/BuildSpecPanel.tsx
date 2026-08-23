@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { buildEffective, useCouncilSession } from "@/lib/councilSession";
+import { fetchSpec } from "@/lib/orchestr8Api";
+import { specCopyPayload } from "@/lib/councilTranscript";
+import {
+  capAttachments,
+  parseRefPaths,
+  type OperatorAttachment,
+} from "@/lib/operatorAttachments";
+import { CouncilChat } from "@/components/CouncilChat";
+import { OperatorAttach } from "@/components/OperatorAttach";
 import {
   VETO_REVISION_MAX,
   buildVetoRevisionPrompt,
@@ -15,6 +24,14 @@ export function BuildSpecPanel() {
   const [goal, setGoal] = useState(
     "Sources registry API + IQVault Sources editor with active toggle and contribution stats."
   );
+  const [attachments, setAttachments] = useState<OperatorAttachment[]>([]);
+  const [refPaths, setRefPaths] = useState("");
+  const [attachErrors, setAttachErrors] = useState<string[]>([]);
+  const [products, setProducts] = useState<{
+    markdown: string;
+    json: string;
+    cursorPrompt: string;
+  } | null>(null);
   /** Source run ids that already consumed the 1× revise (draft loaded or revision executed). */
   const [revisionConsumedRunIds, setRevisionConsumedRunIds] = useState<Record<string, true>>({});
 
@@ -24,8 +41,8 @@ export function BuildSpecPanel() {
   const status = session.result?.buildSpecStatus;
   const cost = session.result?.usage?.costUsd;
   const runId = session.result?.runId || null;
+  const specId = session.result?.buildSpecId || null;
 
-  /** No revise if this result is already a revision round, or budget for this source run is gone. */
   const canRevise =
     vetoed &&
     Boolean(runId) &&
@@ -35,6 +52,24 @@ export function BuildSpecPanel() {
     !revisionConsumedRunIds[runId!];
 
   const draftLoaded = Boolean(runId && revisionConsumedRunIds[runId] && isVetoRevisionPrompt(goal));
+
+  useEffect(() => {
+    if (!specId) {
+      setProducts(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSpec(specId)
+      .then((data) => {
+        if (!cancelled) setProducts(specCopyPayload(data));
+      })
+      .catch(() => {
+        if (!cancelled) setProducts(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [specId]);
 
   const loadRevisionDraft = () => {
     if (!session.result?.runId || !canRevise) return;
@@ -71,6 +106,8 @@ export function BuildSpecPanel() {
           revisionRound: revising ? 1 : 0,
           revisionMax: VETO_REVISION_MAX,
           priorRunId: priorRunId || undefined,
+          operatorAttachments: capAttachments(attachments),
+          operatorRefPaths: parseRefPaths(refPaths),
         }),
       });
     } catch {
@@ -82,9 +119,9 @@ export function BuildSpecPanel() {
     <div className="panel">
       <h2>Build Spec</h2>
       <p className="sub">
-        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). Live progress
-        stays in the dock when you switch tabs. After a veto: one revision max, then park or fill by
-        hand.
+        Orchestr8 authors a critic-passed work order; Cursor builds it (ADR 0003). Attach reference
+        files, watch the council chat, then copy .md / JSON / Cursor prompt. Live progress also stays
+        in the dock. After a veto: one revision max.
       </p>
 
       <label className="field">
@@ -96,6 +133,16 @@ export function BuildSpecPanel() {
           disabled={loading}
         />
       </label>
+
+      <OperatorAttach
+        attachments={attachments}
+        onAttachments={setAttachments}
+        refPaths={refPaths}
+        onRefPaths={setRefPaths}
+        errors={attachErrors}
+        onErrors={setAttachErrors}
+        disabled={loading}
+      />
 
       <div className="actions">
         <button
@@ -127,10 +174,6 @@ export function BuildSpecPanel() {
 
       {session.error && <div className="banner error">{session.error}</div>}
 
-      {loading && (
-        <p className="dim">Council running — see Progress dock below (safe to open other tabs).</p>
-      )}
-
       {session.result && (
         <div
           className={`banner ${vetoed ? "error" : status?.startsWith("emit_failed") ? "warn" : "ok"}`}
@@ -157,13 +200,26 @@ export function BuildSpecPanel() {
               </button>
             </div>
           )}
-          {!vetoed && session.result.text && (
-            <div className="trace-body" style={{ marginTop: 8 }}>
-              {session.result.text.slice(0, 1200)}
-            </div>
-          )}
         </div>
       )}
+
+      <CouncilChat
+        question={session.question || goal}
+        attachmentNames={attachments.map((a) => a.name)}
+        progressMessage={session.progressMessage}
+        loading={loading}
+        steps={session.steps}
+        result={session.result}
+        error={session.error}
+        products={products || undefined}
+        onInsertQuestions={(qs) =>
+          setGoal((g) =>
+            `${g.trim()}\n\n## Operator answers to council questions\n${qs
+              .map((q) => `- ${q}\n  Answer: `)
+              .join("\n")}`
+          )
+        }
+      />
     </div>
   );
 }

@@ -60,6 +60,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Save a named custom council from the team panel (prompt on Save team → selection button + edit/delete; `POST/PATCH/DELETE /v1/councils`) — 2026-08-23
 - [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
+- [x] Build Spec attach files / repo paths + council chat transcript + copy .md / JSON / Cursor prompt (2026-08-23)
 - [x] Fix `scripts/start_iqvault_ecosystem.ps1` — parse failure rewritten 2026-08-09; retarget VIP `:8787` + collector `:3000` (2026-08-13)
 
 ### C. Orchestr8 — Phase O2 Diff review loop *(never started)*

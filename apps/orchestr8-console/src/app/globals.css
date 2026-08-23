@@ -863,3 +863,116 @@ textarea {
   margin: 0;
   font-size: 12px;
 }
+
+.attach-block {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  margin: 12px 0;
+  background: #0a0a0a;
+}
+
+.attach-help,
+.field-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.attach-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.attach-list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.council-chat {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  background: #080808;
+  padding: 12px;
+}
+
+.council-chat-head,
+.council-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.council-chat-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.council-chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow: auto;
+  margin: 10px 0;
+}
+
+.cc-msg {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  background: #111;
+}
+
+.cc-user {
+  border-color: #3a3a3a;
+}
+
+.cc-role {
+  border-left: 3px solid var(--orange);
+}
+
+.cc-question {
+  border-left: 3px solid var(--amber);
+}
+
+.cc-final {
+  border-left: 3px solid var(--green);
+}
+
+.cc-progress {
+  border-left: 3px solid var(--blue);
+}
+
+.cc-msg-head {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.cc-who {
+  font-weight: 600;
+}
+
+.cc-toggle {
+  margin-left: auto;
+  color: var(--dim);
+}
+
+.cc-msg-body {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: var(--text);
+}
