@@ -135,7 +135,13 @@ then move the files into `agents/<id>/` so it ships with the repo.
 
 ### Custom team without editing YAML
 
-For a one-off: Team → **Custom roles** → tick any combination → run from Build Spec or Analysis (Analysis tab still forces Analysis Council unless you selected `comics_vip` / `council_analysis`). Custom is for experiments; permanent roles belong in `agents/` + councils.
+Tick roles → **Save team** → name the council. That writes `orchestr8/custom_councils/<id>/`
+(gitignored, like custom roles) and adds a **Councils** button with **Edit** / **Delete**.
+Shipped YAML councils stay read-only. Saved teams are `custom · unverified` — they
+run with voting `none` unless you change that later in the YAML.
+
+For a one-off you can still tick roles and run without saving. Permanent reviewed
+playbooks belong in `orchestr8/config/councils.yaml`.
 
 ---
 

@@ -53,6 +53,8 @@ export type CouncilInfo = {
   agents?: string[];
   voting?: string;
   outputOwner?: string;
+  custom?: boolean;
+  verificationStatus?: string;
 };
 
 /** Proxied through Next rewrites for plain JSON reads. */
@@ -96,6 +98,67 @@ export async function fetchOrchestr8Councils(): Promise<{ councils: CouncilInfo[
   });
   if (!res.ok) throw new Error(`Orchestr8 councils unavailable (${res.status})`);
   return (await res.json()) as { councils: CouncilInfo[] };
+}
+
+async function councilWrite<T>(
+  path: string,
+  method: "POST" | "PATCH",
+  input: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(8000),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    detail?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || `Council ${method} failed (${res.status})`);
+  }
+  return data as T;
+}
+
+export async function createOrchestr8Council(input: {
+  name: string;
+  purpose?: string;
+  agents: string[];
+  mode: "pipeline" | "parallel" | "single";
+}) {
+  return councilWrite<{ id: string; council?: CouncilInfo }>("/v1/councils", "POST", input);
+}
+
+export async function updateOrchestr8Council(
+  id: string,
+  input: {
+    name?: string;
+    purpose?: string;
+    agents?: string[];
+    mode?: "pipeline" | "parallel" | "single";
+  },
+) {
+  return councilWrite<{ id: string; council?: CouncilInfo }>(
+    `/v1/councils/${encodeURIComponent(id)}`,
+    "PATCH",
+    input,
+  );
+}
+
+export async function deleteOrchestr8Council(id: string) {
+  const res = await fetch(`${BASE}/v1/councils/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    signal: AbortSignal.timeout(8000),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    detail?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || `Council delete failed (${res.status})`);
+  }
+  return data as { id: string; deleted?: boolean };
 }
 
 export async function streamOrchestr8Job(

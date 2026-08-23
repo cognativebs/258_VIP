@@ -26,7 +26,16 @@ def load_models() -> dict:
 
 @lru_cache(maxsize=1)
 def load_councils() -> dict:
-    return _read_yaml(CONFIG_DIR / "councils.yaml")
+    """Shipped YAML plus operator-saved councils. Custom ids never shadow shipped."""
+    shipped = _read_yaml(CONFIG_DIR / "councils.yaml")
+    councils = dict(shipped.get("councils") or {})
+    from services.custom_councils import load_custom_councils
+
+    for cid, meta in load_custom_councils().items():
+        if cid in councils:
+            continue
+        councils[cid] = meta
+    return {"councils": councils}
 
 
 @lru_cache(maxsize=1)
@@ -321,6 +330,10 @@ def councils_public_list() -> list[dict]:
             "voting": c.get("voting"),
             "outputOwner": c.get("output_owner"),
             "gate": c.get("gate"),
+            "custom": bool(c.get("custom")),
+            "verificationStatus": (c.get("provenance") or {}).get(
+                "verification_status"
+            ),
         }
         for kid, c in cfg.items()
     ]

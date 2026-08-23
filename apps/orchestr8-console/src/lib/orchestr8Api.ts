@@ -140,18 +140,72 @@ export async function updateAgent(
   );
 }
 
+export type Council = {
+  id: string;
+  label: string;
+  purpose?: string;
+  mode?: string;
+  agents?: string[];
+  voting?: string;
+  outputOwner?: string;
+  custom?: boolean;
+  verificationStatus?: string;
+};
+
 export async function fetchCouncils() {
-  return getJson<{
-    councils: Array<{
-      id: string;
-      label: string;
-      purpose?: string;
-      mode?: string;
-      agents?: string[];
-      voting?: string;
-      outputOwner?: string;
-    }>;
-  }>("/v1/councils");
+  return getJson<{ councils: Council[] }>("/v1/councils");
+}
+
+export type CouncilWriteInput = {
+  name: string;
+  purpose?: string;
+  agents: string[];
+  mode: "pipeline" | "parallel" | "single";
+  voting?: "none" | "veto_on_critical" | "dissent_required";
+};
+
+async function councilWrite<T>(
+  path: string,
+  method: "POST" | "PATCH",
+  input: Partial<CouncilWriteInput>
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { detail?: string; error?: string };
+    throw new Error(err.detail || err.error || `Council ${method} failed (${res.status})`);
+  }
+  return data as T;
+}
+
+/** Save the current role picks as a named council (selection button). */
+export async function createCouncil(input: CouncilWriteInput) {
+  return councilWrite<{ id: string; council?: Council }>("/v1/councils", "POST", input);
+}
+
+/** Update an operator-saved council. Id never changes. */
+export async function updateCouncil(id: string, input: Partial<CouncilWriteInput>) {
+  return councilWrite<{ id: string; council?: Council }>(
+    `/v1/councils/${encodeURIComponent(id)}`,
+    "PATCH",
+    input
+  );
+}
+
+export async function deleteCouncil(id: string) {
+  const res = await fetch(`${BASE}/v1/councils/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { detail?: string; error?: string };
+    throw new Error(err.detail || err.error || `Council delete failed (${res.status})`);
+  }
+  return data as { id: string; deleted?: boolean };
 }
 
 export async function fetchRuns() {

@@ -471,6 +471,17 @@ textarea {
   color: var(--orange);
 }
 
+.council-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.council-chip .btn {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
 .role-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
