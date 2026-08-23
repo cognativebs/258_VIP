@@ -9,3 +9,5 @@ __pycache__/
 .runs/
 # Operator-authored roles from the Console team panel — local data, like .runs/
 custom_agents/
+# Operator-saved teams from Save team — local data, like custom_agents/
+custom_councils/
