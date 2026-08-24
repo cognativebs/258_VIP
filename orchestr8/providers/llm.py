@@ -5,6 +5,7 @@ Each chat_* returns {"text": str, "usage": {input, output, total}, "model": str}
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -57,16 +58,30 @@ def _post_json(url: str, headers: dict, body: dict, *, timeout: int = DEFAULT_HT
         except json.JSONDecodeError:
             msg = payload or str(e)
         raise RuntimeError(msg) from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Provider HTTP failed: {getattr(e, 'reason', None) or e}") from e
+
+
+_VENDOR_PREFIX = re.compile(r"^(openai|anthropic|xai|grok)/", re.I)
+# Catalog is operator-extensible; prefixes alone miss o5 / gpt-6 / vendor-prefixed ids.
+_OPENAI_REASONING_RE = re.compile(r"^(o\d|gpt-5|gpt-[6-9])", re.I)
+
+
+def _canonical_model(model: str) -> str:
+    return _VENDOR_PREFIX.sub("", (model or "").strip())
 
 
 def _is_openai_reasoning(model: str) -> bool:
     """True when the model needs the reasoning-tier chat-completions parameters."""
-    return model.lower().startswith(_OPENAI_REASONING_PREFIXES)
+    mid = _canonical_model(model).lower()
+    if mid.startswith(_OPENAI_REASONING_PREFIXES):
+        return True
+    return bool(_OPENAI_REASONING_RE.match(mid))
 
 
 def _anthropic_omits_temperature(model: str) -> bool:
     """True when Anthropic returns 400 if temperature is sent."""
-    mid = model.lower()
+    mid = _canonical_model(model).lower()
     return any(marker in mid for marker in _ANTHROPIC_NO_TEMPERATURE_MARKERS)
 
 
@@ -78,6 +93,22 @@ def _is_temperature_rejected(exc: BaseException) -> bool:
         needle in msg
         for needle in ("deprecated", "unsupported", "not supported", "unknown parameter")
     )
+
+
+def _repair_openai_body(body: dict, err: BaseException) -> dict | None:
+    """One-shot 400 repair: max_tokens → max_completion_tokens, drop temperature."""
+    msg = str(err).lower()
+    repaired = dict(body)
+    changed = False
+    if "max_completion_tokens" in msg and "max_tokens" in repaired:
+        repaired["max_completion_tokens"] = repaired.pop("max_tokens")
+        repaired.pop("temperature", None)
+        repaired.setdefault("reasoning_effort", "low")
+        changed = True
+    if _is_temperature_rejected(err) and "temperature" in repaired:
+        repaired.pop("temperature", None)
+        changed = True
+    return repaired if changed else None
 
 
 def _openai_choice_text(choice: dict) -> str:
@@ -132,6 +163,7 @@ def chat_openai(
     if not key:
         raise RuntimeError("OPENAI_API_KEY not configured in orchestr8/.env")
 
+    model = _canonical_model(model)
     reasoning = _is_openai_reasoning(model)
     body: dict = {
         "model": model,
@@ -151,12 +183,24 @@ def chat_openai(
         body["temperature"] = temperature
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
-    data = _post_json(
-        "https://api.openai.com/v1/chat/completions",
-        headers,
-        body,
-        timeout=_http_timeout_for(max_tokens),
-    )
+    try:
+        data = _post_json(
+            "https://api.openai.com/v1/chat/completions",
+            headers,
+            body,
+            timeout=_http_timeout_for(max_tokens),
+        )
+    except RuntimeError as e:
+        repaired = _repair_openai_body(body, e)
+        if not repaired:
+            raise
+        body = repaired
+        data = _post_json(
+            "https://api.openai.com/v1/chat/completions",
+            headers,
+            body,
+            timeout=_http_timeout_for(max_tokens),
+        )
     text = _openai_choice_text((data.get("choices") or [{}])[0])
     # Reasoning models often spend the whole budget on hidden tokens and return
     # empty content. One retry with a larger completion cap usually recovers.
@@ -195,6 +239,7 @@ def chat_anthropic(
     key = provider_keys().get("anthropic")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not configured in orchestr8/.env")
+    model = _canonical_model(model)
     headers = {
         "Content-Type": "application/json",
         "x-api-key": key,
@@ -253,21 +298,46 @@ def chat_grok(
     key = provider_keys().get("grok")
     if not key:
         raise RuntimeError("XAI_API_KEY not configured in orchestr8/.env")
-    data = _post_json(
-        "https://api.x.ai/v1/chat/completions",
-        {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
-        {
-            "model": model,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        },
-        timeout=_http_timeout_for(max_tokens),
-    )
+    model = _canonical_model(model)
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
+    body: dict = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    try:
+        data = _post_json(
+            "https://api.x.ai/v1/chat/completions",
+            headers,
+            body,
+            timeout=_http_timeout_for(max_tokens),
+        )
+    except RuntimeError as e:
+        if "temperature" in body and _is_temperature_rejected(e):
+            body.pop("temperature", None)
+            data = _post_json(
+                "https://api.x.ai/v1/chat/completions",
+                headers,
+                body,
+                timeout=_http_timeout_for(max_tokens),
+            )
+        else:
+            raise
     text = _openai_choice_text((data.get("choices") or [{}])[0])
+    if not text:
+        retry_tokens = max(int(max_tokens) * 2, 4096)
+        body["max_tokens"] = retry_tokens
+        data = _post_json(
+            "https://api.x.ai/v1/chat/completions",
+            headers,
+            body,
+            timeout=_http_timeout_for(retry_tokens),
+        )
+        text = _openai_choice_text((data.get("choices") or [{}])[0])
     if not text:
         raise RuntimeError("Empty Grok response")
     usage = data.get("usage") or {}

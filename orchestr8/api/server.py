@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -32,10 +33,14 @@ from services.registry import (  # noqa: E402
     models_public_list,
     pipeline_order as registry_pipeline_order,
 )
-from services.provider_env import configured_providers, provider_key_warnings  # noqa: E402
+from services.provider_env import configured_providers, env_file_present, provider_key_warnings  # noqa: E402
 from services.roles import load_config  # noqa: E402
 
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
+# Keepalive cadence for /v1/jobs/stream. Must stay well under the console stall
+# watchdog (10 min of SSE silence) so a slow role is never mistaken for a dead
+# gateway. Override for tests via ORCHESTR8_SSE_HEARTBEAT_SECONDS.
+SSE_HEARTBEAT_SECONDS = float(os.environ.get("ORCHESTR8_SSE_HEARTBEAT_SECONDS", "20"))
 
 
 def _id_from_path(path: str, prefix: str) -> str | None:
@@ -368,13 +373,35 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
+        # A single role can legitimately hold the stream silent for many minutes:
+        # the socket timeout scales to 480s and _chat_role_retry adds a second
+        # attempt, so one slow reasoning role can exceed the console's 10-minute
+        # stall watchdog and get a healthy council killed in the UI. Emit a
+        # heartbeat so silence means "gateway died", not "role is thinking".
+        # No message/role field, so the dock keeps the last real progress text.
+        sse_lock = threading.Lock()
+        stop_heartbeat = threading.Event()
+
+        def send(obj: dict) -> None:
+            with sse_lock:
+                self._sse(obj)
+
+        def heartbeat() -> None:
+            while not stop_heartbeat.wait(SSE_HEARTBEAT_SECONDS):
+                try:
+                    send({"type": "progress", "phase": "heartbeat"})
+                except Exception:  # noqa: BLE001 — client disconnected; stop quietly
+                    return
+
+        hb = threading.Thread(target=heartbeat, name="sse-heartbeat", daemon=True)
+        hb.start()
         try:
-            self._sse({"type": "start", "roles": roles, "mode": mode, "resumeFromRunId": resume_id})
+            send({"type": "start", "roles": roles, "mode": mode, "resumeFromRunId": resume_id})
             if resume_id:
                 result = resume_job(
                     str(resume_id),
-                    on_step=lambda step: self._sse({"type": "step", "step": step}),
-                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
+                    on_step=lambda step: send({"type": "step", "step": step}),
+                    on_progress=lambda p: send({"type": "progress", **(p or {})}),
                 )
             else:
                 result = run_job(
@@ -385,19 +412,38 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     context_json=context_json,
                     model_overrides=model_overrides,
                     council=body.get("council") or None,
-                    on_step=lambda step: self._sse({"type": "step", "step": step}),
-                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
+                    on_step=lambda step: send({"type": "step", "step": step}),
+                    on_progress=lambda p: send({"type": "progress", **(p or {})}),
                 )
-            self._sse({"type": "done", "result": result})
+            stop_heartbeat.set()
+            send({"type": "done", "result": result})
         except Exception as e:  # noqa: BLE001
+            stop_heartbeat.set()
             try:
-                self._sse({"type": "error", "error": str(e)})
+                send({"type": "error", "error": str(e)})
             except Exception:  # noqa: BLE001 — client may have disconnected
                 pass
+        finally:
+            stop_heartbeat.set()
 
 
 def main() -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), GatewayHandler)
+    # Without this the banner and the WARN lines below sit in a block buffer
+    # whenever stdout is redirected to a launcher log, so an operator debugging
+    # "gateway offline" sees an empty log file and no missing-key warning.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, OSError):  # pragma: no cover - non-standard stdout
+        pass
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", PORT), GatewayHandler)
+    except OSError as e:
+        print(f"Bind failed on 127.0.0.1:{PORT}: {e}")
+        print("Usually a stale gateway is still listening (HealthBar shows gateway offline).")
+        print(f"  netstat -ano | findstr :{PORT}")
+        print("  taskkill /PID <pid> /F")
+        print("Or: start_orchestr8.bat after killing that PID.")
+        raise SystemExit(1) from e
     print(f"Orchestr8 AI Gateway on http://127.0.0.1:{PORT}")
     print("  GET  /v1/health")
     print("  GET  /v1/roles")
@@ -419,6 +465,8 @@ def main() -> None:
     print("  POST /v1/reload")
     print(f"  Providers: {configured_providers()}")
     print(f"  Agents: {len(agents_public_list())}")
+    if not env_file_present():
+        print("  WARN: orchestr8/.env is missing — copy orchestr8/.env.example and add keys.")
     for warn in provider_key_warnings():
         print(f"  WARN: {warn}")
     server.serve_forever()

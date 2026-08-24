@@ -53,10 +53,10 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Keep-alive tabs + session store (switching tabs does not kill a live council)
 - [x] Always-visible Council Strip (roles · provider · model; click for skill blurb)
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
-- [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
+- [ ] Gateway `step_start` events (so dock can show “calling model” before first token) — partially covered 2026-08-23: `/v1/jobs/stream` now emits a 20s `phase: "heartbeat"` progress frame so a slow role no longer trips the console stall watchdog. A true per-role `step_start` is still not emitted; `progress(phase="role_start")` may already be enough for the dock.
 - [x] Create an agent role from the Team panel (name / description / skills → live card; `POST /v1/agents`, auto contract, unverified provenance) — 2026-08-21
 - [x] Edit name / description / skills on any Team-panel card (`PATCH /v1/agents/:id`; shipped roles overlay into `custom_agents/`) — 2026-08-21
-- [ ] Delete custom roles from the Team panel (today: delete the folder under `custom_agents/<id>/` + `POST /v1/reload`)
+- [ ] Delete custom roles from the Team panel (today: delete the folder under `custom_agents/<id>/` + `POST /v1/reload`) — 2026-08-23: a saved team naming a since-deleted role no longer kills the council; stale ids are dropped and returned as `result.droppedRoles`.
 - [x] Save a named custom council from the team panel (prompt on Save team → selection button + edit/delete; `POST/PATCH/DELETE /v1/councils`) — 2026-08-23
 - [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)

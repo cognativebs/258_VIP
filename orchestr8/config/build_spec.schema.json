@@ -19,7 +19,9 @@
     "id": {
       "type": "string",
       "minLength": 3,
-      "description": "Stable slug, e.g. o2-diff-review"
+      "maxLength": 80,
+      "pattern": "^[a-z0-9][a-z0-9-]{1,79}$",
+      "description": "Stable slug, e.g. o2-diff-review. Filename-safe; no path segments."
     },
     "title": { "type": "string", "minLength": 5 },
     "goal": { "type": "string", "minLength": 20 },
@@ -83,6 +85,10 @@
         "verification_status": {
           "type": "string",
           "enum": ["unverified", "critic_passed", "critic_vetoed", "human_approved"]
+        },
+        "critic_review": {
+          "type": "string",
+          "enum": ["none", "pre_author", "post_author", "critic_failed"]
         },
         "run_id": { "type": ["string", "null"] },
         "council": { "type": ["string", "null"] },
