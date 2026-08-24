@@ -15,6 +15,7 @@ from providers.llm import _canonical_model, _is_openai_reasoning, _repair_openai
 from services.build_spec import (  # noqa: E402
     attach_provenance,
     critic_review_state,
+    normalize_build_spec,
     safe_spec_id,
     write_spec,
 )
@@ -115,6 +116,43 @@ def test_critic_passed_requires_post_author():
     )
     assert post["provenance"]["verification_status"] == "critic_passed"
     assert post["provenance"]["critic_review"] == "post_author"
+
+
+def test_normalize_contracts_first_fills_path_and_change_on_list_items():
+    """Last live emit died here: a non-empty list of malformed objects skipped coerce."""
+    spec = normalize_build_spec(
+        {
+            "id": "test-cf",
+            "title": "Contracts first coerce",
+            "goal": "Malformed list items must still satisfy the schema.",
+            "contracts_first": [
+                {"location": "packages/contracts/src/index.ts", "description": "add AnalysisTabGate"},
+                {"file": "apps/orchestr8-console/src/app/page.tsx"},
+                "zod schema for the Analysis tab payload",
+                {"name": "orphan object with neither path nor change"},
+            ],
+        }
+    )
+    items = spec["contracts_first"]
+    assert items[0] == {
+        "path": "packages/contracts/src/index.ts",
+        "change": "add AnalysisTabGate",
+    }
+    assert items[1]["path"] == "apps/orchestr8-console/src/app/page.tsx"
+    assert items[1]["change"]
+    assert items[2] == {"path": "n/a", "change": "zod schema for the Analysis tab payload"}
+    assert items[3]["path"] == "n/a"
+    assert "orphan object" in items[3]["change"]
+    schema = {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+            "type": "object",
+            "required": ["path", "change"],
+            "properties": {"path": {"type": "string"}, "change": {"type": "string"}},
+        },
+    }
+    assert validate_instance(items, schema) == []
 
 
 def test_safe_spec_id_strips_path_segments():

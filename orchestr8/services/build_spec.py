@@ -148,39 +148,59 @@ def _looks_like_spec(obj: dict) -> bool:
     return keys.issubset(obj.keys()) or {"id", "title", "goal", "cursor_prompt"}.issubset(obj.keys())
 
 
+def _contract_field(item: dict, *keys: str) -> str:
+    for key in keys:
+        val = item.get(key)
+        if isinstance(val, dict):
+            nested = _contract_field(val, *keys)
+            if nested:
+                return nested
+            val = json.dumps(val)[:240]
+        if val is None or val == "":
+            continue
+        text = str(val).strip()
+        if text:
+            return text
+    return ""
+
+
+def _normalize_contract_item(item: Any) -> dict[str, str]:
+    """Coerce one contracts_first entry to {path, change}.
+
+    Architects routinely emit location/description, file/name, a bare string,
+    or a non-empty list of objects missing the required keys. A populated but
+    malformed list used to skip this branch and fail schema validation at emit.
+    """
+    if isinstance(item, str):
+        return {"path": "n/a", "change": item.strip() or "see goal"}
+    if not isinstance(item, dict):
+        return {"path": "n/a", "change": str(item)[:240] or "see goal"}
+    path = _contract_field(item, "path", "location", "file", "schema", "target")
+    change = _contract_field(item, "change", "description", "notes", "name", "summary")
+    if not path and not change:
+        leftover = {k: v for k, v in item.items() if k not in {"path", "change"}}
+        change = json.dumps(leftover)[:240] if leftover else "see goal"
+    return {"path": path or "n/a", "change": change or "see goal"}
+
+
 def normalize_build_spec(spec: dict) -> dict:
     """Coerce common Architect shape drift so schema validation can pass."""
     out = dict(spec)
 
-    # contracts_first sometimes arrives as a single object or {schemas:[...]}
+    # contracts_first sometimes arrives as a single object, {schemas:[...]},
+    # or a non-empty list of objects that omit path/change.
     cf = out.get("contracts_first")
     if isinstance(cf, dict):
         if isinstance(cf.get("schemas"), list):
-            items = []
-            for s in cf["schemas"]:
-                if isinstance(s, dict):
-                    items.append(
-                        {
-                            "path": str(s.get("location") or s.get("path") or "packages/…"),
-                            "change": str(
-                                s.get("description")
-                                or s.get("change")
-                                or s.get("name")
-                                or json.dumps(s)[:200]
-                            ),
-                        }
-                    )
+            items = [_normalize_contract_item(s) for s in cf["schemas"]]
             out["contracts_first"] = items or [
                 {"path": "n/a", "change": str(cf.get("description") or "see goal")}
             ]
         else:
-            out["contracts_first"] = [
-                {
-                    "path": str(cf.get("path") or cf.get("location") or "n/a"),
-                    "change": str(cf.get("change") or cf.get("description") or json.dumps(cf)[:240]),
-                }
-            ]
-    elif not isinstance(cf, list) or not cf:
+            out["contracts_first"] = [_normalize_contract_item(cf)]
+    elif isinstance(cf, list) and cf:
+        out["contracts_first"] = [_normalize_contract_item(item) for item in cf]
+    else:
         out["contracts_first"] = [{"path": "n/a", "change": "No new contracts — UI-only change"}]
 
     # file_plan: ensure notes + allowed actions
