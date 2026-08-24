@@ -5,14 +5,28 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-try:
-    from dotenv import load_dotenv
 
-    load_dotenv(ROOT / ".env")
-except ImportError:
-    # CI ingest job installs requirements-dev.txt only; gateway runtime still
-    # has python-dotenv via orchestr8/requirements.txt.
-    pass
+# Importing this module normally injects orchestr8/.env into os.environ. On an
+# operator workstation that has real keys that leak makes the test suite
+# non-hermetic: provider-selection tests see live keys and fail for reasons
+# unrelated to the change under test. Tests set ORCHESTR8_SKIP_DOTENV=1 (see
+# tests/conftest.py) so they run "without live keys" on any machine. The
+# gateway never sets it, so runtime behaviour is unchanged.
+DOTENV_SKIPPED = os.environ.get("ORCHESTR8_SKIP_DOTENV", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+if not DOTENV_SKIPPED:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(ROOT / ".env")
+    except ImportError:
+        # CI ingest job installs requirements-dev.txt only; gateway runtime still
+        # has python-dotenv via orchestr8/requirements.txt.
+        pass
 
 
 def _env_key(*names: str) -> str | None:
@@ -39,6 +53,11 @@ def provider_keys() -> dict[str, str | None]:
 def configured_providers() -> dict[str, bool]:
     keys = provider_keys()
     return {k: bool(v) for k, v in keys.items()}
+
+
+def env_file_present() -> bool:
+    """Whether orchestr8/.env exists. Does not read contents."""
+    return (ROOT / ".env").is_file()
 
 
 def provider_key_warnings(keys: dict[str, str | None] | None = None) -> list[str]:

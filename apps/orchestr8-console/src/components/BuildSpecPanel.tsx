@@ -100,7 +100,7 @@ export function BuildSpecPanel() {
         question,
         roles: roster.roles,
         mode: roster.roles.length === 1 ? "single" : roster.mode,
-        council: roster.councilId || (roster.roles.length <= 4 ? "build_spec" : null),
+        council: roster.councilId || "build_spec",
         contextJson: JSON.stringify({
           backlogItem: question,
           adr: "0003",
