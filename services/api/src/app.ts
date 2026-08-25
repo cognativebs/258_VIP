@@ -25,7 +25,13 @@ import {
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
-import { buildRecommendation } from "./lib/recommendations.js";
+import {
+  buildRecommendation,
+  COMPS_HOLDING_CAP,
+  MIN_SALES_FOR_MARKET_EVIDENCE,
+  parseHoldingIdsQuery,
+  selectHoldingsForRecommendations,
+} from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import {
@@ -434,26 +440,39 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.get("/api/recommendations", async (req, res) => {
-    const limit = Math.min(Number(req.query.limit ?? 12), 40);
+    const holdingIds = parseHoldingIdsQuery(req.query.holdingIds);
+    const limit = Math.min(Number(req.query.limit ?? COMPS_HOLDING_CAP), 40);
     const { holdings, comics, comicsSource } = await buildInventory(deps);
-    if (!comics.available) {
+    // Default list path still refuses when comics are down so a seed/binder
+    // mix cannot masquerade as the collection. Targeted holdingIds are an
+    // explicit lookup — return those holdings (or missing ids) even if comics
+    // Postgres is down, so Analysis can attach honest empty comps.
+    if (!holdingIds.length && !comics.available) {
       res.status(503).json({
         error: "Comics inventory unavailable — recommendations not computed from sample data",
         comicsSource,
         comicsError: comics.error,
         count: 0,
         recommendations: [],
+        missingHoldingIds: [],
+        minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
       });
       return;
     }
-    const items = await Promise.all(
-      holdings.slice(0, limit).map((h) => buildRecommendation(h)),
+    const { selected, missingIds } = selectHoldingsForRecommendations(
+      holdings,
+      holdingIds,
+      limit,
     );
+    const items = await Promise.all(selected.map((h) => buildRecommendation(h)));
     res.json({
       count: items.length,
       comicsSource,
       comicsSnapshot: comics.snapshot,
       recommendations: items,
+      missingHoldingIds: missingIds,
+      minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
+      compsCap: holdingIds.length ? COMPS_HOLDING_CAP : limit,
     });
   });
 

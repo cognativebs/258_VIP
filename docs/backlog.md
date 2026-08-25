@@ -36,13 +36,14 @@ Grouped by area. Checkboxes are unfinished unless marked done.
 
 Started as owner unlock; thin slice shipped; gates incomplete.
 
-- [x] Console **Analysis** tab — inventory load (Comics `:5200` → VIP `:8787` fallback)
+- [x] Console **Analysis** tab — inventory load (VIP `:8787` first, Comics `:5200` fallback)
 - [x] Compact context builder + Analysis Council / Comics VIP presets
 - [x] Proxies: `/api/comics/*`, `/api/vip/*`
 - [ ] **Gate:** Analysis tab loads inventory + one SSE run persists to Runs (operator-verified). Code path shipped 2026-08-25: snapshot provenance, zod on live `/v1/runs`, Runs auto-refresh after a persisted `runId`. Still needs operator dogfood.
 - [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
 - [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
-- [ ] Evidence-backed market ranges in analysis context (not CLZ/catalog snapshot as truth)
+- [x] Evidence-backed market ranges in analysis context (VIP `/api/recommendations?holdingIds=` → per-highlight `market`; idle adapters stay insufficient — never fabricated). Sold-ledger persist to `vault_market.sale` is still open.
+- [ ] Persist adapter comps into `vault_market.sale` / `market_value` (schema exists; Analysis currently uses live adapter reads)
 - [ ] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
 

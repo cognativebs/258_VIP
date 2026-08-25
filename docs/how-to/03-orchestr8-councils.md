@@ -66,12 +66,12 @@ Steps:
 
 Steps:
 
-1. Start Comics API (`:5200`) for the real vault; otherwise Console falls back to VIP sample (`:8787`).
-2. Console → **Analysis** → Reload inventory (source pill shows Comics vs VIP).
+1. Start VIP API (`:8787`) for platform inventory + comps. Comics API (`:5200`) is fallback if VIP is down.
+2. Console → **Analysis** → Reload inventory (source pill shows VIP vs Comics). Wait for the **comps** pill (adapter evidence on the top holdings, cap 12).
 3. Pick a **slice** (e.g. Sell priority High).
 4. Ask a decision question (“If I need $500 this month, which 5 books…?”).
-5. Run **Run Collection Analysis**.
-6. Read each specialist step + final text. Expect **ranges / confidence / gaps**, not fake point prices.
+5. Run **Run Collection Analysis**. Context includes per-highlight `market` (range, matchedSales, recencyDays, provenance). Catalog dollars stay labeled unverified.
+6. Read each specialist step + final text. Expect **ranges / confidence / gaps**. Critic **should veto Sell/Lot** when adapters are idle or matchedSales < 3 — that is correct, not a bug. Set `EBAY_OAUTH_TOKEN` (and TCG ids for cards) when you want live comps.
 7. For expensive calls: switch Team to **Challenge Council** and paste the Analysis answer for a veto pass.
 8. Optional: **Curation Council** (Custom roles or when exposed) for pillar / grade / sell-timing framing.
 

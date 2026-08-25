@@ -41,7 +41,8 @@ Predict time-to-sale, venue fit, and exit friction for sell-queue and portfolio 
 ## Inputs
 
 - Filtered sell/lot/liquidity workspace rows
-- Pricing Agent ranges (ask vs quick sale)
+- Pricing Agent ranges (ask vs quick sale) and per-highlight `market.matchedSales` / recencyDays
+  — thin comps mean slower, wider, or Hold.
 - Market Intelligence demand shifts
 
 ## Outputs

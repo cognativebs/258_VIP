@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  ANALYSIS_COMPS_CAP,
   ANALYSIS_PROMPTS,
   applySlice,
   buildAnalysisContext,
   contextToJson,
+  highlightIdsForComps,
+  MIN_SALES_FOR_MARKET_EVIDENCE,
   type SliceId,
 } from "@/lib/analysisContext";
 import { loadInventory, type InventoryBundle } from "@/lib/inventoryApi";
+import { loadMarketEvidence } from "@/lib/marketEvidence";
+import type { MarketEvidenceBundle } from "@/types/analysis";
 import { analysisEffective, useCouncilSession } from "@/lib/councilSession";
 import { CreditPauseAlert } from "@/components/CreditPauseAlert";
 
@@ -28,9 +33,12 @@ export function AnalysisPanel() {
   const [slice, setSlice] = useState<SliceId>("sellHigh");
   const [question, setQuestion] = useState(ANALYSIS_PROMPTS[0]);
   const [showContext, setShowContext] = useState(false);
+  const [market, setMarket] = useState<MarketEvidenceBundle | null>(null);
+  const [marketStatus, setMarketStatus] = useState<"idle" | "loading" | "ready">("idle");
 
   const loading = session.loading;
   const busy = Boolean(liveKind);
+  const compsPending = marketStatus === "loading";
 
   const refresh = async () => {
     setLoadError(null);
@@ -50,6 +58,23 @@ export function AnalysisPanel() {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    if (!bundle || bundle.source === "none") {
+      setMarket(null);
+      setMarketStatus("idle");
+      return;
+    }
+    const ac = new AbortController();
+    const ids = highlightIdsForComps(bundle, slice);
+    setMarketStatus("loading");
+    void loadMarketEvidence(ids, fetch, ac.signal).then((next) => {
+      if (ac.signal.aborted) return;
+      setMarket(next);
+      setMarketStatus("ready");
+    });
+    return () => ac.abort();
+  }, [bundle, slice]);
+
   const filteredCount = useMemo(() => {
     if (!bundle) return 0;
     return applySlice(bundle.rows, slice).length;
@@ -57,12 +82,12 @@ export function AnalysisPanel() {
 
   const contextJson = useMemo(() => {
     if (!bundle || bundle.source === "none") return "{}";
-    return contextToJson(buildAnalysisContext(bundle, slice));
-  }, [bundle, slice]);
+    return contextToJson(buildAnalysisContext(bundle, slice, market));
+  }, [bundle, slice, market]);
 
   const run = async () => {
     const q = question.trim();
-    if (!q || busy || !bundle || bundle.source === "none") return;
+    if (!q || busy || compsPending || !bundle || bundle.source === "none") return;
     const roster = analysisEffective(team);
     try {
       await runJob({
@@ -84,8 +109,14 @@ export function AnalysisPanel() {
     bundle?.source === "comics"
       ? "Comics API :5200"
       : bundle?.source === "vip"
-        ? "VIP sample :8787"
+        ? "VIP API :8787"
         : "none";
+  const compsLabel =
+    marketStatus === "loading"
+      ? "loading…"
+      : market
+        ? `${market.holdingsWithSales}/${market.attemptedIds.length || ANALYSIS_COMPS_CAP} with sales`
+        : "—";
 
   const fetchedLabel = bundle?.fetchedAt
     ? bundle.fetchedAt.replace("T", " ").slice(0, 19) + " UTC"
@@ -95,8 +126,8 @@ export function AnalysisPanel() {
     <div className="panel">
       <h2>Collection Analysis</h2>
       <p className="sub">
-        Inventory → compact context → <code>comics_collection_analysis</code>. Progress stays in the
-        dock if you switch tabs.
+        Inventory → live adapter comps (cap {ANALYSIS_COMPS_CAP}) →{" "}
+        <code>comics_collection_analysis</code>. Progress stays in the dock if you switch tabs.
       </p>
 
       <div className="meta-row">
@@ -112,6 +143,9 @@ export function AnalysisPanel() {
         <span className="pill">
           provenance <strong>{bundle?.provenance.verificationStatus ?? "—"}</strong>
         </span>
+        <span className="pill">
+          comps <strong>{compsLabel}</strong>
+        </span>
         <button type="button" className="btn btn-ghost" onClick={() => void refresh()} disabled={loading}>
           Reload inventory
         </button>
@@ -125,6 +159,14 @@ export function AnalysisPanel() {
       )}
 
       {bundle?.meta.note && <p className="sub">{bundle.meta.note}</p>}
+      {market?.adapterIdleNotes.length ? (
+        <p className="sub">
+          Comps adapters idle or empty ({market.adapterIdleNotes.slice(0, 2).join(" · ")}). Sell/Lot
+          still needs ≥{MIN_SALES_FOR_MARKET_EVIDENCE} matched sales — critic veto on thin evidence is
+          correct.
+        </p>
+      ) : null}
+      {market?.fetchError && <div className="banner warn">Market comps: {market.fetchError}</div>}
       {loadError && <div className="banner warn">{loadError}</div>}
 
       <label className="field">
@@ -170,10 +212,10 @@ export function AnalysisPanel() {
         <button
           type="button"
           className="btn btn-primary"
-          disabled={busy || !question.trim() || !bundle || bundle.source === "none"}
+          disabled={busy || compsPending || !question.trim() || !bundle || bundle.source === "none"}
           onClick={() => void run()}
         >
-          {loading ? "Running analysis…" : "Run Collection Analysis"}
+          {loading ? "Running analysis…" : compsPending ? "Loading comps…" : "Run Collection Analysis"}
         </button>
         <button
           type="button"
@@ -189,7 +231,7 @@ export function AnalysisPanel() {
       </div>
 
       {showContext && (
-        <pre className="trace-body context-preview">{contextJson.slice(0, 8000)}</pre>
+        <pre className="trace-body context-preview">{contextJson.slice(0, 16000)}</pre>
       )}
 
       {session.error && <div className="banner error">{session.error}</div>}

@@ -245,6 +245,8 @@ describe("VIP API", () => {
           insufficientMarketEvidence: boolean;
           reasonCodes: string[];
           compsSource: string;
+          minSalesRequired: number;
+          provenance: { verificationStatus: string };
         }[];
       };
       const first = body.recommendations[0];
@@ -255,7 +257,45 @@ describe("VIP API", () => {
       expect(first?.marketRange?.matchedSales ?? 0).toBe(0);
       // Still emits opposing evidence ("no matched sales") — never invents supporting comps.
       expect(first?.opposingEvidence.length).toBeGreaterThan(0);
+      expect(first?.minSalesRequired).toBe(3);
+      expect(first?.provenance?.verificationStatus).toBe("unverified");
     });
+  });
+
+  it("recommendations?holdingIds= returns those holdings and missing ids", async () => {
+    await withServer(async (base) => {
+      const inv = await fetch(`${base}/api/inventory`);
+      const invBody = (await inv.json()) as { holdings: { id: string }[] };
+      const firstId = invBody.holdings[0]?.id;
+      expect(firstId).toBeTruthy();
+      const res = await fetch(
+        `${base}/api/recommendations?holdingIds=${encodeURIComponent(`${firstId},not-a-holding`)}`,
+      );
+      const body = (await res.json()) as {
+        recommendations: { holdingId: string; provenance: { verificationStatus: string } }[];
+        missingHoldingIds: string[];
+        minSalesRequired: number;
+      };
+      expect(res.status).toBe(200);
+      expect(body.recommendations).toHaveLength(1);
+      expect(body.recommendations[0]?.holdingId).toBe(firstId);
+      expect(body.missingHoldingIds).toEqual(["not-a-holding"]);
+      expect(body.minSalesRequired).toBe(3);
+      expect(body.recommendations[0]?.provenance.verificationStatus).toBe("unverified");
+    });
+  });
+
+  it("recommendations?holdingIds= is not 503 when comics are down — honest empty lookup", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/recommendations?holdingIds=ghost-holding`);
+      const body = (await res.json()) as {
+        recommendations: unknown[];
+        missingHoldingIds: string[];
+      };
+      expect(res.status).toBe(200);
+      expect(body.recommendations).toEqual([]);
+      expect(body.missingHoldingIds).toEqual(["ghost-holding"]);
+    }, unavailableComics());
   });
 
   it("hunts include Absolute Batman + Pokémon seeds", async () => {
