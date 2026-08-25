@@ -71,7 +71,7 @@ Steps:
 3. Pick a **slice** (e.g. Sell priority High).
 4. Ask a decision question (“If I need $500 this month, which 5 books…?”).
 5. Run **Run Collection Analysis**. Context includes per-highlight `market` (range, matchedSales, recencyDays, provenance). Catalog dollars stay labeled unverified.
-6. Read each specialist step + final text. Expect **ranges / confidence / gaps**. Critic **should veto Sell/Lot** when adapters are idle or matchedSales < 3 — that is correct, not a bug. Set `EBAY_OAUTH_TOKEN` (and TCG ids for cards) when you want live comps.
+6. Read each specialist step + final text. Expect **ranges / confidence / gaps**. Critic **should veto Sell/Lot** when adapters are idle or matchedSales < 3 — that is correct, not a bug. Set `EBAY_APP_ID` + `EBAY_CERT_ID` in `services/api/.env` ([how-to 10](10-ebay-comps.md)) when you want live Browse comps. TCG still needs TCG ids.
 7. For expensive calls: switch Team to **Challenge Council** and paste the Analysis answer for a veto pass.
 8. Optional: **Curation Council** (Custom roles or when exposed) for pillar / grade / sell-timing framing.
 

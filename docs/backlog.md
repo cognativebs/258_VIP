@@ -219,7 +219,10 @@ These are rule violations and wrong-data paths, not missing features.
 - [ ] **Hunts still seed data.** `/api/hunts` reads `seeds/hunts.ts` — move to Postgres.
 - [x] **Live comps adapters.** eBay sold + TCGplayer market adapters shipped
       2026-08-09 (`services/api/src/lib/comps/`). Idle without credentials /
-      network — never fabricate. Wire `EBAY_OAUTH_TOKEN` for comics sold comps.
+      network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
+      in `services/api/.env` (client-credentials `buy.browse`; see
+      [how-to 10](how-to/10-ebay-comps.md)). Browse observations stay unverified
+      — not a sold ledger.
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 

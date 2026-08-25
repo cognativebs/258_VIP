@@ -74,6 +74,25 @@ async function withServer<T>(
 }
 
 describe("VIP API", () => {
+  it("health reports ebayComps idle when no credentials are set", async () => {
+    delete process.env.EBAY_OAUTH_TOKEN;
+    delete process.env.EBAY_APP_ID;
+    delete process.env.EBAY_CERT_ID;
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/health`);
+      const body = (await res.json()) as {
+        ok: boolean;
+        service: string;
+        ebayComps: { configured: boolean; mode: string };
+      };
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.service).toBe("vip-api");
+      expect(body.ebayComps.configured).toBe(false);
+      expect(body.ebayComps.mode).toBe("idle");
+    });
+  });
+
   it("serves live comics inventory with provenance — never the sample as truth", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);

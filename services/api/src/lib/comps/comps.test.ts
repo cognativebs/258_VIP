@@ -6,6 +6,8 @@ import { tcgplayerMarketAdapter } from "./tcgplayerMarket.js";
 
 afterEach(() => {
   delete process.env.EBAY_OAUTH_TOKEN;
+  delete process.env.EBAY_APP_ID;
+  delete process.env.EBAY_CERT_ID;
   delete process.env.VIP_COMPS_USE_FIXTURE;
   delete process.env.VIP_COMPS_FIXTURE_JSON;
 });
@@ -43,7 +45,7 @@ describe("comps adapters", () => {
     expect(ebaySoldAdapter.matches(tcg)).toBe(false);
     const result = await ebaySoldAdapter.fetchComps(comic);
     expect(result.sales).toEqual([]);
-    expect(result.emptyReason).toMatch(/EBAY_OAUTH_TOKEN/);
+    expect(result.emptyReason).toMatch(/EBAY_APP_ID|EBAY_OAUTH_TOKEN/);
   });
 
   it("tcgplayer adapter matches TCG holdings", () => {

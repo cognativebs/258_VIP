@@ -24,6 +24,7 @@ import {
   updateComicHolding,
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
+import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import {
   buildRecommendation,
@@ -345,7 +346,12 @@ export function createApp(deps: AppDeps = {}) {
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "vip-api", version: "0.3.0" });
+    res.json({
+      ok: true,
+      service: "vip-api",
+      version: "0.3.0",
+      ebayComps: ebayAuthStatus(),
+    });
   });
 
   registerIntelligenceRoutes(app, {

@@ -1,4 +1,5 @@
 import type { ApiHolding } from "../holdings.js";
+import { resolveEbayAccessToken } from "./ebayAuth.js";
 import type { CompSale, CompsAdapter, CompsAdapterResult } from "./types.js";
 
 const RULE = "ebay-sold@0.1.0";
@@ -7,9 +8,9 @@ const BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 /**
  * eBay sold / completed listings for comics (Decision D).
  *
- * Auth: `EBAY_OAUTH_TOKEN` (application access token with buy.browse scope).
- * Without credentials the adapter returns zero sales with an explicit reason —
- * it never invents comps.
+ * Auth: `EBAY_APP_ID` + `EBAY_CERT_ID` (client credentials, buy.browse) or a
+ * ready `EBAY_OAUTH_TOKEN`. Without credentials the adapter returns zero sales
+ * with an explicit reason — it never invents comps.
  *
  * Query uses series + issue + publisher. Results are filtered to SOLD /
  * COMPLETED where the Browse API exposes that condition; otherwise we keep
@@ -31,14 +32,15 @@ function isComic(holding: ApiHolding): boolean {
 }
 
 async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
-  const token = process.env.EBAY_OAUTH_TOKEN?.trim();
-  if (!token) {
+  const auth = await resolveEbayAccessToken();
+  if ("error" in auth) {
     return {
       adapterId: "ebay-sold",
       sales: [],
-      emptyReason: "EBAY_OAUTH_TOKEN not set — adapter idle, no fabricated comps",
+      emptyReason: auth.error,
     };
   }
+  const token = auth.token;
 
   const q = buildQuery(holding);
   if (!q) {
