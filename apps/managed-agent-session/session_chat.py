@@ -8,9 +8,11 @@ Follows the official stream-first pattern from the managed-agents skill:
   3. send user.message via client.beta.sessions.events.send
   4. print agent.message text; exit on session.status_idle or error
 
-Self-hosted environments reject `file` and `github_repository` resources
-with HTTP 400. This client never sends `resources`. Repo paths go in
-`metadata` only. See docs/how-to/09-claude-ma-wsl.md.
+The session client runs on the operator's PC. The agent tools run in
+Anthropic's sandbox — they cannot see D: or C:\\258Labs. Self-hosted
+environments also reject `file` / `github_repository` resources (HTTP 400).
+This client never sends `resources`. Mission prompts get a clone stanza
+for the public 258_VIP tree. See docs/how-to/09-claude-ma-wsl.md.
 """
 from __future__ import annotations
 
@@ -23,9 +25,21 @@ AGENT_ID = os.environ.get("ANTHROPIC_AGENT_ID", "agent_01B8ziCmNADfRwKexa969qQg"
 ENVIRONMENT_ID = os.environ.get(
     "ANTHROPIC_ENVIRONMENT_ID", "env_01HgSHypqTtC6hNjRwYEucLs"
 )
-# Operator-placed tree. Anthropic will not mount it (self-hosted 400).
+# Operator-placed tree (Windows launcher / client cwd). Not visible to MA tools.
 REPO_WINDOWS = os.environ.get("ORCHESTR8_WINDOWS_PATH", r"C:\258Labs\orchestr8")
 REPO_WSL = os.environ.get("ORCHESTR8_WSL_PATH", "/mnt/c/258Labs/orchestr8")
+REPO_CLONE_URL = os.environ.get(
+    "ORCHESTR8_CLONE_URL", "https://github.com/cognativebs/258_VIP.git"
+)
+
+REPO_ACCESS_PREAMBLE = f"""REPO ACCESS
+You are in Anthropic's Managed Agents sandbox, not on the operator's Windows or WSL disk.
+D:\\Projects\\... and C:\\258Labs\\orchestr8 are invisible here. Metadata paths are hints only.
+If orchestr8/ and AGENTS.md are not already in the working tree, run:
+  git clone {REPO_CLONE_URL}
+That public repository IS 258 Labs' Orchestr8 / VIP tree. Do not search for some other
+project named orchestr8. Do not ask for a zip, upload, or GitHub token for this clone.
+Then do the mission below."""
 
 
 def session_metadata(
@@ -88,10 +102,22 @@ def load_prompt_file(path: str) -> str:
     return text.strip()
 
 
+def attach_repo_access(prompt: str) -> str:
+    """Missions get an explicit public clone URL. Short hellos are left alone."""
+    text = prompt.strip()
+    if not text.startswith("MISSION"):
+        return text
+    if REPO_CLONE_URL in text:
+        return text
+    return f"{REPO_ACCESS_PREAMBLE}\n\n{text}"
+
+
 def parse_cli_args(argv: list[str]) -> str:
     if len(argv) >= 2 and argv[0] in {"--file", "-f"}:
-        return load_prompt_file(argv[1])
-    return " ".join(argv).strip() or "Hello — introduce yourself in one sentence."
+        return attach_repo_access(load_prompt_file(argv[1]))
+    return attach_repo_access(
+        " ".join(argv).strip() or "Hello — introduce yourself in one sentence."
+    )
 
 
 def format_cli_error(exc: BaseException) -> str:

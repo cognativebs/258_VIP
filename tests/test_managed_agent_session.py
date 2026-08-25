@@ -12,6 +12,8 @@ if APP_ROOT not in sys.path:
     sys.path.insert(0, APP_ROOT)
 
 from session_chat import (  # noqa: E402
+    REPO_CLONE_URL,
+    attach_repo_access,
     format_cli_error,
     load_prompt_file,
     parse_cli_args,
@@ -121,7 +123,17 @@ def test_load_prompt_file_uses_first_fence(tmp_path):
         encoding="utf-8",
     )
     assert load_prompt_file(str(p)) == "MISSION — do the work"
-    assert parse_cli_args(["--file", str(p)]).startswith("MISSION")
+    prepared = parse_cli_args(["--file", str(p)])
+    assert REPO_CLONE_URL in prepared
+    assert "MISSION — do the work" in prepared
+
+
+def test_attach_repo_access_skips_hellos_and_dedupes():
+    assert attach_repo_access("Hello — introduce yourself in one sentence.") == (
+        "Hello — introduce yourself in one sentence."
+    )
+    already = f"MISSION — x\n{REPO_CLONE_URL}"
+    assert attach_repo_access(already) == already
 
 
 def test_session_metadata_is_paths_not_resources():
