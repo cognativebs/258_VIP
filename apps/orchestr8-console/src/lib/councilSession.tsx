@@ -106,6 +106,8 @@ type CouncilSessionValue = {
   runJob: (args: RunJobArgs) => Promise<JobResult | null>;
   stopJob: () => void;
   clearSession: (kind: SessionKind) => void;
+  /** Bumped when a council stream finishes with a persisted runId. */
+  runsRefreshCount: number;
 };
 
 const emptySession = (kind: SessionKind): LiveSession => ({
@@ -226,6 +228,7 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
     analysis: emptySession("analysis"),
     build: emptySession("build"),
   });
+  const [runsRefreshCount, setRunsRefreshCount] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const liveKindRef = useRef<SessionKind | null>(null);
 
@@ -495,6 +498,7 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
               : "Stream ended with no result — connection dropped before council finished.",
           },
         }));
+        if (out?.runId) setRunsRefreshCount((n) => n + 1);
         return out;
       } catch (e) {
         if (ac.signal.aborted) {
@@ -535,6 +539,7 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
     runJob,
     stopJob,
     clearSession,
+    runsRefreshCount,
   };
 
   return (

@@ -87,6 +87,10 @@ export function AnalysisPanel() {
         ? "VIP sample :8787"
         : "none";
 
+  const fetchedLabel = bundle?.fetchedAt
+    ? bundle.fetchedAt.replace("T", " ").slice(0, 19) + " UTC"
+    : "—";
+
   return (
     <div className="panel">
       <h2>Collection Analysis</h2>
@@ -100,15 +104,25 @@ export function AnalysisPanel() {
           source <strong>{sourceLabel}</strong>
         </span>
         <span className="pill">
-          vault <strong>{bundle?.meta.recordCount ?? "—"}</strong>
+          snapshot rows <strong>{bundle?.meta.recordCount ?? "—"}</strong>
         </span>
         <span className="pill">
           slice <strong>{filteredCount}</strong>
+        </span>
+        <span className="pill">
+          provenance <strong>{bundle?.provenance.verificationStatus ?? "—"}</strong>
         </span>
         <button type="button" className="btn btn-ghost" onClick={() => void refresh()} disabled={loading}>
           Reload inventory
         </button>
       </div>
+
+      {bundle && (
+        <p className="sub">
+          Fetched {fetchedLabel}. {bundle.meta.snapshotTotal.note}. Count is this snapshot&apos;s row
+          total, not a live market value.
+        </p>
+      )}
 
       {bundle?.meta.note && <p className="sub">{bundle.meta.note}</p>}
       {loadError && <div className="banner warn">{loadError}</div>}

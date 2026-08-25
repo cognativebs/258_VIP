@@ -39,7 +39,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Console **Analysis** tab — inventory load (Comics `:5200` → VIP `:8787` fallback)
 - [x] Compact context builder + Analysis Council / Comics VIP presets
 - [x] Proxies: `/api/comics/*`, `/api/vip/*`
-- [ ] **Gate:** Analysis tab loads inventory + one SSE run persists to Runs (operator-verified)
+- [ ] **Gate:** Analysis tab loads inventory + one SSE run persists to Runs (operator-verified). Code path shipped 2026-08-25: snapshot provenance, zod on live `/v1/runs`, Runs auto-refresh after a persisted `runId`. Still needs operator dogfood.
 - [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
 - [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
 - [ ] Evidence-backed market ranges in analysis context (not CLZ/catalog snapshot as truth)
