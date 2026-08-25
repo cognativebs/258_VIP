@@ -607,6 +607,13 @@ textarea {
   border-bottom: 1px solid var(--border);
 }
 
+.council-strip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .council-kicker {
   display: block;
   font-family: var(--mono);

@@ -121,13 +121,19 @@ export function TeamPanel({
   const grouped = useMemo(() => agentsByProvider(agents), [agents]);
   const summary = teamSummary(draft.roles, draft.mode, agents);
 
+  const applyLive = (next: TeamSettings) => {
+    setDraft(next);
+    saveTeamSettings(next);
+    onChange(next);
+  };
+
   const pickPreset = (presetId: string) => {
     const next = applyPreset(presetId);
     setSavedCouncilId(null);
     setAskName(false);
     setCouncilName("");
     setSaveError(null);
-    setDraft({ ...next, modelOverrides: defaultModelOverrides(agents, next.roles) });
+    applyLive({ ...next, modelOverrides: defaultModelOverrides(agents, next.roles) });
   };
 
   const pickCouncil = (council: Council) => {
@@ -137,7 +143,7 @@ export function TeamPanel({
     setAskName(Boolean(council.custom));
     setCouncilName(council.custom ? council.label : "");
     setSaveError(null);
-    setDraft({
+    applyLive({
       presetId: `council_${council.id}`,
       roles,
       mode: roles.length <= 1 ? "single" : mode,
@@ -173,21 +179,19 @@ export function TeamPanel({
   };
 
   const toggleRole = (roleId: string) => {
-    setDraft((d) => {
-      const has = d.roles.includes(roleId);
-      let roles = has ? d.roles.filter((r) => r !== roleId) : [...d.roles, roleId];
-      if (!roles.length) roles = [roleId];
-      roles = sortRoleIds(roles, pipelineOrder);
-      const mode = roles.length === 1 ? "single" : d.mode === "single" ? "pipeline" : d.mode;
-      const modelOverrides = { ...d.modelOverrides };
-      if (!has) {
-        const agent = byId[roleId];
-        if (agent?.defaultModel) modelOverrides[roleId] = agent.defaultModel;
-      } else {
-        delete modelOverrides[roleId];
-      }
-      return { presetId: "custom", roles, mode, modelOverrides, council: null };
-    });
+    const has = draft.roles.includes(roleId);
+    let roles = has ? draft.roles.filter((r) => r !== roleId) : [...draft.roles, roleId];
+    if (!roles.length) roles = [roleId];
+    roles = sortRoleIds(roles, pipelineOrder);
+    const mode = roles.length === 1 ? "single" : draft.mode === "single" ? "pipeline" : draft.mode;
+    const modelOverrides = { ...draft.modelOverrides };
+    if (!has) {
+      const agent = byId[roleId];
+      if (agent?.defaultModel) modelOverrides[roleId] = agent.defaultModel;
+    } else {
+      delete modelOverrides[roleId];
+    }
+    applyLive({ presetId: "custom", roles, mode, modelOverrides, council: null });
   };
 
   const canCreate =
@@ -210,14 +214,14 @@ export function TeamPanel({
       const list = await loadRegistry();
       const created = list?.find((a) => a.id === id);
       if (created) {
-        setDraft((d) => ({
-          ...d,
+        applyLive({
+          ...draft,
           presetId: "custom",
           council: null,
-          roles: sortRoleIds([...d.roles, id], pipelineOrder),
-          modelOverrides: { ...d.modelOverrides, [id]: created.defaultModel },
-          mode: d.mode === "single" ? "pipeline" : d.mode,
-        }));
+          roles: sortRoleIds([...draft.roles, id], pipelineOrder),
+          modelOverrides: { ...draft.modelOverrides, [id]: created.defaultModel },
+          mode: draft.mode === "single" ? "pipeline" : draft.mode,
+        });
       }
     } catch (e) {
       setCreatedId(null);
@@ -228,11 +232,11 @@ export function TeamPanel({
   };
 
   const setModel = (roleId: string, modelId: string) => {
-    setDraft((d) => ({
-      ...d,
-      presetId: "custom",
-      modelOverrides: { ...d.modelOverrides, [roleId]: modelId },
-    }));
+    applyLive({
+      ...draft,
+      presetId: draft.presetId === "custom" ? "custom" : draft.presetId,
+      modelOverrides: { ...draft.modelOverrides, [roleId]: modelId },
+    });
   };
 
   const openEdit = async (agent: Agent) => {
@@ -349,16 +353,18 @@ export function TeamPanel({
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div className="overlay">
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="team-panel-title">
         <div className="modal-head">
-          <h3>AI team — Orchestr8</h3>
+          <h3 id="team-panel-title">AI team — Orchestr8</h3>
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Close
           </button>
         </div>
         <p className="sub">
-          Keys stay in <code>orchestr8/.env</code>. Pick solo / duo / committee and models per role.
+          Keys stay in <code>orchestr8/.env</code>. Pick a council or tick roles — the console
+          roster updates immediately. Clicking the dim background does not close this panel.
+          <strong> Save team</strong> only if you want a named council for later.
         </p>
 
         {gatewayHealth && !gatewayHealth.ok && (
