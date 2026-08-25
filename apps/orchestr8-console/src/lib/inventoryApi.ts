@@ -1,36 +1,17 @@
 /** Inventory loaders for Collection Analysis — Comics API first, VIP sample fallback. */
 
-export type ComicRow = {
-  id: string;
-  Series: string;
-  "Issue Full": string;
-  "Edition / Variant"?: string;
-  Publisher?: string;
-  "Collection Pillar"?: string | null;
-  "Current Price"?: number | null;
-  "Museum Score"?: number | null;
-  "Investment Score"?: number | null;
-  "Liquidity Score"?: number | null;
-  Recommendation?: string | null;
-  "Sell Priority"?: string | null;
-  "Assumed Grade"?: string | null;
-  "Needs Grading"?: string | boolean | null;
-  Duplicate?: string | null;
-  "Slab Status"?: string | null;
-};
+import {
+  ComicRowSchema,
+  InventoryBundleSchema,
+  type ComicRow,
+  type InventoryBundle,
+  type InventoryProvenance,
+  type InventorySource,
+} from "../types/analysis";
 
-export type InventorySource = "comics" | "vip" | "none";
+export type { ComicRow, InventoryBundle, InventorySource };
 
-export type InventoryBundle = {
-  source: InventorySource;
-  meta: {
-    snapshotLabel: string;
-    recordCount: number;
-    totalValue: number;
-    note?: string;
-  };
-  rows: ComicRow[];
-};
+type FetchFn = typeof fetch;
 
 type VipHolding = {
   id: string;
@@ -48,8 +29,42 @@ type VipHolding = {
   needsGrading?: boolean;
 };
 
-function vipToComicRow(h: VipHolding): ComicRow {
+const SNAPSHOT_TOTAL_NOTE = "catalog snapshot · unverified" as const;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function provenance(
+  source: InventorySource,
+  method: InventoryProvenance["method"],
+  confidence: number
+): InventoryProvenance {
   return {
+    source,
+    method,
+    confidence,
+    verificationStatus: "unverified",
+  };
+}
+
+function unavailable(note: string, fetchedAt = nowIso()): InventoryBundle {
+  return InventoryBundleSchema.parse({
+    source: "none",
+    fetchedAt,
+    meta: {
+      snapshotLabel: "No inventory",
+      recordCount: 0,
+      snapshotTotal: { amount: 0, note: SNAPSHOT_TOTAL_NOTE },
+      note,
+    },
+    rows: [],
+    provenance: provenance("none", "fallback_chain", 0),
+  });
+}
+
+function vipHoldingToRow(h: VipHolding) {
+  return ComicRowSchema.safeParse({
     id: h.id,
     Series: h.series,
     "Issue Full": h.issue,
@@ -63,14 +78,14 @@ function vipToComicRow(h: VipHolding): ComicRow {
     "Sell Priority": h.sellPriority,
     "Assumed Grade": h.assumedGrade,
     "Needs Grading": h.needsGrading ? "Yes" : "No",
-  };
+  });
 }
 
-async function loadComics(): Promise<InventoryBundle | null> {
+async function loadComics(fetcher: FetchFn): Promise<InventoryBundle | null> {
   try {
     const [metaRes, invRes] = await Promise.all([
-      fetch("/api/comics/meta"),
-      fetch("/api/comics/inventory"),
+      fetcher("/api/comics/meta"),
+      fetcher("/api/comics/inventory"),
     ]);
     if (!metaRes.ok || !invRes.ok) return null;
     const meta = (await metaRes.json()) as {
@@ -78,27 +93,34 @@ async function loadComics(): Promise<InventoryBundle | null> {
       recordCount?: number;
       totalValue?: number;
     };
-    const inv = (await invRes.json()) as { inventory?: ComicRow[] } | ComicRow[];
-    const rows = Array.isArray(inv) ? inv : inv.inventory || [];
-    if (!rows.length) return null;
-    return {
+    const inv = (await invRes.json()) as { inventory?: unknown } | unknown;
+    const rawRows = Array.isArray(inv) ? inv : (inv as { inventory?: unknown }).inventory || [];
+    const parsedRows = ComicRowSchema.array().safeParse(rawRows);
+    if (!parsedRows.success || !parsedRows.data.length) return null;
+    const bundle = InventoryBundleSchema.safeParse({
       source: "comics",
+      fetchedAt: nowIso(),
       meta: {
         snapshotLabel: meta.snapshotLabel || "Comics API",
-        recordCount: meta.recordCount ?? rows.length,
-        totalValue: meta.totalValue ?? 0,
+        recordCount: meta.recordCount ?? parsedRows.data.length,
+        snapshotTotal: {
+          amount: meta.totalValue ?? 0,
+          note: SNAPSHOT_TOTAL_NOTE,
+        },
         note: "Live Postgres comics inventory (catalog snapshots, not live comps).",
       },
-      rows,
-    };
+      rows: parsedRows.data,
+      provenance: provenance("comics", "http_get", 0.6),
+    });
+    return bundle.success ? bundle.data : null;
   } catch {
     return null;
   }
 }
 
-async function loadVip(): Promise<InventoryBundle | null> {
+async function loadVip(fetcher: FetchFn): Promise<InventoryBundle | null> {
   try {
-    const res = await fetch("/api/vip/inventory");
+    const res = await fetcher("/api/vip/inventory");
     if (!res.ok) return null;
     const data = (await res.json()) as {
       count?: number;
@@ -107,40 +129,42 @@ async function loadVip(): Promise<InventoryBundle | null> {
     };
     const holdings = data.holdings || [];
     if (!holdings.length) return null;
-    const rows = holdings.map(vipToComicRow);
-    const total =
+    const rows: ComicRow[] = [];
+    for (const h of holdings) {
+      const parsed = vipHoldingToRow(h);
+      if (!parsed.success) return null;
+      rows.push(parsed.data);
+    }
+    const amount =
       data.totalValueEstimate?.amount ??
       rows.reduce((s, r) => s + (r["Current Price"] ?? 0), 0);
-    return {
+    const bundle = InventoryBundleSchema.safeParse({
       source: "vip",
+      fetchedAt: nowIso(),
       meta: {
         snapshotLabel: "VIP API sample inventory",
         recordCount: data.count ?? rows.length,
-        totalValue: total,
+        snapshotTotal: { amount, note: SNAPSHOT_TOTAL_NOTE },
         note:
           data.totalValueEstimate?.note ||
-          "Seeded VIP sample — not the full vault. Values are snapshot estimates.",
+          "Seeded VIP sample — not the full vault. Values are catalog snapshot · unverified.",
       },
       rows,
-    };
+      provenance: provenance("vip", "http_get", 0.4),
+    });
+    return bundle.success ? bundle.data : null;
   } catch {
     return null;
   }
 }
 
-export async function loadInventory(): Promise<InventoryBundle> {
-  const comics = await loadComics();
+/** Never throws. Comics :5200 first, VIP :8787 fallback, else source=none. */
+export async function loadInventory(fetcher: FetchFn = fetch): Promise<InventoryBundle> {
+  const comics = await loadComics(fetcher);
   if (comics) return comics;
-  const vip = await loadVip();
+  const vip = await loadVip(fetcher);
   if (vip) return vip;
-  return {
-    source: "none",
-    meta: {
-      snapshotLabel: "No inventory",
-      recordCount: 0,
-      totalValue: 0,
-      note: "Start Comics API (:5200) or VIP API (:8787).",
-    },
-    rows: [],
-  };
+  return unavailable("Start Comics API (:5200) or VIP API (:8787).");
 }
+
+export { unavailable as unavailableInventory };

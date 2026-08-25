@@ -28,6 +28,7 @@ function ConsoleShell() {
     agents,
     liveKind,
     sessions,
+    runsRefreshCount,
   } = useCouncilSession();
 
   const teamLabel = teamSummary(team.roles, team.mode, agents.length ? agents : FALLBACK_AGENTS);
@@ -83,7 +84,7 @@ function ConsoleShell() {
           <BuildSpecPanel />
         </div>
         <div className={`tab-pane ${tab === "runs" ? "visible" : ""}`}>
-          <RunsPanel />
+          <RunsPanel externalRefreshCount={runsRefreshCount} />
         </div>
         <div className={`tab-pane ${tab === "specs" ? "visible" : ""}`}>
           <SpecsPanel />

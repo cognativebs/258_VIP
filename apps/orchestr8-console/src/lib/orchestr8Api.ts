@@ -1,5 +1,7 @@
 /** Orchestr8 Console → gateway client (proxied via /api/orchestr8). */
 
+import { RunDetailSchema, RunListResponseSchema } from "../types/runs";
+
 export type Health = {
   ok?: boolean;
   service?: string;
@@ -227,19 +229,32 @@ export async function deleteCouncil(id: string) {
   return data as { id: string; deleted?: boolean };
 }
 
+export function parseRunListResponse(data: unknown) {
+  const parsed = RunListResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(`Run list failed schema: ${parsed.error.issues[0]?.message || "invalid"}`);
+  }
+  return parsed.data;
+}
+
+export function parseRunDetail(data: unknown) {
+  const parsed = RunDetailSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(`Run detail failed schema: ${parsed.error.issues[0]?.message || "invalid"}`);
+  }
+  return parsed.data;
+}
+
 export async function fetchRuns() {
-  return getJson<{
-    runs: Array<Record<string, unknown>>;
-    count: number;
-    retrieved_at?: string;
-  }>("/v1/runs");
+  const data = await getJson<unknown>("/v1/runs");
+  return parseRunListResponse(data);
 }
 
 export async function fetchRun(id: string) {
   const res = await fetch(`${BASE}/v1/runs/${encodeURIComponent(id)}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || `Run ${res.status}`);
-  return data as Record<string, unknown>;
+  return parseRunDetail(data);
 }
 
 export async function fetchSpecs() {

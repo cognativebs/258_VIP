@@ -70,11 +70,12 @@ export function buildAnalysisContext(bundle: InventoryBundle, slice: SliceId) {
   return {
     snapshot: bundle.meta.snapshotLabel,
     inventorySource: bundle.source,
+    inventoryProvenance: bundle.provenance,
     disclaimer:
       "Dollar amounts are catalog/snapshot estimates unless stated. Not live comps. No fake precision — prefer ranges + confidence.",
     fullVault: {
-      records: bundle.meta.recordCount,
-      totalValue: bundle.meta.totalValue,
+      snapshotRowCount: bundle.meta.recordCount,
+      snapshotTotal: bundle.meta.snapshotTotal,
       note: bundle.meta.note,
     },
     activeFilter: {

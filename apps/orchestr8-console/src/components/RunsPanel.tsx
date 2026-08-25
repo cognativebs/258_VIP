@@ -2,19 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchRun, fetchRuns } from "@/lib/orchestr8Api";
+import type { RunListItem } from "../types/runs";
 
-type RunRow = {
-  run_id?: string;
-  task?: string;
-  question?: string;
-  question_truncated?: boolean;
-  created_at?: string;
-  retrieved_at?: string;
-  costUsd?: number;
-  vetoed?: boolean;
-  paused?: boolean;
-  verification?: string;
-};
+type RunRow = RunListItem;
 
 type TraceStep = {
   role?: string;
@@ -44,7 +34,7 @@ function firstParagraph(text: string, max = 900) {
   return `${cleaned.slice(0, max).trim()}…`;
 }
 
-export function RunsPanel() {
+export function RunsPanel({ externalRefreshCount = 0 }: { externalRefreshCount?: number }) {
   const [rows, setRows] = useState<RunRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,7 +47,7 @@ export function RunsPanel() {
     setError(null);
     try {
       const data = await fetchRuns();
-      setRows((data.runs || []) as RunRow[]);
+      setRows(data.runs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load runs");
       setRows([]);
@@ -67,8 +57,8 @@ export function RunsPanel() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    void refresh();
+  }, [refresh, externalRefreshCount]);
 
   const open = async (id: string) => {
     setSelectedId(id);
