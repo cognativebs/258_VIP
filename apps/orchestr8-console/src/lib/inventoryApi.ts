@@ -1,4 +1,4 @@
-/** Inventory loaders for Collection Analysis — Comics API first, VIP sample fallback. */
+/** Inventory loaders for Collection Analysis — VIP platform first, Comics API fallback. */
 
 import {
   ComicRowSchema,
@@ -124,6 +124,9 @@ async function loadVip(fetcher: FetchFn): Promise<InventoryBundle | null> {
     if (!res.ok) return null;
     const data = (await res.json()) as {
       count?: number;
+      comicsAvailable?: boolean;
+      comicsCount?: number;
+      comicsSnapshot?: { label?: string; shortHash?: string } | null;
       totalValueEstimate?: { amount?: number; note?: string };
       holdings?: VipHolding[];
     };
@@ -138,19 +141,25 @@ async function loadVip(fetcher: FetchFn): Promise<InventoryBundle | null> {
     const amount =
       data.totalValueEstimate?.amount ??
       rows.reduce((s, r) => s + (r["Current Price"] ?? 0), 0);
+    const live = Boolean(data.comicsAvailable);
+    const snapshotLabel = live
+      ? `VIP live inventory${data.comicsSnapshot?.shortHash ? ` · ${data.comicsSnapshot.shortHash}` : ""}`
+      : "VIP inventory (comics postgres unavailable)";
+    const note = live
+      ? `VIP inventory (${data.comicsCount ?? rows.length} comics postgres rows plus other holdings). Catalog snapshots · unverified — live comps attach separately.`
+      : data.totalValueEstimate?.note ||
+        "VIP inventory without comics postgres — catalog snapshots · unverified; not the full vault.";
     const bundle = InventoryBundleSchema.safeParse({
       source: "vip",
       fetchedAt: nowIso(),
       meta: {
-        snapshotLabel: "VIP API sample inventory",
+        snapshotLabel,
         recordCount: data.count ?? rows.length,
         snapshotTotal: { amount, note: SNAPSHOT_TOTAL_NOTE },
-        note:
-          data.totalValueEstimate?.note ||
-          "Seeded VIP sample — not the full vault. Values are catalog snapshot · unverified.",
+        note,
       },
       rows,
-      provenance: provenance("vip", "http_get", 0.4),
+      provenance: provenance("vip", "http_get", live ? 0.7 : 0.4),
     });
     return bundle.success ? bundle.data : null;
   } catch {
@@ -158,13 +167,13 @@ async function loadVip(fetcher: FetchFn): Promise<InventoryBundle | null> {
   }
 }
 
-/** Never throws. Comics :5200 first, VIP :8787 fallback, else source=none. */
+/** Never throws. VIP :8787 first (platform inventory + comps), Comics :5200 fallback. */
 export async function loadInventory(fetcher: FetchFn = fetch): Promise<InventoryBundle> {
-  const comics = await loadComics(fetcher);
-  if (comics) return comics;
   const vip = await loadVip(fetcher);
   if (vip) return vip;
-  return unavailable("Start Comics API (:5200) or VIP API (:8787).");
+  const comics = await loadComics(fetcher);
+  if (comics) return comics;
+  return unavailable("Start VIP API (:8787) or Comics API (:5200).");
 }
 
 export { unavailable as unavailableInventory };

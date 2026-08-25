@@ -1,8 +1,14 @@
-import { recommend } from "@vip/decision-engine";
+import { DEFAULT_RULE_CONFIG, recommend } from "@vip/decision-engine";
 import { fetchCompsForHolding } from "./comps/index.js";
 import type { ApiHolding } from "./holdings.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./signalsFeed.js";
 import { constraintsForHolding, loadUserConstraints } from "./userConstraints.js";
+
+/** Same threshold the decision engine uses for Buy. Sell/Lot needs this many comps too. */
+export const MIN_SALES_FOR_MARKET_EVIDENCE = DEFAULT_RULE_CONFIG.minSalesForBuy;
+
+/** Analysis / targeted recs — cap adapter fan-out. Default list path may use a higher limit. */
+export const COMPS_HOLDING_CAP = 12;
 
 /**
  * Market comps for a holding. Live path uses swappable adapters
@@ -51,8 +57,20 @@ export async function buildRecommendation(holding: ApiHolding, askPrice?: number
     constraints: userConstraints,
   });
 
-  const insufficientMarket = (rec.marketRange?.matchedSales ?? 0) === 0;
+  const matchedSales = rec.marketRange?.matchedSales ?? 0;
+  const insufficientMarket = matchedSales < MIN_SALES_FOR_MARKET_EVIDENCE;
   const compsSources = [...new Set(sales.map((s) => s.source))];
+  const adapterNotes = adapters
+    .map((a) => (a.emptyReason ? `${a.adapterId}: ${a.emptyReason}` : null))
+    .filter((n): n is string => Boolean(n));
+  const provenanceNotes = [
+    insufficientMarket
+      ? `matchedSales ${matchedSales} < minSalesRequired ${MIN_SALES_FOR_MARKET_EVIDENCE}`
+      : null,
+    ...adapterNotes,
+  ]
+    .filter(Boolean)
+    .join("; ");
 
   return {
     holdingId: holding.id,
@@ -76,13 +94,56 @@ export async function buildRecommendation(holding: ApiHolding, askPrice?: number
         }
       : null,
     insufficientMarketEvidence: insufficientMarket,
+    minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
     compsSource: compsSources.length ? compsSources.join("+") : "none",
     compsAdapters: adapters.map((a) => ({
       id: a.adapterId,
       matched: a.sales.length,
       emptyReason: a.emptyReason ?? null,
     })),
+    provenance: {
+      source: compsSources.length ? compsSources.join("+") : "comps_adapters",
+      method: "recommendation" as const,
+      ruleOrModelVersion: rec.ruleOrModelVersion,
+      confidence: rec.marketRange?.confidence ?? 0,
+      verificationStatus: "unverified" as const,
+      notes: provenanceNotes || undefined,
+    },
     ruleOrModelVersion: rec.ruleOrModelVersion,
     constraintsSnapshot: rec.constraintsSnapshot,
   };
+}
+
+export function parseHoldingIdsQuery(raw: unknown): string[] {
+  if (raw == null || raw === "") return [];
+  const text = Array.isArray(raw) ? raw.map(String).join(",") : String(raw);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of text.split(",")) {
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= COMPS_HOLDING_CAP) break;
+  }
+  return out;
+}
+
+export function selectHoldingsForRecommendations(
+  holdings: ApiHolding[],
+  holdingIds: string[],
+  fallbackLimit: number,
+): { selected: ApiHolding[]; missingIds: string[] } {
+  if (!holdingIds.length) {
+    return { selected: holdings.slice(0, fallbackLimit), missingIds: [] };
+  }
+  const byId = new Map(holdings.map((h) => [h.id, h]));
+  const selected: ApiHolding[] = [];
+  const missingIds: string[] = [];
+  for (const id of holdingIds) {
+    const hit = byId.get(id);
+    if (hit) selected.push(hit);
+    else missingIds.push(id);
+  }
+  return { selected, missingIds };
 }

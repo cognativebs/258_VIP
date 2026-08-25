@@ -9,6 +9,7 @@ Predict time-to-sale, venue fit, and exit friction for sell-queue and portfolio 
 - Align with Sell Advisor on timing and channel.
 - Flag illiquid high-museum items (don't panic-sell wrong asset).
 - Quantify sell queue liquidity profile from context (high-priority subset value).
+- Thin `market.matchedSales` means slower exit or Hold — do not treat catalogSnapshot as depth.
 
 ## Inputs
 - User request and Orchestr8 job context

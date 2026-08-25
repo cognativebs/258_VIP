@@ -1,16 +1,52 @@
 /** Compact collection context for comics_collection_analysis jobs. */
 
 import type { ComicRow, InventoryBundle } from "./inventoryApi";
+import type { HighlightMarket, MarketEvidenceBundle } from "../types/analysis";
+import {
+  ANALYSIS_COMPS_CAP,
+  CATALOG_SNAPSHOT_NOTE,
+  MIN_SALES_FOR_MARKET_EVIDENCE,
+} from "../types/analysis";
+import { insufficientMarket } from "./marketEvidence";
 
 export type SliceId = "all" | "sellHigh" | "highLiquidity" | "museum" | "lot";
 
-function compactBook(r: ComicRow | null | undefined) {
+export { ANALYSIS_COMPS_CAP, MIN_SALES_FOR_MARKET_EVIDENCE };
+
+function marketFor(
+  row: ComicRow,
+  market: MarketEvidenceBundle | null | undefined
+): HighlightMarket {
+  const hit = market?.byHoldingId[row.id];
+  if (hit) {
+    return {
+      ...hit,
+      catalogSnapshot: {
+        amount: row["Current Price"] ?? hit.catalogSnapshot.amount,
+        note: CATALOG_SNAPSHOT_NOTE,
+      },
+    };
+  }
+  return insufficientMarket(
+    row.id,
+    row["Current Price"] ?? null,
+    market?.fetchError ?? "comps not attached for this highlight"
+  );
+}
+
+function compactBook(r: ComicRow | null | undefined, market?: MarketEvidenceBundle | null) {
   if (!r) return null;
   return {
+    holdingId: r.id,
     series: r.Series,
     issue: r["Issue Full"],
     variant: r["Edition / Variant"] || undefined,
     pillar: r["Collection Pillar"] || undefined,
+    catalogSnapshot: {
+      amount: r["Current Price"] ?? null,
+      note: CATALOG_SNAPSHOT_NOTE,
+    },
+    /** @deprecated catalog snapshot point — use catalogSnapshot + market.range */
     value: r["Current Price"] ?? undefined,
     mus: r["Museum Score"] ?? undefined,
     inv: r["Investment Score"] ?? undefined,
@@ -20,6 +56,7 @@ function compactBook(r: ComicRow | null | undefined) {
     grade: r["Assumed Grade"] || undefined,
     needsGrading: r["Needs Grading"] === "Yes" || r["Needs Grading"] === true ? true : undefined,
     duplicate: r.Duplicate === "Yes" ? true : undefined,
+    market: marketFor(r, market),
   };
 }
 
@@ -57,22 +94,52 @@ export function applySlice(rows: ComicRow[], slice: SliceId): ComicRow[] {
   }
 }
 
-export function buildAnalysisContext(bundle: InventoryBundle, slice: SliceId) {
+/** Unique slice rows to price, highest catalog snapshot first, capped for adapter fan-out. */
+export function highlightRowsForComps(rows: ComicRow[], cap = ANALYSIS_COMPS_CAP): ComicRow[] {
+  const sorted = [...rows].sort((a, b) => (b["Current Price"] ?? 0) - (a["Current Price"] ?? 0));
+  const extras = [
+    ...rows.filter((r) => r["Sell Priority"] === "High"),
+    ...rows.filter((r) => (r["Liquidity Score"] ?? 0) >= 60),
+    ...rows.filter((r) => r.Recommendation === "Museum Candidate"),
+  ];
+  const out: ComicRow[] = [];
+  const seen = new Set<string>();
+  for (const r of [...sorted, ...extras]) {
+    if (!r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+export function highlightIdsForComps(bundle: InventoryBundle, slice: SliceId): string[] {
+  return highlightRowsForComps(applySlice(bundle.rows, slice)).map((r) => r.id);
+}
+
+export function buildAnalysisContext(
+  bundle: InventoryBundle,
+  slice: SliceId,
+  market?: MarketEvidenceBundle | null
+) {
   const filtered = applySlice(bundle.rows, slice);
-  const sorted = [...filtered].sort(
-    (a, b) => (b["Current Price"] ?? 0) - (a["Current Price"] ?? 0)
-  );
   const sellHigh = filtered.filter((r) => r["Sell Priority"] === "High");
   const museum = filtered.filter((r) => r.Recommendation === "Museum Candidate");
   const highLiq = filtered.filter((r) => (r["Liquidity Score"] ?? 0) >= 60);
   const matchingValue = filtered.reduce((s, r) => s + (r["Current Price"] ?? 0), 0);
+  const decisionRows = highlightRowsForComps(filtered);
 
   return {
     snapshot: bundle.meta.snapshotLabel,
     inventorySource: bundle.source,
     inventoryProvenance: bundle.provenance,
     disclaimer:
-      "Dollar amounts are catalog/snapshot estimates unless stated. Not live comps. No fake precision — prefer ranges + confidence.",
+      "catalogSnapshot / value / matchingValue are CLZ/VIP list points · unverified — never live comps. " +
+      "Per-highlight `market` is adapter comps (range + matchedSales + recencyDays + confidence + provenance). " +
+      `Sell/Lot requires market.matchedSales >= ${MIN_SALES_FOR_MARKET_EVIDENCE} and insufficientMarketEvidence=false. ` +
+      "Idle adapters (missing tokens) are insufficient evidence — do not invent sales. " +
+      "Do not veto solely because catalog snapshots are not live comps when `market` is present — use `market`. " +
+      "Do not approve Sell/Lot when market.insufficientMarketEvidence is true.",
     fullVault: {
       snapshotRowCount: bundle.meta.recordCount,
       snapshotTotal: bundle.meta.snapshotTotal,
@@ -82,6 +149,29 @@ export function buildAnalysisContext(bundle: InventoryBundle, slice: SliceId) {
       description: `slice=${slice}`,
       matchingRecords: filtered.length,
       matchingValue: Math.round(matchingValue * 100) / 100,
+      matchingValueNote: CATALOG_SNAPSHOT_NOTE,
+    },
+    marketEvidence: {
+      attemptedHoldingCount: market?.attemptedIds.length ?? 0,
+      holdingsWithSales: market?.holdingsWithSales ?? 0,
+      holdingsInsufficient: market?.holdingsInsufficient ?? decisionRows.length,
+      missingHoldingIds: market?.missingHoldingIds ?? [],
+      adapterIdleNotes: market?.adapterIdleNotes ?? [],
+      minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
+      compsCap: ANALYSIS_COMPS_CAP,
+      fetchedAt: market?.fetchedAt ?? null,
+      fetchError: market?.fetchError ?? "comps not fetched yet",
+      provenance: market?.provenance ?? {
+        source: "comps_adapters",
+        method: "inferred",
+        ruleOrModelVersion: "analysis-market-evidence@1.0.0",
+        confidence: 0,
+        verificationStatus: "unverified",
+        notes: "comps not fetched yet",
+      },
+      note:
+        `Live adapter comps attempted for up to ${ANALYSIS_COMPS_CAP} highlight holdings. ` +
+        "Empty adapters = insufficient evidence, never fabricated. Aggregates below cover the full slice.",
     },
     aggregates: {
       avgMuseum: avg(filtered, "Museum Score"),
@@ -94,17 +184,18 @@ export function buildAnalysisContext(bundle: InventoryBundle, slice: SliceId) {
       highLiquidityCount: highLiq.length,
     },
     highlights: {
-      topByValue: sorted.slice(0, 25).map(compactBook),
-      highSellPrioritySample: sellHigh.slice(0, 20).map(compactBook),
-      liquidityMovers: highLiq.slice(0, 20).map(compactBook),
-      museumCandidates: museum.slice(0, 15).map(compactBook),
+      topByValue: decisionRows.map((r) => compactBook(r, market)),
+      highSellPrioritySample: sellHigh.slice(0, ANALYSIS_COMPS_CAP).map((r) => compactBook(r, market)),
+      liquidityMovers: highLiq.slice(0, ANALYSIS_COMPS_CAP).map((r) => compactBook(r, market)),
+      museumCandidates: museum.slice(0, ANALYSIS_COMPS_CAP).map((r) => compactBook(r, market)),
+      unusedSliceRows: Math.max(0, filtered.length - decisionRows.length),
     },
     collectionPhilosophy: {
       goals: [
         "Museum = long-term keepers aligned with pillars",
-        "Sell/Lot = exit when liquidity is high and timing favors moving inventory",
+        "Sell/Lot = exit when liquidity is high, timing favors moving inventory, AND market evidence meets minSalesRequired",
         "Grade = raw keys/variants worth slab investment",
-        "Liquidation asks must cite evidence count/recency/confidence — never a single point as fact",
+        "Liquidation asks must cite market.range + matchedSales + recencyDays + confidence — never catalogSnapshot as fact",
       ],
     },
   };
@@ -115,9 +206,9 @@ export function contextToJson(ctx: unknown) {
 }
 
 export const ANALYSIS_PROMPTS = [
-  "If I need to liquidate for cash, which 10 books should I sell or lot first from this slice — prioritize liquidity?",
-  "Summarize this slice: value, risk, and top 3 actions (Sell / Hold / Grade / Lot).",
-  "Which high-value books look illiquid — hold vs force-sell?",
+  "If I need to liquidate for cash, which books from the priced highlights should I sell or lot first — only where market evidence meets minSalesRequired; otherwise Hold/Pass and name the gap.",
+  "Summarize this slice: catalog snapshot vs live comps, risk, and top 3 actions (Sell / Hold / Grade / Lot) with confidence.",
+  "Which high-value books look illiquid — hold vs force-sell? Cite matchedSales and recencyDays.",
   "Build a staged sell queue: week 1 / month 1 / park — with confidence and what evidence is missing.",
-  "What's worth grading before selling vs selling raw?",
+  "What's worth grading before selling vs selling raw? Do not treat catalogSnapshot as a live ask.",
 ];

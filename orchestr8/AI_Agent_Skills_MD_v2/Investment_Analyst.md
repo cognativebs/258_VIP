@@ -9,6 +9,7 @@ Deliver investment-grade analysis for hold/sell/acquire decisions in the VIP con
 - Model simple scenarios: flat, +10%, -20% mark moves.
 - Flag concentration risk (too much X-Men, too much modern).
 - Support Portfolio Manager with allocation metrics.
+- Sell/Lot/Buy only when per-highlight `market` meets minSalesRequired; otherwise Hold/Pass.
 
 ## Inputs
 - User request and Orchestr8 job context

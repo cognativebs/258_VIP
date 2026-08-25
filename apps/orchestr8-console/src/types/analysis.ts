@@ -58,3 +58,108 @@ export const InventoryBundleSchema = z.object({
   provenance: InventoryProvenanceSchema,
 });
 export type InventoryBundle = z.infer<typeof InventoryBundleSchema>;
+
+/** Catalog list price — never a live comp. */
+export const CATALOG_SNAPSHOT_NOTE = "catalog snapshot · unverified" as const;
+
+/** Decision-engine minSalesForBuy — Sell/Lot needs at least this many matched comps. */
+export const MIN_SALES_FOR_MARKET_EVIDENCE = 3;
+
+/** Bounded so Analysis cannot fire unbounded adapter fan-out. */
+export const ANALYSIS_COMPS_CAP = 12;
+
+export const CatalogSnapshotSchema = z.object({
+  amount: z.number().nullable(),
+  note: z.literal(CATALOG_SNAPSHOT_NOTE),
+});
+export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
+
+export const MarketRangeSchema = z
+  .object({
+    low: z.number(),
+    high: z.number(),
+    matchedSales: z.number().int().nonnegative(),
+    recencyDays: z.number().nullable(),
+    confidence: z.number().min(0).max(1),
+    confidenceBand: z.enum(["low", "medium", "high"]).optional(),
+  })
+  .nullable();
+export type MarketRange = z.infer<typeof MarketRangeSchema>;
+
+export const CompsAdapterStatusSchema = z.object({
+  id: z.string(),
+  matched: z.number().int().nonnegative(),
+  emptyReason: z.string().nullable().optional(),
+});
+export type CompsAdapterStatus = z.infer<typeof CompsAdapterStatusSchema>;
+
+export const MarketEvidenceProvenanceSchema = z.object({
+  source: z.string().min(1),
+  method: z.enum(["recommendation", "inferred"]),
+  ruleOrModelVersion: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  verificationStatus: z.literal("unverified"),
+  notes: z.string().optional(),
+});
+export type MarketEvidenceProvenance = z.infer<typeof MarketEvidenceProvenanceSchema>;
+
+export const HighlightMarketSchema = z.object({
+  holdingId: z.string(),
+  catalogSnapshot: CatalogSnapshotSchema,
+  range: MarketRangeSchema,
+  matchedSales: z.number().int().nonnegative(),
+  recencyDays: z.number().nullable(),
+  confidence: z.number().min(0).max(1),
+  insufficientMarketEvidence: z.boolean(),
+  compsSource: z.string(),
+  adapters: z.array(CompsAdapterStatusSchema),
+  minSalesRequired: z.number().int().positive(),
+  provenance: MarketEvidenceProvenanceSchema,
+  ruleOrModelVersion: z.string().optional(),
+});
+export type HighlightMarket = z.infer<typeof HighlightMarketSchema>;
+
+export const MarketEvidenceBundleSchema = z.object({
+  attemptedIds: z.array(z.string()),
+  byHoldingId: z.record(HighlightMarketSchema),
+  missingHoldingIds: z.array(z.string()),
+  fetchedAt: z.string(),
+  minSalesRequired: z.number().int().positive(),
+  holdingsWithSales: z.number().int().nonnegative(),
+  holdingsInsufficient: z.number().int().nonnegative(),
+  adapterIdleNotes: z.array(z.string()),
+  fetchError: z.string().nullable(),
+  provenance: MarketEvidenceProvenanceSchema,
+});
+export type MarketEvidenceBundle = z.infer<typeof MarketEvidenceBundleSchema>;
+
+/** VIP GET /api/recommendations payload (subset Analysis consumes). */
+export const VipRecommendationSchema = z.object({
+  holdingId: z.string(),
+  marketRange: z
+    .object({
+      low: z.number(),
+      high: z.number(),
+      matchedSales: z.number().int().nonnegative(),
+      recencyDays: z.number().nullable(),
+      confidence: z.number().min(0).max(1),
+      confidenceBand: z.enum(["low", "medium", "high"]).optional(),
+    })
+    .nullable()
+    .optional(),
+  insufficientMarketEvidence: z.boolean(),
+  compsSource: z.string(),
+  compsAdapters: z.array(CompsAdapterStatusSchema).optional(),
+  minSalesRequired: z.number().int().positive().optional(),
+  ruleOrModelVersion: z.string().optional(),
+  provenance: MarketEvidenceProvenanceSchema.optional(),
+});
+export type VipRecommendation = z.infer<typeof VipRecommendationSchema>;
+
+export const VipRecommendationsResponseSchema = z.object({
+  recommendations: z.array(VipRecommendationSchema).default([]),
+  missingHoldingIds: z.array(z.string()).optional(),
+  minSalesRequired: z.number().int().positive().optional(),
+  error: z.string().optional(),
+});
+export type VipRecommendationsResponse = z.infer<typeof VipRecommendationsResponseSchema>;
