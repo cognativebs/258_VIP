@@ -157,15 +157,7 @@ function rosterFromTeam(team: TeamSettings, fallbackLabel: string): EffectiveRos
 }
 
 export function analysisEffective(team: TeamSettings): EffectiveRoster {
-  const honorTeam =
-    team.roles.length > 0 &&
-    (team.presetId === "comics_vip" ||
-      team.presetId === "custom" ||
-      team.presetId === "council_full" ||
-      team.council === "analysis" ||
-      team.council === "full" ||
-      team.roles.length > 6);
-  if (honorTeam) {
+  if (team.roles.length) {
     return rosterFromTeam(team, "Analysis team");
   }
   return {

@@ -8,7 +8,7 @@ import {
 } from "@/lib/councilSession";
 
 export function CouncilStrip() {
-  const { effectiveRoster, team, liveKind } = useCouncilSession();
+  const { effectiveRoster, team, liveKind, setShowTeam } = useCouncilSession();
   const agents = useAgentLookup();
   const [skillRole, setSkillRole] = useState<string | null>(null);
 
@@ -24,12 +24,12 @@ export function CouncilStrip() {
           <strong className="council-name">{effectiveRoster.councilLabel}</strong>
           <span className="dim">
             {" "}
-            · {effectiveRoster.mode}
+            · {effectiveRoster.roles.length} roles · {effectiveRoster.mode}
             {effectiveRoster.voting ? ` · ${effectiveRoster.voting}` : ""}
-            {effectiveRoster.source !== "team" && effectiveRoster.source !== "live"
-              ? ` · ${effectiveRoster.source}`
-              : ""}
           </span>
+          <button type="button" className="btn btn-ghost" onClick={() => setShowTeam(true)}>
+            Change team
+          </button>
         </div>
         {effectiveRoster.purpose && (
           <p className="council-purpose">{effectiveRoster.purpose}</p>
