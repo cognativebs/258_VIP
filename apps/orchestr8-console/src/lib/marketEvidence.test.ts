@@ -41,6 +41,7 @@ describe("loadMarketEvidence", () => {
         ],
         missingHoldingIds: ["missing"],
         minSalesRequired: 3,
+        ebayAuth: { configured: true, mode: "client_credentials", environment: "production" },
       });
     }) as typeof fetch);
 
@@ -51,6 +52,8 @@ describe("loadMarketEvidence", () => {
     assert.equal(bundle.byHoldingId.missing?.insufficientMarketEvidence, true);
     assert.deepEqual(bundle.missingHoldingIds, ["missing"]);
     assert.equal(bundle.provenance.verificationStatus, "unverified");
+    assert.equal(bundle.ebayAuth.configured, true);
+    assert.equal(bundle.ebayAuth.mode, "client_credentials");
   });
 
   it("returns honest empty evidence when VIP recommendations are down", async () => {

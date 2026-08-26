@@ -345,13 +345,17 @@ export function createApp(deps: AppDeps = {}) {
   );
   app.use(express.json());
 
+  const healthPayload = () => ({
+    ok: true,
+    service: "vip-api",
+    version: "0.3.0",
+    ebayComps: ebayAuthStatus(),
+  });
   app.get("/health", (_req, res) => {
-    res.json({
-      ok: true,
-      service: "vip-api",
-      version: "0.3.0",
-      ebayComps: ebayAuthStatus(),
-    });
+    res.json(healthPayload());
+  });
+  app.get("/api/health", (_req, res) => {
+    res.json(healthPayload());
   });
 
   registerIntelligenceRoutes(app, {
@@ -462,6 +466,7 @@ export function createApp(deps: AppDeps = {}) {
         recommendations: [],
         missingHoldingIds: [],
         minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
+        ebayAuth: ebayAuthStatus(),
       });
       return;
     }
@@ -479,6 +484,7 @@ export function createApp(deps: AppDeps = {}) {
       missingHoldingIds: missingIds,
       minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
       compsCap: holdingIds.length ? COMPS_HOLDING_CAP : limit,
+      ebayAuth: ebayAuthStatus(),
     });
   });
 

@@ -119,6 +119,29 @@ export const HighlightMarketSchema = z.object({
 });
 export type HighlightMarket = z.infer<typeof HighlightMarketSchema>;
 
+export const EbayAuthStatusSchema = z.object({
+  configured: z.boolean(),
+  mode: z.enum(["oauth_token", "client_credentials", "idle", "unknown"]),
+  environment: z.enum(["production", "sandbox"]).optional(),
+});
+export type EbayAuthStatus = z.infer<typeof EbayAuthStatusSchema>;
+
+export const LiquidationBlockSchema = z.object({
+  holdingId: z.string(),
+  reason: z.string(),
+});
+
+export const LiquidationGateSchema = z.object({
+  action: z.enum(["blocked", "conditional"]),
+  minSalesRequired: z.number().int().positive(),
+  eligibleHoldingIds: z.array(z.string()),
+  blocked: z.array(LiquidationBlockSchema),
+  rule: z.string(),
+  ebayAuth: EbayAuthStatusSchema,
+  adaptersReRanAt: z.string().nullable(),
+});
+export type LiquidationGate = z.infer<typeof LiquidationGateSchema>;
+
 export const MarketEvidenceBundleSchema = z.object({
   attemptedIds: z.array(z.string()),
   byHoldingId: z.record(HighlightMarketSchema),
@@ -129,6 +152,7 @@ export const MarketEvidenceBundleSchema = z.object({
   holdingsInsufficient: z.number().int().nonnegative(),
   adapterIdleNotes: z.array(z.string()),
   fetchError: z.string().nullable(),
+  ebayAuth: EbayAuthStatusSchema,
   provenance: MarketEvidenceProvenanceSchema,
 });
 export type MarketEvidenceBundle = z.infer<typeof MarketEvidenceBundleSchema>;
@@ -160,6 +184,7 @@ export const VipRecommendationsResponseSchema = z.object({
   recommendations: z.array(VipRecommendationSchema).default([]),
   missingHoldingIds: z.array(z.string()).optional(),
   minSalesRequired: z.number().int().positive().optional(),
+  ebayAuth: EbayAuthStatusSchema.optional(),
   error: z.string().optional(),
 });
 export type VipRecommendationsResponse = z.infer<typeof VipRecommendationsResponseSchema>;

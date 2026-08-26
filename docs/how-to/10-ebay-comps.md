@@ -71,6 +71,11 @@ Expect `compsSource` not `none` **or** an `emptyReason` about no matched items
 (credentials worked; that title is thin). `EBAY_APP_ID` / idle means the `.env`
 was not loaded — confirm the file is `services\api\.env` and VIP was restarted.
 
-Then Analysis → wait for the **comps** pill. `0/12` can still happen if Browse
-returns no items for those titles. `3+/12` is enough for the critic to consider
-Sell/Lot on those highlights only.
+Then Analysis → wait for the **comps** pill (and **eBay** / **liquidation** pills).
+`0/12` can still happen if Browse returns no items for those titles. Challenge
+**must veto** Sell/Lot while `liquidation` is `blocked`. That is the product.
+
+**Challenge Council condition:** re-run adapters with valid tokens, then require
+`matchedSales >= 3` (`liquidationGate.eligibleHoldingIds`). Click **Re-run comps**
+or **Run** (Run always re-fetches). Do not liquidate until `liquidation` is
+`conditional` and the title is in `eligibleHoldingIds`.

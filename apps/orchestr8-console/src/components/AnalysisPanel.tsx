@@ -8,6 +8,7 @@ import {
   buildAnalysisContext,
   contextToJson,
   highlightIdsForComps,
+  liquidationGateFromMarket,
   MIN_SALES_FOR_MARKET_EVIDENCE,
   type SliceId,
 } from "@/lib/analysisContext";
@@ -85,19 +86,28 @@ export function AnalysisPanel() {
     return contextToJson(buildAnalysisContext(bundle, slice, market));
   }, [bundle, slice, market]);
 
+  const gate = useMemo(() => liquidationGateFromMarket(market), [market]);
+
   const run = async () => {
     const q = question.trim();
     if (!q || busy || compsPending || !bundle || bundle.source === "none") return;
     const roster = analysisEffective(team);
+    const ids = highlightIdsForComps(bundle, slice);
+    setMarketStatus("loading");
+    const fresh = await loadMarketEvidence(ids);
+    setMarket(fresh);
+    setMarketStatus("ready");
+    const task =
+      roster.councilId === "challenge" ? "collection_challenge" : "comics_collection_analysis";
     try {
       await runJob({
         kind: "analysis",
-        task: "comics_collection_analysis",
+        task,
         question: q,
         roles: roster.roles,
         mode: roster.roles.length === 1 ? "single" : roster.mode,
         council: roster.councilId,
-        contextJson,
+        contextJson: contextToJson(buildAnalysisContext(bundle, slice, fresh)),
       });
     } catch {
       /* session.error */
@@ -126,8 +136,9 @@ export function AnalysisPanel() {
     <div className="panel">
       <h2>Collection Analysis</h2>
       <p className="sub">
-        Inventory → live adapter comps (cap {ANALYSIS_COMPS_CAP}) →{" "}
-        <code>comics_collection_analysis</code>. Progress stays in the dock if you switch tabs.
+        Inventory → live adapter comps (cap {ANALYSIS_COMPS_CAP}) → Analysis or Challenge.
+        Run re-fetches adapters. Liquidation stays blocked until matchedSales ≥{" "}
+        {MIN_SALES_FOR_MARKET_EVIDENCE}. Progress stays in the dock if you switch tabs.
       </p>
 
       <div className="meta-row">
@@ -146,8 +157,30 @@ export function AnalysisPanel() {
         <span className="pill">
           comps <strong>{compsLabel}</strong>
         </span>
+        <span className="pill">
+          eBay <strong>{market?.ebayAuth.configured ? market.ebayAuth.mode : "idle"}</strong>
+        </span>
+        <span className="pill">
+          liquidation <strong>{gate.action}</strong>
+        </span>
         <button type="button" className="btn btn-ghost" onClick={() => void refresh()} disabled={loading}>
           Reload inventory
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={compsPending || !bundle || bundle.source === "none"}
+          onClick={() => {
+            if (!bundle || bundle.source === "none") return;
+            const acIds = highlightIdsForComps(bundle, slice);
+            setMarketStatus("loading");
+            void loadMarketEvidence(acIds).then((next) => {
+              setMarket(next);
+              setMarketStatus("ready");
+            });
+          }}
+        >
+          Re-run comps
         </button>
       </div>
 
@@ -167,6 +200,16 @@ export function AnalysisPanel() {
         </p>
       ) : null}
       {market?.fetchError && <div className="banner warn">Market comps: {market.fetchError}</div>}
+      {gate.action === "blocked" && bundle && bundle.source !== "none" && (
+        <div className="banner warn">
+          Liquidation blocked — {gate.eligibleHoldingIds.length} of{" "}
+          {gate.eligibleHoldingIds.length + gate.blocked.length} priced highlights meet ≥
+          {gate.minSalesRequired} matched sales
+          {market?.ebayAuth.configured
+            ? ". Adapters ran; Challenge must reject Sell/Lot until a title clears the gate."
+            : ". eBay tokens not loaded (services/api/.env). Challenge veto is correct — do not act."}
+        </div>
+      )}
       {loadError && <div className="banner warn">{loadError}</div>}
 
       <label className="field">
@@ -246,7 +289,10 @@ export function AnalysisPanel() {
             if (!pausedId || busy) return;
             void runJob({
               kind: "analysis",
-              task: "comics_collection_analysis",
+              task:
+                session.council === "challenge"
+                  ? "collection_challenge"
+                  : "comics_collection_analysis",
               question: session.question || question,
               roles: session.roles,
               mode: session.mode,

@@ -294,6 +294,7 @@ describe("VIP API", () => {
         recommendations: { holdingId: string; provenance: { verificationStatus: string } }[];
         missingHoldingIds: string[];
         minSalesRequired: number;
+        ebayAuth: { configured: boolean; mode: string };
       };
       expect(res.status).toBe(200);
       expect(body.recommendations).toHaveLength(1);
@@ -301,6 +302,7 @@ describe("VIP API", () => {
       expect(body.missingHoldingIds).toEqual(["not-a-holding"]);
       expect(body.minSalesRequired).toBe(3);
       expect(body.recommendations[0]?.provenance.verificationStatus).toBe("unverified");
+      expect(body.ebayAuth?.mode).toBeTruthy();
     });
   });
 
