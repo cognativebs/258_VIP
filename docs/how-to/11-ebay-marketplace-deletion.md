@@ -45,6 +45,12 @@ The script writes a verification token to
 plus the printed `https://vip-ebay-deletion.<subdomain>.workers.dev` URL
 (no trailing slash) plus your contact email into the eBay form, then Save.
 
+A `wrangler deploy --temporary` URL is **not** ready for eBay Save if the
+browser shows “Just a moment…”. That challenge blocks eBay’s server GET.
+Claim the temporary account (or deploy with the script above on a real
+account), then confirm `Invoke-RestMethod` returns JSON with
+`configured=true` before Save.
+
 ## Local proof (optional, not public)
 
 After pulling this branch and restarting VIP:
