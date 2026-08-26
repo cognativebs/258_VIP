@@ -25,6 +25,8 @@ import {
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
+import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
+import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import {
   buildRecommendation,
@@ -350,7 +352,9 @@ export function createApp(deps: AppDeps = {}) {
     service: "vip-api",
     version: "0.3.0",
     ebayComps: ebayAuthStatus(),
+    ebayDeletion: ebayDeletionStatus(),
   });
+  registerEbayDeletionRoutes(app);
   app.get("/health", (_req, res) => {
     res.json(healthPayload());
   });

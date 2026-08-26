@@ -1,0 +1,10 @@
+name = "vip-ebay-deletion"
+main = "src/worker.js"
+compatibility_date = "2026-08-25"
+
+# Set after the first deploy, once Cloudflare prints the workers.dev hostname.
+# The string must match the eBay portal field exactly (no extra slash).
+# wrangler secret put VERIFICATION_TOKEN
+#
+# [vars]
+# ENDPOINT_URL = "https://vip-ebay-deletion.YOUR_SUBDOMAIN.workers.dev"

@@ -14,6 +14,9 @@ Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 1. Open https://developer.ebay.com/my/keys and sign in (or register).
 2. Create an application if you do not have one.
 3. Open the **Production** keyset (not Sandbox — sandbox will not match live comics).
+   Production stays locked until a public marketplace-deletion URL is live —
+   see [11-ebay-marketplace-deletion.md](11-ebay-marketplace-deletion.md).
+   Do **not** click Save on that form with localhost or a made-up URL.
 4. Copy:
    - **App ID (Client ID)**
    - **Cert ID (Client Secret)**

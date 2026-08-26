@@ -222,7 +222,8 @@ These are rule violations and wrong-data paths, not missing features.
       network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
       in `services/api/.env` (client-credentials `buy.browse`; see
       [how-to 10](how-to/10-ebay-comps.md)). Browse observations stay unverified
-      — not a sold ledger.
+      — not a sold ledger. Production keyset still needs a live public
+      deletion URL ([how-to 11](how-to/11-ebay-marketplace-deletion.md)).
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 

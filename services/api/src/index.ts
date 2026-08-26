@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { comicsDsn, normalizeDsn, redactDsn } from "./db/client.js";
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
+import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { loadLocalEnv } from "./lib/loadEnv.js";
 
 loadLocalEnv();
@@ -15,5 +16,11 @@ createApp().listen(port, host, () => {
     ebay.configured
       ? `eBay comps: ${ebay.mode} (${ebay.environment})`
       : "eBay comps: idle — set EBAY_APP_ID + EBAY_CERT_ID in services/api/.env",
+  );
+  const deletion = ebayDeletionStatus();
+  console.log(
+    deletion.configured
+      ? `eBay deletion endpoint: ${deletion.endpointUrl}`
+      : "eBay deletion endpoint: not public yet — see docs/how-to/11-ebay-marketplace-deletion.md",
   );
 });
