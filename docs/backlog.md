@@ -220,7 +220,7 @@ These are rule violations and wrong-data paths, not missing features.
 - [x] **Live comps adapters.** eBay sold + TCGplayer market adapters shipped
       2026-08-09 (`services/api/src/lib/comps/`). Idle without credentials /
       network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
-      in `services/api/.env` (client-credentials `buy.browse`; see
+      in `services/api/.env` (client-credentials public `api_scope`; see
       [how-to 10](how-to/10-ebay-comps.md)). Browse observations stay unverified
       — not a sold ledger. Production keyset still needs a live public
       deletion URL ([how-to 11](how-to/11-ebay-marketplace-deletion.md)).

@@ -8,9 +8,10 @@ const BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 /**
  * eBay sold / completed listings for comics (Decision D).
  *
- * Auth: `EBAY_APP_ID` + `EBAY_CERT_ID` (client credentials, buy.browse) or a
- * ready `EBAY_OAUTH_TOKEN`. Without credentials the adapter returns zero sales
- * with an explicit reason — it never invents comps.
+ * Auth: `EBAY_APP_ID` + `EBAY_CERT_ID` (client credentials, public
+ * `api_scope`, or `EBAY_OAUTH_SCOPE`) or a ready `EBAY_OAUTH_TOKEN`.
+ * Without credentials the adapter returns zero sales with an explicit
+ * reason — it never invents comps.
  *
  * Query uses series + issue + publisher. Results are filtered to SOLD /
  * COMPLETED where the Browse API exposes that condition; otherwise we keep

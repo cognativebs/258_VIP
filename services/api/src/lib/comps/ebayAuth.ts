@@ -3,14 +3,14 @@
  *
  * Prefer a ready `EBAY_OAUTH_TOKEN`. Otherwise mint a client-credentials
  * application token from App ID + Cert ID and cache it until near expiry.
- * Default scope is `buy.browse`. Apps that were never granted Browse can
- * set `EBAY_OAUTH_SCOPE` to a scope on their client-credentials list
- * (often `https://api.ebay.com/oauth/api_scope`). Browse search may still
- * 403 — never fabricate comps.
+ * Default scope is public `api_scope` — that is what Production
+ * client-credentials lists actually grant. Override with `EBAY_OAUTH_SCOPE`
+ * if the app was granted `buy.browse`. Browse search may still 403 — never
+ * fabricate comps.
  */
 
 export const DEFAULT_EBAY_OAUTH_SCOPE =
-  "https://api.ebay.com/oauth/api_scope/buy.browse";
+  "https://api.ebay.com/oauth/api_scope";
 
 export type EbayAuthMode = "oauth_token" | "client_credentials" | "idle";
 

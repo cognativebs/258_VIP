@@ -4,7 +4,7 @@ Comics market evidence on Analysis uses the VIP `ebay-sold` adapter. Without
 credentials it stays **idle** and the critic correctly vetoes Sell/Lot.
 
 This is **not** a sold ledger. eBay Marketplace Insights (completed/sold) is
-gated. Browse `buy.browse` returns **active listing observations**, marked
+gated. Browse search returns **active listing observations**, marked
 `unverified`. Still better than catalog `Current Price` as if it were a comp.
 
 Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
@@ -20,14 +20,13 @@ Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 4. Copy:
    - **App ID (Client ID)**
    - **Cert ID (Client Secret)**
-5. Client-credentials OAuth defaults to
-   `https://api.ebay.com/oauth/api_scope/buy.browse`. Many apps are never
-   granted Browse. If `/api/recommendations` shows `invalid_scope`, set
-   `EBAY_OAUTH_SCOPE=https://api.ebay.com/oauth/api_scope` (must appear on
-   your Production **Client Credential Grant Type** list). Browse search may
-   still 403 — that is honest idle, not fabricated comps. Short-lived fallback:
-   **Get OAuth Application Token** → `EBAY_OAUTH_TOKEN` (~2 hours). Prefer App
-   ID + Cert ID so the API refreshes the token.
+5. Client-credentials OAuth defaults to public data
+   (`https://api.ebay.com/oauth/api_scope`) — that is the scope Production
+   apps actually grant. Override with `EBAY_OAUTH_SCOPE` only if eBay grants
+   a different client-credentials scope (for example `buy.browse`). Browse
+   search may still 403 — that is honest idle, not fabricated comps.
+   Short-lived fallback: **Get OAuth Application Token** → `EBAY_OAUTH_TOKEN`
+   (~2 hours). Prefer App ID + Cert ID so the API refreshes the token.
 
 You never paste these into git or chat.
 

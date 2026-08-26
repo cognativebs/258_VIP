@@ -25,7 +25,7 @@ describe("ebayAuth", () => {
       configured: false,
       mode: "idle",
       environment: "production",
-      oauthScope: "https://api.ebay.com/oauth/api_scope/buy.browse",
+      oauthScope: "https://api.ebay.com/oauth/api_scope",
     });
     await expect(resolveEbayAccessToken()).resolves.toEqual({ error: EBAY_IDLE_REASON });
   });
@@ -52,25 +52,29 @@ describe("ebayAuth", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const mintedBody = String(fetchMock.mock.calls[0]?.[1]?.body);
     expect(mintedBody).toContain(
-      encodeURIComponent("https://api.ebay.com/oauth/api_scope/buy.browse"),
+      encodeURIComponent("https://api.ebay.com/oauth/api_scope"),
     );
+    expect(mintedBody).not.toContain("buy.browse");
     expect(ebayAuthStatus().mode).toBe("client_credentials");
   });
 
-  it("mints with EBAY_OAUTH_SCOPE when the app was not granted buy.browse", async () => {
+  it("mints with EBAY_OAUTH_SCOPE when Browse was granted", async () => {
     process.env.EBAY_APP_ID = "app";
     process.env.EBAY_CERT_ID = "cert";
-    process.env.EBAY_OAUTH_SCOPE = "https://api.ebay.com/oauth/api_scope";
+    process.env.EBAY_OAUTH_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.browse";
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({ access_token: "public-scope-token", expires_in: 7200 }),
+      text: async () => JSON.stringify({ access_token: "browse-scope-token", expires_in: 7200 }),
     });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(resolveEbayAccessToken()).resolves.toEqual({ token: "public-scope-token" });
+    await expect(resolveEbayAccessToken()).resolves.toEqual({ token: "browse-scope-token" });
     const mintedBody = String(fetchMock.mock.calls[0]?.[1]?.body);
-    expect(mintedBody).toContain(encodeURIComponent("https://api.ebay.com/oauth/api_scope"));
-    expect(mintedBody).not.toContain("buy.browse");
-    expect(ebayAuthStatus().oauthScope).toBe("https://api.ebay.com/oauth/api_scope");
+    expect(mintedBody).toContain(
+      encodeURIComponent("https://api.ebay.com/oauth/api_scope/buy.browse"),
+    );
+    expect(ebayAuthStatus().oauthScope).toBe(
+      "https://api.ebay.com/oauth/api_scope/buy.browse",
+    );
   });
 
   it("surfaces OAuth HTTP failures instead of fabricating a token", async () => {
