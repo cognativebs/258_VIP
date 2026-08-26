@@ -14,7 +14,7 @@ createApp().listen(port, host, () => {
   console.log(`Postgres: ${redactDsn(normalizeDsn(comicsDsn()))}`);
   console.log(
     ebay.configured
-      ? `eBay comps: ${ebay.mode} (${ebay.environment})`
+      ? `eBay comps: ${ebay.mode} (${ebay.environment}) scope=${ebay.oauthScope}`
       : "eBay comps: idle — set EBAY_APP_ID + EBAY_CERT_ID in services/api/.env",
   );
   const deletion = ebayDeletionStatus();
