@@ -21,6 +21,8 @@ stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 
 **Weekend live-ops plan** (news → Orchestr8, inventories + ranges, launch, bulk scan / eBay): [`docs/plans/0002-live-ops-weekend.md`](../plans/0002-live-ops-weekend.md).
 
+**Comics vault comps walk** (batched Browse listings, Collection LIVE column, no CLZ overwrite): [`docs/plans/0003-comics-comps-vault-ingest.md`](../plans/0003-comics-comps-vault-ingest.md).
+
 ## One-shot launcher (preferred)
 
 Double-click **`Launch IQVault.bat`** (or the Desktop **IQVault** shortcut from

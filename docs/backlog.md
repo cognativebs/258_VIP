@@ -43,7 +43,9 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
 - [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
 - [x] Evidence-backed market ranges in analysis context (VIP `/api/recommendations?holdingIds=` → per-highlight `market`; idle adapters stay insufficient — never fabricated). Sold-ledger persist to `vault_market.sale` is still open.
-- [ ] Persist adapter comps into `vault_market.sale` / `market_value` (schema exists; Analysis currently uses live adapter reads)
+- [ ] Persist adapter comps into `vault_market.sale` / `market_value` (schema exists; Analysis currently uses live adapter reads). **Blocked on sold data:** Browse listings must not be written as `sale` rows — see [plan 0003](plans/0003-comics-comps-vault-ingest.md) conflict C1.
+- [ ] **Comics comps vault walk** (plan 0003 Track A): batched job, `COMPS_HOLDING_CAP=12`, Marvel/DC then all publishers, pause/resume, raw Browse snapshots. Not an Analysis uncapping.
+- [ ] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Depends on Track A cache.
 - [ ] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
 
@@ -148,7 +150,7 @@ third-party-access licence limit).
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target
 - [ ] **Phase 4** `cardHedgeAdapter` in comps — ranges only, idle without key (rule 4)
-- [ ] **Phase 4** Persist comps into `vault_market.sale` → `market_value` (schema exists, unwired)
+- [ ] **Phase 4** Persist **sold** comps into `vault_market.sale` → `market_value` (schema exists, unwired). Browse listings are not sales — plan 0003 C1.
 - [ ] **Phase 5** eBay Catalog ePID as `external_id` → listing prefill
 - [ ] Postgres asset catalog adapter (repeat scans converge on confirmed assets)
 - [ ] Re-identify staged units after a catalog upgrade (no re-scan needed)
@@ -184,7 +186,7 @@ third-party-access licence limit).
 ### J. Data foundation leftovers
 
 - [ ] Schema review (Opus) before treating Phase 1 as fully closed
-- [ ] Live comps adapters — **code shipped idle** (see L); leftover is wiring ranges onto comics/TCG grids + `vault_market.sale` persist (plan 0002 W2)
+- [ ] Live comps adapters — **code shipped** (auth on `main` via PR #69). Leftover is the vault walk + Collection LIVE column ([plan 0003](plans/0003-comics-comps-vault-ingest.md)), not an Analysis uncap. `vault_market.sale` persist stays blocked until sold (Insights) data exists.
 - [ ] Liquidation-ready valuations: ranges + evidence count + recency + confidence end-to-end
 
 ### K. DevEx / ops leftovers
@@ -222,8 +224,9 @@ These are rule violations and wrong-data paths, not missing features.
       network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
       in `services/api/.env` (client-credentials public `api_scope`; see
       [how-to 10](how-to/10-ebay-comps.md)). Browse observations stay unverified
-      — not a sold ledger. Production keyset still needs a live public
-      deletion URL ([how-to 11](how-to/11-ebay-marketplace-deletion.md)).
+      — not a sold ledger. Production deletion URL is live
+      ([how-to 11](how-to/11-ebay-marketplace-deletion.md)). Full-vault walk is
+      [plan 0003](plans/0003-comics-comps-vault-ingest.md).
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
 
