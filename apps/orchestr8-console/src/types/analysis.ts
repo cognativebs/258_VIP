@@ -123,6 +123,7 @@ export const EbayAuthStatusSchema = z.object({
   configured: z.boolean(),
   mode: z.enum(["oauth_token", "client_credentials", "idle", "unknown"]),
   environment: z.enum(["production", "sandbox"]).optional(),
+  oauthScope: z.string().optional(),
 });
 export type EbayAuthStatus = z.infer<typeof EbayAuthStatusSchema>;
 

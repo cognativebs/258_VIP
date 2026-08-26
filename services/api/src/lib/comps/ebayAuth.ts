@@ -2,11 +2,15 @@
  * eBay Browse OAuth for comics comps.
  *
  * Prefer a ready `EBAY_OAUTH_TOKEN`. Otherwise mint a client-credentials
- * application token from App ID + Cert ID (`buy.browse`) and cache it until
- * near expiry. Never invent a token or comps when credentials are missing.
+ * application token from App ID + Cert ID and cache it until near expiry.
+ * Default scope is `buy.browse`. Apps that were never granted Browse can
+ * set `EBAY_OAUTH_SCOPE` to a scope on their client-credentials list
+ * (often `https://api.ebay.com/oauth/api_scope`). Browse search may still
+ * 403 — never fabricate comps.
  */
 
-const BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.browse";
+export const DEFAULT_EBAY_OAUTH_SCOPE =
+  "https://api.ebay.com/oauth/api_scope/buy.browse";
 
 export type EbayAuthMode = "oauth_token" | "client_credentials" | "idle";
 
@@ -14,9 +18,10 @@ export type EbayAuthStatus = {
   configured: boolean;
   mode: EbayAuthMode;
   environment: "production" | "sandbox";
+  oauthScope: string;
 };
 
-type TokenCache = { accessToken: string; expiresAtMs: number };
+type TokenCache = { accessToken: string; expiresAtMs: number; scope: string };
 
 let tokenCache: TokenCache | null = null;
 
@@ -40,15 +45,27 @@ export function ebayCertId(): string {
   return (process.env.EBAY_CERT_ID ?? process.env.EBAY_CLIENT_SECRET ?? "").trim();
 }
 
+/** Scope sent on client-credentials mint. Must be granted to the app. */
+export function ebayOauthScope(): string {
+  const override = process.env.EBAY_OAUTH_SCOPE?.trim();
+  return override || DEFAULT_EBAY_OAUTH_SCOPE;
+}
+
 export function ebayAuthStatus(): EbayAuthStatus {
+  const oauthScope = ebayOauthScope();
   const preset = process.env.EBAY_OAUTH_TOKEN?.trim();
   if (preset) {
-    return { configured: true, mode: "oauth_token", environment: environment() };
+    return { configured: true, mode: "oauth_token", environment: environment(), oauthScope };
   }
   if (ebayAppId() && ebayCertId()) {
-    return { configured: true, mode: "client_credentials", environment: environment() };
+    return {
+      configured: true,
+      mode: "client_credentials",
+      environment: environment(),
+      oauthScope,
+    };
   }
-  return { configured: false, mode: "idle", environment: environment() };
+  return { configured: false, mode: "idle", environment: environment(), oauthScope };
 }
 
 export const EBAY_IDLE_REASON =
@@ -60,7 +77,8 @@ export async function resolveEbayAccessToken(): Promise<
   const preset = process.env.EBAY_OAUTH_TOKEN?.trim();
   if (preset) return { token: preset };
 
-  if (tokenCache && Date.now() < tokenCache.expiresAtMs - 60_000) {
+  const scope = ebayOauthScope();
+  if (tokenCache && tokenCache.scope === scope && Date.now() < tokenCache.expiresAtMs - 60_000) {
     return { token: tokenCache.accessToken };
   }
 
@@ -74,7 +92,7 @@ export async function resolveEbayAccessToken(): Promise<
   const basic = Buffer.from(`${appId}:${certId}`).toString("base64");
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    scope: BROWSE_SCOPE,
+    scope,
   });
 
   let res: Response;
@@ -111,6 +129,7 @@ export async function resolveEbayAccessToken(): Promise<
   tokenCache = {
     accessToken: json.access_token,
     expiresAtMs: Date.now() + expiresIn * 1000,
+    scope,
   };
   return { token: json.access_token };
 }

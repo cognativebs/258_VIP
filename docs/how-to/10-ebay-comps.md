@@ -20,11 +20,14 @@ Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 4. Copy:
    - **App ID (Client ID)**
    - **Cert ID (Client Secret)**
-5. The app needs the **Buy** / `buy.browse` scope. Client-credentials OAuth uses
-   `https://api.ebay.com/oauth/api_scope/buy.browse`. If Production keys are
-   locked pending a RuName / user-consent flow, use the **Get OAuth Application
-   Token** button on that page as a short-lived fallback (`EBAY_OAUTH_TOKEN`,
-   ~2 hours). Prefer App ID + Cert ID so the API refreshes the token.
+5. Client-credentials OAuth defaults to
+   `https://api.ebay.com/oauth/api_scope/buy.browse`. Many apps are never
+   granted Browse. If `/api/recommendations` shows `invalid_scope`, set
+   `EBAY_OAUTH_SCOPE=https://api.ebay.com/oauth/api_scope` (must appear on
+   your Production **Client Credential Grant Type** list). Browse search may
+   still 403 — that is honest idle, not fabricated comps. Short-lived fallback:
+   **Get OAuth Application Token** → `EBAY_OAUTH_TOKEN` (~2 hours). Prefer App
+   ID + Cert ID so the API refreshes the token.
 
 You never paste these into git or chat.
 
