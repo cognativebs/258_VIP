@@ -45,9 +45,11 @@ function unavailableComics(): ComicsPayload {
 }
 
 afterEach(() => {
-  delete process.env.VIP_SIGNALS_FEED;
-  delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
-  resetScanStoreForTests();
+    delete process.env.VIP_SIGNALS_FEED;
+    delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
+    delete process.env.EBAY_DELETION_VERIFICATION_TOKEN;
+    delete process.env.EBAY_DELETION_ENDPOINT_URL;
+    resetScanStoreForTests();
 });
 
 async function withServer<T>(
@@ -74,6 +76,67 @@ async function withServer<T>(
 }
 
 describe("VIP API", () => {
+  it("health reports ebayComps idle when no credentials are set", async () => {
+    delete process.env.EBAY_OAUTH_TOKEN;
+    delete process.env.EBAY_APP_ID;
+    delete process.env.EBAY_CERT_ID;
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/health`);
+      const body = (await res.json()) as {
+        ok: boolean;
+        service: string;
+        ebayComps: { configured: boolean; mode: string };
+      };
+      expect(res.status).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.service).toBe("vip-api");
+      expect(body.ebayComps.configured).toBe(false);
+      expect(body.ebayComps.mode).toBe("idle");
+      expect(
+        (body as { ebayDeletion?: { configured: boolean } }).ebayDeletion?.configured,
+      ).toBe(false);
+    });
+  });
+
+  it("answers the eBay marketplace-deletion challenge and acks POST without deleting users", async () => {
+    const token = `vip-ebay-deletion-token-${"x".repeat(8)}`;
+    const endpoint = "https://vip-ebay-deletion.example.workers.dev";
+    process.env.EBAY_DELETION_VERIFICATION_TOKEN = token;
+    process.env.EBAY_DELETION_ENDPOINT_URL = endpoint;
+    const { createHash } = await import("node:crypto");
+    await withServer(async (base) => {
+      const live = await fetch(`${base}/api/ebay/marketplace-deletion`);
+      const liveBody = (await live.json()) as { ok: boolean; configured: boolean };
+      expect(live.status).toBe(200);
+      expect(liveBody.ok).toBe(true);
+      expect(liveBody.configured).toBe(true);
+
+      const challenge = "portal-challenge";
+      const res = await fetch(
+        `${base}/api/ebay/marketplace-deletion?challenge_code=${challenge}`,
+      );
+      const body = (await res.json()) as { challengeResponse?: string; error?: string };
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type") ?? "").toMatch(/application\/json/);
+      expect(Object.keys(body)).toEqual(["challengeResponse"]);
+      expect(body.challengeResponse).toBe(
+        createHash("sha256").update(`${challenge}${token}${endpoint}`, "utf8").digest("hex"),
+      );
+
+      const post = await fetch(`${base}/api/ebay/marketplace-deletion`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          notification: { notificationId: "n-api", data: { userId: "1" } },
+        }),
+      });
+      const ack = (await post.json()) as { acknowledged: boolean; deletedRecords: number };
+      expect(post.status).toBe(200);
+      expect(ack.acknowledged).toBe(true);
+      expect(ack.deletedRecords).toBe(0);
+    });
+  });
+
   it("serves live comics inventory with provenance — never the sample as truth", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/inventory`);
@@ -275,6 +338,7 @@ describe("VIP API", () => {
         recommendations: { holdingId: string; provenance: { verificationStatus: string } }[];
         missingHoldingIds: string[];
         minSalesRequired: number;
+        ebayAuth: { configured: boolean; mode: string };
       };
       expect(res.status).toBe(200);
       expect(body.recommendations).toHaveLength(1);
@@ -282,6 +346,7 @@ describe("VIP API", () => {
       expect(body.missingHoldingIds).toEqual(["not-a-holding"]);
       expect(body.minSalesRequired).toBe(3);
       expect(body.recommendations[0]?.provenance.verificationStatus).toBe("unverified");
+      expect(body.ebayAuth?.mode).toBeTruthy();
     });
   });
 

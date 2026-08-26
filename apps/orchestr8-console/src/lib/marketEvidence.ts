@@ -7,13 +7,16 @@ import {
   MarketEvidenceBundleSchema,
   MIN_SALES_FOR_MARKET_EVIDENCE,
   VipRecommendationsResponseSchema,
+  type EbayAuthStatus,
   type HighlightMarket,
   type MarketEvidenceBundle,
 } from "../types/analysis";
 
 type FetchFn = typeof fetch;
 
-const RULE = "analysis-market-evidence@1.0.0";
+const RULE = "analysis-market-evidence@1.1.0";
+
+const IDLE_AUTH: EbayAuthStatus = { configured: false, mode: "unknown" };
 
 function nowIso() {
   return new Date().toISOString();
@@ -70,6 +73,7 @@ export function emptyMarketBundle(
     holdingsInsufficient: attemptedIds.length,
     adapterIdleNotes: fetchError ? [fetchError] : [],
     fetchError,
+    ebayAuth: IDLE_AUTH,
     provenance: {
       source: "comps_adapters",
       method: "inferred",
@@ -161,7 +165,8 @@ export function bundleFromRecommendations(
   attemptedIds: string[],
   recs: Parameters<typeof marketFromRecommendation>[0][],
   missingHoldingIds: string[],
-  fetchError: string | null = null
+  fetchError: string | null = null,
+  ebayAuth: EbayAuthStatus = IDLE_AUTH
 ): MarketEvidenceBundle {
   const byHoldingId: Record<string, HighlightMarket> = {};
   for (const rec of recs) {
@@ -190,6 +195,7 @@ export function bundleFromRecommendations(
     holdingsInsufficient: attached.filter((m) => m.insufficientMarketEvidence).length,
     adapterIdleNotes: adapterIdleNotes(attached),
     fetchError,
+    ebayAuth,
     provenance: {
       source: "vip_recommendations",
       method: fetchError ? "inferred" : "recommendation",
@@ -238,7 +244,8 @@ export async function loadMarketEvidence(
       attemptedIds,
       parsed.data.recommendations,
       parsed.data.missingHoldingIds ?? [],
-      null
+      null,
+      parsed.data.ebayAuth ?? IDLE_AUTH
     );
   } catch (e) {
     if (signal?.aborted) {

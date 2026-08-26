@@ -1,7 +1,7 @@
 /** Compact collection context for comics_collection_analysis jobs. */
 
 import type { ComicRow, InventoryBundle } from "./inventoryApi";
-import type { HighlightMarket, MarketEvidenceBundle } from "../types/analysis";
+import type { HighlightMarket, LiquidationGate, MarketEvidenceBundle } from "../types/analysis";
 import {
   ANALYSIS_COMPS_CAP,
   CATALOG_SNAPSHOT_NOTE,
@@ -117,6 +117,42 @@ export function highlightIdsForComps(bundle: InventoryBundle, slice: SliceId): s
   return highlightRowsForComps(applySlice(bundle.rows, slice)).map((r) => r.id);
 }
 
+/** Challenge condition: Sell/Lot/Buy only when adapters re-ran and matchedSales >= 3. */
+export function liquidationGateFromMarket(
+  market?: MarketEvidenceBundle | null
+): LiquidationGate {
+  const min = market?.minSalesRequired ?? MIN_SALES_FOR_MARKET_EVIDENCE;
+  const eligibleHoldingIds: string[] = [];
+  const blocked: { holdingId: string; reason: string }[] = [];
+  for (const id of market?.attemptedIds ?? []) {
+    const row = market?.byHoldingId[id];
+    if (row && !row.insufficientMarketEvidence && row.matchedSales >= min) {
+      eligibleHoldingIds.push(id);
+    } else {
+      const reason = !market
+        ? "market adapters not re-run"
+        : !row
+          ? "no market row after adapter run"
+          : row.matchedSales < min
+            ? `matchedSales ${row.matchedSales} < minSalesRequired ${min}`
+            : row.provenance.notes || "insufficient market evidence";
+      blocked.push({ holdingId: id, reason });
+    }
+  }
+  return {
+    action: eligibleHoldingIds.length ? "conditional" : "blocked",
+    minSalesRequired: min,
+    eligibleHoldingIds,
+    blocked,
+    rule:
+      "Sell/Lot/Buy ONLY for eligibleHoldingIds after a live adapter re-run. " +
+      "If eligibleHoldingIds is empty, Challenge must reject liquidation (Hold/Pass). " +
+      "Do not invent comps to fill the gate.",
+    ebayAuth: market?.ebayAuth ?? { configured: false, mode: "unknown" },
+    adaptersReRanAt: market?.fetchedAt ?? null,
+  };
+}
+
 export function buildAnalysisContext(
   bundle: InventoryBundle,
   slice: SliceId,
@@ -139,7 +175,10 @@ export function buildAnalysisContext(
       `Sell/Lot requires market.matchedSales >= ${MIN_SALES_FOR_MARKET_EVIDENCE} and insufficientMarketEvidence=false. ` +
       "Idle adapters (missing tokens) are insufficient evidence — do not invent sales. " +
       "Do not veto solely because catalog snapshots are not live comps when `market` is present — use `market`. " +
-      "Do not approve Sell/Lot when market.insufficientMarketEvidence is true.",
+      "Do not approve Sell/Lot when market.insufficientMarketEvidence is true. " +
+      "Liquidation is gated by liquidationGate — Sell/Lot/Buy only for eligibleHoldingIds " +
+      `(matchedSales >= ${MIN_SALES_FOR_MARKET_EVIDENCE} after a live adapter re-run). ` +
+      "Empty eligibleHoldingIds → reject liquidation (the Challenge veto is correct).",
     fullVault: {
       snapshotRowCount: bundle.meta.recordCount,
       snapshotTotal: bundle.meta.snapshotTotal,
@@ -172,7 +211,9 @@ export function buildAnalysisContext(
       note:
         `Live adapter comps attempted for up to ${ANALYSIS_COMPS_CAP} highlight holdings. ` +
         "Empty adapters = insufficient evidence, never fabricated. Aggregates below cover the full slice.",
+      ebayAuth: market?.ebayAuth ?? { configured: false, mode: "unknown" },
     },
+    liquidationGate: liquidationGateFromMarket(market),
     aggregates: {
       avgMuseum: avg(filtered, "Museum Score"),
       avgInvestment: avg(filtered, "Investment Score"),

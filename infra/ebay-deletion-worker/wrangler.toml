@@ -1,0 +1,9 @@
+name = "vip-ebay-deletion"
+main = "src/worker.js"
+compatibility_date = "2026-08-25"
+workers_dev = true
+
+# VERIFICATION_TOKEN is a secret (scripts/deploy_ebay_deletion_worker.ps1).
+# ENDPOINT_URL is optional: the Worker derives https://host with no trailing
+# slash from the request. The deploy script also sets ENDPOINT_URL so the
+# portal string is locked.

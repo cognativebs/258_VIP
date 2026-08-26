@@ -1,0 +1,8 @@
+{
+  "name": "vip-ebay-deletion-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test src/worker.test.mjs"
+  }
+}

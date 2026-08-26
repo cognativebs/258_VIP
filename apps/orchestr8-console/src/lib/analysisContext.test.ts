@@ -126,6 +126,34 @@ describe("analysis comps context", () => {
     assert.equal(thin.market.insufficientMarketEvidence, true);
     assert.equal(thin.market.range, null);
     assert.equal(thin.market.compsSource, "none");
+    assert.equal(ctx.liquidationGate.action, "conditional");
+    assert.deepEqual(ctx.liquidationGate.eligibleHoldingIds, ["a1"]);
+    assert.equal(ctx.liquidationGate.blocked.some((b) => b.holdingId === "a2"), true);
+  });
+
+  it("blocks liquidation when adapters re-run but no holding meets minSalesRequired", () => {
+    const market = bundleFromRecommendations(
+      ["x"],
+      [
+        {
+          holdingId: "x",
+          marketRange: { low: 0, high: 0, matchedSales: 0, recencyDays: null, confidence: 0 },
+          insufficientMarketEvidence: true,
+          compsSource: "none",
+        },
+      ],
+      [],
+      null,
+      { configured: false, mode: "idle", environment: "production" }
+    );
+    const gate = buildAnalysisContext(
+      bundle([row({ id: "x", Series: "X", "Issue Full": "1" })]),
+      "all",
+      market
+    ).liquidationGate;
+    assert.equal(gate.action, "blocked");
+    assert.deepEqual(gate.eligibleHoldingIds, []);
+    assert.equal(gate.ebayAuth.configured, false);
   });
 
   it("does not copy catalog snapshot dollars into a fake market range", () => {

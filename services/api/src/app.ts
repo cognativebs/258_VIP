@@ -24,6 +24,9 @@ import {
   updateComicHolding,
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
+import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
+import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
+import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import {
   buildRecommendation,
@@ -344,8 +347,19 @@ export function createApp(deps: AppDeps = {}) {
   );
   app.use(express.json());
 
+  const healthPayload = () => ({
+    ok: true,
+    service: "vip-api",
+    version: "0.3.0",
+    ebayComps: ebayAuthStatus(),
+    ebayDeletion: ebayDeletionStatus(),
+  });
+  registerEbayDeletionRoutes(app);
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "vip-api", version: "0.3.0" });
+    res.json(healthPayload());
+  });
+  app.get("/api/health", (_req, res) => {
+    res.json(healthPayload());
   });
 
   registerIntelligenceRoutes(app, {
@@ -456,6 +470,7 @@ export function createApp(deps: AppDeps = {}) {
         recommendations: [],
         missingHoldingIds: [],
         minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
+        ebayAuth: ebayAuthStatus(),
       });
       return;
     }
@@ -473,6 +488,7 @@ export function createApp(deps: AppDeps = {}) {
       missingHoldingIds: missingIds,
       minSalesRequired: MIN_SALES_FOR_MARKET_EVIDENCE,
       compsCap: holdingIds.length ? COMPS_HOLDING_CAP : limit,
+      ebayAuth: ebayAuthStatus(),
     });
   });
 

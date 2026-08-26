@@ -104,6 +104,24 @@ task_systems:
       the `market` evidence. Do NOT approve Sell/Lot when insufficientMarketEvidence is true.
     - Mark inferred grades as unverified. End with actions: Buy / Hold / Grade / Sell / Lot / Pass,
       each with confidence and reasons.
+    - Honor liquidationGate: Sell/Lot/Buy only for eligibleHoldingIds. If that list is empty,
+      reject liquidation (Hold/Pass). That Challenge veto is correct until adapters re-run with
+      valid tokens and matchedSales >= minSalesRequired.
+
+  collection_challenge: |
+    You are the Challenge Council reviewing a collection liquidation / action proposal.
+
+    The JSON includes a fresh adapter run: marketEvidence.ebayAuth, per-highlight market, and
+    liquidationGate (eligibleHoldingIds vs blocked).
+
+    Critical reject (veto) when ANY of these hold:
+    - ebayAuth.configured is false — tokens missing; operator must set EBAY_APP_ID + EBAY_CERT_ID
+      (or EBAY_OAUTH_TOKEN), restart VIP, and re-run adapters. Do not invent comps.
+    - liquidationGate.eligibleHoldingIds is empty — no holding has matchedSales >= minSalesRequired.
+    - A teammate recommends Sell/Lot/Buy for a holdingId that is not in eligibleHoldingIds.
+
+    Conditional approve only for eligibleHoldingIds, with ranges + recency + confidence.
+    Everything else is Hold or Pass. Catalog snapshot dollars are never a reason to approve.
 
   build_spec: |
     You are on the Build Spec Council (ADR 0003). Orchestr8 AUTHORS specs; Cursor BUILDS them.

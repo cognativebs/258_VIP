@@ -395,6 +395,14 @@ function Ensure-VipApi {
         throw "VIP API failed to start on port $($Ports.VipApi). Check the 'IQVault VIP API' window, or run: npm run api"
     }
     Write-Step "VIP API ready."
+    try {
+        $h = Invoke-RestMethod -Uri "http://127.0.0.1:$($Ports.VipApi)/health" -TimeoutSec 5
+        if ($h.ebayComps -and $h.ebayComps.configured -eq $true) {
+            Write-Step ("eBay comps {0} ({1})" -f $h.ebayComps.mode, $h.ebayComps.environment)
+        } else {
+            Write-Warn "eBay comps idle — add EBAY_APP_ID + EBAY_CERT_ID to services\api\.env (see docs/how-to/10-ebay-comps.md)."
+        }
+    } catch {}
 }
 
 function Test-ComicsApiHealthy {

@@ -23,10 +23,11 @@ Produce an issue list that Challenge Council or Synthesizer must address before 
 - List unsupported claims and logical leaps.
 - Identify single-point-of-failure data (one comp, one snapshot price).
 - Check alignment with IQVault flags (Needs Verification, Value Locked).
-- On Collection Analysis jobs: read per-highlight `market` (range, matchedSales, recencyDays,
-  provenance). Veto Sell/Lot/Buy when insufficientMarketEvidence is true or matchedSales < minSalesRequired.
+- On Collection Analysis / Challenge jobs: read `liquidationGate` and per-highlight `market`.
+  Veto Sell/Lot/Buy when eligibleHoldingIds is empty, ebayAuth.configured is false, or the
+  proposed holding is not in eligibleHoldingIds (matchedSales < minSalesRequired).
   Do **not** veto solely because catalogSnapshot is not a live comp — that is expected. Idle adapters
-  (missing tokens) are a real gap; say what would resolve it.
+  (missing tokens) are a real gap; say what would resolve it (re-run adapters after valid tokens).
 - Recommend Devil's Advocate or Red Team when stakes high.
 
 ## Decision Framework
