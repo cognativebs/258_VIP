@@ -1,10 +1,9 @@
 name = "vip-ebay-deletion"
 main = "src/worker.js"
 compatibility_date = "2026-08-25"
+workers_dev = true
 
-# Set after the first deploy, once Cloudflare prints the workers.dev hostname.
-# The string must match the eBay portal field exactly (no extra slash).
-# wrangler secret put VERIFICATION_TOKEN
-#
-# [vars]
-# ENDPOINT_URL = "https://vip-ebay-deletion.YOUR_SUBDOMAIN.workers.dev"
+# VERIFICATION_TOKEN is a secret (scripts/deploy_ebay_deletion_worker.ps1).
+# ENDPOINT_URL is optional: the Worker derives https://host with no trailing
+# slash from the request. The deploy script also sets ENDPOINT_URL so the
+# portal string is locked.

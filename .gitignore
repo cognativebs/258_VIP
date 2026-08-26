@@ -24,6 +24,10 @@ clz-inbox/archive/
 clz-inbox/processed/
 clz-inbox/.hashes.json
 
+# eBay marketplace-deletion Worker secrets (never commit)
+infra/ebay-deletion-worker/.verification-token
+infra/ebay-deletion-worker/.dev.vars
+
 # Test scratch files written by services/api tests
 services/api/.tmp-test-signals-feed.json
 services/api/sources-state-api-test.json

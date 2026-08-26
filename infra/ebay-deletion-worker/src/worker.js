@@ -7,24 +7,28 @@
  *
  * Env (Cloudflare):
  *   VERIFICATION_TOKEN  — same 32–80 char token as the eBay portal
- *   ENDPOINT_URL        — exact public https URL pasted into the portal
+ *   ENDPOINT_URL        — optional exact portal URL; otherwise derived from
+ *                         the request (https host, no query, no trailing slash)
  */
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,80}$/;
 
-function isPublicHttps(url) {
+/** Same rule as services/api canonicalPublicEndpointUrl — no trailing slash. */
+function canonicalPublicEndpointUrl(requestUrl) {
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(requestUrl);
     const host = parsed.hostname.toLowerCase();
-    return (
-      parsed.protocol === "https:" &&
-      host !== "localhost" &&
-      host !== "127.0.0.1" &&
-      host !== "::1"
-    );
+    if (parsed.protocol !== "https:") return null;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return null;
+    const path = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.origin}${path}`;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isPublicHttps(url) {
+  return canonicalPublicEndpointUrl(url) != null;
 }
 
 async function sha256Hex(text) {
@@ -42,8 +46,11 @@ function json(body, status = 200) {
 export default {
   async fetch(request, env) {
     const token = String(env.VERIFICATION_TOKEN ?? "").trim();
-    const endpointUrl = String(env.ENDPOINT_URL ?? "").trim();
-    const configured = TOKEN_RE.test(token) && isPublicHttps(endpointUrl);
+    const explicit = String(env.ENDPOINT_URL ?? "").trim();
+    const derived = canonicalPublicEndpointUrl(request.url);
+    const portalUrl =
+      explicit && isPublicHttps(explicit) ? explicit : derived;
+    const configured = TOKEN_RE.test(token) && Boolean(portalUrl);
     const url = new URL(request.url);
 
     if (request.method === "GET") {
@@ -53,21 +60,21 @@ export default {
           ok: true,
           service: "vip-ebay-deletion",
           configured,
-          endpointUrl: isPublicHttps(endpointUrl) ? endpointUrl : null,
+          endpointUrl: portalUrl,
           tokenConfigured: TOKEN_RE.test(token),
-          note: "Do not click eBay Save until configured=true on this exact URL",
+          note: "Do not click eBay Save until configured=true. Paste endpointUrl exactly (no extra slash).",
         });
       }
-      if (!configured) {
+      if (!configured || !portalUrl) {
         return json(
           {
             error:
-              "Worker not configured — set VERIFICATION_TOKEN and ENDPOINT_URL (exact portal URL)",
+              "Worker not configured — set VERIFICATION_TOKEN (32–80). ENDPOINT_URL optional if this request is already public https.",
           },
           503,
         );
       }
-      const challengeResponse = await sha256Hex(`${challenge}${token}${endpointUrl}`);
+      const challengeResponse = await sha256Hex(`${challenge}${token}${portalUrl}`);
       return json({ challengeResponse });
     }
 

@@ -29,13 +29,21 @@ silent wipe.
 Do not click eBay Save yet. Do not deploy yet unless you already have Wrangler
 logged in and want the next command.
 
-## 2. After the account exists (next turn)
+## 2. After the account exists — one command
 
-We will generate a verification token on your machine (never paste it into
-chat), deploy `vip-ebay-deletion`, set `ENDPOINT_URL` to the printed
-`https://vip-ebay-deletion.<your-subdomain>.workers.dev` string, prove it with
-a browser/`Invoke-RestMethod`, **then** paste that exact URL + token + contact
-email into eBay and click Save.
+Pull this branch, then paste (repo root). A browser window opens for Cloudflare
+login the first time. **Do not click eBay Save until the script prints LIVE.**
+
+```powershell
+cd D:\Projects\Business_Ideas\258_Labs\258_VIP
+git pull origin cursor/ebay-comps-auth-058c
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy_ebay_deletion_worker.ps1
+```
+
+The script writes a verification token to
+`infra\ebay-deletion-worker\.verification-token` (gitignored). Paste that file
+plus the printed `https://vip-ebay-deletion.<subdomain>.workers.dev` URL
+(no trailing slash) plus your contact email into the eBay form, then Save.
 
 ## Local proof (optional, not public)
 

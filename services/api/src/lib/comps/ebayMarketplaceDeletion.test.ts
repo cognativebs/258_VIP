@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   acknowledgeEbayAccountDeletion,
   answerEbayChallenge,
+  canonicalPublicEndpointUrl,
   ebayChallengeResponseHex,
   ebayDeletionStatus,
   endpointUrlSchema,
@@ -24,6 +25,16 @@ describe("ebay marketplace deletion contracts", () => {
     expect(verificationTokenSchema.safeParse("a".repeat(31)).success).toBe(false);
     expect(verificationTokenSchema.safeParse(`${"a".repeat(30)}!`).success).toBe(false);
     expect(verificationTokenSchema.safeParse("a".repeat(81)).success).toBe(false);
+  });
+
+  it("canonical portal URL drops query and a root trailing slash", () => {
+    expect(canonicalPublicEndpointUrl(`${ENDPOINT}/?challenge_code=abc`)).toBe(ENDPOINT);
+    expect(canonicalPublicEndpointUrl(`${ENDPOINT}/`)).toBe(ENDPOINT);
+    expect(canonicalPublicEndpointUrl(`${ENDPOINT}/api/ebay/marketplace-deletion/`)).toBe(
+      `${ENDPOINT}/api/ebay/marketplace-deletion`,
+    );
+    expect(canonicalPublicEndpointUrl("https://127.0.0.1:8787/api/ebay")).toBeNull();
+    expect(canonicalPublicEndpointUrl("http://example.workers.dev")).toBeNull();
   });
 
   it("requires a public https endpoint — never localhost", () => {

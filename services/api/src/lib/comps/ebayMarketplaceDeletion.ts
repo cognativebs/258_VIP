@@ -23,6 +23,23 @@ export const verificationTokenSchema = z
   .max(80)
   .regex(/^[A-Za-z0-9_-]+$/, "letters, numbers, hyphen, underscore only");
 
+/**
+ * URL string eBay hashes — no query, no hash, no trailing slash on `/`.
+ * `https://host/?challenge_code=…` → `https://host`
+ */
+export function canonicalPublicEndpointUrl(requestUrl: string): string | null {
+  try {
+    const parsed = new URL(requestUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "https:") return null;
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return null;
+    const path = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.origin}${path}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Public portal URL — https only; no localhost. Must match the form exactly. */
 export const endpointUrlSchema = z
   .string()
