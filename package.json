@@ -21,7 +21,8 @@
     "binder": "npm run dev -w @vip/binder-vault",
     "job:pokemon-drops": "npm run pokemon-drops -w @vip/jobs",
     "job:clz-sync": "npm run clz-sync -w @vip/jobs",
-    "job:price-history": "npm run price-history -w @vip/jobs"
+    "job:price-history": "npm run price-history -w @vip/jobs",
+    "job:comics-comps": "npm run comics-comps -w @vip/api --"
   },
   "engines": {
     "node": ">=20"

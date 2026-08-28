@@ -74,15 +74,18 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
     };
   }
 
+  const rawJson = await res.text();
   if (!res.ok) {
     return {
       adapterId: "ebay-sold",
       sales: [],
       emptyReason: `eBay HTTP ${res.status}`,
+      rawJson,
+      requestUrl: `${BROWSE_URL}?${params}`,
     };
   }
 
-  const body = (await res.json()) as {
+  let body: {
     itemSummaries?: {
       itemId?: string;
       title?: string;
@@ -92,6 +95,17 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
       itemEndDate?: string;
     }[];
   };
+  try {
+    body = JSON.parse(rawJson) as typeof body;
+  } catch {
+    return {
+      adapterId: "ebay-sold",
+      sales: [],
+      emptyReason: "eBay Browse response was not JSON",
+      rawJson,
+      requestUrl: `${BROWSE_URL}?${params}`,
+    };
+  }
 
   const sales: CompSale[] = [];
   for (const item of body.itemSummaries ?? []) {
@@ -99,8 +113,10 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
     if (!Number.isFinite(price) || price <= 0) continue;
     const when = item.itemEndDate || item.itemCreationDate;
     if (!when) continue;
+    const listingId = item.itemId ?? `${holding.id}:${price}:${when}`;
     sales.push({
-      id: `ebay:${item.itemId ?? `${holding.id}:${price}:${when}`}`,
+      id: `ebay:${listingId}`,
+      listingId,
       price,
       saleDate: new Date(when),
       source: "ebay.com/sold",
@@ -122,6 +138,8 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
     adapterId: "ebay-sold",
     sales,
     emptyReason: sales.length ? undefined : `no eBay items matched “${q}”`,
+    rawJson,
+    requestUrl: `${BROWSE_URL}?${params}`,
   };
 }
 

@@ -8,6 +8,7 @@ export const CompSaleSchema = z.object({
   source: z.string(),
   title: z.string().optional(),
   url: z.string().optional(),
+  listingId: z.string().optional(),
   provenance: z.object({
     method: z.enum(["observed", "api"]),
     ruleOrModelVersion: z.string(),
@@ -23,6 +24,9 @@ export type CompsAdapterResult = {
   sales: CompSale[];
   /** Why zero sales when empty — never silent. */
   emptyReason?: string;
+  /** Immutable Browse (or adapter) payload — persist to raw_snapshots before parse. */
+  rawJson?: string;
+  requestUrl?: string;
 };
 
 export type CompsAdapter = {

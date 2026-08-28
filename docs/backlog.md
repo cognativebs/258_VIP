@@ -43,9 +43,9 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
 - [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
 - [x] Evidence-backed market ranges in analysis context (VIP `/api/recommendations?holdingIds=` → per-highlight `market`; idle adapters stay insufficient — never fabricated). Sold-ledger persist to `vault_market.sale` is still open.
-- [ ] Persist adapter comps into `vault_market.sale` / `market_value` (schema exists; Analysis currently uses live adapter reads). **Blocked on sold data:** Browse listings must not be written as `sale` rows — see [plan 0003](plans/0003-comics-comps-vault-ingest.md) conflict C1.
-- [ ] **Comics comps vault walk** (plan 0003 Track A): batched job, `COMPS_HOLDING_CAP=12`, Marvel/DC then all publishers, pause/resume, raw Browse snapshots. Not an Analysis uncapping.
-- [ ] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Depends on Track A cache.
+- [ ] Persist **sold** comps into `vault_market.sale` / `market_value`. Browse listings go to `listing_observation` (P1, 2026-08-28) — not `sale` ([plan 0003](plans/0003-comics-comps-vault-ingest.md) C1).
+- [x] **Comics comps vault walk** (plan 0003 Track A / P1): `vault_market.listing_observation` + `npm run job:comics-comps`. Batch 12, Marvel/DC default, pause/resume, raw snapshots. Analysis cap unchanged.
+- [ ] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`.
 - [ ] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
 
