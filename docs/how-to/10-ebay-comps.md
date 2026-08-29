@@ -84,3 +84,8 @@ Then Analysis → wait for the **comps** pill (and **eBay** / **liquidation** pi
 `matchedSales >= 3` (`liquidationGate.eligibleHoldingIds`). Click **Re-run comps**
 or **Run** (Run always re-fetches). Do not liquidate until `liquidation` is
 `conditional` and the title is in `eligibleHoldingIds`.
+
+Walking the **whole** comics vault is a batched job, not an Analysis uncap —
+see [plan 0003](../plans/0003-comics-comps-vault-ingest.md). Collection Tab
+VALUE stays the CLZ snapshot. A future LIVE column is range + listing count +
+recency · unverified, beside VALUE, never instead of it.
