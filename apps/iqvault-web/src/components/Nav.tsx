@@ -8,6 +8,7 @@ const links = [
   { href: "/collections/pokemon", label: "Pokémon" },
   { href: "/collections/sports", label: "Sports" },
   { href: "/scan", label: "Scan" },
+  { href: "/batch/001", label: "Batch 001" },
   { href: "/intelligence", label: "Intel" },
   { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },

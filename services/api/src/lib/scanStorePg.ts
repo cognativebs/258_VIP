@@ -308,7 +308,7 @@ export type ResolveUnitResult =
       assetId: string;
       holdingId: string;
       mode: ResolveUnitRequest["mode"];
-      decisionAction: "Hold";
+      decisionAction: "Hold" | "Sell";
       alreadyResolved: boolean;
       note: string;
     }
@@ -346,7 +346,7 @@ export async function resolveUnit(
       assetId: String(unit.confirmed_asset_id),
       holdingId: String(unit.holding_id),
       mode: unit.resolution_mode as ResolveUnitRequest["mode"],
-      decisionAction: "Hold",
+      decisionAction: "Sell",
       alreadyResolved: true,
       note: "Unit was already resolved; returning the existing holding.",
     };
@@ -439,11 +439,14 @@ export async function resolveUnit(
         INSERT INTO vault_collection.holding
           (asset_id, quantity, location, assumed_grade, slab_status,
            recommendation, needs_verification, verification_notes,
-           source, source_row_id)
+           source, source_row_id, inventory_bucket, inventory_bucket_source,
+           inventory_bucket_rule, collection_pillar, sell_priority)
         VALUES (
           ${assetId}::uuid, ${quantity}, ${req.location ?? null}, ${assumedGrade},
-          ${"raw"}, ${"Hold"}, ${true}, ${notes},
-          ${SCAN_HOLDING_SOURCE}, ${req.unitId}
+          ${"raw"}, ${"Sell"}, ${true}, ${notes},
+          ${SCAN_HOLDING_SOURCE}, ${req.unitId},
+          ${"dealer_inventory"}, ${"inferred"}, ${"inventory-bucket@0.1.0"},
+          ${"General Inventory"}, ${"High"}
         )
         ON CONFLICT (source, source_row_id) DO UPDATE SET
           quantity = EXCLUDED.quantity,
@@ -465,7 +468,7 @@ export async function resolveUnit(
             resolution_mode = ${req.mode}::vault_media.scan_resolution_mode,
             resolution_rule_version = ${SCAN_INGEST_RULE},
             resolved_at = now(),
-            decision_action = 'Hold',
+            decision_action = 'Sell',
             updated_at = now()
         WHERE id = ${req.unitId}::uuid
       `);
@@ -493,9 +496,9 @@ export async function resolveUnit(
       assetId: result.assetId,
       holdingId: result.holdingId,
       mode: req.mode,
-      decisionAction: "Hold",
+      decisionAction: "Sell",
       alreadyResolved: false,
-      note: "Holding entered inventory; condition remains NM assumed · unverified until grading capture",
+      note: "Holding entered Dealer Inventory as Sell (churn). Condition remains NM assumed · unverified until grading capture",
     };
   } catch (e) {
     return {
@@ -517,6 +520,8 @@ export type ScanHoldingRow = {
   verificationNotes: string | null;
   location: string | null;
   category: string | null;
+  inventoryBucket: "personal_collection" | "investment_vault" | "dealer_inventory";
+  recommendation: string | null;
   externalIds: Array<{ source: string; externalValue: string }>;
 };
 
@@ -529,7 +534,7 @@ export async function loadScanHoldings(): Promise<ScanHoldingRow[]> {
   const res = await db.execute(sql`
     SELECT
       h.id, h.asset_id, h.quantity, h.assumed_grade, h.needs_verification,
-      h.verification_notes, h.location,
+      h.verification_notes, h.location, h.inventory_bucket, h.recommendation,
       a.canonical_name, a.release_year,
       c.kind AS category,
       COALESCE(
@@ -557,6 +562,12 @@ export async function loadScanHoldings(): Promise<ScanHoldingRow[]> {
     verificationNotes: (row.verification_notes as string | null) ?? null,
     location: (row.location as string | null) ?? null,
     category: (row.category as string | null) ?? null,
+    inventoryBucket:
+      row.inventory_bucket === "personal_collection" ||
+      row.inventory_bucket === "investment_vault"
+        ? row.inventory_bucket
+        : "dealer_inventory",
+    recommendation: (row.recommendation as string | null) ?? null,
     externalIds: Array.isArray(row.external_ids)
       ? (row.external_ids as Array<{ source: string; externalValue: string }>)
       : [],

@@ -25,6 +25,9 @@ clz-inbox/archive/
 clz-inbox/processed/
 clz-inbox/.hashes.json
 
+# Placeholder JPEGs written by Batch 001 until the Ricoh drop is live
+data/scan-inbox/batch-001-sports/*.jpg
+
 # eBay marketplace-deletion Worker secrets (never commit)
 infra/ebay-deletion-worker/.verification-token
 infra/ebay-deletion-worker/.dev.vars

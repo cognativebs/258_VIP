@@ -137,6 +137,8 @@ describe("scan staging (ADR 0009)", () => {
     const mine = holdings.find((h) => h.id === first.holdingId);
     expect(mine?.needsVerification).toBe(true);
     expect(mine?.assumedGrade).toBe("NM");
+    expect(mine?.inventoryBucket).toBe("dealer_inventory");
+    expect(mine?.recommendation).toBe("Sell");
 
     void staged;
   });

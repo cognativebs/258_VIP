@@ -177,8 +177,8 @@ third-party-access licence limit).
       inventory confirm (Hold) → eBay listing draft idle without tokens
 - [x] Migration `20260809_03_capture_session.sql` (`vault_media.*`)
 - [x] VIP API `/api/scan/*` review/confirm surface
-- [ ] Write-through from API store → Postgres `vault_media` + `vault_collection.holding`
-- [ ] Operator review UI (IQVault / VaultOS face)
+- [x] Write-through from API store → Postgres `vault_media` + `vault_collection.holding` (resolve → dealer bucket + Sell)
+- [x] Operator review UI (IQVault `/scan` + Batch 001 inspect on `/batch/001`) — 2026-08-29
 - [ ] Live catalog adapters (replace fixture sports/TCG matcher)
 - [ ] Museum-quality capture tier (same media model, `quality_tier=museum`)
 - [ ] Store constraints on same engine as VIP

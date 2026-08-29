@@ -60,6 +60,11 @@ import {
   resolveUnit,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
+import {
+  inspectBatch001Item,
+  loadBatch001,
+  runBatch001Sports,
+} from "./lib/batchPipeline.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
@@ -192,12 +197,12 @@ function scanHoldingToApi(row: ScanHoldingRow): ApiHolding {
     publisher: row.category ? `Scan intake (${row.category})` : "Scan intake",
     quantity: row.quantity,
     pillar: "Scanned Intake",
-    inventoryBucket: "dealer_inventory",
+    inventoryBucket: row.inventoryBucket ?? "dealer_inventory",
     inventoryBucketAssignment: "inferred",
     museumScore: null,
     investmentScore: null,
     liquidityScore: null,
-    recommendationLabel: "Hold",
+    recommendationLabel: row.recommendation ?? "Sell",
     sellPriority: null,
     needsGrading: false,
     needsPhoto: false,
@@ -861,6 +866,43 @@ export function createApp(deps: AppDeps = {}) {
       });
     } catch (e) {
       res.status(400).json({
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.get("/api/batch/001", async (_req, res) => {
+    try {
+      res.json(await loadBatch001());
+    } catch (e) {
+      res.status(500).json({
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/batch/001/sports/run", async (_req, res) => {
+    try {
+      const run = await runBatch001Sports();
+      res.status(201).json(run);
+    } catch (e) {
+      res.status(400).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/batch/001/items/:slot/inspect", async (req, res) => {
+    try {
+      const run = await inspectBatch001Item({
+        ...(req.body ?? {}),
+        slot: Number(req.params.slot),
+      });
+      res.json(run);
+    } catch (e) {
+      res.status(400).json({
+        ok: false,
         error: e instanceof Error ? e.message : String(e),
       });
     }
