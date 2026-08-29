@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BaseRecordSchema, UuidSchema } from "./base.js";
+import { InventoryBucketAssignmentSchema, InventoryBucketSchema } from "./inventory-bucket.js";
 
 /**
  * Owned copy-group. Catalog identity lives on Asset — never call a Holding an Asset.
@@ -19,6 +20,9 @@ export const HoldingSchema = BaseRecordSchema.extend({
   /** Observed numeric grade if known; null when unverified / 0.0 raw. */
   gradeRating: z.number().nullable().optional(),
   collectionPillar: z.string().nullable().optional(),
+  /** Capital-intent bucket. Distinct from collectionPillar (theme). */
+  inventoryBucket: InventoryBucketSchema.optional(),
+  inventoryBucketAssignment: InventoryBucketAssignmentSchema.optional(),
   museumScore: z.number().nullable().optional(),
   investmentScore: z.number().nullable().optional(),
   liquidityScore: z.number().nullable().optional(),

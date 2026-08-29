@@ -126,6 +126,12 @@ export type Holding = {
   publisher: string;
   quantity: number;
   pillar: string | null;
+  inventoryBucket?: "personal_collection" | "investment_vault" | "dealer_inventory";
+  inventoryBucketAssignment?: "inferred" | "operator";
+  liveRangeLabel?: string | null;
+  liveLow?: number | null;
+  liveHigh?: number | null;
+  liveListingCount?: number | null;
   museumScore: number | null;
   investmentScore: number | null;
   liquidityScore: number | null;

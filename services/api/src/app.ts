@@ -27,7 +27,13 @@ import {
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
+import { classifyInventoryBucket } from "@vip/core-model";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
+import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
+import { createInventoryTransaction, listInventoryTransactions } from "./lib/transactions.js";
+import { compactSignalsContext, signalsOutputFromFeed } from "./lib/signalsContext.js";
+import { ebayCredsFromEnv } from "@vip/scan-ingest";
+import { LIVE_RANGE_COPY, loadAllLiveRanges } from "./lib/liveRange.js";
 import {
   buildRecommendation,
   COMPS_HOLDING_CAP,
@@ -186,6 +192,8 @@ function scanHoldingToApi(row: ScanHoldingRow): ApiHolding {
     publisher: row.category ? `Scan intake (${row.category})` : "Scan intake",
     quantity: row.quantity,
     pillar: "Scanned Intake",
+    inventoryBucket: "dealer_inventory",
+    inventoryBucketAssignment: "inferred",
     museumScore: null,
     investmentScore: null,
     liquidityScore: null,
@@ -277,7 +285,16 @@ async function buildInventory(deps: AppDeps = {}): Promise<InventoryBundle> {
 function sellQueueFrom(holdings: ApiHolding[]): ApiHolding[] {
   const rank = { High: 0, Medium: 1, Low: 2 } as const;
   return holdings
-    .filter((h) => h.sellPriority === "High" || h.sellPriority === "Medium")
+    .filter((h) => {
+      const bucket =
+        h.inventoryBucket ??
+        classifyInventoryBucket({
+          pillar: h.pillar,
+          recommendation: h.recommendationLabel,
+        }).bucket;
+      if (bucket === "personal_collection") return false;
+      return h.sellPriority === "High" || h.sellPriority === "Medium";
+    })
     .sort(
       (a, b) =>
         (rank[a.sellPriority ?? "Low"] ?? 3) - (rank[b.sellPriority ?? "Low"] ?? 3),
@@ -511,8 +528,101 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.get("/api/signals", (_req, res) =>
-    res.json({ ...loadSignalsResponse(), signalsIngestion: SIGNALS_INGESTION }),
+    res.json({
+      ...loadSignalsResponse(),
+      signalsIngestion: SIGNALS_INGESTION,
+      context: compactSignalsContext(),
+      output: signalsOutputFromFeed(),
+    }),
   );
+
+  app.get("/api/signals/context", (_req, res) => {
+    res.json(compactSignalsContext());
+  });
+
+  app.get("/api/signals/output", (_req, res) => {
+    res.json(signalsOutputFromFeed());
+  });
+
+  app.get("/api/inventory/live-ranges", async (_req, res) => {
+    try {
+      const map = await loadAllLiveRanges();
+      res.json({
+        count: map.size,
+        note: LIVE_RANGE_COPY,
+        ranges: Object.fromEntries([...map.entries()]),
+      });
+    } catch (e) {
+      res.status(500).json({
+        error: e instanceof Error ? e.message : String(e),
+        ranges: {},
+      });
+    }
+  });
+
+  app.get("/api/listings", async (_req, res) => {
+    try {
+      const drafts = await listListingDrafts();
+      res.json({ count: drafts.length, drafts, submitReady: false });
+    } catch (e) {
+      res.status(500).json({
+        error: e instanceof Error ? e.message : String(e),
+        count: 0,
+        drafts: [],
+      });
+    }
+  });
+
+  app.post("/api/listings/queue", async (req, res) => {
+    const { holdings, comics, comicsSource } = await buildInventory(deps);
+    if (!comics.available) {
+      res.status(503).json({
+        error: "Comics inventory unavailable — listing queue not computed from sample data",
+        comicsSource,
+      });
+      return;
+    }
+    const creds = ebayCredsFromEnv();
+    const hasEbayCreds = Boolean(
+      creds.oauthToken?.trim() || (creds.clientId?.trim() && creds.clientSecret?.trim()),
+    );
+    try {
+      const result = await queueListingDrafts(holdings, req.body, hasEbayCreds);
+      if (result.rejected) {
+        res.status(400).json({ ok: false, error: result.rejected, drafts: [] });
+        return;
+      }
+      res.json({ ok: true, count: result.drafts.length, drafts: result.drafts });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+        drafts: [],
+      });
+    }
+  });
+
+  app.get("/api/transactions", async (_req, res) => {
+    try {
+      const items = await listInventoryTransactions();
+      res.json({ count: items.length, items });
+    } catch (e) {
+      res.status(500).json({
+        error: e instanceof Error ? e.message : String(e),
+        count: 0,
+        items: [],
+      });
+    }
+  });
+
+  app.post("/api/transactions", async (req, res) => {
+    const result = await createInventoryTransaction(req.body);
+    if (!result.ok) {
+      res.status(result.status).json({ ok: false, error: result.error });
+      return;
+    }
+    res.status(201).json({ ok: true, item: result.row });
+  });
 
   app.get("/api/watchlist", async (_req, res) => {
     const { holdings, comics, comicsSource } = await buildInventory(deps);

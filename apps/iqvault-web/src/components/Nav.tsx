@@ -12,6 +12,8 @@ const links = [
   { href: "/recommendations", label: "Recs" },
   { href: "/hunts", label: "Hunts" },
   { href: "/sell-queue", label: "Sell" },
+  { href: "/listings", label: "List" },
+  { href: "/transactions", label: "Txns" },
   { href: "/signals", label: "Signals" },
   { href: "/watchlist", label: "Watch" },
   { href: "/theses", label: "Theses" },

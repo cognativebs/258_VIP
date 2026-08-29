@@ -88,6 +88,11 @@ export {
 } from "./ebay-listing.js";
 export { FIXTURE_CATALOG } from "./catalog/fixture-catalog.js";
 export {
+  parseSportsIdentity,
+  sportsParsedCandidate,
+  SPORTS_PARSE_RULE,
+} from "./sportsIdentity.js";
+export {
   FolderWatchAdapter,
   pairPagesIntoUnits,
   batchInputFromPages,

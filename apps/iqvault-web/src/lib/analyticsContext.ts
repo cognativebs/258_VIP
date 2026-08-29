@@ -30,6 +30,9 @@ function compactBook(r: ComicRow | null | undefined) {
     issue: r["Issue Full"],
     variant: r["Edition / Variant"] || undefined,
     pillar: r["Collection Pillar"],
+    inventoryBucket: r["Inventory Bucket"] || undefined,
+    catalogSnapshot: r["Current Price"],
+    liveRange: r["Live Range"] || "not fetched",
     value: r["Current Price"],
     mus: r["Museum Score"],
     inv: r["Investment Score"],
@@ -52,6 +55,7 @@ function describeFilters(filters: ComicFilters, workspace: string): string {
   if (workspace && workspace !== "all") parts.push(`workspace=${ws?.label ?? workspace}`);
   if (filters.query?.trim()) parts.push(`search="${filters.query.trim()}"`);
   if (filters.pillar) parts.push(`pillar=${filters.pillar}`);
+  if (filters.bucket) parts.push(`bucket=${filters.bucket}`);
   if (filters.location === "__unassigned__") parts.push("location=unassigned");
   else if (filters.location) parts.push(`location=${filters.location}`);
   if (filters.publisher) parts.push(`publisher=${filters.publisher}`);
@@ -82,6 +86,12 @@ export function buildAnalyticsContext(args: {
   filteredValue: number;
   /** Where the rows came from, so the model never treats fallback data as verified truth. */
   source: "comics-api" | "vip-api" | null;
+  signals?: {
+    active: Array<{ id: string; title?: string; body: string; sourceId: string }>;
+    quarantinedCount: number;
+    feedKind: string;
+    provenance?: { notes?: string; verificationStatus?: string };
+  } | null;
 }) {
   const { meta, filtered, dashboardStats, filters, workspace, selectedComic, filteredValue, source } =
     args;
@@ -145,11 +155,23 @@ export function buildAnalyticsContext(args: {
       ],
       goals: [
         "Museum = long-term keepers aligned with pillars",
+        "Personal Collection (Batman, Spider-Man, art/female covers, …) is not for routine sale",
+        "Investment Vault — Sell only when a live range + evidence count justify it",
+        "Dealer Inventory is capital that exists to churn",
         "Sell/Lot = exit when liquidity is high and timing favors moving inventory",
         "Pillar review = General Inventory books that need reassignment",
         "Grade = raw keys/variants worth slab investment",
+        "LIVE is eBay Browse listings · unverified — never treat VALUE as a sold fact",
       ],
     },
+    signals: args.signals
+      ? {
+          ...args.signals,
+          note:
+            args.signals.provenance?.notes ??
+            "News is inferred · unverified RSS; not a market fact; do not invent comps from headlines.",
+        }
+      : undefined,
   };
 }
 

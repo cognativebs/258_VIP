@@ -27,6 +27,9 @@ export const comicHoldingFieldsSchema = z
     "Assumed Grade": z.string().nullable().optional(),
     "Grade Rating": z.coerce.number().optional(),
     "Collection Pillar": z.string().nullable().optional(),
+    "Inventory Bucket": z
+      .enum(["personal_collection", "investment_vault", "dealer_inventory"])
+      .optional(),
     "Museum Score": z.coerce.number().optional(),
     "Investment Score": z.coerce.number().optional(),
     "Liquidity Score": z.coerce.number().optional(),
@@ -88,6 +91,11 @@ function buildPatches(fields: ComicHoldingFields): ColPatch[] {
     fields["Collection Pillar"],
     fields["Collection Pillar"],
   );
+  if (fields["Inventory Bucket"] !== undefined) {
+    add("Inventory Bucket", "inventory_bucket", fields["Inventory Bucket"], fields["Inventory Bucket"]);
+    add("Inventory Bucket Source", "inventory_bucket_source", "operator", "operator");
+    add("Inventory Bucket Rule", "inventory_bucket_rule", "inventory-bucket@0.1.0", "inventory-bucket@0.1.0");
+  }
   add("Museum Score", "museum_score", fields["Museum Score"], fields["Museum Score"]);
   add("Investment Score", "investment_score", fields["Investment Score"], fields["Investment Score"]);
   add("Liquidity Score", "liquidity_score", fields["Liquidity Score"], fields["Liquidity Score"]);
@@ -138,6 +146,8 @@ export function comicRowFromDb(rec: Record<string, unknown>): Record<string, unk
   row["Cover Image URL"] = rec.primary_image_url ?? row["Cover Image URL"] ?? "";
 
   row["Collection Pillar"] = rec.collection_pillar ?? row["Collection Pillar"] ?? "";
+  row["Inventory Bucket"] = rec.inventory_bucket ?? row["Inventory Bucket"] ?? "";
+  row["Inventory Bucket Source"] = rec.inventory_bucket_source ?? row["Inventory Bucket Source"] ?? "";
   row["Recommendation"] = rec.recommendation ?? row["Recommendation"] ?? "";
   row["Sell Priority"] = rec.sell_priority ?? row["Sell Priority"] ?? "";
   row["Museum Score"] = num(rec.museum_score, Number(row["Museum Score"] ?? 0));
@@ -219,6 +229,12 @@ export async function updateComicHolding(
           return sql`grade_rating = ${p.value as number}`;
         case "collection_pillar":
           return sql`collection_pillar = ${p.value as string | null}`;
+        case "inventory_bucket":
+          return sql`inventory_bucket = ${p.value as string}`;
+        case "inventory_bucket_source":
+          return sql`inventory_bucket_source = ${p.value as string}`;
+        case "inventory_bucket_rule":
+          return sql`inventory_bucket_rule = ${p.value as string}`;
         case "museum_score":
           return sql`museum_score = ${p.value as number}`;
         case "investment_score":
@@ -270,6 +286,8 @@ export async function updateComicHolding(
           h.assumed_grade,
           h.grade_rating,
           h.collection_pillar,
+          h.inventory_bucket,
+          h.inventory_bucket_source,
           h.museum_score,
           h.investment_score,
           h.liquidity_score,

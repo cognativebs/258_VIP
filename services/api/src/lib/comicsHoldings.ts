@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { comicsDsn, getDb, redactDsn } from "../db/client.js";
 import { mapInventoryRow, type ApiHolding, type ExternalIdRef } from "./holdings.js";
+import { loadAllLiveRanges } from "./liveRange.js";
 
 /**
  * The real comics collection, read from Postgres.
@@ -39,6 +40,8 @@ const HOLDINGS_SQL = sql`
       h.assumed_grade,
       h.grade_rating,
       h.collection_pillar,
+      h.inventory_bucket,
+      h.inventory_bucket_source,
       h.museum_score,
       h.investment_score,
       h.liquidity_score,
@@ -116,6 +119,8 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   base["Grade Rating"] = num(row.grade_rating) ?? base["Grade Rating"] ?? 0;
 
   base["Collection Pillar"] = row.collection_pillar ?? base["Collection Pillar"] ?? "";
+  base["Inventory Bucket"] = row.inventory_bucket ?? base["Inventory Bucket"] ?? "";
+  base["Inventory Bucket Source"] = row.inventory_bucket_source ?? base["Inventory Bucket Source"] ?? "";
   base["Museum Score"] = num(row.museum_score) ?? base["Museum Score"] ?? 0;
   base["Investment Score"] = num(row.investment_score) ?? base["Investment Score"] ?? 0;
   base["Liquidity Score"] = num(row.liquidity_score) ?? base["Liquidity Score"] ?? 0;
@@ -165,9 +170,19 @@ export async function loadComicsHoldings(): Promise<ComicsPayload> {
       db.execute(SNAPSHOT_SQL),
     ]);
 
-    const holdings = (holdingRows.rows as Record<string, unknown>[]).map((row, index) =>
-      mapInventoryRow(toClzRow(row), index),
-    );
+    const ranges = await loadAllLiveRanges().catch(() => new Map());
+    const holdings = (holdingRows.rows as Record<string, unknown>[]).map((row, index) => {
+      const clz = toClzRow(row);
+      const id = String(clz["CLZ Hash"] ?? row.source_row_id ?? "");
+      const chip = ranges.get(id);
+      if (chip) {
+        clz["Live Range"] = chip.label;
+        clz["Live Low"] = chip.low;
+        clz["Live High"] = chip.high;
+        clz["Live Listings"] = chip.listingCount;
+      }
+      return mapInventoryRow(clz, index);
+    });
 
     return {
       available: true,

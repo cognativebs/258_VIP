@@ -22,4 +22,16 @@ describe("identifyUnit filename fallback", () => {
   it("scores a POSIX path the same as the bare file name", () => {
     expect(confidenceFor(`/srv/vip/scans/${FILE}`)).toBe(confidenceFor(FILE));
   });
+
+  it("emits a parsed sports candidate when the card is not in the fixture catalog", () => {
+    const candidates = identifyUnit({
+      ocrText: null,
+      frontStorageRef: "1993_upper_deck_derek_jeter_449_front.jpg",
+      categoryHint: "sports",
+    });
+    expect(candidates.some((c) => c.catalogKey.includes("jeter"))).toBe(true);
+    expect(candidates.every((c) => c.provenance.verificationStatus === "unverified")).toBe(
+      true,
+    );
+  });
 });

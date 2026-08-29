@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/lib/comicsSourceLabel.test.ts src/lib/tcgCard.test.ts src/lib/collections.test.ts src/lib/holdingToComic.test.ts src/lib/verticalInventory.test.ts src/lib/analyticsContext.test.ts src/lib/popoutLinks.test.ts src/lib/savedCouncil.test.ts"
+    "test": "tsx --test src/lib/comicsSourceLabel.test.ts src/lib/tcgCard.test.ts src/lib/collections.test.ts src/lib/holdingToComic.test.ts src/lib/verticalInventory.test.ts src/lib/analyticsContext.test.ts src/lib/popoutLinks.test.ts src/lib/savedCouncil.test.ts src/lib/comicEngine.bucket.test.ts"
   },
   "dependencies": {
     "next": "^15.3.4",

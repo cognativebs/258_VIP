@@ -8,6 +8,7 @@ import type {
   ScanCategory,
   ScanUnit,
 } from "./schemas.js";
+import { sportsParsedCandidate } from "./sportsIdentity.js";
 
 export type IdentifyOptions = {
   catalog?: CatalogCard[];
@@ -59,12 +60,13 @@ export function identifyUnit(
     return [];
   }
 
-  return rankCandidates(
+  const ranked = rankCandidates(
     catalog.filter((card) => !hint || card.category === hint),
     query,
     externalIds,
     opts.limit ?? 5,
   );
+  return withSportsParse(ranked, query, hint, opts.limit ?? 5);
 }
 
 /**
@@ -79,12 +81,41 @@ export async function identifyUnitWithAdapter(
   const query = buildCatalogQuery(unit, opts);
   if (!query.text && (query.externalIds?.length ?? 0) === 0) return [];
   const cards = await adapter.search(query);
-  return rankCandidates(
+  const ranked = rankCandidates(
     cards,
     query.text,
     query.externalIds ?? [],
     query.limit ?? 5,
   );
+  return withSportsParse(
+    ranked,
+    query.text,
+    opts.categoryHint ?? unit.categoryHint ?? query.category ?? null,
+    query.limit ?? 5,
+  );
+}
+
+function withSportsParse(
+  ranked: IdentityCandidate[],
+  query: string,
+  hint: ScanCategory | null,
+  limit: number,
+): IdentityCandidate[] {
+  const sportsHint = !hint || hint === "sports";
+  if (!sportsHint || !query) return ranked;
+  const parsed = sportsParsedCandidate(query);
+  if (!parsed) return ranked;
+  const already = ranked.some(
+    (c) =>
+      c.playerOrCharacter &&
+      parsed.playerOrCharacter &&
+      normalize(c.playerOrCharacter) === normalize(parsed.playerOrCharacter) &&
+      c.year === parsed.year,
+  );
+  if (already) return ranked;
+  return [...ranked, parsed]
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, limit);
 }
 
 function rankCandidates(

@@ -42,6 +42,8 @@ function compactBook(r: ComicRow | null | undefined, market?: MarketEvidenceBund
     issue: r["Issue Full"],
     variant: r["Edition / Variant"] || undefined,
     pillar: r["Collection Pillar"] || undefined,
+    inventoryBucket: r["Inventory Bucket"] || undefined,
+    liveRange: r["Live Range"] || undefined,
     catalogSnapshot: {
       amount: r["Current Price"] ?? null,
       note: CATALOG_SNAPSHOT_NOTE,
@@ -156,7 +158,13 @@ export function liquidationGateFromMarket(
 export function buildAnalysisContext(
   bundle: InventoryBundle,
   slice: SliceId,
-  market?: MarketEvidenceBundle | null
+  market?: MarketEvidenceBundle | null,
+  signals?: {
+    active?: Array<{ id: string; title?: string; body: string; sourceId?: string }>;
+    quarantinedCount?: number;
+    feedKind?: string;
+    provenance?: { notes?: string; verificationStatus?: string };
+  } | null,
 ) {
   const filtered = applySlice(bundle.rows, slice);
   const sellHigh = filtered.filter((r) => r["Sell Priority"] === "High");
@@ -237,8 +245,22 @@ export function buildAnalysisContext(
         "Sell/Lot = exit when liquidity is high, timing favors moving inventory, AND market evidence meets minSalesRequired",
         "Grade = raw keys/variants worth slab investment",
         "Liquidation asks must cite market.range + matchedSales + recencyDays + confidence — never catalogSnapshot as fact",
+        "Personal Collection is not for routine sale. Investment Vault sells only when intelligence justifies it. Dealer Inventory is churn capital.",
       ],
     },
+    signals: signals
+      ? {
+          active: (signals.active ?? []).slice(0, 25),
+          quarantinedCount: signals.quarantinedCount ?? 0,
+          feedKind: signals.feedKind ?? "empty",
+          provenance: {
+            verificationStatus: "unverified",
+            notes:
+              signals.provenance?.notes ??
+              "News is inferred · unverified RSS; not a market fact; do not invent comps from headlines.",
+          },
+        }
+      : undefined,
   };
 }
 

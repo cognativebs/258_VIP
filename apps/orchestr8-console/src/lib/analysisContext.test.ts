@@ -98,7 +98,18 @@ describe("analysis comps context", () => {
       []
     );
 
-    const ctx = buildAnalysisContext(bundle(rows), "all", market);
+    const ctx = buildAnalysisContext(bundle(rows), "all", market, {
+      active: [
+        {
+          id: "sig-1",
+          title: "Drop",
+          body: "A reprint rumor",
+          sourceId: "pokemon-news-rss",
+        },
+      ],
+      quarantinedCount: 1,
+      feedKind: "job_feed",
+    });
     assert.equal(ctx.disclaimer.includes("never live comps"), true);
     assert.equal(ctx.marketEvidence.minSalesRequired, MIN_SALES_FOR_MARKET_EVIDENCE);
     assert.equal(ctx.marketEvidence.holdingsWithSales, 1);
@@ -201,5 +212,24 @@ describe("analysis comps context", () => {
       ["hi"]
     );
     assert.deepEqual(highlightIdsForComps(bundle(rows), "sellHigh"), ["hi"]);
+  });
+
+  it("attaches an unverified signals slice and excludes it from being treated as comps", () => {
+    const rows = [row({ id: "a1", Series: "Batman", "Issue Full": "1" })];
+    const ctx = buildAnalysisContext(bundle(rows), "all", null, {
+      active: [
+        {
+          id: "sig-1",
+          title: "Drop",
+          body: "A reprint rumor",
+          sourceId: "pokemon-news-rss",
+        },
+      ],
+      quarantinedCount: 2,
+      feedKind: "job_feed",
+    });
+    assert.equal(ctx.signals?.active[0]?.id, "sig-1");
+    assert.equal(ctx.signals?.provenance.verificationStatus, "unverified");
+    assert.match(ctx.signals?.provenance.notes ?? "", /not a market fact/);
   });
 });

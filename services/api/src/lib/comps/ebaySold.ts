@@ -18,17 +18,29 @@ const BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
  * only items with a clear current price and mark them unverified quotes that
  * still require sold confirmation.
  */
+function isSports(holding: ApiHolding): boolean {
+  if (holding.provenance.source === "ricoh_fi8170") return true;
+  if (holding.externalIds?.some((e) => e.source === "sports_parsed" || e.source === "cardladder")) {
+    return true;
+  }
+  return /scan intake \(sports\)/i.test(holding.publisher);
+}
+
 function buildQuery(holding: ApiHolding): string {
+  if (isSports(holding)) {
+    return [holding.assetName, holding.series, holding.issue].filter(Boolean).join(" ").trim();
+  }
   return [holding.series, holding.issue && `#${holding.issue}`, holding.publisher]
     .filter(Boolean)
     .join(" ")
     .trim();
 }
 
-function isComic(holding: ApiHolding): boolean {
-  if (holding.provenance.source === "clz_import") return true;
+function isPricedByBrowse(holding: ApiHolding): boolean {
   if (holding.id.startsWith("binder-slot-")) return false;
   if (holding.externalIds?.some((e) => e.source === "pokemontcg")) return false;
+  if (isSports(holding)) return true;
+  if (holding.provenance.source === "clz_import") return true;
   return Boolean(holding.series && holding.publisher);
 }
 
@@ -145,7 +157,7 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
 
 export const ebaySoldAdapter: CompsAdapter = {
   id: "ebay-sold",
-  label: "eBay sold / completed listings",
-  matches: isComic,
+  label: "eBay Browse listings · unverified",
+  matches: isPricedByBrowse,
   fetchComps: fetchSold,
 };

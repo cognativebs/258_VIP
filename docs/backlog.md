@@ -45,8 +45,8 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Evidence-backed market ranges in analysis context (VIP `/api/recommendations?holdingIds=` → per-highlight `market`; idle adapters stay insufficient — never fabricated). Sold-ledger persist to `vault_market.sale` is still open.
 - [ ] Persist **sold** comps into `vault_market.sale` / `market_value`. Browse listings go to `listing_observation` (P1, 2026-08-28) — not `sale` ([plan 0003](plans/0003-comics-comps-vault-ingest.md) C1).
 - [x] **Comics comps vault walk** (plan 0003 Track A / P1): `vault_market.listing_observation` + `npm run job:comics-comps`. Batch 12, Marvel/DC default, pause/resume, raw snapshots. Analysis cap unchanged.
-- [ ] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`.
-- [ ] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1
+- [x] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`. (Week 1 · 2026-08-29)
+- [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
 
 ### B. Orchestr8 — Console UX polish
@@ -85,6 +85,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] VIP `GET /api/sources` wired to `packages/signals` `SourceRegistry` / `DEFAULT_SOURCES` (Signals v1 r1 · 2026-08-02)
 - [x] Mutable `active` toggle + persistence for sources (`PATCH /api/sources/:id` + `sources-state.json`)
 - [x] Contribution stats per source (signal count, quarantine rate, evidence count)
+- [x] Basic Signals output on `/signals` (bucket-aware Hold / Review / Churn — never a price) — Week 1 · 2026-08-29
 - [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
 - [ ] Prediction ledger / Brier calibration visible on Signals page
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
