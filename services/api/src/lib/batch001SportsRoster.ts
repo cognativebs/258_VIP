@@ -463,7 +463,11 @@ export const BATCH_001_SPORTS_ROSTER: BatchRosterItem[] = RAW.map((row) =>
 );
 
 export function rosterByStem(stem: string): BatchRosterItem | undefined {
-  return BATCH_001_SPORTS_ROSTER.find((r) => r.fileStem === stem);
+  const normalized = stem.replace(/_front$/i, "");
+  return BATCH_001_SPORTS_ROSTER.find((r) => {
+    const want = r.fileStem.replace(/_front$/i, "");
+    return r.fileStem === stem || want === stem || want === normalized;
+  });
 }
 
 export function rosterBySlot(slot: number): BatchRosterItem | undefined {

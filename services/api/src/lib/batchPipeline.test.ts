@@ -4,7 +4,7 @@ import {
   sliceFromCandidate,
   softwareFlagsFor,
 } from "./batchPipeline.js";
-import { BATCH_001_SPORTS_ROSTER } from "./batch001SportsRoster.js";
+import { BATCH_001_SPORTS_ROSTER, rosterByStem } from "./batch001SportsRoster.js";
 
 describe("Batch 001 sports roster", () => {
   it("is 25 messy dealer cards, not a base-card lot", () => {
@@ -19,6 +19,8 @@ describe("Batch 001 sports roster", () => {
       expect(row.intendedAskBandUsd.low).toBeGreaterThanOrEqual(5);
       expect(row.intendedAskBandUsd.high).toBeLessThanOrEqual(50);
     }
+    expect(rosterByStem("2023_prizm_victor_wembanyama_136_silver")?.slot).toBe(1);
+    expect(rosterByStem("2023_prizm_victor_wembanyama_136_silver_front")?.slot).toBe(1);
   });
 });
 
