@@ -150,10 +150,11 @@ export function bucketSellPolicy(bucket: InventoryBucket): BucketSellPolicy {
       return {
         bucket,
         routineSale: true,
-        sellWhenIntelligenceJustifies: true,
+        sellWhenIntelligenceJustifies: false,
         churnCapital: true,
         reasonCode: "DEALER_CHURN",
-        notes: "Dealer inventory — capital that exists to churn.",
+        notes:
+          "Dealer inventory — capital that exists to churn. LIVE range is evidence, not a listing gate.",
       };
   }
 }

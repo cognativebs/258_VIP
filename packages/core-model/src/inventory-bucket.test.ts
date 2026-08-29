@@ -87,5 +87,6 @@ describe("bucketSellPolicy", () => {
     const p = bucketSellPolicy("dealer_inventory");
     expect(p.churnCapital).toBe(true);
     expect(p.routineSale).toBe(true);
+    expect(p.sellWhenIntelligenceJustifies).toBe(false);
   });
 });

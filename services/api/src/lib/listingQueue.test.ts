@@ -98,4 +98,21 @@ describe("decideListingDraft", () => {
     });
     expect(draft.status).toBe("pending_credentials");
   });
+
+  it("lets dealer inventory churn without a live range (credentials still gate submit)", () => {
+    const draft = decideListingDraft({
+      holding: holding({
+        pillar: "General Inventory",
+        inventoryBucket: "dealer_inventory",
+        recommendationLabel: "Sell Duplicate",
+      }),
+      body: sellBody,
+      listingCount: 0,
+      liveLow: null,
+      liveHigh: null,
+      hasEbayCreds: false,
+    });
+    expect(draft.status).toBe("pending_credentials");
+    expect(draft.listingPayload.submitReady).toBe(false);
+  });
 });

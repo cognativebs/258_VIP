@@ -50,6 +50,7 @@ export function decideListingDraft(input: {
     });
   }
 
+  // Investment Vault only — Dealer Inventory churns without a LIVE gate.
   if (policy.sellWhenIntelligenceJustifies) {
     const inRange =
       ask != null &&
