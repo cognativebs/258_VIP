@@ -1,6 +1,7 @@
 # Plan 0003 — Comics vault comps walk (Browse listings, not a sold overwrite)
 
-Status: **plan only** — no code until the persist-target decision below is answered.
+Status: **P1 chosen (2026-08-28)** — `vault_market.listing_observation` + Track A walk.
+Track B (Collection LIVE column) is not in this build.
 Companion: [how-to 10](../how-to/10-ebay-comps.md), [plan 0002 §W2](0002-live-ops-weekend.md), ADR 0010 §6, AGENTS.md rules 2–5.
 
 This is **not** a CLZ re-import. The comics vault is already ingested. This plan
@@ -46,9 +47,8 @@ they were sold.
 | **P2** | Per-holding cache (Postgres jsonb or job state) keyed by `holding_id`, raw HTTP in `vault_evidence.raw_snapshots` | No new market table. Weaker as a moat. Fine for v1 if P1 is deferred. |
 | **P3** | Insert Browse into `vault_market.sale` with `source=ebay` | **Reject.** Conflicts with sale = transactions and with rule 2. |
 
-Recommendation: **P2 for the first walk** (cache + raw snapshots), **P1 before
-the Collection Tab column is treated as durable**, **never P3**. Insights sold
-comps (when granted) are the only path that should write `vault_market.sale`.
+**Owner pick (2026-08-28): P1.** Never P3. Insights sold comps (when granted)
+are the only path that should write `vault_market.sale`.
 
 ### C2. Do not overwrite Collection Tab VALUE
 

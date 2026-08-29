@@ -87,5 +87,27 @@ or **Run** (Run always re-fetches). Do not liquidate until `liquidation` is
 
 Walking the **whole** comics vault is a batched job, not an Analysis uncap —
 see [plan 0003](../plans/0003-comics-comps-vault-ingest.md). Collection Tab
-VALUE stays the CLZ snapshot. A future LIVE column is range + listing count +
-recency · unverified, beside VALUE, never instead of it.
+VALUE stays the CLZ snapshot. Browse asks land in `vault_market.listing_observation`,
+never in `vault_market.sale` and never over CLZ dollars.
+
+## 5. Vault walk (Marvel / DC, then all)
+
+Stop VIP is not required. From repo root in PowerShell (after `git pull` on `main`
+and a migrate so `listing_observation` exists):
+
+```powershell
+cd D:\Projects\Business_Ideas\258_Labs\258_VIP
+npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12
+```
+
+Expect a report with `processed` / `wrote` / `unmatched`. Resume the rest:
+
+```powershell
+npm run job:comics-comps -- --publishers=Marvel,DC --resume
+```
+
+Full comics vault (every publisher): `--publishers=all`. Ctrl+C pauses; `--resume`
+continues. Dry-run (`--dry-run`) fetches nothing into Postgres.
+
+A future LIVE column is range + listing count + recency · unverified, beside
+VALUE, never instead of it.

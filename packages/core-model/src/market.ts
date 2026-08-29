@@ -51,3 +51,66 @@ export const PopulationReportSchema = BaseRecordSchema.extend({
   asOf: z.coerce.date(),
 });
 export type PopulationReport = z.infer<typeof PopulationReportSchema>;
+
+/** Explicit “unknown condition” — NULL is forbidden (never means any). */
+export const CONDITION_KEY_ANY = "any" as const;
+
+export const ListingObservationKindSchema = z.enum(["browse_listing", "browse_empty"]);
+export type ListingObservationKind = z.infer<typeof ListingObservationKindSchema>;
+
+/**
+ * Active listing (ask) or an explicit empty Browse fetch.
+ * Not a `sale` row — do not persist these into vault_market.sale.
+ */
+export const ListingObservationSchema = BaseRecordSchema.extend({
+  assetId: UuidSchema,
+  holdingId: UuidSchema.nullable(),
+  holdingSourceRowId: z.string().min(1),
+  conditionKey: z.string().min(1),
+  observationKind: ListingObservationKindSchema,
+  source: z.literal("ebay_browse"),
+  listingId: z.string().min(1),
+  askPrice: z.number().positive().nullable(),
+  currency: z.string().length(3).default("USD"),
+  listingTitle: z.string().nullable().optional(),
+  listingUrl: z.string().nullable().optional(),
+  observedAt: z.coerce.date(),
+  listingCreatedAt: z.coerce.date().nullable().optional(),
+  rawSnapshotId: UuidSchema.nullable().optional(),
+  providerIds: z.record(z.string()).default({}),
+}).superRefine((row, ctx) => {
+  if (row.observationKind === "browse_listing" && row.askPrice == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "browse_listing requires a positive askPrice",
+      path: ["askPrice"],
+    });
+  }
+  if (row.observationKind === "browse_empty" && row.askPrice != null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "browse_empty must not carry an askPrice",
+      path: ["askPrice"],
+    });
+  }
+});
+export type ListingObservation = z.infer<typeof ListingObservationSchema>;
+
+export const ComicsCompsWalkCursorSchema = z.object({
+  job: z.literal("comics-comps-walk"),
+  lastHoldingSourceRowId: z.string().nullable(),
+  processed: z.number().int().nonnegative(),
+  skippedFresh: z.number().int().nonnegative(),
+  unmatched: z.number().int().nonnegative(),
+  wrote: z.number().int().nonnegative(),
+  errors: z.array(
+    z.object({
+      holdingSourceRowId: z.string(),
+      reason: z.string(),
+    }),
+  ),
+  paused: z.boolean(),
+  publishers: z.array(z.string()),
+  updatedAt: z.string().min(1),
+});
+export type ComicsCompsWalkCursor = z.infer<typeof ComicsCompsWalkCursorSchema>;

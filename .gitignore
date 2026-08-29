@@ -7,6 +7,7 @@ dist/
 .next/
 out/
 services/jobs/.state/
+.state/
 # Manual intelligence store (predictions/underwriting an operator typed in).
 # Local state, not source; override the path with VIP_INTELLIGENCE_STATE.
 scripts/dev-intelligence-state.json
