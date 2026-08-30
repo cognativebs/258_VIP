@@ -2,140 +2,130 @@
 
 ## Goal
 
-Scan sports / TCG cards on a Ricoh fi-8170, identify them, confirm into VIP
-inventory (with duplicate alerts), and optionally queue an eBay listing draft
-once developer tokens exist.
+Scan sports / TCG cards on a Ricoh fi-8170, pair front/back, identify them with
+traceable evidence, confirm draft inventory (with duplicate alerts), and
+optionally queue an eBay listing draft once developer tokens exist.
 
-Museum-quality photography is **out of scope** for this path (`qualityTier: intake`).
+Museum-quality photography, grading, pricing, and TWAIN control are **out of
+scope**. Intake quality only (`qualityTier: intake`).
 
 ## Hardware setup (operator)
 
 1. Install **PaperStream Capture** (or Capture Pro) for the fi-8170.
-2. Create a profile:
+2. Create profile **`004_Cards`**:
    - Duplex on
-   - Color / 300 dpi is enough for intake ID (museum station comes later)
-   - Output: JPEG or TIFF to a watched folder, e.g. `D:\VIP\scans\fi8170\`
-   - Prefer filenames that include `front` / `back`, or rely on sequential duplex
-3. Optional: enable OCR / barcode in PaperStream and pass text through later.
+   - Color, **600 DPI**
+   - Output: JPEG or PNG to a watched folder, e.g. `D:\VIP\scans\fi8170\`
+   - Prefer filenames that include `front` / `back` (or rely on sequential ADF)
+3. Optional: write OCR next to each image as `<same-name>.txt`.
 
-## Software pipeline
+## Where to put scans
 
-Package: `@vip/scan-ingest`  
-API: `@vip/api` `/api/scan/*`
-
-```
-ADF duplex pages
-  → FolderWatchAdapter (pair front/back)
-  → openScanBatch (RawSnapshot descriptors + ID candidates)
-  → operator review (duplicate alert if already held)
-  → confirm → Holding (source=ricoh_fi8170, action=Hold)
-  → optional EbayListingDraft (idle without EBAY_* tokens)
-```
-
-## Staging vs inventory (ADR 0009)
-
-An imported card is **staged**, not owned. Identity candidates live in
-`vault_media.scan_unit_candidate` with their own confidence and provenance;
-nothing is written to `vault_core.asset` or `vault_collection.holding` until a
-unit resolves. A database CHECK enforces it: a `scan_unit` may not carry
-`confirmed_asset_id` / `holding_id` without a `resolution_mode` and rule
-version.
-
-Confidence bands shown in the review queue:
-
-| Band | Meaning |
-|---|---|
-| `auto` | Would auto-resolve (only when auto-resolution is enabled) |
-| `review` | Plausible match, needs a human |
-| `weak` | Low score — treat as a guess |
-| `none` | No candidate; the catalog has nothing close |
-
-Auto-resolution is **off by default**. Enabling it requires all of: confidence
-above the threshold, a clear margin over the runner-up, an identity-grade match
-reason (external id or collector number), and no duplicate alert.
-
-```powershell
-setx VIP_SCAN_AUTO_RESOLVE 1          # opt in
-setx VIP_SCAN_AUTO_RESOLVE_MIN 0.95   # optional, default 0.9
-setx VIP_SCAN_AUTO_RESOLVE_MARGIN 0.2 # optional, default 0.15
-```
-
-Rejecting a unit keeps the scan and its candidates, so a better catalog can be
-re-run against the same capture instead of forcing a re-scan.
-
-## From IQVault (no curl)
-
-1. Set the drop folder once, so you never type a full path:
+1. Preferred: set the API inbox once, then drop files there.
 
 ```powershell
 setx VIP_SCAN_INBOX "D:\VIP\scans\fi8170"
 ```
 
-Restart the VIP API (or `Launch IQVault.bat`) so it picks the variable up.
-
-2. Scan in PaperStream Capture (duplex → that folder).
-3. Open IQVault → **Scan** (`http://127.0.0.1:3000/scan`).
-4. Pick the category, optionally a subfolder, then **Import scanned batch**.
-5. Review each unit's candidates and duplicate rows, then **Confirm**.
-
-Confirm writes a Holding with `source=ricoh_fi8170`, action **Hold**, and
-condition **NM assumed · unverified**. Units with duplicates require the
-explicit confirm click, which sends `acknowledgeDuplicates`.
-
-File naming helps identification: the matcher reads the file name when
-PaperStream OCR text is absent, so `1986_topps_michael_jordan_57_front.jpg`
-identifies far better than `img001.jpg`.
-
-## API quick start
+On this Linux cloud VM:
 
 ```bash
-# Capability probe (includes the configured inbox root)
-curl -s localhost:8787/api/scan | jq
-
-# Start a batch from the drop folder (what the Scan page calls)
-curl -s -X POST localhost:8787/api/scan/import-folder \
-  -H 'content-type: application/json' \
-  -d '{"folder":"box1","categoryHint":"sports"}' | jq
-
-# Open a batch from paired pages (OCR text helps ID)
-curl -s -X POST localhost:8787/api/scan/batches \
-  -H 'content-type: application/json' \
-  -d '{
-    "categoryHint": "sports",
-    "pages": [
-      {
-        "storageRef": "scans/fi8170/001_front.jpg",
-        "contentHash": "aaa",
-        "ocrText": "1986 Topps Michael Jordan 57",
-        "face": "front"
-      },
-      {
-        "storageRef": "scans/fi8170/001_back.jpg",
-        "contentHash": "bbb",
-        "face": "back"
-      }
-    ]
-  }' | jq
-
-# Confirm unit into inventory (acknowledgeDuplicates if 409)
-curl -s -X POST localhost:8787/api/scan/units/<unitId>/confirm \
-  -H 'content-type: application/json' \
-  -d '{
-    "selectedCandidateKey": "sports:topps:1986:jordan:57",
-    "acknowledgeDuplicates": true,
-    "queueEbayListingDraft": true
-  }' | jq
+export VIP_SCAN_INBOX="/workspace/data/scan-inbox"
+# PaperStream (or a copy of its output) → $VIP_SCAN_INBOX or a subfolder
 ```
 
-## eBay listing drafts
+2. Acceptance / dry-run fixture (20 cards / 40 images):
 
-Without `EBAY_OAUTH_TOKEN` (or client id/secret), drafts stay
-`pending_credentials` and are **not** submitted. Comps browsing still uses the
-existing `ebay-sold` adapter separately.
+`data/scan-inbox/ricoh-v1-fixture/`
+
+Replace any `*_front` / `*_back` pair with real 600 DPI scans of the same stem
+and re-import. Card 19 is an intentional byte-identical reimport. Card 20 has
+conflicting front/back OCR sidecars.
+
+3. Or upload the images from IQVault **Scan** (file picker) — no inbox required.
+
+## Start processing
+
+1. Restart the VIP API after changing env (`npm run api`).
+2. Open IQVault → **Scan** (`http://127.0.0.1:3000/scan`).
+3. Leave the folder blank (uses `VIP_SCAN_INBOX`) **or** type a subfolder /
+   absolute path **or** choose files.
+4. Pairing: **Auto** (filename labels if most pages are labeled, else sequential
+   duplex). Use **Filename** for `*_front` / `*_back` lots.
+5. Click **Import scanned batch** (folder) or **Upload selected images**.
+
+API equivalent:
+
+```bash
+curl -s -X POST localhost:8787/api/scan/import-folder \
+  -H 'content-type: application/json' \
+  -d '{"folder":"ricoh-v1-fixture","categoryHint":"sports","pairing":"filename_front_back","scannerProfile":"004_Cards"}'
+```
+
+## Where to review uncertain cards
+
+**IQVault → Scan → Review queue** (`/scan`).
+
+Front and back render together. Routes:
+
+| Route | Meaning |
+|---|---|
+| `HIGH` | Draft candidate can proceed (still confirm unless auto-resolve is on) |
+| `MEDIUM` | Candidate exists — quick confirmation required |
+| `LOW` | `needs_review` — do not treat identity as known |
+| `CONFLICT` | Front/back/catalog disagree — never silently chosen |
+
+Confirm writes a **draft** holding (Dealer Inventory · Sell · NM assumed ·
+unverified) linked to the scan unit and master hashes. Reject keeps the
+captures for a later catalog re-run.
+
+Same **card type** already held ≠ same **physical scan**. Physical reimports
+show “same physical scan”. Extra copies of a type are legitimate.
+
+## Software pipeline
+
+Package: `@vip/scan-ingest`  
+API: `@vip/api` `/api/scan/*`  
+Contracts: `@vip/core-model` `CardScanObject` / `CardIdentityEvidence`
+
+```
+PaperStream files
+  → copy immutable masters (data/scan-masters/<batchId>/)
+  → pairPagesForReview (filename | sequential | auto)
+  → fuseCardEvidence (front_text + back_text; conflicts listed)
+  → base vs parallel confidence (weak parallel does not void base)
+  → HIGH / MEDIUM / LOW / CONFLICT (VIP_SCAN_HIGH_MIN / VIP_SCAN_MEDIUM_MIN)
+  → staging (vault_media.scan_batch / scan_unit / capture_image)
+  → operator confirm → Holding (source=ricoh_fi8170, Dealer, Sell)
+```
+
+## Staging vs inventory (ADR 0009)
+
+An imported card is **staged**, not owned. Nothing is written to
+`vault_core.asset` or `vault_collection.holding` until a unit resolves.
+
+Auto-resolution is **off by default**. Enabling it requires
+`VIP_SCAN_AUTO_RESOLVE=1`, route HIGH, a catalog candidate, no identity
+duplicate, and no physical reimport.
+
+```powershell
+setx VIP_SCAN_AUTO_RESOLVE 1
+setx VIP_SCAN_HIGH_MIN 0.8
+setx VIP_SCAN_MEDIUM_MIN 0.45
+setx VIP_SCAN_MASTER_DIR "D:\VIP\scan-masters"
+```
 
 ## Provenance rules
 
-- ID candidates: inferred · unverified until confirm
+- Identification is inferred · unverified until confirm
 - After confirm: identity observed/verified by operator; condition remains
   **NM assumed · unverified** until a grading / museum capture pass
-- Duplicates require explicit `acknowledgeDuplicates: true`
+- Evidence origin is one of: `front_text` | `back_text` | `catalog` | `inference`
+  (`front_visual` / `back_visual` reserved — no vision model in this slice)
+- Masters are never contrast/saturation/sharpen/foil enhanced
+
+## Later pipelines (not built here)
+
+The same master hashes can later feed Museum condition, centering, Binder
+imagery, pricing, and eBay listing generation. Do not destructively edit
+`data/scan-masters`.

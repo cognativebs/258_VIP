@@ -10,5 +10,8 @@ placeholder JPEGs named like PaperStream (`…_front.jpg`) so the pipeline
 can run. Replace those files with real fi-8170 scans of the same stems
 and re-run.
 
+`ricoh-v1-fixture/` is the 20-card / 40-image acceptance lot for Ricoh
+intake v1 (filename `*_front` / `*_back`, plus one conflict OCR pair).
+
 Set `VIP_SCAN_INBOX` to this directory (or its parent) so `/scan` import
 stays inside the inbox.

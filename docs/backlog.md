@@ -179,6 +179,9 @@ third-party-access licence limit).
 - [x] VIP API `/api/scan/*` review/confirm surface
 - [x] Write-through from API store → Postgres `vault_media` + `vault_collection.holding` (resolve → dealer bucket + Sell)
 - [x] Operator review UI (IQVault `/scan` + Batch 001 inspect on `/batch/001`) — 2026-08-29
+- [x] Ricoh trading-card intake v1 — masters, front/back pairing, evidence fusion,
+      base vs parallel confidence, HIGH/MEDIUM/LOW/CONFLICT, physical reimport,
+      draft inventory, `/scan` front+back review (2026-08-30)
 - [ ] Live catalog adapters (replace fixture sports/TCG matcher)
 - [ ] Museum-quality capture tier (same media model, `quality_tier=museum`)
 - [ ] Store constraints on same engine as VIP
