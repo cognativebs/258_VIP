@@ -43,7 +43,7 @@ export const RICOH_V1_ROSTER: RicohFixtureCard[] = [
     reimportOf: "01_1986_topps_michael_jordan_57_rookie",
   },
   {
-    stem: "20_conflict",
+    stem: "20_sides_disagree",
     kind: "front/back identity conflict",
     frontOcr: "1986 Topps Michael Jordan 57",
     backOcr: "1993 Upper Deck Derek Jeter 449",

@@ -204,7 +204,9 @@ export async function ingestRicohBatch(
         "no_foil_enhance",
         `orientation_recorded:${frontMaster.meta.orientation}`,
       ];
-      const frontText = [unit.ocrText, sidecarSync(frontSrc), basename(frontSrc)]
+      // Per-side text only. unit.ocrText joins front+back in openScanBatch —
+      // feeding that into one side would silently merge contradictory evidence.
+      const frontText = [sidecarSync(frontSrc), basename(frontSrc)]
         .filter(Boolean)
         .join(" ");
       const backText = backSrc
@@ -212,7 +214,12 @@ export async function ingestRicohBatch(
         : "";
       const evidence = fuseCardEvidence({ frontText, backText });
       const top = unit.candidates[0];
-      if (top?.playerOrCharacter && !evidence.fused.playerOrCharacter.value) {
+      // Catalog may fill a missing field, never break a recorded conflict.
+      if (
+        top?.playerOrCharacter &&
+        !evidence.fused.playerOrCharacter.value &&
+        evidence.conflictNotes.length === 0
+      ) {
         evidence.fused.playerOrCharacter = {
           value: top.playerOrCharacter,
           confidence: top.confidence,

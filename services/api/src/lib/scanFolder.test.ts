@@ -81,8 +81,10 @@ describe("importFolderPages", () => {
     const result = await importFolderPages({ folder: undefined, pairing: "filename_front_back" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.pages[1]?.ocrText).toMatch(/Jordan/);
-    expect(result.pages[0]?.ocrText).toBeNull();
+    const back = result.pages.find((p) => p.fileName.includes("_back"));
+    const front = result.pages.find((p) => p.fileName.includes("_front"));
+    expect(back?.ocrText).toEqual("1986 Topps Michael Jordan 57");
+    expect(front?.ocrText).toBeNull();
   });
 
   it("reports an empty folder instead of opening a batch", async () => {
