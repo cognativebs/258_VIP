@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pairPagesForReview } from "./pairing.js";
+import { pairPagesForReview, swapUnitFaces } from "./pairing.js";
 import type { DevicePage } from "./adapters/types.js";
 
 function page(name: string, hash: string, seq: number): DevicePage {
@@ -28,6 +28,39 @@ describe("pairPagesForReview", () => {
     expect(d.units[1]?.back).toBeUndefined();
     expect(d.needsReview[1]).toBe(true);
     expect(d.warnings.join(" ")).toMatch(/missing back|odd page/i);
+  });
+
+  it("treats ADF order as back then front when face-up pairing is selected", () => {
+    const d = pairPagesForReview(
+      [
+        page("IMG_0001.jpg", "a", 0),
+        page("IMG_0002.jpg", "b", 1),
+        page("IMG_0003.jpg", "c", 2),
+        page("IMG_0004.jpg", "d", 3),
+      ],
+      { strategy: "sequential_duplex_back_first" },
+    );
+    expect(d.method).toBe("sequential_duplex_back_first");
+    expect(d.units).toHaveLength(2);
+    expect(d.units[0]?.front.fileName).toBe("IMG_0002.jpg");
+    expect(d.units[0]?.back?.fileName).toBe("IMG_0001.jpg");
+    expect(d.units[1]?.front.fileName).toBe("IMG_0004.jpg");
+    expect(d.warnings.join(" ")).toMatch(/face-up ADF/i);
+  });
+
+  it("swapUnitFaces exchanges sides and does not invent a missing back", () => {
+    const paired = pairPagesForReview(
+      [page("IMG_0001.jpg", "a", 0), page("IMG_0002.jpg", "b", 1)],
+      { strategy: "sequential_duplex" },
+    ).units[0]!;
+    const swapped = swapUnitFaces(paired);
+    expect(swapped.front.contentHash).toBe("b");
+    expect(swapped.back?.contentHash).toBe("a");
+    expect(swapUnitFaces(swapped).front.contentHash).toBe("a");
+    const single = pairPagesForReview([page("IMG_0001.jpg", "a", 0)], {
+      strategy: "sequential_duplex",
+    }).units[0]!;
+    expect(swapUnitFaces(single).back).toBeUndefined();
   });
 
   it("pairs labeled front/back on the same stem", () => {

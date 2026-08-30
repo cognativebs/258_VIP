@@ -9,7 +9,11 @@ function vipBase(): string {
 const SCAN_TIMEOUT_MS = 120_000;
 
 export type ScanCategory = "sports" | "pokemon" | "mtg";
-export type ScanPairing = "auto" | "filename_front_back" | "sequential_duplex";
+export type ScanPairing =
+  | "auto"
+  | "filename_front_back"
+  | "sequential_duplex"
+  | "sequential_duplex_back_first";
 
 export type ScanMeta = {
   version: string;
@@ -217,5 +221,30 @@ export function rejectScanUnit(
   return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/reject`, {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+}
+
+export function swapScanFaces(body: {
+  batchId?: string;
+  unitId?: string;
+}): Promise<{
+  ok: boolean;
+  swapped: number;
+  skipped: number;
+  pairingMethod: string;
+  note: string;
+}> {
+  if (body.unitId) {
+    return vipFetch(`/api/scan/units/${encodeURIComponent(body.unitId)}/swap-faces`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+  if (!body.batchId) {
+    return Promise.reject(new Error("batchId or unitId required"));
+  }
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(body.batchId)}/swap-faces`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }

@@ -17,6 +17,10 @@ scope**. Intake quality only (`qualityTier: intake`).
    - Color, **600 DPI**
    - Output: JPEG or PNG to a watched folder, e.g. `D:\VIP\scans\fi8170\`
    - Prefer filenames that include `front` / `back` (or rely on sequential ADF)
+   - Load **face down** for front-then-back file order, or **face up** and use
+     Scan pairing **Sequential duplex (face-up ADF)**
+   - If the transport delivers images upside down, rotate **180° in PaperStream
+     before save** so the JPEG pixels are upright (do not rely on EXIF-only rotate)
 3. Optional: write OCR next to each image as `<same-name>.txt`.
 
 ## Where to put scans
@@ -50,10 +54,15 @@ conflicting front/back OCR sidecars.
 2. Open IQVault → **Scan** (`http://127.0.0.1:3000/scan`).
 3. Leave the folder blank (uses `VIP_SCAN_INBOX`) **or** type a subfolder /
    absolute path **or** choose files.
-4. Pairing: **Auto** (filename labels if most pages are labeled, else sequential
-   duplex). PaperStream default names (`IMG_0001.jpg`, `IMG_0002.jpg`) are
-   sequential ADF order — leave Auto or choose **Sequential duplex**. Use
-   **Filename** only for `*_front` / `*_back` lots.
+4. Pairing:
+   - **Auto** / **Sequential duplex (face-down ADF)** when cards were loaded
+     face down (first file = front).
+   - **Sequential duplex (face-up ADF — back then front)** when cards were
+     dropped face up (first file = downward side = back).
+   - **Filename** only for `*_front` / `*_back` lots.
+   If a lot is already staged with sides reversed, click **Swap front/back** on
+   the batch (or **Swap faces** on one card). That is an operator assertion —
+   the pipeline does not guess which side is the front.
 5. Click **Process selected images**. The browser sends one scan at a time
    (600 DPI lots exceed Next’s 10MB proxy if sent as one request).
    Same-PC folder import is still the fastest path for a full box.

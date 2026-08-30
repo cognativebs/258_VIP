@@ -30,4 +30,20 @@ describe("FolderWatchAdapter", () => {
     expect(units[1]?.back).toBeUndefined();
     expect(units[0]?.categoryHint).toBe("sports");
   });
+
+  it("pairs face-up ADF order as back then front", async () => {
+    const adapter = new FolderWatchAdapter({
+      rootLabel: "drop",
+      pairing: "sequential_duplex_back_first",
+    });
+    adapter.ingestDescriptors([
+      { fileName: "IMG_0001.jpg", bytes: "down-face" },
+      { fileName: "IMG_0002.jpg", bytes: "up-face" },
+    ]);
+    const pages = await adapter.listPages();
+    const units = pairPagesIntoUnits(pages, "sequential_duplex_back_first", "sports");
+    expect(units).toHaveLength(1);
+    expect(units[0]?.front.fileName).toBe("IMG_0002.jpg");
+    expect(units[0]?.back?.fileName).toBe("IMG_0001.jpg");
+  });
 });

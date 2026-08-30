@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
@@ -10,8 +10,10 @@ import {
   acceptanceRows,
   ingestRicohBatch,
   startUploadSession,
+  swapStagedFaces,
   writeUploadFile,
 } from "./ricohIntake.js";
+import { getStagedBatch } from "./scanStorePg.js";
 
 async function dbAvailable(): Promise<boolean> {
   try {
@@ -138,6 +140,45 @@ describe("Ricoh trading-card scan intake v1", () => {
     expect(result.telemetry.cardsPaired).toBe(23);
     expect(result.telemetry.low).toBe(23);
     expect(result.telemetry.high).toBe(0);
+  });
+
+  it("pairs face-up ADF as back then front, and swap-faces undoes it", async () => {
+    if (!(await dbAvailable())) {
+      console.warn("skipping face-up ADF pairing: no Postgres");
+      return;
+    }
+
+    const folder = mkdtempSync(join(tmpdir(), "ricoh-faceup-"));
+    const masters = mkdtempSync(join(tmpdir(), "ricoh-masters-"));
+    process.env.VIP_SCAN_MASTER_DIR = masters;
+    delete process.env.VIP_SCAN_INBOX;
+    delete process.env.VIP_SCAN_AUTO_RESOLVE;
+
+    writeFileSync(join(folder, "IMG_0001.jpg"), makeScanJpeg("down-face-back"));
+    writeFileSync(join(folder, "IMG_0002.jpg"), makeScanJpeg("up-face-front"));
+
+    const ingested = await ingestRicohBatch({
+      folder,
+      categoryHint: "sports",
+      pairing: "sequential_duplex_back_first",
+      source: "ricoh_fi8170",
+      scannerProfile: "004_Cards",
+      notes: "face-up ADF",
+    });
+
+    expect(ingested.pairingMethod).toBe("sequential_duplex_back_first");
+    expect(ingested.cards).toHaveLength(1);
+    expect(basename(ingested.cards[0]!.originalFrontRef)).toMatch(/IMG_0002/);
+    expect(basename(ingested.cards[0]!.originalBackRef ?? "")).toMatch(/IMG_0001/);
+
+    const swapped = await swapStagedFaces({ batchId: ingested.batchId });
+    expect(swapped.swapped).toBe(1);
+    expect(swapped.pairingMethod).toBe("sequential_duplex");
+
+    const staged = await getStagedBatch(ingested.batchId);
+    expect(staged?.units[0]?.frontStorageRef).toMatch(/IMG_0001/);
+    expect(staged?.units[0]?.backStorageRef).toMatch(/IMG_0002/);
+    expect(staged?.units[0]?.pairingMethod).toBe("sequential_duplex");
   });
 
   it("writes one uploaded file at a time into a session folder", () => {

@@ -18,7 +18,10 @@ export type DeviceAdapter = {
   listPages: () => Promise<DevicePage[]>;
 };
 
-export type PairingStrategy = "sequential_duplex" | "filename_front_back";
+export type PairingStrategy =
+  | "sequential_duplex"
+  | "sequential_duplex_back_first"
+  | "filename_front_back";
 
 export type FolderWatchConfig = {
   /** Logical root used in storageRef prefixes (not necessarily a real FS path in tests). */
