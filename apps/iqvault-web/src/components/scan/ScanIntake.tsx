@@ -111,7 +111,7 @@ export function ScanIntake() {
     setStatus(null);
     try {
       const result = await importScanFolder({
-        folder: folder.trim() || undefined,
+        folder: folder.trim().replace(/^["']|["']$/g, "") || undefined,
         categoryHint: category,
         notes: notes.trim() || undefined,
         pairing,
@@ -236,12 +236,51 @@ export function ScanIntake() {
   return (
     <div className="stack">
       <section className="panel">
-        <h3 style={{ marginTop: 0 }}>Upload your Ricoh scans</h3>
+        <h3 style={{ marginTop: 0 }}>Import a scan folder</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Use the box below to pick your PaperStream <strong>004_Cards</strong>{" "}
-          front and back images from this PC. You do not need a <code>D:\</code>{" "}
-          path for that. The Michael Jordan rows are lab tests — hide them on the
-          review queue.
+          Paste the PaperStream output path and click <strong>Import folder</strong>.
+          The folder must exist on this PC (the machine running the VIP API).
+        </p>
+
+        <label className="scan-field">
+          <span>Scan folder</span>
+          <input
+            type="text"
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!text.trim()) return;
+              e.preventDefault();
+              setFolder(text.trim().replace(/^["']|["']$/g, ""));
+            }}
+            placeholder={inboxRoot ?? "D:\\VIP\\scans\\fi8170"}
+            spellCheck={false}
+            autoComplete="off"
+            disabled={busy}
+          />
+          <small className="muted">
+            {inboxRoot
+              ? `Paste a path, or leave blank for VIP_SCAN_INBOX (${inboxRoot}).`
+              : "Paste the full folder path, e.g. D:\\VIP\\scans\\fi8170"}
+          </small>
+        </label>
+
+        <div className="scan-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void startBatch()}
+            disabled={busy}
+          >
+            {busy ? "Working…" : "Import folder"}
+          </button>
+        </div>
+
+        <h3>Or choose image files</h3>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Use this if you do not want to point at a folder. Large 600 DPI lots
+          upload one file at a time.
         </p>
 
         <div
@@ -333,37 +372,6 @@ export function ScanIntake() {
             disabled={busy}
           />
         </label>
-
-        <details className="scan-folder-details">
-          <summary>Same-PC folder import (optional)</summary>
-          <p className="muted" style={{ fontSize: 13 }}>
-            Only works if that folder already exists on the machine running the
-            VIP API. Create it first if Windows says folder not found.
-          </p>
-          <label className="scan-field">
-            <span>Scan folder</span>
-            <input
-              type="text"
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
-              placeholder={inboxRoot ?? "D:\\VIP\\scans\\fi8170"}
-              disabled={busy}
-            />
-            <small className="muted">
-              {inboxRoot
-                ? `Blank uses VIP_SCAN_INBOX (${inboxRoot}).`
-                : "Set VIP_SCAN_INBOX, or type a folder that exists on this PC."}
-            </small>
-          </label>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => void startBatch()}
-            disabled={busy}
-          >
-            {busy ? "Working…" : "Import folder"}
-          </button>
-        </details>
 
         {meta ? (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>

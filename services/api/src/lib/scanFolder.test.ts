@@ -2,7 +2,12 @@ import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { importFolderPages, isImageFile, resolveScanFolder } from "./scanFolder.js";
+import {
+  importFolderPages,
+  isImageFile,
+  normalizePastedFolder,
+  resolveScanFolder,
+} from "./scanFolder.js";
 
 afterEach(() => {
   delete process.env.VIP_SCAN_INBOX;
@@ -35,6 +40,24 @@ describe("resolveScanFolder", () => {
     const nested = resolveScanFolder("batch-1");
     expect(nested.ok).toBe(true);
     if (nested.ok) expect(nested.path).toBe(join(inbox, "batch-1"));
+  });
+
+  it("accepts a quoted Explorer paste of the inbox path", () => {
+    const inbox = makeInbox();
+    process.env.VIP_SCAN_INBOX = inbox;
+    const result = resolveScanFolder(`"${inbox}"`);
+    expect(result).toEqual({ ok: true, path: inbox });
+  });
+});
+
+describe("normalizePastedFolder", () => {
+  it("strips quotes and file URLs", () => {
+    expect(normalizePastedFolder('  "D:\\VIP\\scans\\fi8170"  ')).toBe(
+      "D:\\VIP\\scans\\fi8170",
+    );
+    expect(normalizePastedFolder("file:///D:/VIP/scans/fi8170")).toBe(
+      "D:\\VIP\\scans\\fi8170",
+    );
   });
 });
 
