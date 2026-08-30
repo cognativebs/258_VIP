@@ -4,7 +4,7 @@ import { z } from "zod";
  * Ricoh / PaperStream trading-card scan intake v1.
  * Extends existing ScanBatch / ScanUnit — does not replace them.
  */
-export const CARD_SCAN_RULE = "card-scan-intake@0.1.0";
+export const CARD_SCAN_RULE = "card-scan-intake@0.2.0";
 
 export const ScanSourceSchema = z.string().min(1);
 export const ScannerProfileSchema = z.string().min(1);
@@ -13,9 +13,13 @@ export const DEFAULT_SCANNER_PROFILE = "004_Cards";
 
 export const EvidenceOriginSchema = z.enum([
   "front_visual",
+  "front_vision",
   "front_text",
+  "front_ocr",
   "back_visual",
+  "back_vision",
   "back_text",
+  "back_ocr",
   "catalog",
   "inference",
 ]);

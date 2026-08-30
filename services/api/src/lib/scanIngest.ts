@@ -98,7 +98,9 @@ export function openScanFromApi(body: OpenScanBody) {
 
   return openScanBatch(input, {
     store,
-    catalog: FIXTURE_CATALOG,
+    // Pixel OCR + sports parse is the production matcher. The 5-card fixture
+    // is not a catalog — do not score real lots against Jordan/Charizard.
+    catalog: [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -144,6 +146,8 @@ export function scanMeta() {
       "PaperStream / folder drop or upload (source extensible)",
       "immutable master copy + orientation recorded",
       "duplex pair / filename front (ambiguous → review)",
+      "Tesseract OCR on front+back pixels (generic IMG_#### names ignored)",
+      "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",

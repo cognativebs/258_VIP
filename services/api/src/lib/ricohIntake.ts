@@ -14,14 +14,16 @@ import {
 import {
   FolderWatchAdapter,
   baseVsParallelFromEvidence,
-  fuseCardEvidence,
+  identifyFromPairedImages,
   isPhysicalReimport,
+  ocrImageFile,
   pairPagesForReview,
   policyFromEnv,
   readImageMeta,
   routeReview,
   thresholdsFromEnv,
   type DevicePage,
+  type IdentityCandidate,
 } from "@vip/scan-ingest";
 import { getDb } from "../db/client.js";
 import type { ApiHolding } from "./holdings.js";
@@ -142,6 +144,11 @@ export async function ingestRicohBatch(
     throw new RicohIntakeError(imported.error, imported.status);
   }
 
+  for (const page of imported.pages) {
+    const ocr = await ocrImageFile(page.storageRef, page.contentHash);
+    page.ocrText = [page.ocrText, ocr.text].filter(Boolean).join("\n").trim() || null;
+  }
+
   const adapter = new FolderWatchAdapter({
     rootLabel: imported.folder,
     pairing: "sequential_duplex",
@@ -186,6 +193,7 @@ export async function ingestRicohBatch(
   const warnings = [...pairing.warnings];
   const cards: CardScanObject[] = [];
   let identified = 0;
+  let visionCostUsd = 0;
   let high = 0;
   let medium = 0;
   let low = 0;
@@ -215,14 +223,24 @@ export async function ingestRicohBatch(
       ];
       // Per-side text only. unit.ocrText joins front+back in openScanBatch —
       // feeding that into one side would silently merge contradictory evidence.
-      const frontText = [sidecarSync(frontSrc), basename(frontSrc)]
-        .filter(Boolean)
-        .join(" ");
-      const backText = backSrc
-        ? [sidecarSync(backSrc), basename(backSrc)].filter(Boolean).join(" ")
-        : "";
-      const evidence = fuseCardEvidence({ frontText, backText });
-      const top = unit.candidates[0];
+      const pixelId = await identifyFromPairedImages({
+        frontPath: frontMaster.dest,
+        backPath: backMaster?.dest ?? null,
+        frontHash: frontMaster.hash,
+        backHash: backMaster?.hash,
+        sidecarFront: sidecarSync(frontSrc),
+        sidecarBack: backSrc ? sidecarSync(backSrc) : "",
+        frontFileName: basename(frontSrc),
+        backFileName: backSrc ? basename(backSrc) : "",
+        categoryHint: req.categoryHint ?? "sports",
+      });
+      const evidence = pixelId.evidence;
+      visionCostUsd += pixelId.estimatedCostUsd;
+      if (pixelId.notes.length) {
+        warnings.push(...pixelId.notes.map((n) => `unit ${unit.unitIndex}: ${n}`));
+      }
+      const top = pixelId.candidates[0] ?? unit.candidates[0];
+      await upsertPixelCandidates(unit.id, pixelId.candidates);
       // Catalog may fill a missing field, never break a recorded conflict.
       if (
         top?.playerOrCharacter &&
@@ -373,7 +391,7 @@ export async function ingestRicohBatch(
     processingFailures: failures,
     avgMsPerCard: opened.batch.units.length ? totalMs / opened.batch.units.length : 0,
     totalMs,
-    estimatedCostUsd: 0,
+    estimatedCostUsd: Number(visionCostUsd.toFixed(6)),
   });
 
   await db.execute(sql`
@@ -491,13 +509,20 @@ export async function swapStagedFaces(opts: {
     const newBackRef = row.front_storage_ref;
     const newFrontHash = row.back_content_hash;
     const newBackHash = row.front_content_hash;
-    const frontText = [sidecarSync(newFrontRef), basename(newFrontRef)]
-      .filter(Boolean)
-      .join(" ");
-    const backText = [sidecarSync(newBackRef), basename(newBackRef)]
-      .filter(Boolean)
-      .join(" ");
-    const evidence = fuseCardEvidence({ frontText, backText });
+    const newFrontMaster = row.normalized_back_ref ?? newFrontRef;
+    const newBackMaster = row.normalized_front_ref ?? newBackRef;
+    const pixelId = await identifyFromPairedImages({
+      frontPath: newFrontMaster,
+      backPath: newBackMaster,
+      frontHash: newFrontHash,
+      backHash: newBackHash,
+      sidecarFront: sidecarSync(newFrontRef),
+      sidecarBack: sidecarSync(newBackRef),
+      frontFileName: basename(newFrontRef),
+      backFileName: basename(newBackRef),
+      categoryHint: "sports",
+    });
+    const evidence = pixelId.evidence;
     const baseVs = baseVsParallelFromEvidence(evidence);
     const route = routeReview({
       baseConfidence: baseVs.baseConfidence,
@@ -520,6 +545,8 @@ export async function swapStagedFaces(opts: {
       "operator_swapped_faces",
       `pairing_method:${nextMethod}`,
     ];
+
+    await upsertPixelCandidates(row.id, pixelId.candidates);
 
     await db.execute(sql`
       UPDATE vault_media.scan_unit
@@ -592,6 +619,46 @@ export async function swapStagedFaces(opts: {
         ? "Nothing swapped. Confirmed cards stay as they were; singles have no back to swap."
         : `Swapped front/back on ${swapped} staged card(s). Re-check identity before confirm.`,
   };
+}
+
+async function upsertPixelCandidates(
+  unitId: string,
+  candidates: IdentityCandidate[],
+): Promise<void> {
+  const db = getDb();
+  for (const [rank, candidate] of candidates.entries()) {
+    await db.execute(sql`
+      INSERT INTO vault_media.scan_unit_candidate
+        (unit_id, catalog_key, asset_id, category, display_name, set_name,
+         collector_number, player_or_character, release_year, external_ids,
+         adapter_id, confidence, match_reasons, rank, prov_rule_version,
+         prov_confidence)
+      VALUES (
+        ${unitId}::uuid, ${candidate.catalogKey},
+        ${candidate.assetId ? sql`${candidate.assetId}::uuid` : sql`NULL`},
+        ${candidate.category}, ${candidate.displayName},
+        ${candidate.setName ?? null}, ${candidate.collectorNumber ?? null},
+        ${candidate.playerOrCharacter ?? null}, ${candidate.year ?? null},
+        ${JSON.stringify(candidate.externalIds)}::jsonb,
+        ${"pixel-ocr-v1"}, ${candidate.confidence},
+        ARRAY(
+          SELECT jsonb_array_elements_text(${JSON.stringify(candidate.matchReasons)}::jsonb)
+        ),
+        ${rank},
+        ${candidate.provenance.ruleOrModelVersion},
+        ${candidate.provenance.confidence ?? candidate.confidence}
+      )
+      ON CONFLICT (unit_id, catalog_key) DO UPDATE SET
+        confidence = EXCLUDED.confidence,
+        display_name = EXCLUDED.display_name,
+        set_name = EXCLUDED.set_name,
+        collector_number = EXCLUDED.collector_number,
+        player_or_character = EXCLUDED.player_or_character,
+        release_year = EXCLUDED.release_year,
+        adapter_id = EXCLUDED.adapter_id,
+        rank = EXCLUDED.rank
+    `);
+  }
 }
 
 async function insertCaptureImage(input: {

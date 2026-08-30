@@ -22,8 +22,29 @@ describe("parseSportsIdentity", () => {
     expect(cand?.provenance.notes).toMatch(/unverified/);
   });
 
+  it("parses a card-back OCR block without using the file name", () => {
+    const parsed = parseSportsIdentity(
+      "2021 PANINI – DONRUSS FOOTBALL\nNO. 195\nBAKER MAYFIELD",
+    );
+    expect(parsed?.year).toBe(2021);
+    expect(parsed?.manufacturer).toBe("Panini");
+    expect(parsed?.brand).toBe("Donruss");
+    expect(parsed?.player).toMatch(/Baker Mayfield/i);
+    expect(parsed?.collectorNumber).toBe("195");
+    expect(parsed?.numberFromLabel).toBe(true);
+    expect(parsed?.confidence).toBeGreaterThanOrEqual(0.8);
+  });
+
   it("returns null when there is nothing sports-like", () => {
     expect(parseSportsIdentity("img001.jpg")).toBeNull();
+  });
+
+  it("does not treat card-back boilerplate as the player", () => {
+    const parsed = parseSportsIdentity(
+      "2025 PANINI AMERICA INC OFFICIAL LICENSED PRODUCT NO. 397 KURTIS ROURKE",
+    );
+    expect(parsed?.player).toMatch(/Kurtis Rourke/i);
+    expect(parsed?.player).not.toMatch(/America|Licensed|Product/i);
   });
 
   it("keeps parallel, serial, auto, and relic off the player name", () => {

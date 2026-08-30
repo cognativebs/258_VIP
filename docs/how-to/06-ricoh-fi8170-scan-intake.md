@@ -21,7 +21,9 @@ scope**. Intake quality only (`qualityTier: intake`).
      Scan pairing **Sequential duplex (face-up ADF)**
    - If the transport delivers images upside down, rotate **180° in PaperStream
      before save** so the JPEG pixels are upright (do not rely on EXIF-only rotate)
-3. Optional: write OCR next to each image as `<same-name>.txt`.
+3. Pixel OCR (Tesseract) reads the JPEGs. Optional sidecar `.txt` files are
+   extra evidence, not required. On Windows install Tesseract-OCR if `tesseract`
+   is not already on PATH.
 
 ## Where to put scans
 
@@ -75,6 +77,24 @@ curl -s -X POST localhost:8787/api/scan/import-folder \
   -d '{"folder":"ricoh-v1-fixture","categoryHint":"sports","pairing":"filename_front_back","scannerProfile":"004_Cards"}'
 ```
 
+Identification is image-driven: Tesseract reads front and back pixels, then
+year / brand / player / number are parsed and fused. Generic `IMG_####` names
+are ignored. If OCR is too weak and `OPENAI_API_KEY` is set, a structured
+vision pass runs on both faces (`VIP_SCAN_VISION=auto`). That is a single
+model call, not an Orchestr8 council.
+
+```powershell
+setx VIP_SCAN_TESSERACT "C:\Program Files\Tesseract-OCR\tesseract.exe"
+setx VIP_SCAN_VISION auto
+```
+
+Acceptance table for a paired folder:
+
+```powershell
+npm run build -w @vip/scan-ingest
+npm run report -w @vip/scan-ingest -- --folder D:\VIP\scans\fi8170
+```
+
 ## If every image becomes its own LOW card
 
 A status like `HIGH 0 · MEDIUM 0 · LOW 46` on a 23-card duplex lot means pairing
@@ -84,9 +104,11 @@ confirm that batch.
 1. Pull this branch and restart `npm run api` / `npm run web`.
 2. Set Pairing to **Auto** or **Sequential duplex (ADF order)**.
 3. Import the same folder again.
-4. Expect `23 card(s) from 46 image(s)`. Identity may still be LOW if filenames
-   are generic `IMG_####` and there is no OCR sidecar — that is identification,
-   not pairing. Do not invent player/year from the image count.
+4. Expect `23 card(s) from 46 image(s)`. Identification reads the JPEG pixels
+   (Tesseract on both faces). Generic `IMG_####` names are ignored on purpose.
+   Do not rename files or write `.txt` sidecars. Foil / no-text cards stay
+   LOW or REVIEW until a vision key is set or the operator types nothing —
+   they stay unconfirmable without a candidate.
 
 ## Where to review uncertain cards
 
@@ -118,7 +140,9 @@ Contracts: `@vip/core-model` `CardScanObject` / `CardIdentityEvidence`
 PaperStream files
   → copy immutable masters (data/scan-masters/<batchId>/)
   → pairPagesForReview (filename | sequential | auto)
-  → fuseCardEvidence (front_text + back_text; conflicts listed)
+  → Tesseract OCR (front_ocr + back_ocr) → catalog/parse match
+  → optional structured vision when OCR is weak (front_vision + back_vision)
+  → fuseCardEvidence (conflicts listed)
   → base vs parallel confidence (weak parallel does not void base)
   → HIGH / MEDIUM / LOW / CONFLICT (VIP_SCAN_HIGH_MIN / VIP_SCAN_MEDIUM_MIN)
   → staging (vault_media.scan_batch / scan_unit / capture_image)
@@ -146,8 +170,10 @@ setx VIP_SCAN_MASTER_DIR "D:\VIP\scan-masters"
 - Identification is inferred · unverified until confirm
 - After confirm: identity observed/verified by operator; condition remains
   **NM assumed · unverified** until a grading / museum capture pass
-- Evidence origin is one of: `front_text` | `back_text` | `catalog` | `inference`
-  (`front_visual` / `back_visual` reserved — no vision model in this slice)
+- Evidence origin is one of: `front_ocr` | `back_ocr` | `front_vision` |
+  `back_vision` | `front_text` | `back_text` | `catalog` | `inference`
+  (`front_visual` / `back_visual` reserved). Pixel OCR uses `*_ocr`. Structured
+  vision (only when OCR is weak and `OPENAI_API_KEY` is set) uses `*_vision`.
 - Masters are never contrast/saturation/sharpen/foil enhanced
 
 ## Later pipelines (not built here)

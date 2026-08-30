@@ -102,6 +102,11 @@ export {
 } from "./adapters/folder-watch.js";
 export { pairPagesForReview, pageStem, swapUnitFaces } from "./pairing.js";
 export { fuseCardEvidence, baseVsParallelFromEvidence } from "./evidenceFusion.js";
+export { identifyFromPairedImages } from "./identifyFromImages.js";
+export { ocrImageFile, ocrAvailable, SCAN_OCR_RULE } from "./ocr/tesseractOcr.js";
+export { extractVisionEvidence, shouldEscalateToVision, SCAN_VISION_RULE } from "./vision/structuredVision.js";
+export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
+export { isGenericScanFileName } from "./identify.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";
 export { readImageMeta, orientationOf } from "./jpegMeta.js";

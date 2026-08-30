@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
@@ -38,6 +39,7 @@ describe("Ricoh trading-card scan intake v1", () => {
     const folder = mkdtempSync(join(tmpdir(), "ricoh-v1-"));
     const masters = mkdtempSync(join(tmpdir(), "ricoh-masters-"));
     process.env.VIP_SCAN_MASTER_DIR = masters;
+    process.env.VIP_SCAN_VISION = "off";
     delete process.env.VIP_SCAN_INBOX;
     delete process.env.VIP_SCAN_AUTO_RESOLVE;
 
@@ -114,6 +116,7 @@ describe("Ricoh trading-card scan intake v1", () => {
     const folder = mkdtempSync(join(tmpdir(), "ricoh-img-"));
     const masters = mkdtempSync(join(tmpdir(), "ricoh-masters-"));
     process.env.VIP_SCAN_MASTER_DIR = masters;
+    process.env.VIP_SCAN_VISION = "off";
     delete process.env.VIP_SCAN_INBOX;
     delete process.env.VIP_SCAN_AUTO_RESOLVE;
 
@@ -179,6 +182,39 @@ describe("Ricoh trading-card scan intake v1", () => {
     expect(staged?.units[0]?.frontStorageRef).toMatch(/IMG_0001/);
     expect(staged?.units[0]?.backStorageRef).toMatch(/IMG_0002/);
     expect(staged?.units[0]?.pairingMethod).toBe("sequential_duplex");
+  });
+
+  it("identifies a pixel-OCR lot with generic IMG_#### names", async () => {
+    if (!(await dbAvailable())) {
+      console.warn("skipping pixel OCR intake: no Postgres");
+      return;
+    }
+    const { execFileSync } = await import("node:child_process");
+    const folder = mkdtempSync(join(tmpdir(), "ricoh-pixel-"));
+    const masters = mkdtempSync(join(tmpdir(), "ricoh-masters-"));
+    process.env.VIP_SCAN_MASTER_DIR = masters;
+    process.env.VIP_SCAN_VISION = "off";
+    delete process.env.VIP_SCAN_INBOX;
+    delete process.env.VIP_SCAN_AUTO_RESOLVE;
+    execFileSync("python3", [
+      join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "scripts", "write_pixel_id_fixture.py"),
+      folder,
+    ]);
+
+    const result = await ingestRicohBatch({
+      folder,
+      categoryHint: "sports",
+      pairing: "sequential_duplex",
+      notes: "pixel-id v1",
+    });
+    expect(result.imageCount).toBe(16);
+    expect(result.cards).toHaveLength(8);
+    const named = result.cards.filter((c) => c.baseVsParallel.baseDisplayName);
+    expect(named.length).toBeGreaterThanOrEqual(4);
+    const players = named.map((c) => c.baseVsParallel.baseDisplayName ?? "").join(" ");
+    expect(players).toMatch(/Mayfield|Wembanyama|Jordan|Jeter/i);
+    expect(result.cards.every((c) => c.reviewStatus !== "confirmed")).toBe(true);
+    expect(result.cards.every((c) => c.evidence.fused.year.origin !== "inference" || !c.evidence.fused.year.value)).toBe(true);
   });
 
   it("writes one uploaded file at a time into a session folder", () => {
