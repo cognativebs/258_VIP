@@ -11,6 +11,7 @@ import {
   scanMediaUrl,
   startScanUpload,
   uploadScanFile,
+  type ImportScanResult,
   type ScanCategory,
   type ScanMeta,
   type ScanPairing,
@@ -54,6 +55,41 @@ function isLabTestBatch(batch: StagedBatch): boolean {
   );
 }
 
+function pairingLabel(method: string | undefined): string | null {
+  if (method === "sequential_duplex") return "sequential duplex";
+  if (method === "filename_front_back") return "filename front/back";
+  if (method === "auto") return "auto";
+  return null;
+}
+
+function formatImportStatus(result: ImportScanResult): string {
+  if (result.stagingError) {
+    return `Imported ${result.fileCount} page(s), but staging failed: ${result.stagingError}`;
+  }
+  const cards = result.staged?.unitCount ?? 0;
+  const images = result.fileCount;
+  const how = pairingLabel(result.pairingMethod);
+  const t = result.telemetry;
+  const routes = t
+    ? ` HIGH ${t.high} · MEDIUM ${t.medium} · LOW ${t.low} · CONFLICT ${t.conflicts} · ${t.totalMs}ms.`
+    : "";
+  const fallback = result.errorsWarnings?.find((w) =>
+    /filenames were not \*_front/i.test(w),
+  );
+  const unpaired =
+    images > 1 && cards === images
+      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not confirm this batch."
+      : "";
+  return (
+    `Staged ${cards} card(s) from ${images} image(s)` +
+    (how ? ` (${how})` : "") +
+    `.${routes}` +
+    (fallback ? ` ${fallback}.` : "") +
+    unpaired +
+    " Nothing is in inventory until you confirm."
+  );
+}
+
 function readFileBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -73,7 +109,7 @@ export function ScanIntake() {
   const [store, setStore] = useState<"postgres" | "memory" | null>(null);
   const [folder, setFolder] = useState("");
   const [category, setCategory] = useState<ScanCategory>("sports");
-  const [pairing, setPairing] = useState<ScanPairing>("filename_front_back");
+  const [pairing, setPairing] = useState<ScanPairing>("auto");
   const [notes, setNotes] = useState("");
   const [uploads, setUploads] = useState<File[]>([]);
   const [hideLabBatches, setHideLabBatches] = useState(true);
@@ -116,16 +152,7 @@ export function ScanIntake() {
         notes: notes.trim() || undefined,
         pairing,
       });
-      const t = result.telemetry;
-      setStatus(
-        result.stagingError
-          ? `Imported ${result.fileCount} page(s), but staging failed: ${result.stagingError}`
-          : `Staged ${result.staged?.unitCount ?? 0} card(s) from ${result.folder}.` +
-              (t
-                ? ` HIGH ${t.high} · MEDIUM ${t.medium} · LOW ${t.low} · CONFLICT ${t.conflicts} · ${t.totalMs}ms.`
-                : "") +
-              " Nothing is in inventory until you confirm.",
-      );
+      setStatus(formatImportStatus(result));
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
@@ -160,9 +187,7 @@ export function ScanIntake() {
         notes: notes.trim() || undefined,
         pairing,
       });
-      setStatus(
-        `Uploaded ${result.fileCount} image(s) → ${result.staged?.unitCount ?? 0} card(s). Review exceptions below.`,
-      );
+      setStatus(formatImportStatus(result));
       setUploads([]);
       await reload();
     } catch (e) {
@@ -360,6 +385,10 @@ export function ScanIntake() {
             <option value="filename_front_back">Filename (*_front / *_back)</option>
             <option value="sequential_duplex">Sequential duplex (ADF order)</option>
           </select>
+          <span className="muted" style={{ fontSize: 12 }}>
+            PaperStream <code>IMG_0001</code> / <code>IMG_0002</code> lots: Auto or
+            Sequential. Filename mode needs <code>*_front</code> / <code>*_back</code>.
+          </span>
         </label>
 
         <label className="scan-field">
@@ -430,14 +459,21 @@ export function ScanIntake() {
 
               {batch.telemetry ? (
                 <p className="scan-telemetry">
-                  images {batch.telemetry.imagesReceived} · paired {batch.telemetry.cardsPaired} ·
-                  fail {batch.telemetry.pairingFailures} · HIGH {batch.telemetry.high} · MEDIUM{" "}
-                  {batch.telemetry.medium} · LOW {batch.telemetry.low} · CONFLICT{" "}
-                  {batch.telemetry.conflicts} · review {batch.telemetry.needsReview} · dups{" "}
-                  {batch.telemetry.duplicateWarnings} · {Math.round(batch.telemetry.totalMs)}ms
+                  images {batch.telemetry.imagesReceived} · cards {batch.units.length} · paired{" "}
+                  {batch.telemetry.cardsPaired} · fail {batch.telemetry.pairingFailures} · HIGH{" "}
+                  {batch.telemetry.high} · MEDIUM {batch.telemetry.medium} · LOW{" "}
+                  {batch.telemetry.low} · CONFLICT {batch.telemetry.conflicts} · review{" "}
+                  {batch.telemetry.needsReview} · dups {batch.telemetry.duplicateWarnings} ·{" "}
+                  {Math.round(batch.telemetry.totalMs)}ms
                   {batch.telemetry.processingFailures
                     ? ` · errors ${batch.telemetry.processingFailures}`
                     : ""}
+                </p>
+              ) : null}
+              {batch.errorsWarnings?.length ? (
+                <p className="muted" style={{ fontSize: 12 }}>
+                  {batch.errorsWarnings.filter((w) => !w.startsWith("unit ")).join(" · ") ||
+                    `${batch.errorsWarnings.length} unit warning(s)`}
                 </p>
               ) : null}
 

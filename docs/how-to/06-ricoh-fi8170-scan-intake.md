@@ -51,8 +51,12 @@ conflicting front/back OCR sidecars.
 3. Leave the folder blank (uses `VIP_SCAN_INBOX`) **or** type a subfolder /
    absolute path **or** choose files.
 4. Pairing: **Auto** (filename labels if most pages are labeled, else sequential
-   duplex). Use **Filename** for `*_front` / `*_back` lots.
-5. Click **Import scanned batch** (folder) or **Upload selected images**.
+   duplex). PaperStream default names (`IMG_0001.jpg`, `IMG_0002.jpg`) are
+   sequential ADF order — leave Auto or choose **Sequential duplex**. Use
+   **Filename** only for `*_front` / `*_back` lots.
+5. Click **Process selected images**. The browser sends one scan at a time
+   (600 DPI lots exceed Next’s 10MB proxy if sent as one request).
+   Same-PC folder import is still the fastest path for a full box.
 
 API equivalent:
 
@@ -61,6 +65,19 @@ curl -s -X POST localhost:8787/api/scan/import-folder \
   -H 'content-type: application/json' \
   -d '{"folder":"ricoh-v1-fixture","categoryHint":"sports","pairing":"filename_front_back","scannerProfile":"004_Cards"}'
 ```
+
+## If every image becomes its own LOW card
+
+A status like `HIGH 0 · MEDIUM 0 · LOW 46` on a 23-card duplex lot means pairing
+created **46 units** (one image each), not 23 front/back cards. Do **not**
+confirm that batch.
+
+1. Pull this branch and restart `npm run api` / `npm run web`.
+2. Set Pairing to **Auto** or **Sequential duplex (ADF order)**.
+3. Import the same folder again.
+4. Expect `23 card(s) from 46 image(s)`. Identity may still be LOW if filenames
+   are generic `IMG_####` and there is no OCR sidecar — that is identification,
+   not pairing. Do not invent player/year from the image count.
 
 ## Where to review uncertain cards
 

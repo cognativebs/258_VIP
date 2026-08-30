@@ -108,6 +108,7 @@ export type RicohIntakeResult = {
   scannerProfile: string;
   imageCount: number;
   expectedCardCount: number;
+  pairingMethod: "sequential_duplex" | "filename_front_back" | "auto";
   processingStatus: string;
   errorsWarnings: string[];
   telemetry: ScanBatchTelemetry;
@@ -388,6 +389,7 @@ export async function ingestRicohBatch(
     scannerProfile,
     imageCount: imported.fileCount,
     expectedCardCount: pairing.units.length,
+    pairingMethod: pairing.method,
     processingStatus: "review",
     errorsWarnings: warnings,
     telemetry,

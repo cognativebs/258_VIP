@@ -140,6 +140,7 @@ export function fetchScanBatches(): Promise<{
 export type ImportScanResult = {
   folder: string;
   fileCount: number;
+  pairingMethod?: ScanPairing;
   staged: { unitCount: number; candidateCount: number } | null;
   stagingError: string | null;
   telemetry?: ScanBatchTelemetry;

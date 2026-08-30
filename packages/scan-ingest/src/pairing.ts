@@ -26,14 +26,28 @@ export function pairPagesForReview(
 ): PairingDecision {
   const strategy = opts.strategy ?? "auto";
   const labeled = pages.filter((p) => inferFaceFromFileName(p.fileName ?? p.storageRef) !== "unknown");
-  const method =
+  let method: PairingDecision["method"] =
     strategy === "auto"
       ? labeled.length >= Math.ceil(pages.length * 0.5)
         ? "filename_front_back"
         : "sequential_duplex"
       : strategy;
 
-  const units = pairPagesIntoUnits(pages, method, opts.categoryHint ?? null);
+  let units = pairPagesIntoUnits(pages, method, opts.categoryHint ?? null);
+  const missingBacks = units.filter((u) => !u.back).length;
+  // PaperStream often writes IMG_0001.jpg, IMG_0002.jpg with no front/back
+  // token. Filename grouping then creates one card per image → all LOW.
+  let fellBackToSequential = false;
+  if (
+    method === "filename_front_back" &&
+    pages.length >= 2 &&
+    pages.length % 2 === 0 &&
+    missingBacks >= Math.ceil(units.length / 2)
+  ) {
+    fellBackToSequential = true;
+    method = "sequential_duplex";
+    units = pairPagesIntoUnits(pages, method, opts.categoryHint ?? null);
+  }
   const used = new Set<string>();
   for (const u of units) {
     used.add(u.front.contentHash);
@@ -76,6 +90,11 @@ export function pairPagesForReview(
 
   if (pages.length % 2 === 1 && method === "sequential_duplex") {
     warnings.push("odd page count for sequential duplex — leftover flagged");
+  }
+  if (fellBackToSequential) {
+    warnings.push(
+      "filenames were not *_front/*_back — paired as sequential duplex (ADF order)",
+    );
   }
 
   return {

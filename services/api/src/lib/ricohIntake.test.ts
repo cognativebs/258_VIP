@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
-import { writeRicohV1Fixture } from "./ricohFixture.js";
+import { makeScanJpeg, writeRicohV1Fixture } from "./ricohFixture.js";
 import {
   acceptanceRows,
   ingestRicohBatch,
@@ -101,6 +101,43 @@ describe("Ricoh trading-card scan intake v1", () => {
     void holdingsBefore;
     // Default: no auto-resolve — draft candidates only.
     expect(result.cards.every((c) => c.reviewStatus !== "confirmed")).toBe(true);
+  });
+
+  it("pairs PaperStream IMG_#### names as sequential duplex, not 1 card per image", async () => {
+    if (!(await dbAvailable())) {
+      console.warn("skipping PaperStream IMG pairing: no Postgres");
+      return;
+    }
+
+    const folder = mkdtempSync(join(tmpdir(), "ricoh-img-"));
+    const masters = mkdtempSync(join(tmpdir(), "ricoh-masters-"));
+    process.env.VIP_SCAN_MASTER_DIR = masters;
+    delete process.env.VIP_SCAN_INBOX;
+    delete process.env.VIP_SCAN_AUTO_RESOLVE;
+
+    for (let i = 1; i <= 46; i += 1) {
+      writeFileSync(
+        join(folder, `IMG_${String(i).padStart(4, "0")}.jpg`),
+        makeScanJpeg(`paperstream-${i}`),
+      );
+    }
+
+    const result = await ingestRicohBatch({
+      folder,
+      categoryHint: "sports",
+      pairing: "filename_front_back",
+      source: "ricoh_fi8170",
+      scannerProfile: "004_Cards",
+      notes: "PaperStream IMG_#### pairing",
+    });
+
+    expect(result.imageCount).toBe(46);
+    expect(result.cards).toHaveLength(23);
+    expect(result.pairingMethod).toBe("sequential_duplex");
+    expect(result.errorsWarnings.join(" ")).toMatch(/sequential duplex/i);
+    expect(result.telemetry.cardsPaired).toBe(23);
+    expect(result.telemetry.low).toBe(23);
+    expect(result.telemetry.high).toBe(0);
   });
 
   it("writes one uploaded file at a time into a session folder", () => {
