@@ -20,9 +20,9 @@ async function main(): Promise<void> {
   console.log(`Images: ${files.length}`);
   console.log("");
   console.log(
-    "| Card | Player | Year | Set | Number | Base Confidence | Parallel | Parallel Confidence | Status | Evidence |",
+    "| Card | Player | Year | Set | Number | Base | Parallel | PConf | Status | Why | OCR regions |",
   );
-  console.log("|---|---|---|---|---|---|---|---|---|---|");
+  console.log("|---|---|---|---|---|---|---|---|---|---|---|");
 
   const thresholds = thresholdsFromEnv();
   let i = 0;
@@ -45,13 +45,16 @@ async function main(): Promise<void> {
       thresholds,
     });
     const f = result.evidence.fused;
-    const origins = [
-      f.playerOrCharacter.origin,
-      f.year.origin,
-      f.collectorNumber.origin,
-    ].join(",");
+    const why = (result.evidence.debug?.whyWon ?? "").replace(/\|/g, "/");
+    const kinds = [
+      ...(result.evidence.debug?.rawOcr.frontSpans ?? []),
+      ...(result.evidence.debug?.rawOcr.backSpans ?? []),
+    ]
+      .map((s) => s.kind)
+      .filter((k, i, a) => a.indexOf(k) === i)
+      .join(",");
     console.log(
-      `| ${card} | ${f.playerOrCharacter.value ?? "unknown"} | ${f.year.value ?? "—"} | ${f.setName.value ?? f.brand.value ?? "—"} | ${f.collectorNumber.value ?? "—"} | ${split.baseConfidence.toFixed(2)} | ${split.parallelDisplayName ?? "unknown"} | ${split.parallelConfidence.toFixed(2)} | ${route} | ${origins} |`,
+      `| ${card} | ${f.playerOrCharacter.value ?? "unknown"} | ${f.year.value ?? "—"} | ${f.setName.value ?? f.brand.value ?? "—"} | ${f.collectorNumber.value ?? "—"} | ${split.baseConfidence.toFixed(2)} | ${split.parallelDisplayName ?? "unknown"} | ${split.parallelConfidence.toFixed(2)} | ${route} | ${why || "—"} | ${kinds || "—"} |`,
     );
     i += 2;
     card += 1;
