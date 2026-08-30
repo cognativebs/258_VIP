@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { platform } from "node:os";
 
@@ -46,9 +46,31 @@ function runTesseract(bin: string, imagePath: string): Promise<string> {
   });
 }
 
+let availableCache: boolean | null = null;
+
 export function ocrAvailable(): boolean {
   if (process.env.VIP_SCAN_OCR === "0") return false;
-  return tesseractBinaries().some((bin) => bin === "tesseract" || existsSync(bin));
+  if (availableCache != null) return availableCache;
+  for (const bin of tesseractBinaries()) {
+    if (bin !== "tesseract" && !existsSync(bin)) continue;
+    try {
+      execFileSync(bin, ["--version"], {
+        stdio: "ignore",
+        windowsHide: true,
+        timeout: 4000,
+      });
+      availableCache = true;
+      return true;
+    } catch {
+      // try next binary
+    }
+  }
+  availableCache = false;
+  return false;
+}
+
+export function resetOcrAvailableCache(): void {
+  availableCache = null;
 }
 
 export async function ocrImageFile(

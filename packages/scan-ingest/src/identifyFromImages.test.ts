@@ -1,13 +1,10 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { identifyFromPairedImages } from "./identifyFromImages.js";
 import { ocrAvailable } from "./ocr/tesseractOcr.js";
 import { isGenericScanFileName } from "./identify.js";
 
-const REPO = join(import.meta.dirname, "..", "..", "..");
+const FIXTURE = join(import.meta.dirname, "..", "fixtures", "pixel-baker");
 
 describe("identifyFromPairedImages", () => {
   it("treats PaperStream IMG_#### names as non-identity", () => {
@@ -21,11 +18,9 @@ describe("identifyFromPairedImages", () => {
       return;
     }
     process.env.VIP_SCAN_VISION = "off";
-    const dest = mkdtempSync(join(tmpdir(), "pixel-id-"));
-    execFileSync("python3", [join(REPO, "scripts", "write_pixel_id_fixture.py"), dest]);
     const result = await identifyFromPairedImages({
-      frontPath: join(dest, "IMG_0001.jpg"),
-      backPath: join(dest, "IMG_0002.jpg"),
+      frontPath: join(FIXTURE, "IMG_0001.jpg"),
+      backPath: join(FIXTURE, "IMG_0002.jpg"),
       frontFileName: "IMG_0001.jpg",
       backFileName: "IMG_0002.jpg",
       categoryHint: "sports",
