@@ -6,9 +6,10 @@ function vipBase(): string {
   return "http://127.0.0.1:8787";
 }
 
-const SCAN_TIMEOUT_MS = 60_000;
+const SCAN_TIMEOUT_MS = 120_000;
 
 export type ScanCategory = "sports" | "pokemon" | "mtg";
+export type ScanPairing = "auto" | "filename_front_back" | "sequential_duplex";
 
 export type ScanMeta = {
   version: string;
@@ -18,6 +19,25 @@ export type ScanMeta = {
   pipeline: string[];
   deferred: string[];
   inbox: { root: string | null; configured: boolean; note: string };
+  reviewThresholds?: { highMin: string; mediumMin: string };
+  scannerProfileDefault?: string;
+};
+
+export type ScanBatchTelemetry = {
+  imagesReceived: number;
+  cardsPaired: number;
+  pairingFailures: number;
+  cardsIdentified: number;
+  high: number;
+  medium: number;
+  low: number;
+  needsReview: number;
+  conflicts: number;
+  duplicateWarnings: number;
+  processingFailures: number;
+  avgMsPerCard: number;
+  totalMs: number;
+  estimatedCostUsd: number;
 };
 
 export type StagedCandidate = {
@@ -30,6 +50,14 @@ export type StagedCandidate = {
   matchReasons: string[];
   adapterId: string;
   assetId: string | null;
+};
+
+export type BaseVsParallel = {
+  baseDisplayName: string | null;
+  baseConfidence: number;
+  parallelDisplayName: string | null;
+  parallelConfidence: number;
+  notes?: string;
 };
 
 export type StagedUnit = {
@@ -47,6 +75,18 @@ export type StagedUnit = {
   duplicateAcknowledged: boolean;
   decisionAction: string | null;
   candidates: StagedCandidate[];
+  frontImageId?: string | null;
+  backImageId?: string | null;
+  pairingMethod?: string | null;
+  pairingConfidence?: number | null;
+  pairingNeedsReview?: boolean;
+  orientation?: string | null;
+  identificationStatus?: string | null;
+  reviewStatus?: string | null;
+  reviewRoute?: string | null;
+  identityEvidence?: { conflictNotes?: string[] } | null;
+  baseVsParallel?: BaseVsParallel | null;
+  physicalReimport?: boolean;
 };
 
 export type StagedBatch = {
@@ -57,6 +97,13 @@ export type StagedBatch = {
   notes: string | null;
   createdAt: string;
   units: StagedUnit[];
+  source?: string | null;
+  scannerProfile?: string | null;
+  imageCount?: number | null;
+  expectedCardCount?: number | null;
+  processingStatus?: string | null;
+  errorsWarnings?: string[];
+  telemetry?: ScanBatchTelemetry | null;
 };
 
 async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -73,6 +120,10 @@ async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+export function scanMediaUrl(imageId: string): string {
+  return `${vipBase()}/api/scan/media/${encodeURIComponent(imageId)}`;
+}
+
 export function fetchScanMeta(): Promise<ScanMeta> {
   return vipFetch<ScanMeta>("/api/scan");
 }
@@ -86,17 +137,47 @@ export function fetchScanBatches(): Promise<{
   return vipFetch("/api/scan/batches");
 }
 
-export function importScanFolder(body: {
-  folder?: string;
-  categoryHint?: ScanCategory | null;
-  notes?: string;
-}): Promise<{
+export type ImportScanResult = {
   folder: string;
   fileCount: number;
   staged: { unitCount: number; candidateCount: number } | null;
   stagingError: string | null;
-}> {
+  telemetry?: ScanBatchTelemetry;
+  report?: Array<{
+    card: string;
+    pairing: string;
+    baseIdentity: string;
+    parallel: string;
+    confidence: string;
+    reviewStatus: string;
+    inventoryCandidate: string;
+  }>;
+  errorsWarnings?: string[];
+};
+
+export function importScanFolder(body: {
+  folder?: string;
+  categoryHint?: ScanCategory | null;
+  notes?: string;
+  pairing?: ScanPairing;
+  source?: string;
+  scannerProfile?: string;
+}): Promise<ImportScanResult> {
   return vipFetch("/api/scan/import-folder", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function importScanUpload(body: {
+  files: Array<{ fileName: string; contentBase64: string }>;
+  categoryHint?: ScanCategory | null;
+  notes?: string;
+  pairing?: ScanPairing;
+  source?: string;
+  scannerProfile?: string;
+}): Promise<ImportScanResult> {
+  return vipFetch("/api/scan/import-upload", {
     method: "POST",
     body: JSON.stringify(body),
   });

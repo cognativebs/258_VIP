@@ -566,6 +566,34 @@ button.hunt-card {
   font-size: 13px;
 }
 
+.scan-faces {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.scan-faces img {
+  width: 88px;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #111;
+}
+
+.scan-telemetry {
+  font-size: 12px;
+  color: var(--muted, #8a8a8a);
+  margin: 0 0 12px;
+}
+
+.scan-conflict {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #c45c26;
+}
+
 /* --- Collections hub --- */
 .collection-card {
   display: flex;
