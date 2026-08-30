@@ -124,8 +124,11 @@ Front and back render together. Routes:
 | `CONFLICT` | Front/back/catalog disagree — never silently chosen |
 
 Confirm writes a **draft** holding (Dealer Inventory · Sell · NM assumed ·
-unverified) linked to the scan unit and master hashes. Reject keeps the
-captures for a later catalog re-run.
+unverified) linked to the scan unit and master hashes. **Edit** lets the
+operator type player / year / set / number before confirm when OCR is weak.
+**Delete batch** removes the lot from the Scan queue (soft-close). Confirmed
+holdings stay in Collections. Masters are not deleted. Reject keeps one card
+staged as rejected.
 
 Same **card type** already held ≠ same **physical scan**. Physical reimports
 show “same physical scan”. Extra copies of a type are legitimate.

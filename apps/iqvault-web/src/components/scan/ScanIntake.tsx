@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  discardScanBatch,
+  editScanUnit,
   fetchScanBatches,
   fetchScanMeta,
   finishScanUpload,
@@ -121,6 +123,14 @@ export function ScanIntake() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    playerOrCharacter: "",
+    year: "",
+    setName: "",
+    collectorNumber: "",
+    parallel: "",
+  });
 
   const reload = useCallback(async () => {
     try {
@@ -242,6 +252,80 @@ export function ScanIntake() {
         await reload();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Swap faces failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const startEdit = useCallback((unit: StagedUnit) => {
+    const split = unit.baseVsParallel;
+    const top = unit.candidates[0];
+    const named = split?.baseDisplayName ?? top?.displayName ?? "";
+    setEditingId(unit.id);
+    setEditForm({
+      playerOrCharacter: named.replace(/^\d{4}\s+/, "").replace(/#\S+/g, "").trim(),
+      year: named.match(/\b((?:19|20)\d{2})\b/)?.[1] ?? "",
+      setName: top?.setName ?? "",
+      collectorNumber: top?.collectorNumber ?? "",
+      parallel:
+        split?.parallelDisplayName && split.parallelDisplayName !== "unknown"
+          ? split.parallelDisplayName
+          : "",
+    });
+  }, []);
+
+  const saveEdit = useCallback(
+    async (unit: StagedUnit) => {
+      const player = editForm.playerOrCharacter.trim();
+      if (!player) {
+        setError("Player / character is required to save an edit.");
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const year = editForm.year.trim() ? Number(editForm.year.trim()) : null;
+        const result = await editScanUnit(unit.id, {
+          playerOrCharacter: player,
+          year: year && Number.isFinite(year) ? year : null,
+          setName: editForm.setName.trim() || null,
+          collectorNumber: editForm.collectorNumber.trim() || null,
+          parallel: editForm.parallel.trim() || null,
+        });
+        setStatus(`Saved edit: ${result.displayName}. Confirm to add it to Collections.`);
+        setEditingId(null);
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Edit failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [editForm, reload],
+  );
+
+  const discardBatch = useCallback(
+    async (batch: StagedBatch) => {
+      const ok = window.confirm(
+        `Remove this ${batch.units.length}-card batch from the Scan queue? Confirmed cards stay in Collections. Unconfirmed cards are not added.`,
+      );
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await discardScanBatch(batch.id);
+        setStatus(
+          result.confirmedKept
+            ? `Batch removed from the queue. ${result.confirmedKept} confirmed card(s) stay in Collections.`
+            : "Batch removed from the queue. Nothing was added to Collections.",
+        );
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Delete batch failed");
       } finally {
         setBusy(false);
       }
@@ -450,8 +534,11 @@ export function ScanIntake() {
           {hiddenCount ? `, ${hiddenCount} lab hidden` : ""})
         </h2>
         <p className="muted" style={{ fontSize: 13 }}>
-          Uncertain cards stay here. Front and back are shown together. Confirm
-          writes a draft holding (Dealer Inventory · Sell · NM assumed · unverified).
+          Uncertain cards stay here. Front and back are shown together.{" "}
+          <strong>Edit</strong> a card if OCR missed the name, then{" "}
+          <strong>Confirm</strong> to save a draft holding (Dealer Inventory · Sell ·
+          NM assumed · unverified). <strong>Delete batch</strong> clears this queue
+          without removing anything already confirmed into Collections.
         </p>
         <label className="scan-hide-lab">
           <input
@@ -482,16 +569,26 @@ export function ScanIntake() {
                     {batch.notes ? ` · ${batch.notes}` : ""}
                   </p>
                 </div>
-                {batch.units.some((u) => !u.resolutionMode && u.backStorageRef) ? (
+                <div className="scan-actions" style={{ margin: 0 }}>
+                  {batch.units.some((u) => !u.resolutionMode && u.backStorageRef) ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busy}
+                      onClick={() => void swapFaces({ batchId: batch.id })}
+                    >
+                      Swap front/back
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="btn-link"
                     disabled={busy}
-                    onClick={() => void swapFaces({ batchId: batch.id })}
+                    onClick={() => void discardBatch(batch)}
                   >
-                    Swap front/back
+                    Delete batch
                   </button>
-                ) : null}
+                </div>
               </div>
 
               {batch.telemetry ? (
@@ -570,11 +667,89 @@ export function ScanIntake() {
                             </strong>
                             <div className="muted" style={{ fontSize: 12 }}>
                               base {pct(split?.baseConfidence ?? unit.topConfidence)}
-                              {top ? ` · ${top.adapterId}` : ""}
+                              {top ? ` · ${top.adapterId}` : " · no candidate — click Edit"}
                             </div>
                             {conflicts.length > 0 ? (
                               <div className="scan-conflict">
                                 {conflicts.join("; ")}
+                              </div>
+                            ) : null}
+                            {editingId === unit.id ? (
+                              <div className="scan-edit">
+                                <label>
+                                  Player
+                                  <input
+                                    value={editForm.playerOrCharacter}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        playerOrCharacter: e.target.value,
+                                      }))
+                                    }
+                                    disabled={busy}
+                                  />
+                                </label>
+                                <label>
+                                  Year
+                                  <input
+                                    value={editForm.year}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({ ...f, year: e.target.value }))
+                                    }
+                                    disabled={busy}
+                                  />
+                                </label>
+                                <label>
+                                  Set
+                                  <input
+                                    value={editForm.setName}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({ ...f, setName: e.target.value }))
+                                    }
+                                    disabled={busy}
+                                  />
+                                </label>
+                                <label>
+                                  Number
+                                  <input
+                                    value={editForm.collectorNumber}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        collectorNumber: e.target.value,
+                                      }))
+                                    }
+                                    disabled={busy}
+                                  />
+                                </label>
+                                <label>
+                                  Parallel
+                                  <input
+                                    value={editForm.parallel}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({ ...f, parallel: e.target.value }))
+                                    }
+                                    disabled={busy}
+                                  />
+                                </label>
+                                <div className="scan-actions" style={{ margin: 0 }}>
+                                  <button
+                                    type="button"
+                                    className="btn-primary"
+                                    disabled={busy}
+                                    onClick={() => void saveEdit(unit)}
+                                  >
+                                    Save edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
                             ) : null}
                           </td>
@@ -628,7 +803,7 @@ export function ScanIntake() {
                             {resolved ? (
                               <span className="muted">—</span>
                             ) : (
-                              <div className="scan-actions" style={{ margin: 0 }}>
+                              <div className="scan-actions" style={{ margin: 0, flexWrap: "wrap" }}>
                                 <button
                                   type="button"
                                   className="btn-primary"
@@ -640,16 +815,26 @@ export function ScanIntake() {
                                   }
                                   onClick={() => void confirmUnit(unit, top!.catalogKey)}
                                   title={
-                                    unit.reviewRoute === "CONFLICT"
-                                      ? "Resolve the front/back conflict before confirming"
-                                      : unit.physicalReimport
-                                        ? "This is the same physical scan — confirm only if you intend a second copy"
-                                        : "Add draft inventory (Dealer · Sell)"
+                                    !top
+                                      ? "Click Edit, enter the card, Save edit, then Confirm"
+                                      : unit.reviewRoute === "CONFLICT" || conflicts.length > 0
+                                        ? "Click Edit to correct the conflict, then Confirm"
+                                        : unit.physicalReimport
+                                          ? "This is the same physical scan — confirm only if you intend a second copy"
+                                          : "Add draft inventory (Dealer · Sell)"
                                   }
                                 >
                                   {unit.physicalReimport || unit.duplicateAcknowledged
                                     ? "Add copy"
                                     : "Confirm"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-link"
+                                  disabled={busy}
+                                  onClick={() => startEdit(unit)}
+                                >
+                                  Edit
                                 </button>
                                 {unit.backStorageRef ? (
                                   <button

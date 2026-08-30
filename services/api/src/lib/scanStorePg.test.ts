@@ -4,6 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
 import { openScanFromApi } from "./scanIngest.js";
 import {
+  discardBatch,
+  editStagedUnit,
   listStagedBatches,
   loadScanHoldings,
   persistBatch,
@@ -184,5 +186,51 @@ describe("scan staging (ADR 0009)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe("CANDIDATE_NOT_FOUND");
+  });
+
+  it("lets the operator edit a staged card and then confirm a draft holding", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = stageOneUnit(tag);
+    await persistBatch(opened);
+    const unitId = opened.batch.units[0]!.id;
+    const before = await countScanHoldings();
+
+    const edited = await editStagedUnit(unitId, {
+      playerOrCharacter: "Kurtis Rourke",
+      year: 2025,
+      setName: "Panini Prizm",
+      collectorNumber: "397",
+    });
+    expect(edited.ok).toBe(true);
+    if (!edited.ok) return;
+    expect(edited.displayName).toMatch(/Rourke/);
+    expect(await countScanHoldings()).toBe(before);
+
+    const confirmed = await resolveUnit({
+      unitId,
+      catalogKey: edited.catalogKey,
+      mode: "operator_confirmed",
+    });
+    expect(confirmed.ok).toBe(true);
+    expect(await countScanHoldings()).toBe(before + 1);
+  });
+
+  it("hides a discarded batch from the queue without deleting holdings", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    const before = await countScanHoldings();
+
+    const discarded = await discardBatch(staged.batchId);
+    expect(discarded.ok).toBe(true);
+    if (!discarded.ok) return;
+    expect(discarded.rejected).toBe(1);
+    expect(discarded.confirmedKept).toBe(0);
+    expect(await countScanHoldings()).toBe(before);
+
+    const listed = await listStagedBatches(50);
+    expect(listed.some((b) => b.id === staged.batchId)).toBe(false);
   });
 });

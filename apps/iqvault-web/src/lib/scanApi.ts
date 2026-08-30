@@ -224,6 +224,32 @@ export function rejectScanUnit(
   });
 }
 
+export function editScanUnit(
+  unitId: string,
+  body: {
+    playerOrCharacter: string;
+    year?: number | null;
+    brand?: string | null;
+    setName?: string | null;
+    collectorNumber?: string | null;
+    parallel?: string | null;
+    team?: string | null;
+  },
+): Promise<{ ok: boolean; catalogKey: string; displayName: string }> {
+  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/edit`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function discardScanBatch(
+  batchId: string,
+): Promise<{ ok: boolean; rejected: number; confirmedKept: number }> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}`, {
+    method: "DELETE",
+  });
+}
+
 export function swapScanFaces(body: {
   batchId?: string;
   unitId?: string;

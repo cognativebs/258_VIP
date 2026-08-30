@@ -12,6 +12,7 @@ describe("card-scan contracts", () => {
     const f = unknownField("back_text");
     expect(f.value).toBeNull();
     expect(f.notes).toBe("unknown");
+    expect(unknownField("operator").origin).toBe("operator");
   });
 
   it("separates base identity from parallel on a CardScanObject", () => {

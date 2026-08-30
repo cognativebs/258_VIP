@@ -53,6 +53,8 @@ import {
 } from "./lib/scanIngest.js";
 import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
+  discardBatch,
+  editStagedUnit,
   getStagedBatch,
   listStagedBatches,
   loadScanHoldings,
@@ -798,6 +800,45 @@ export function createApp(deps: AppDeps = {}) {
   app.post("/api/scan/units/:id/reject", async (req, res) => {
     const result = await rejectUnit(String(req.params.id), req.body?.reason);
     res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post("/api/scan/units/:id/edit", async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      const yearRaw = body.year;
+      const year =
+        yearRaw === "" || yearRaw == null || yearRaw === undefined
+          ? null
+          : Number(yearRaw);
+      const result = await editStagedUnit(String(req.params.id), {
+        playerOrCharacter: String(body.playerOrCharacter ?? ""),
+        year: Number.isFinite(year) ? year : null,
+        brand: body.brand ? String(body.brand) : null,
+        setName: body.setName ? String(body.setName) : null,
+        collectorNumber: body.collectorNumber ? String(body.collectorNumber) : null,
+        parallel: body.parallel ? String(body.parallel) : null,
+        team: body.team ? String(body.team) : null,
+      });
+      if (!result.ok) {
+        res.status(result.status).json(result);
+        return;
+      }
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.delete("/api/scan/batches/:id", async (req, res) => {
+    const result = await discardBatch(String(req.params.id));
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
   });
 
   app.post("/api/scan/units/:id/swap-faces", async (req, res) => {
