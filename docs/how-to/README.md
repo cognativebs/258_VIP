@@ -39,9 +39,11 @@ terminal (and Comics). Binder Vault is started but not opened in the browser:
 | 5 | Orchestr8 gateway (`python orchestr8/api/server.py`) | 5210 |
 | 6 | IQVault web (`npm run web`) | 3000 → `/collections/pokemon` |
 
-Stop app windows with **`Stop IQVault.bat`** (Postgres stays up). Binder Vault
-(`:3010`) starts with the stack (open it from **Binder ↗** on the Pokémon tab);
-pass `-NoBinder` to skip it.
+Stop app windows with **`Stop IQVault.bat`** (Postgres stays up), or the Desktop
+**Stop IQVault** shortcut (`scripts\create_stop_iqvault_shortcut.ps1` — also
+refreshed the first time you run the stop bat). Binder Vault (`:3010`) starts
+with the stack (open it from **Binder ↗** on the Pokémon tab); pass `-NoBinder`
+to skip it.
 
 `npm run api` is **only** the VIP API (`:8787`). Comics API is a separate
 Python process (`:5200`). Launch IQVault starts both. Piecemeal:
