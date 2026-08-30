@@ -25,4 +25,18 @@ describe("parseSportsIdentity", () => {
   it("returns null when there is nothing sports-like", () => {
     expect(parseSportsIdentity("img001.jpg")).toBeNull();
   });
+
+  it("keeps parallel, serial, auto, and relic off the player name", () => {
+    const parsed = parseSportsIdentity(
+      "2023_select_cj_stroud_43_tie_dye_numbered_25_auto_relic_front.jpg",
+    );
+    expect(parsed?.player).toMatch(/Stroud/i);
+    expect(parsed?.player).not.toMatch(/Tie|Dye|Auto|Relic/i);
+    expect(parsed?.parallel).toBe("Tie-Dye");
+    expect(parsed?.serialMax).toBe(25);
+    expect(parsed?.autograph).toBe(true);
+    expect(parsed?.relic).toBe(true);
+    expect(parsed?.displayName).toMatch(/Tie-Dye/);
+    expect(parsed?.displayName).toMatch(/\/25/);
+  });
 });

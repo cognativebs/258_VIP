@@ -149,7 +149,9 @@ export function ScanIntake() {
           Scan on the Ricoh fi-8170 with PaperStream Capture (duplex, output to a watched
           folder). IQVault imports that folder, pairs front/back, and proposes identities.
           Imported cards sit in <strong>staging</strong> — nothing reaches your collection
-          until you confirm.
+          until you confirm. Batch 001 (25 messy sports, Dealer Inventory) is on{" "}
+          <a href="/batch/001">/batch/001</a> — run the connected pipeline there
+          while the Ricoh is being set up.
         </p>
 
         <label className="scan-field">

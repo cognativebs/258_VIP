@@ -41,13 +41,46 @@ const STOP = new Set([
   "rc",
   "the",
   "and",
+  "parallel",
+  "numbered",
+  "relic",
+  "patch",
+  "serial",
+  "die",
+  "cut",
+  "rated",
+  "ticket",
 ]);
+
+const PARALLELS: Array<{ token: string; label: string }> = [
+  { token: "pink ice", label: "Pink Ice" },
+  { token: "pink camo", label: "Pink Camo" },
+  { token: "red white blue", label: "Red White Blue" },
+  { token: "tie dye", label: "Tie-Dye" },
+  { token: "tiger stripe", label: "Tiger Stripe" },
+  { token: "green shimmer", label: "Green Shimmer" },
+  { token: "orange disco", label: "Orange Disco" },
+  { token: "green scope", label: "Green Scope" },
+  { token: "fast break", label: "Fast Break" },
+  { token: "club level", label: "Club Level" },
+  { token: "die cut", label: "Die-Cut" },
+  { token: "downtown", label: "Downtown" },
+  { token: "genesis", label: "Genesis" },
+  { token: "courtside", label: "Courtside" },
+  { token: "silver", label: "Silver" },
+  { token: "gold", label: "Gold" },
+  { token: "choice", label: "Choice" },
+];
 
 export type SportsParsedIdentity = {
   year: number | null;
   brand: string | null;
   player: string | null;
   collectorNumber: string | null;
+  parallel: string | null;
+  serialMax: number | null;
+  autograph: boolean;
+  relic: boolean;
   displayName: string;
   setName: string | null;
   confidence: number;
@@ -69,18 +102,36 @@ export function parseSportsIdentity(raw: string): SportsParsedIdentity | null {
     }
   }
 
-  const hashNum = text.match(/#\s*(\d{1,4})\b/);
+  const autograph = /\b(auto|autograph)\b/.test(text);
+  const relic = /\b(relic|patch)\b/.test(text);
+
+  let parallel: string | null = null;
+  for (const p of PARALLELS) {
+    if (text.includes(p.token)) {
+      parallel = p.label;
+      break;
+    }
+  }
+
+  const serialMatch = text.match(/\/\s*(\d{1,3})\b/) ?? text.match(/\bnumbered\s+(\d{1,3})\b/);
+  const serialMax = serialMatch ? Number(serialMatch[1]) : null;
+
+  const hashNum = text.match(/#\s*(\d{1,4}[a-z-]{0,8})\b/i);
   const otherNums = [...text.matchAll(/\b(\d{1,4})\b/g)]
     .map((m) => m[1]!)
-    .filter((n) => !(year && n === String(year)));
+    .filter((n) => !(year && n === String(year)))
+    .filter((n) => !(serialMax && n === String(serialMax)));
   const collectorNumber = hashNum?.[1] ?? otherNums[0] ?? null;
 
   const stripped = text
     .replace(/\b(?:19|20)\d{2}\b/g, " ")
-    .replace(/#\s*\d{1,4}\b/g, " ");
+    .replace(/#\s*\d{1,4}[a-z-]{0,8}\b/gi, " ")
+    .replace(/\/\s*\d{1,3}\b/g, " ");
   let remainder = stripped;
   if (brand) remainder = remainder.replace(normalize(brand), " ");
   for (const b of BRANDS) remainder = remainder.replace(b.token, " ");
+  if (parallel) remainder = remainder.replace(normalize(parallel), " ");
+  for (const p of PARALLELS) remainder = remainder.replace(p.token, " ");
 
   const playerTokens = remainder
     .split(/\s+/)
@@ -95,6 +146,10 @@ export function parseSportsIdentity(raw: string): SportsParsedIdentity | null {
   if (brand) reasons.push(`brand:${brand}`);
   if (player) reasons.push(`player:${player}`);
   if (collectorNumber) reasons.push(`collector_number:${collectorNumber}`);
+  if (parallel) reasons.push(`parallel:${parallel}`);
+  if (serialMax) reasons.push(`serial:/${serialMax}`);
+  if (autograph) reasons.push("autograph");
+  if (relic) reasons.push("relic");
 
   let confidence = 0.2;
   if (year) confidence += 0.15;
@@ -104,7 +159,16 @@ export function parseSportsIdentity(raw: string): SportsParsedIdentity | null {
   confidence = Math.min(0.72, Number(confidence.toFixed(3)));
 
   const setName = [year, brand].filter(Boolean).join(" ") || null;
-  const displayName = [year, brand, player, collectorNumber && `#${collectorNumber}`]
+  const displayName = [
+    year,
+    brand,
+    player,
+    collectorNumber && `#${collectorNumber}`,
+    parallel,
+    serialMax && `/${serialMax}`,
+    autograph ? "Auto" : null,
+    relic ? "Relic" : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -113,6 +177,10 @@ export function parseSportsIdentity(raw: string): SportsParsedIdentity | null {
     brand,
     player,
     collectorNumber,
+    parallel,
+    serialMax,
+    autograph,
+    relic,
     displayName: displayName || "Sports card (parsed · unverified)",
     setName,
     confidence,

@@ -64,6 +64,7 @@ export type OpenScanBody = {
     }
   >;
   inventory?: InventoryLookupRow[];
+  pairing?: "sequential_duplex" | "filename_front_back";
 };
 
 export function openScanFromApi(body: OpenScanBody) {
@@ -86,7 +87,7 @@ export function openScanFromApi(body: OpenScanBody) {
       face: p.face ?? "unknown",
     }));
     input = batchInputFromPages(pages, {
-      pairing: "sequential_duplex",
+      pairing: body.pairing ?? "sequential_duplex",
       categoryHint: body.categoryHint ?? null,
       notes: body.notes,
       device: body.device,
@@ -141,11 +142,13 @@ export function scanMeta() {
     },
     pipeline: [
       "PaperStream / folder drop",
-      "duplex pair",
+      "duplex pair / filename front",
       "ID candidates (inferred)",
       "duplicate alert",
-      "operator confirm → inventory Hold",
-      "optional eBay listing draft",
+      "confirm → inventory + Dealer bucket",
+      "LIVE range (Browse listings · unverified)",
+      "disposition (Dealer → Sell / churn)",
+      "eBay listing draft (submitReady false)",
     ],
     deferred: ["museum quality capture", "live eBay Inventory API submit"],
   };
