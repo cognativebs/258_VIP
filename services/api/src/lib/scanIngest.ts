@@ -64,6 +64,7 @@ export type OpenScanBody = {
     }
   >;
   inventory?: InventoryLookupRow[];
+  pairing?: "sequential_duplex" | "filename_front_back";
 };
 
 export function openScanFromApi(body: OpenScanBody) {
@@ -86,7 +87,7 @@ export function openScanFromApi(body: OpenScanBody) {
       face: p.face ?? "unknown",
     }));
     input = batchInputFromPages(pages, {
-      pairing: "sequential_duplex",
+      pairing: body.pairing ?? "sequential_duplex",
       categoryHint: body.categoryHint ?? null,
       notes: body.notes,
       device: body.device,
@@ -140,13 +141,27 @@ export function scanMeta() {
       note: "Listing drafts stay idle without developer tokens; never auto-submit",
     },
     pipeline: [
-      "PaperStream / folder drop",
-      "duplex pair",
-      "ID candidates (inferred)",
-      "duplicate alert",
-      "operator confirm → inventory Hold",
-      "optional eBay listing draft",
+      "PaperStream / folder drop or upload (source extensible)",
+      "immutable master copy + orientation recorded",
+      "duplex pair / filename front (ambiguous → review)",
+      "front+back evidence fusion (conflicts listed)",
+      "base identity vs parallel confidence",
+      "HIGH / MEDIUM / LOW / CONFLICT review route",
+      "physical reimport (hash) vs same card type",
+      "draft inventory candidate (confirm → Dealer · Sell)",
+      "LIVE range (Browse listings · unverified)",
+      "eBay listing draft (submitReady false)",
     ],
-    deferred: ["museum quality capture", "live eBay Inventory API submit"],
+    deferred: [
+      "museum quality capture",
+      "live eBay Inventory API submit",
+      "TWAIN / scanner driver control",
+      "pixel resample derivatives (no sharp/Pillow in-tree)",
+    ],
+    reviewThresholds: {
+      highMin: process.env.VIP_SCAN_HIGH_MIN ?? "0.8",
+      mediumMin: process.env.VIP_SCAN_MEDIUM_MIN ?? "0.45",
+    },
+    scannerProfileDefault: "004_Cards",
   };
 }

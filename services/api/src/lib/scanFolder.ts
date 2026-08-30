@@ -78,6 +78,8 @@ export type FolderPage = {
   storageRef: string;
   contentHash: string;
   mimeType?: string;
+  /** PaperStream OCR / operator sidecar (`<image>.txt`), if present. */
+  ocrText?: string | null;
 };
 
 /** Hash every image in the folder (sorted by name for stable duplex pairing). */
@@ -102,9 +104,21 @@ export async function readFolderPages(
       fileName: name,
       storageRef: full,
       contentHash: createHash("sha256").update(bytes).digest("hex"),
+      ocrText: await readOcrSidecar(full),
     });
   }
   return pages;
+}
+
+/** Optional PaperStream / operator OCR next to the image (`stem_front.txt`). */
+export async function readOcrSidecar(imagePath: string): Promise<string | null> {
+  const sidecar = imagePath.replace(/\.[^.]+$/, ".txt");
+  try {
+    const text = (await readFile(sidecar, "utf8")).trim();
+    return text || null;
+  } catch {
+    return null;
+  }
 }
 
 export type ImportFolderRequest = {
@@ -127,6 +141,7 @@ export type ImportFolderResult =
         fileName: string;
         face: "front" | "back" | "unknown";
         sequence: number;
+        ocrText: string | null;
       }>;
     }
   | { ok: false; status: 400 | 404; error: string };
@@ -161,7 +176,14 @@ export async function importFolderPages(
     pairing: req.pairing ?? "sequential_duplex",
     categoryHint: req.categoryHint ?? null,
   });
-  const pages = adapter.ingestDescriptors(files);
+  const pages = adapter.ingestDescriptors(
+    files.map((f) => ({
+      fileName: f.fileName,
+      storageRef: f.storageRef,
+      contentHash: f.contentHash,
+      ocrText: f.ocrText,
+    })),
+  );
 
   return {
     ok: true,
@@ -174,6 +196,7 @@ export async function importFolderPages(
       fileName: p.fileName ?? files[i]?.fileName ?? `page-${i}`,
       face: p.face ?? "unknown",
       sequence: p.sequence ?? i,
+      ocrText: p.ocrText ?? files[i]?.ocrText ?? null,
     })),
   };
 }

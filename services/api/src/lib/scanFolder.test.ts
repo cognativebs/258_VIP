@@ -68,6 +68,25 @@ describe("importFolderPages", () => {
     expect(result.pages[0]?.contentHash).not.toBe(result.pages[1]?.contentHash);
   });
 
+  it("reads an optional OCR sidecar next to each image", async () => {
+    const inbox = makeInbox();
+    process.env.VIP_SCAN_INBOX = inbox;
+    writeFileSync(join(inbox, "1986_topps_michael_jordan_57_front.jpg"), "front");
+    writeFileSync(join(inbox, "1986_topps_michael_jordan_57_back.jpg"), "back");
+    writeFileSync(
+      join(inbox, "1986_topps_michael_jordan_57_back.txt"),
+      "1986 Topps Michael Jordan 57",
+    );
+
+    const result = await importFolderPages({ folder: undefined, pairing: "filename_front_back" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const back = result.pages.find((p) => p.fileName.includes("_back"));
+    const front = result.pages.find((p) => p.fileName.includes("_front"));
+    expect(back?.ocrText).toEqual("1986 Topps Michael Jordan 57");
+    expect(front?.ocrText).toBeNull();
+  });
+
   it("reports an empty folder instead of opening a batch", async () => {
     const inbox = makeInbox();
     process.env.VIP_SCAN_INBOX = inbox;

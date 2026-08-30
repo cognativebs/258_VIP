@@ -164,7 +164,7 @@ function pairByFileName(
   return units;
 }
 
-function stemKey(name: string): string {
+export function stemKey(name: string): string {
   const base = name.split("/").pop() ?? name;
   return base
     .replace(/\.(jpe?g|png|tiff?|webp)$/i, "")

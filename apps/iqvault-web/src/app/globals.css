@@ -566,6 +566,89 @@ button.hunt-card {
   font-size: 13px;
 }
 
+.scan-faces {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.scan-faces img {
+  width: 88px;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #111;
+}
+
+.scan-telemetry {
+  font-size: 12px;
+  color: var(--muted, #8a8a8a);
+  margin: 0 0 12px;
+}
+
+.scan-conflict {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #c45c26;
+}
+
+.scan-drop {
+  position: relative;
+  margin: 0 0 14px;
+  border: 2px dashed var(--gold);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  min-height: 120px;
+}
+
+.scan-drop-active {
+  filter: brightness(1.12);
+}
+
+.scan-drop-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.scan-drop-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 28px 16px;
+  text-align: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scan-drop-label span {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted, #8a8a8a);
+}
+
+.scan-folder-details {
+  margin: 16px 0 8px;
+  font-size: 13px;
+}
+
+.scan-folder-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.scan-hide-lab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
 /* --- Collections hub --- */
 .collection-card {
   display: flex;
