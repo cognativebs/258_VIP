@@ -576,7 +576,7 @@ function Write-StackSummary {
         Write-Step ("  Binder     {0}  http://127.0.0.1:{1}" -f $binderLabel, $Ports.Binder)
     }
     Write-Host ""
-    Write-Step "Leave the service windows open. Stop everything with: Stop IQVault.bat"
+    Write-Step "Leave the service windows open. Stop everything with Stop IQVault.bat or the Desktop Stop IQVault shortcut."
     if (-not $orchOk) {
         Write-Warn "Ask on Comics needs a healthy Orchestr8. Fix keys in orchestr8\.env then re-run this launcher."
     }

@@ -10,6 +10,7 @@ import {
   resolveScanUnit,
   scanMediaUrl,
   startScanUpload,
+  swapScanFaces,
   uploadScanFile,
   type ImportScanResult,
   type ScanCategory,
@@ -56,7 +57,10 @@ function isLabTestBatch(batch: StagedBatch): boolean {
 }
 
 function pairingLabel(method: string | undefined): string | null {
-  if (method === "sequential_duplex") return "sequential duplex";
+  if (method === "sequential_duplex") return "sequential duplex (face-down)";
+  if (method === "sequential_duplex_back_first") {
+    return "sequential duplex (face-up / back first)";
+  }
   if (method === "filename_front_back") return "filename front/back";
   if (method === "auto") return "auto";
   return null;
@@ -227,6 +231,24 @@ export function ScanIntake() {
     [reload],
   );
 
+  const swapFaces = useCallback(
+    async (target: { batchId?: string; unitId?: string }) => {
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await swapScanFaces(target);
+        setStatus(result.note);
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Swap faces failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
   const discardUnit = useCallback(
     async (unit: StagedUnit) => {
       setBusy(true);
@@ -383,11 +405,16 @@ export function ScanIntake() {
           >
             <option value="auto">Auto (filename labels if present, else sequential duplex)</option>
             <option value="filename_front_back">Filename (*_front / *_back)</option>
-            <option value="sequential_duplex">Sequential duplex (ADF order)</option>
+            <option value="sequential_duplex">Sequential duplex (face-down ADF)</option>
+            <option value="sequential_duplex_back_first">
+              Sequential duplex (face-up ADF — back then front)
+            </option>
           </select>
           <span className="muted" style={{ fontSize: 12 }}>
-            PaperStream <code>IMG_0001</code> / <code>IMG_0002</code> lots: Auto or
-            Sequential. Filename mode needs <code>*_front</code> / <code>*_back</code>.
+            Face-up drop: first file is the downward side (usually the back). Rotate 180°
+            in PaperStream before save so pixels are upright, then use Face-up pairing
+            or Swap front/back on the batch. Filename mode needs <code>*_front</code> /{" "}
+            <code>*_back</code>.
           </span>
         </label>
 
@@ -455,6 +482,16 @@ export function ScanIntake() {
                     {batch.notes ? ` · ${batch.notes}` : ""}
                   </p>
                 </div>
+                {batch.units.some((u) => !u.resolutionMode && u.backStorageRef) ? (
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busy}
+                    onClick={() => void swapFaces({ batchId: batch.id })}
+                  >
+                    Swap front/back
+                  </button>
+                ) : null}
               </div>
 
               {batch.telemetry ? (
@@ -614,6 +651,16 @@ export function ScanIntake() {
                                     ? "Add copy"
                                     : "Confirm"}
                                 </button>
+                                {unit.backStorageRef ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void swapFaces({ unitId: unit.id })}
+                                  >
+                                    Swap faces
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   className="btn-link"

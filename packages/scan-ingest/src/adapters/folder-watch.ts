@@ -93,7 +93,8 @@ export function inferFaceFromFileName(
 
 /**
  * Pair ADF pages into card units.
- * sequential_duplex: odd/even as front/back (PaperStream duplex default).
+ * sequential_duplex: ADF order as front then back (face-down load).
+ * sequential_duplex_back_first: ADF order as back then front (face-up load).
  * filename_front_back: group by stem, prefer explicit front/back labels.
  */
 export function pairPagesIntoUnits(
@@ -108,17 +109,24 @@ export function pairPagesIntoUnits(
   if (strategy === "filename_front_back") {
     return pairByFileName(ordered, categoryHint);
   }
-  return pairSequentialDuplex(ordered, categoryHint);
+  return pairSequentialDuplex(
+    ordered,
+    categoryHint,
+    strategy === "sequential_duplex_back_first",
+  );
 }
 
 function pairSequentialDuplex(
   pages: DevicePage[],
   categoryHint?: ScanBatchInput["categoryHint"],
+  backFirst = false,
 ): ScanUnitInput[] {
   const units: ScanUnitInput[] = [];
   for (let i = 0; i < pages.length; i += 2) {
-    const front = pages[i]!;
-    const back = pages[i + 1];
+    const first = pages[i]!;
+    const second = pages[i + 1];
+    const front = backFirst && second ? second : first;
+    const back = backFirst && second ? first : second;
     units.push({
       unitIndex: units.length,
       front: {

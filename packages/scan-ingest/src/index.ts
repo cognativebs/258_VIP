@@ -100,7 +100,7 @@ export {
   mimeFromName,
   stemKey,
 } from "./adapters/folder-watch.js";
-export { pairPagesForReview, pageStem } from "./pairing.js";
+export { pairPagesForReview, pageStem, swapUnitFaces } from "./pairing.js";
 export { fuseCardEvidence, baseVsParallelFromEvidence } from "./evidenceFusion.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";

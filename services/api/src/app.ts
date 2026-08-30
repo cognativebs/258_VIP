@@ -67,6 +67,7 @@ import {
   finishUploadSession,
   startUploadSession,
   writeUploadFile,
+  swapStagedFaces,
   RicohIntakeError,
 } from "./lib/ricohIntake.js";
 import { sendScanMedia } from "./lib/scanMedia.js";
@@ -797,6 +798,32 @@ export function createApp(deps: AppDeps = {}) {
   app.post("/api/scan/units/:id/reject", async (req, res) => {
     const result = await rejectUnit(String(req.params.id), req.body?.reason);
     res.status(result.ok ? 200 : 400).json(result);
+  });
+
+  app.post("/api/scan/units/:id/swap-faces", async (req, res) => {
+    try {
+      const result = await swapStagedFaces({ unitId: String(req.params.id) });
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/scan/batches/:id/swap-faces", async (req, res) => {
+    try {
+      const result = await swapStagedFaces({ batchId: String(req.params.id) });
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   });
 
   app.get("/api/scan/batches/:id/report", async (req, res) => {

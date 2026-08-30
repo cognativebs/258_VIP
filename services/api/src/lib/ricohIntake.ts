@@ -97,7 +97,11 @@ export type RicohIntakeRequest = {
   notes?: string;
   source?: string;
   scannerProfile?: string;
-  pairing?: "sequential_duplex" | "filename_front_back" | "auto";
+  pairing?:
+    | "sequential_duplex"
+    | "sequential_duplex_back_first"
+    | "filename_front_back"
+    | "auto";
   holdings?: ApiHolding[];
 };
 
@@ -108,7 +112,11 @@ export type RicohIntakeResult = {
   scannerProfile: string;
   imageCount: number;
   expectedCardCount: number;
-  pairingMethod: "sequential_duplex" | "filename_front_back" | "auto";
+  pairingMethod:
+    | "sequential_duplex"
+    | "sequential_duplex_back_first"
+    | "filename_front_back"
+    | "auto";
   processingStatus: string;
   errorsWarnings: string[];
   telemetry: ScanBatchTelemetry;
@@ -399,6 +407,190 @@ export async function ingestRicohBatch(
       unitCount: opened.batch.units.length,
       candidateCount: staged.candidateCount,
     },
+  };
+}
+
+export type SwapFacesResult = {
+  batchId: string;
+  swapped: number;
+  skipped: number;
+  pairingMethod: "sequential_duplex" | "sequential_duplex_back_first";
+  note: string;
+};
+
+/**
+ * Operator-asserted front/back swap on staged (unconfirmed) units.
+ * Re-fuses per-side evidence. Does not invent a missing side.
+ */
+export async function swapStagedFaces(opts: {
+  batchId?: string;
+  unitId?: string;
+}): Promise<SwapFacesResult> {
+  const db = getDb();
+  let batchId = opts.batchId?.trim() ?? "";
+  if (!batchId && opts.unitId) {
+    const found = await db.execute(sql`
+      SELECT batch_id::text AS batch_id FROM vault_media.scan_unit
+      WHERE id = ${opts.unitId}::uuid
+    `);
+    batchId = String((found.rows as Array<{ batch_id: string }>)[0]?.batch_id ?? "");
+  }
+  if (!batchId) {
+    throw new RicohIntakeError("batchId or unitId required", 400);
+  }
+
+  const units = await db.execute(sql`
+    SELECT id, unit_index, resolution_mode, pairing_method, transformations,
+           front_storage_ref, back_storage_ref,
+           front_content_hash, back_content_hash,
+           front_image_id, back_image_id,
+           normalized_front_ref, normalized_back_ref
+    FROM vault_media.scan_unit
+    WHERE batch_id = ${batchId}::uuid
+      ${opts.unitId ? sql`AND id = ${opts.unitId}::uuid` : sql``}
+    ORDER BY unit_index
+  `);
+
+  const rows = units.rows as Array<{
+    id: string;
+    unit_index: number;
+    resolution_mode: string | null;
+    pairing_method: string | null;
+    transformations: unknown;
+    front_storage_ref: string;
+    back_storage_ref: string | null;
+    front_content_hash: string;
+    back_content_hash: string | null;
+    front_image_id: string | null;
+    back_image_id: string | null;
+    normalized_front_ref: string | null;
+    normalized_back_ref: string | null;
+  }>;
+  if (opts.unitId && rows.length === 0) {
+    throw new RicohIntakeError("Scan unit not found", 404);
+  }
+
+  const known = await knownFrontHashes(batchId);
+  const thresholds = thresholdsFromEnv();
+  let swapped = 0;
+  let skipped = 0;
+  let nextMethod: "sequential_duplex" | "sequential_duplex_back_first" =
+    "sequential_duplex_back_first";
+
+  for (const row of rows) {
+    if (row.resolution_mode || !row.back_storage_ref || !row.back_content_hash) {
+      skipped += 1;
+      continue;
+    }
+    nextMethod =
+      row.pairing_method === "sequential_duplex_back_first"
+        ? "sequential_duplex"
+        : "sequential_duplex_back_first";
+
+    const newFrontRef = row.back_storage_ref;
+    const newBackRef = row.front_storage_ref;
+    const newFrontHash = row.back_content_hash;
+    const newBackHash = row.front_content_hash;
+    const frontText = [sidecarSync(newFrontRef), basename(newFrontRef)]
+      .filter(Boolean)
+      .join(" ");
+    const backText = [sidecarSync(newBackRef), basename(newBackRef)]
+      .filter(Boolean)
+      .join(" ");
+    const evidence = fuseCardEvidence({ frontText, backText });
+    const baseVs = baseVsParallelFromEvidence(evidence);
+    const route = routeReview({
+      baseConfidence: baseVs.baseConfidence,
+      conflict: evidence.conflictNotes.length > 0,
+      pairingNeedsReview: false,
+      thresholds,
+    });
+    const physical = isPhysicalReimport(newFrontHash, known);
+    const reviewStatus =
+      route === "CONFLICT" || route === "LOW"
+        ? "needs_review"
+        : physical
+          ? "needs_confirmation"
+          : route === "HIGH"
+            ? "draft_ready"
+            : "needs_confirmation";
+    const prev = Array.isArray(row.transformations) ? row.transformations : [];
+    const transforms = [
+      ...prev.filter((t) => typeof t === "string"),
+      "operator_swapped_faces",
+      `pairing_method:${nextMethod}`,
+    ];
+
+    await db.execute(sql`
+      UPDATE vault_media.scan_unit
+      SET front_storage_ref = ${newFrontRef},
+          back_storage_ref = ${newBackRef},
+          front_content_hash = ${newFrontHash},
+          back_content_hash = ${newBackHash},
+          front_image_id = ${row.back_image_id},
+          back_image_id = ${row.front_image_id},
+          normalized_front_ref = ${row.normalized_back_ref},
+          normalized_back_ref = ${row.normalized_front_ref},
+          pairing_method = ${nextMethod},
+          pairing_confidence = ${0.85},
+          pairing_needs_review = ${false},
+          identification_status = ${baseVs.baseDisplayName ? "inferred" : "unknown"},
+          review_status = ${reviewStatus},
+          review_route = ${route},
+          identity_evidence = ${JSON.stringify(evidence)}::jsonb,
+          base_vs_parallel = ${JSON.stringify(baseVs)}::jsonb,
+          physical_reimport = ${physical},
+          transformations = ${JSON.stringify(transforms)}::jsonb,
+          updated_at = now()
+      WHERE id = ${row.id}::uuid
+        AND resolution_mode IS NULL
+    `);
+
+    if (row.front_image_id) {
+      await db.execute(sql`
+        UPDATE vault_media.capture_image
+        SET face = ${"back"}::vault_media.capture_face, updated_at = now()
+        WHERE id = ${row.front_image_id}::uuid
+      `);
+    }
+    if (row.back_image_id) {
+      await db.execute(sql`
+        UPDATE vault_media.capture_image
+        SET face = ${"front"}::vault_media.capture_face, updated_at = now()
+        WHERE id = ${row.back_image_id}::uuid
+      `);
+    }
+    known.add(newFrontHash);
+    swapped += 1;
+  }
+
+  const warn = await db.execute(sql`
+    SELECT errors_warnings FROM vault_media.scan_batch WHERE id = ${batchId}::uuid
+  `);
+  const existing = (warn.rows as Array<{ errors_warnings: unknown }>)[0]
+    ?.errors_warnings;
+  const warnings = Array.isArray(existing) ? existing.filter((w) => typeof w === "string") : [];
+  warnings.push(
+    swapped
+      ? `operator swapped front/back on ${swapped} card(s) → ${nextMethod}`
+      : "no unconfirmed duplex cards to swap",
+  );
+  await db.execute(sql`
+    UPDATE vault_media.scan_batch
+    SET errors_warnings = ${JSON.stringify(warnings)}::jsonb,
+        updated_at = now()
+    WHERE id = ${batchId}::uuid
+  `);
+
+  return {
+    batchId,
+    swapped,
+    skipped,
+    pairingMethod: nextMethod,
+    note:
+      swapped === 0
+        ? "Nothing swapped. Confirmed cards stay as they were; singles have no back to swap."
+        : `Swapped front/back on ${swapped} staged card(s). Re-check identity before confirm.`,
   };
 }
 

@@ -69,6 +69,7 @@ export type ReviewRoute = z.infer<typeof ReviewRouteSchema>;
 
 export const PairingMethodSchema = z.enum([
   "sequential_duplex",
+  "sequential_duplex_back_first",
   "filename_front_back",
   "auto",
 ]);
