@@ -98,9 +98,13 @@ export function openScanFromApi(body: OpenScanBody) {
 
   return openScanBatch(input, {
     store,
-    // Pixel OCR + sports parse is the production matcher. The 5-card fixture
-    // is not a catalog — do not score real lots against Jordan/Charizard.
-    catalog: [],
+    // Sports lots use pixel OCR + sports parse. The 5-card fixture is not a
+    // production sports catalog. Pokémon / MTG still use it on this in-memory
+    // path until a licensed sports-equivalent adapter exists.
+    catalog:
+      body.categoryHint === "pokemon" || body.categoryHint === "mtg"
+        ? FIXTURE_CATALOG
+        : [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
