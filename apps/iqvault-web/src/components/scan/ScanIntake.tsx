@@ -44,6 +44,14 @@ function fileName(ref: string): string {
   return ref.split(/[\\/]/).pop() ?? ref;
 }
 
+/** ADR 0009 / fixture lots — not the operator's Ricoh drop. */
+function isLabTestBatch(batch: StagedBatch): boolean {
+  const notes = `${batch.notes ?? ""} ${batch.units[0]?.frontStorageRef ?? ""}`.toLowerCase();
+  return /adr0009|adr9\/|acceptance fixture|ricoh-v1-fixture|committed ricoh/.test(
+    notes,
+  );
+}
+
 function readFileBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -63,9 +71,11 @@ export function ScanIntake() {
   const [store, setStore] = useState<"postgres" | "memory" | null>(null);
   const [folder, setFolder] = useState("");
   const [category, setCategory] = useState<ScanCategory>("sports");
-  const [pairing, setPairing] = useState<ScanPairing>("auto");
+  const [pairing, setPairing] = useState<ScanPairing>("filename_front_back");
   const [notes, setNotes] = useState("");
   const [uploads, setUploads] = useState<File[]>([]);
+  const [hideLabBatches, setHideLabBatches] = useState(true);
+  const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -200,50 +210,79 @@ export function ScanIntake() {
   );
 
   const inboxRoot = meta?.inbox?.root ?? null;
+  const visibleBatches = hideLabBatches
+    ? batches.filter((b) => !isLabTestBatch(b))
+    : batches;
+  const hiddenCount = batches.length - visibleBatches.length;
+
+  function takeFiles(list: FileList | File[] | null) {
+    const next = Array.from(list ?? []).filter((f) =>
+      /\.(jpe?g|png|tiff?|webp)$/i.test(f.name),
+    );
+    setUploads(next);
+  }
 
   return (
     <div className="stack">
       <section className="panel">
-        <h3 style={{ marginTop: 0 }}>Start / import a scan batch</h3>
+        <h3 style={{ marginTop: 0 }}>Upload your Ricoh scans</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Scan on the Ricoh fi-8170 with PaperStream profile <strong>004_Cards</strong>{" "}
-          (duplex, color, 600 DPI, JPEG/PNG). Drop the folder below or upload the
-          images. IQVault copies immutable masters, pairs front/back, fuses both
-          sides, and stages draft inventory. Confirm only after review — conflicts
-          are never auto-chosen. Batch 001 remains on <a href="/batch/001">/batch/001</a>.
+          Use the box below to pick your PaperStream <strong>004_Cards</strong>{" "}
+          front and back images from this PC. You do not need a <code>D:\</code>{" "}
+          path for that. The Michael Jordan rows are lab tests — hide them on the
+          review queue.
         </p>
 
-        <label className="scan-field">
-          <span>Scan folder</span>
+        <div
+          className={`scan-drop${dragOver ? " scan-drop-active" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            takeFiles(e.dataTransfer.files);
+          }}
+        >
           <input
-            type="text"
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            placeholder={inboxRoot ?? "data/scan-inbox/ricoh-v1-fixture"}
-            disabled={busy}
-          />
-          <small className="muted">
-            {inboxRoot
-              ? `Leave blank to use VIP_SCAN_INBOX (${inboxRoot}).`
-              : "Set VIP_SCAN_INBOX on the API, or type an absolute PaperStream output path."}
-          </small>
-        </label>
-
-        <label className="scan-field">
-          <span>Or upload images</span>
-          <input
+            id="scan-upload-input"
             type="file"
             accept="image/jpeg,image/png,image/tiff,image/webp,.jpg,.jpeg,.png,.tif,.tiff,.webp"
             multiple
             disabled={busy}
-            onChange={(e) => setUploads(Array.from(e.target.files ?? []))}
+            className="scan-drop-input"
+            onChange={(e) => takeFiles(e.target.files)}
           />
-          <small className="muted">
-            {uploads.length
-              ? `${uploads.length} file(s) selected`
-              : "Select every front and back from the duplex batch."}
-          </small>
-        </label>
+          <label htmlFor="scan-upload-input" className="scan-drop-label">
+            <strong>Choose front + back images</strong>
+            <span>
+              {uploads.length
+                ? `${uploads.length} file(s) ready — click Process selected images`
+                : "Click here or drop files. Pick every *_front and *_back from the lot."}
+            </span>
+          </label>
+        </div>
+
+        <div className="scan-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void startUpload()}
+            disabled={busy || uploads.length === 0}
+          >
+            {busy ? "Working…" : "Process selected images"}
+          </button>
+          <button
+            type="button"
+            className="btn-link"
+            onClick={() => void reload()}
+            disabled={busy}
+          >
+            Refresh queue
+          </button>
+        </div>
 
         <label className="scan-field">
           <span>Category</span>
@@ -284,32 +323,36 @@ export function ScanIntake() {
           />
         </label>
 
-        <div className="scan-actions">
+        <details className="scan-folder-details">
+          <summary>Same-PC folder import (optional)</summary>
+          <p className="muted" style={{ fontSize: 13 }}>
+            Only works if that folder already exists on the machine running the
+            VIP API. Create it first if Windows says folder not found.
+          </p>
+          <label className="scan-field">
+            <span>Scan folder</span>
+            <input
+              type="text"
+              value={folder}
+              onChange={(e) => setFolder(e.target.value)}
+              placeholder={inboxRoot ?? "D:\\VIP\\scans\\fi8170"}
+              disabled={busy}
+            />
+            <small className="muted">
+              {inboxRoot
+                ? `Blank uses VIP_SCAN_INBOX (${inboxRoot}).`
+                : "Set VIP_SCAN_INBOX, or type a folder that exists on this PC."}
+            </small>
+          </label>
           <button
             type="button"
             className="btn-primary"
             onClick={() => void startBatch()}
             disabled={busy}
           >
-            {busy ? "Working…" : "Import scanned batch"}
+            {busy ? "Working…" : "Import folder"}
           </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => void startUpload()}
-            disabled={busy || uploads.length === 0}
-          >
-            Upload selected images
-          </button>
-          <button
-            type="button"
-            className="btn-link"
-            onClick={() => void reload()}
-            disabled={busy}
-          >
-            Refresh
-          </button>
-        </div>
+        </details>
 
         {meta ? (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
@@ -327,19 +370,31 @@ export function ScanIntake() {
       {status ? <div className="panel scan-status">{status}</div> : null}
 
       <section>
-        <h2 className="section-title">Review queue ({batches.length} batch)</h2>
+        <h2 className="section-title">
+          Review queue ({visibleBatches.length} batch
+          {hiddenCount ? `, ${hiddenCount} lab hidden` : ""})
+        </h2>
         <p className="muted" style={{ fontSize: 13 }}>
           Uncertain cards stay here. Front and back are shown together. Confirm
           writes a draft holding (Dealer Inventory · Sell · NM assumed · unverified).
         </p>
-        {batches.length === 0 ? (
+        <label className="scan-hide-lab">
+          <input
+            type="checkbox"
+            checked={hideLabBatches}
+            onChange={(e) => setHideLabBatches(e.target.checked)}
+          />
+          Hide Michael Jordan / ADR 0009 lab batches
+        </label>
+        {visibleBatches.length === 0 ? (
           <p className="muted">
-            No scan batches staged. Import a folder or upload images above.
+            No operator batches yet. Choose images above and click Process
+            selected images.
           </p>
         ) : null}
 
         <div className="stack">
-          {batches.map((batch) => (
+          {visibleBatches.map((batch) => (
             <article key={batch.id} className="panel">
               <div className="scan-batch-head">
                 <div>
