@@ -111,7 +111,17 @@ const STOP = new Set([
   "for",
   "your",
   "their",
+  "sides",
+  "disagree",
+  "unit",
+  "batch",
+  "ricoh",
+  "paperstream",
 ]);
+
+export function isSportsStopToken(token: string): boolean {
+  return STOP.has(token.toLowerCase());
+}
 
 const PARALLELS: Array<{ token: string; label: string }> = [
   { token: "pink ice", label: "Pink Ice" },

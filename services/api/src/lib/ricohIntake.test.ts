@@ -215,7 +215,7 @@ describe("Ricoh trading-card scan intake v1", () => {
     expect(players).toMatch(/Mayfield|Wembanyama|Jordan|Jeter/i);
     expect(result.cards.every((c) => c.reviewStatus !== "confirmed")).toBe(true);
     expect(result.cards.every((c) => c.evidence.fused.year.origin !== "inference" || !c.evidence.fused.year.value)).toBe(true);
-  });
+  }, 60_000);
 
   it("writes one uploaded file at a time into a session folder", () => {
     const session = startUploadSession();

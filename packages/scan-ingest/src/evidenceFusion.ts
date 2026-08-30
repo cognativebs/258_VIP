@@ -6,7 +6,11 @@ import {
   type EvidenceField,
   type EvidenceOrigin,
 } from "@vip/core-model";
-import { parseSportsIdentity, type SportsParsedIdentity } from "./sportsIdentity.js";
+import {
+  isSportsStopToken,
+  parseSportsIdentity,
+  type SportsParsedIdentity,
+} from "./sportsIdentity.js";
 
 function fromParsed(
   parsed: SportsParsedIdentity | null,
@@ -63,17 +67,22 @@ function extrasFromText(
   return extra;
 }
 
-function lastToken(value: string): string {
-  return value.toLowerCase().trim().split(/\s+/).pop() ?? "";
+function lastName(value: string): string | null {
+  const tokens = value
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !isSportsStopToken(t) && !/^\d+$/.test(t));
+  return tokens.length ? tokens[tokens.length - 1]! : null;
 }
 
 function compatibleValues(a: string, b: string): boolean {
   const av = a.toLowerCase();
   const bv = b.toLowerCase();
   if (av === bv || av.includes(bv) || bv.includes(av)) return true;
-  const al = lastToken(a);
-  const bl = lastToken(b);
-  return al.length > 2 && al === bl;
+  const al = lastName(a);
+  const bl = lastName(b);
+  return Boolean(al && bl && al === bl);
 }
 
 function isCompleteBase(parsed: SportsParsedIdentity | null): boolean {
