@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
 import { writeRicohV1Fixture } from "./ricohFixture.js";
-import { acceptanceRows, ingestRicohBatch } from "./ricohIntake.js";
+import {
+  acceptanceRows,
+  ingestRicohBatch,
+  startUploadSession,
+  writeUploadFile,
+} from "./ricohIntake.js";
 
 async function dbAvailable(): Promise<boolean> {
   try {
@@ -96,5 +101,22 @@ describe("Ricoh trading-card scan intake v1", () => {
     void holdingsBefore;
     // Default: no auto-resolve — draft candidates only.
     expect(result.cards.every((c) => c.reviewStatus !== "confirmed")).toBe(true);
+  });
+
+  it("writes one uploaded file at a time into a session folder", () => {
+    const session = startUploadSession();
+    const a = writeUploadFile(
+      session.sessionId,
+      "card_front.jpg",
+      Buffer.from("front-bytes").toString("base64"),
+    );
+    const b = writeUploadFile(
+      session.sessionId,
+      "card_back.jpg",
+      Buffer.from("back-bytes").toString("base64"),
+    );
+    expect(a.bytes).toBeGreaterThan(0);
+    expect(b.bytes).toBeGreaterThan(0);
+    expect(readFileSync(join(session.folder, "card_front.jpg"), "utf8")).toBe("front-bytes");
   });
 });

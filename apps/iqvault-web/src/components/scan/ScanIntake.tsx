@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchScanBatches,
   fetchScanMeta,
+  finishScanUpload,
   importScanFolder,
-  importScanUpload,
   rejectScanUnit,
   resolveScanUnit,
   scanMediaUrl,
+  startScanUpload,
+  uploadScanFile,
   type ScanCategory,
   type ScanMeta,
   type ScanPairing,
@@ -141,14 +143,19 @@ export function ScanIntake() {
     setError(null);
     setStatus(null);
     try {
-      const files = await Promise.all(
-        uploads.map(async (file) => ({
+      const started = await startScanUpload();
+      for (let i = 0; i < uploads.length; i += 1) {
+        const file = uploads[i]!;
+        setStatus(`Uploading ${i + 1}/${uploads.length}: ${file.name}`);
+        await uploadScanFile({
+          sessionId: started.sessionId,
           fileName: file.name,
           contentBase64: await readFileBase64(file),
-        })),
-      );
-      const result = await importScanUpload({
-        files,
+        });
+      }
+      setStatus(`Pairing and identifying ${uploads.length} image(s)…`);
+      const result = await finishScanUpload({
+        sessionId: started.sessionId,
         categoryHint: category,
         notes: notes.trim() || undefined,
         pairing,
@@ -159,7 +166,11 @@ export function ScanIntake() {
       setUploads([]);
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(
+        e instanceof Error
+          ? `${e.message} — if a single scan is huge, use Same-PC folder import instead.`
+          : "Upload failed",
+      );
     } finally {
       setBusy(false);
     }

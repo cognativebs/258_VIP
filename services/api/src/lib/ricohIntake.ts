@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
@@ -481,6 +481,57 @@ export async function loadBatchTelemetry(batchId: string): Promise<ScanBatchTele
   return ScanBatchTelemetrySchema.parse(row.telemetry);
 }
 
+function uploadInbox(): string {
+  const inbox = process.env.VIP_SCAN_INBOX?.trim()
+    ? process.env.VIP_SCAN_INBOX.trim()
+    : join(REPO_ROOT, "data", "scan-inbox");
+  return join(inbox, "uploads");
+}
+
+function safeUploadName(fileName: string): string {
+  return basename(fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export function startUploadSession(): { sessionId: string; folder: string } {
+  const sessionId = randomUUID();
+  const folder = join(uploadInbox(), sessionId);
+  mkdirSync(folder, { recursive: true });
+  return { sessionId, folder };
+}
+
+export function writeUploadFile(
+  sessionId: string,
+  fileName: string,
+  contentBase64: string,
+): { fileName: string; bytes: number } {
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+    throw new RicohIntakeError("invalid upload session");
+  }
+  const folder = join(uploadInbox(), sessionId);
+  if (!existsSync(folder)) {
+    throw new RicohIntakeError("upload session not found", 404);
+  }
+  const safe = safeUploadName(fileName);
+  if (!safe) throw new RicohIntakeError("fileName required");
+  const buf = Buffer.from(contentBase64, "base64");
+  writeFileSync(join(folder, safe), buf);
+  return { fileName: safe, bytes: buf.length };
+}
+
+export async function finishUploadSession(
+  sessionId: string,
+  req: Omit<RicohIntakeRequest, "folder">,
+): Promise<RicohIntakeResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+    throw new RicohIntakeError("invalid upload session");
+  }
+  const folder = join(uploadInbox(), sessionId);
+  if (!existsSync(folder)) {
+    throw new RicohIntakeError("upload session not found", 404);
+  }
+  return ingestRicohBatch({ ...req, folder });
+}
+
 export async function ingestUploadedFiles(
   files: Array<{ fileName: string; contentBase64: string }>,
   req: Omit<RicohIntakeRequest, "folder">,
@@ -488,17 +539,11 @@ export async function ingestUploadedFiles(
   if (!files.length) {
     throw new RicohIntakeError("body.files required");
   }
-  const inbox = process.env.VIP_SCAN_INBOX?.trim()
-    ? process.env.VIP_SCAN_INBOX.trim()
-    : join(REPO_ROOT, "data", "scan-inbox");
-  const dest = join(inbox, "uploads", randomUUID());
-  mkdirSync(dest, { recursive: true });
+  const started = startUploadSession();
   for (const file of files) {
-    const safe = basename(file.fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
-    if (!safe) continue;
-    writeFileSync(join(dest, safe), Buffer.from(file.contentBase64, "base64"));
+    writeUploadFile(started.sessionId, file.fileName, file.contentBase64);
   }
-  return ingestRicohBatch({ ...req, folder: dest });
+  return finishUploadSession(started.sessionId, req);
 }
 
 export { resolveScanFolder };
