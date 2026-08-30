@@ -17,8 +17,9 @@ export default async function SellQueuePage() {
       <><Nav active="/sell-queue" />
       <h1 className="page-title">Sell queue</h1>
       <p className="page-sub">
-        CLZ-derived queue with Museum / Investment / Liquidity scores, sell priority, and
-        grading / photo / verification flags.
+        Dealer + Investment items with High/Medium sell priority. Personal Collection is
+        excluded from routine sale. LIVE ranges (when cached) stay labeled unverified
+        Browse listings — VALUE is still the CLZ snapshot.
       </p>
       {error ? <div className="error">{error}</div> : null}
       <div className="table-wrap">
@@ -27,6 +28,8 @@ export default async function SellQueuePage() {
             <tr>
               <th>Priority</th>
               <th>Asset</th>
+              <th>Bucket</th>
+              <th>LIVE</th>
               <th>MUS / INV / LIQ</th>
               <th>Flags</th>
               <th>Label</th>
@@ -47,6 +50,10 @@ export default async function SellQueuePage() {
                 </td>
                 <td>
                   <strong>{h.assetName}</strong>
+                </td>
+                <td>{h.inventoryBucket ?? "—"}</td>
+                <td className="muted" style={{ fontSize: 12 }}>
+                  {h.liveRangeLabel ?? "not fetched"}
                 </td>
                 <td className="muted" style={{ fontSize: 12 }}>
                   {h.museumScore ?? "—"} / {h.investmentScore ?? "—"} /{" "}

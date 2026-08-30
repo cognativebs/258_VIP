@@ -3,13 +3,16 @@
 
 export const WORKSPACES = [
   { id: "all", label: "ALL", key: "F1", desc: "Full collection" },
-  { id: "museum", label: "MUSEUM", key: "F2", desc: "Museum candidates & high museum score" },
-  { id: "sell", label: "SELL", key: "F3", desc: "High & medium sell priority" },
-  { id: "lot", label: "LOT", key: "F4", desc: "Sell/lot & verify-then-lot candidates" },
-  { id: "liquidity", label: "LIQ MOVE", key: "F5", desc: "High liquidity — move quickly when timing is right" },
-  { id: "pillar-review", label: "PILLAR?", key: "F6", desc: "Undetermined pillar (General Inventory) for review" },
-  { id: "grade", label: "GRADE", key: "F7", desc: "Needs grading" },
-  { id: "dupes", label: "DUPES", key: "F8", desc: "Duplicates" },
+  { id: "personal", label: "PERSONAL", key: "F2", desc: "Personal Collection — not for routine sale" },
+  { id: "investment", label: "INVEST", key: "F3", desc: "Investment Vault — sell when intelligence justifies" },
+  { id: "dealer", label: "DEALER", key: "F4", desc: "Dealer Inventory — capital that exists to churn" },
+  { id: "museum", label: "MUSEUM", key: "F5", desc: "Museum candidates & high museum score" },
+  { id: "sell", label: "SELL", key: "F6", desc: "High & medium sell priority (excludes Personal)" },
+  { id: "lot", label: "LOT", key: "F7", desc: "Sell/lot & verify-then-lot candidates" },
+  { id: "liquidity", label: "LIQ MOVE", key: "F8", desc: "High liquidity — move quickly when timing is right" },
+  { id: "pillar-review", label: "PILLAR?", key: "F9", desc: "Undetermined pillar (General Inventory) for review" },
+  { id: "grade", label: "GRADE", key: "F10", desc: "Needs grading" },
+  { id: "dupes", label: "DUPES", key: "F11", desc: "Duplicates" },
 ];
 
 export const RECOMMENDATIONS = [
@@ -46,7 +49,9 @@ export const TABLE_COLUMNS = [
   { id: "Issue Full", label: "ISS", minWidth: 48 },
   { id: "Edition / Variant", label: "VARIANT", minWidth: 140 },
   { id: "Collection Pillar", label: "PILLAR", minWidth: 110 },
+  { id: "Inventory Bucket", label: "BUCKET", minWidth: 88 },
   { id: "Current Price", label: "VALUE", minWidth: 72, numeric: true },
+  { id: "Live Range", label: "LIVE", minWidth: 168 },
   { id: "Museum Score", label: "MUS", minWidth: 44, numeric: true },
   { id: "Investment Score", label: "INV", minWidth: 44, numeric: true },
   { id: "Liquidity Score", label: "LIQ", minWidth: 44, numeric: true },
@@ -62,6 +67,8 @@ export const POKEMON_TABLE_COLUMNS = [
   { id: "Issue Full", label: "#", minWidth: 48 },
   { id: "Edition / Variant", label: "RARITY", minWidth: 90 },
   { id: "Current Price", label: "VALUE", minWidth: 72, numeric: true },
+  { id: "Live Range", label: "LIVE", minWidth: 168 },
+  { id: "Inventory Bucket", label: "BUCKET", minWidth: 88 },
   { id: "Collection Pillar", label: "STATUS", minWidth: 110 },
   { id: "Recommendation", label: "RECOMMENDATION", minWidth: 130 },
 ];
@@ -80,6 +87,7 @@ export const NUMERIC_FIELDS = new Set([
 export const DEFAULT_FILTERS = {
   query: "",
   pillar: "",
+  bucket: "",
   location: "",
   publisher: "",
   slabStatus: "",
@@ -121,12 +129,22 @@ export function isLotCandidate(c) {
 
 export function filterByWorkspace(rows, workspace) {
   switch (workspace) {
+    case "personal":
+      return rows.filter((r) => r["Inventory Bucket"] === "personal_collection");
+    case "investment":
+      return rows.filter((r) => r["Inventory Bucket"] === "investment_vault");
+    case "dealer":
+      return rows.filter((r) => r["Inventory Bucket"] === "dealer_inventory");
     case "museum":
       return rows.filter(
         (r) => r.Recommendation === "Museum Candidate" || (r["Museum Score"] ?? 0) >= 70
       );
     case "sell":
-      return rows.filter((r) => r["Sell Priority"] === "High" || r["Sell Priority"] === "Medium");
+      return rows.filter(
+        (r) =>
+          r["Inventory Bucket"] !== "personal_collection" &&
+          (r["Sell Priority"] === "High" || r["Sell Priority"] === "Medium"),
+      );
     case "lot":
       return rows.filter(isLotCandidate);
     case "liquidity":
@@ -154,6 +172,7 @@ export function applyComicFilters(rows, filters) {
         r.Title,
         r["Edition / Variant"],
         r["Collection Pillar"],
+        r["Inventory Bucket"],
         r.Recommendation,
         r.Location,
         r.Publisher,
@@ -169,6 +188,7 @@ export function applyComicFilters(rows, filters) {
   }
 
   if (filters.pillar) out = out.filter((r) => r["Collection Pillar"] === filters.pillar);
+  if (filters.bucket) out = out.filter((r) => r["Inventory Bucket"] === filters.bucket);
 
   if (filters.location === "__unassigned__") {
     out = out.filter((r) => !r.Location);
@@ -218,11 +238,12 @@ export function filterComics(rows, { query = "", pillar = "", location = "" } = 
 
 export function sortComics(rows, sortKey, direction = "desc") {
   const col = TABLE_COLUMNS.find((c) => c.id === sortKey);
-  const numeric = col?.numeric ?? NUMERIC_FIELDS.has(sortKey);
+  const numeric =
+    sortKey === "Live Range" || col?.numeric || NUMERIC_FIELDS.has(sortKey);
 
   return [...rows].sort((a, b) => {
-    let av = a[sortKey];
-    let bv = b[sortKey];
+    let av = sortKey === "Live Range" ? a["Live Low"] : a[sortKey];
+    let bv = sortKey === "Live Range" ? b["Live Low"] : b[sortKey];
     if (numeric) {
       av = Number(av) || 0;
       bv = Number(bv) || 0;
@@ -255,6 +276,7 @@ export function countActiveFilters(filters) {
   let n = 0;
   if (filters.query?.trim()) n++;
   if (filters.pillar) n++;
+  if (filters.bucket) n++;
   if (filters.location) n++;
   if (filters.publisher) n++;
   if (filters.slabStatus) n++;
@@ -385,6 +407,12 @@ export function recClass(rec) {
 }
 
 export function formatCell(colId, value) {
+  if (colId === "Live Range") {
+    return value || "not fetched";
+  }
+  if (colId === "Inventory Bucket") {
+    return bucketShort(value);
+  }
   if (colId === "Current Price") {
     const n = Number(value) || 0;
     return n > 0 ? `$${n.toFixed(2)}` : "—";
@@ -420,6 +448,19 @@ export function fmtMoney(n) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+export function bucketShort(name) {
+  switch (name) {
+    case "personal_collection":
+      return "Personal";
+    case "investment_vault":
+      return "Invest";
+    case "dealer_inventory":
+      return "Dealer";
+    default:
+      return name || "—";
+  }
 }
 
 export function pillarShort(name) {

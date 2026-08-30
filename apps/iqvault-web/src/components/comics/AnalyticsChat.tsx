@@ -74,6 +74,12 @@ export function AnalyticsChat({
   const [loading, setLoading] = useState(false);
   const [liveSteps, setLiveSteps] = useState<JobStep[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [signals, setSignals] = useState<{
+    active: Array<{ id: string; title?: string; body: string; sourceId: string }>;
+    quarantinedCount: number;
+    feedKind: string;
+    provenance?: { notes?: string; verificationStatus?: string };
+  } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -94,12 +100,19 @@ export function AnalyticsChat({
           selectedComic,
           filteredValue,
           source,
+          signals,
         }),
       ),
-    [meta, filtered, dashboardStats, filters, workspace, selectedComic, filteredValue, source],
+    [meta, filtered, dashboardStats, filters, workspace, selectedComic, filteredValue, source, signals],
   );
 
   useEffect(() => {
+    void fetch("/api/vip/signals/context", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setSignals(data);
+      })
+      .catch(() => {});
     void fetchOrchestr8Health().then(setHealth);
     void fetchOrchestr8Agents()
       .then((data) => {

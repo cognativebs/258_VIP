@@ -23,3 +23,37 @@ describe("mapInventoryRow Pokémon card name", () => {
     expect(row.assetName).toContain("Charizard Holo");
   });
 });
+
+describe("mapInventoryRow inventory buckets", () => {
+  it("classifies Batman as personal collection", () => {
+    const h = mapInventoryRow(
+      {
+        "CLZ Hash": "clz-batman",
+        Series: "Batman",
+        "Issue Full": "1",
+        Publisher: "DC",
+        "Collection Pillar": "Batman",
+        Recommendation: "Museum Candidate",
+        "Current Price": 46,
+      },
+      0,
+    );
+    expect(h.inventoryBucket).toBe("personal_collection");
+    expect(h.inventoryBucketAssignment).toBe("inferred");
+  });
+
+  it("keeps an operator override", () => {
+    const h = mapInventoryRow(
+      {
+        "CLZ Hash": "clz-x",
+        Series: "X-Men",
+        "Collection Pillar": "X-Men",
+        "Inventory Bucket": "dealer_inventory",
+        "Inventory Bucket Source": "operator",
+      },
+      0,
+    );
+    expect(h.inventoryBucket).toBe("dealer_inventory");
+    expect(h.inventoryBucketAssignment).toBe("operator");
+  });
+});

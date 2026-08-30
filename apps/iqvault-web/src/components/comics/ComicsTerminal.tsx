@@ -466,6 +466,20 @@ export function ComicsTerminal({
             </div>
 
             <div className="bb-filter-section">
+              <div className="bb-filter-section-title">Inventory bucket</div>
+              <select
+                className="bb-input bb-input-full"
+                value={filters.bucket}
+                onChange={(e) => setFilters({ ...filters, bucket: e.target.value })}
+              >
+                <option value="">All buckets</option>
+                <option value="personal_collection">Personal Collection</option>
+                <option value="investment_vault">Investment Vault</option>
+                <option value="dealer_inventory">Dealer Inventory</option>
+              </select>
+            </div>
+
+            <div className="bb-filter-section">
               <div className="bb-filter-section-title">Pillar</div>
               <select
                 className="bb-input bb-input-full"
@@ -707,12 +721,29 @@ export function ComicsTerminal({
               </p>
               <div className="bb-detail-grid">
                 <div>
+                  <span className="bb-dim">Bucket</span>
+                  <div>{formatCell("Inventory Bucket", selected["Inventory Bucket"])}</div>
+                  <p className="bb-dim" style={{ fontSize: 11, marginTop: 4 }}>
+                    {selected["Inventory Bucket"] === "personal_collection"
+                      ? "Not for routine sale"
+                      : selected["Inventory Bucket"] === "investment_vault"
+                        ? "Sell when live range + evidence justify it"
+                        : selected["Inventory Bucket"] === "dealer_inventory"
+                          ? "Capital that exists to churn"
+                          : "Inferred · unverified until assigned"}
+                  </p>
+                </div>
+                <div>
                   <span className="bb-dim">Pillar</span>
                   <div>{String(selected["Collection Pillar"] || "—")}</div>
                 </div>
                 <div>
-                  <span className="bb-dim">Value</span>
+                  <span className="bb-dim">VALUE (CLZ snapshot)</span>
                   <div>{formatCell("Current Price", selected["Current Price"])}</div>
+                </div>
+                <div>
+                  <span className="bb-dim">LIVE (Browse listings · unverified)</span>
+                  <div>{formatCell("Live Range", selected["Live Range"])}</div>
                 </div>
                 <div>
                   <span className="bb-dim">Scores</span>
@@ -749,6 +780,30 @@ export function ComicsTerminal({
                 </div>
               </div>
               {saveError ? <p className="bb-detail-error">{saveError}</p> : null}
+              {editable && !isPokemon ? (
+                <div style={{ marginTop: 12 }}>
+                  <span className="bb-dim">Move bucket</span>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                    {(
+                      [
+                        ["personal_collection", "Personal"],
+                        ["investment_vault", "Invest"],
+                        ["dealer_inventory", "Dealer"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className="bb-btn bb-btn-ghost"
+                        disabled={saving || selected["Inventory Bucket"] === id}
+                        onClick={() => void saveSelected({ "Inventory Bucket": id })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {editable ? (
                 needsVerification ? (
                   <button

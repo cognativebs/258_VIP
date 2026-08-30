@@ -25,6 +25,8 @@ SELECT
     h.assumed_grade,
     h.grade_rating,
     h.collection_pillar,
+    h.inventory_bucket,
+    h.inventory_bucket_source,
     h.museum_score,
     h.investment_score,
     h.liquidity_score,
@@ -51,15 +53,62 @@ SELECT
     i.cover_date,
     i.is_key_issue,
     i.key_reason,
-    v.cover_label
+    v.cover_label,
+    live.live_obs_count,
+    live.live_listing_count,
+    live.live_low,
+    live.live_high,
+    live.live_observed_at
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
 JOIN vault_comic.issue i ON i.id = v.issue_id
 JOIN vault_comic.series s ON s.id = i.series_id
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(*) AS live_obs_count,
+        COUNT(*) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_listing_count,
+        MIN(ask_price) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_low,
+        MAX(ask_price) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_high,
+        MAX(observed_at) AS live_observed_at
+    FROM vault_market.listing_observation lo
+    WHERE lo.holding_source_row_id = h.source_row_id
+) live ON TRUE
 WHERE h.dropped_at IS NULL
 ORDER BY s.title, i.issue_number, v.cover_label
 """
+
+
+def _live_range_label(rec: dict) -> str:
+    """Browse listing chip — never copies CLZ VALUE, never says sold."""
+    obs = rec.get("live_obs_count")
+    if obs is None or int(obs or 0) == 0:
+        return "not fetched"
+    n = int(rec.get("live_listing_count") or 0)
+    if n == 0 or rec.get("live_low") is None:
+        return "0 listings · unverified"
+    low = _num(rec.get("live_low"))
+    high = _num(rec.get("live_high"), low)
+    range_txt = f"${low:.2f}" if low == high else f"${low:.2f}–${high:.2f}"
+    recency = ""
+    observed = rec.get("live_observed_at")
+    if observed is not None:
+        try:
+            if hasattr(observed, "timestamp"):
+                age_days = max(0, int((datetime.now(timezone.utc) - observed).total_seconds() // 86400))
+            else:
+                age_days = None
+        except Exception:
+            age_days = None
+        if age_days is not None:
+            recency = f" · {age_days}d"
+    return f"{range_txt} · {n} listing{'s' if n != 1 else ''}{recency} · unverified"
 
 
 def _yn(val: bool | None) -> str:
@@ -104,6 +153,14 @@ def row_from_holding(rec: dict) -> dict:
         }
 
     row["Collection Pillar"] = rec.get("collection_pillar") or row.get("Collection Pillar", "")
+    row["Inventory Bucket"] = rec.get("inventory_bucket") or row.get("Inventory Bucket", "")
+    row["Inventory Bucket Source"] = rec.get("inventory_bucket_source") or row.get(
+        "Inventory Bucket Source", ""
+    )
+    row["Live Range"] = _live_range_label(rec)
+    row["Live Low"] = _num(rec.get("live_low"), 0) if rec.get("live_low") is not None else None
+    row["Live High"] = _num(rec.get("live_high"), 0) if rec.get("live_high") is not None else None
+    row["Live Listings"] = int(rec.get("live_listing_count") or 0)
     row["Recommendation"] = rec.get("recommendation") or row.get("Recommendation", "")
     row["Sell Priority"] = rec.get("sell_priority") or row.get("Sell Priority", "")
     row["Museum Score"] = _num(rec.get("museum_score"), row.get("Museum Score", 0))
@@ -252,6 +309,7 @@ HOLDING_FIELD_MAP: dict[str, tuple[str, Any]] = {
     "Assumed Grade": ("assumed_grade", lambda v: (str(v).strip() or None) if v is not None else None),
     "Grade Rating": ("grade_rating", _num),
     "Collection Pillar": ("collection_pillar", lambda v: (str(v).strip() or None) if v is not None else None),
+    "Inventory Bucket": ("inventory_bucket", lambda v: (str(v).strip() or None) if v is not None else None),
     "Museum Score": ("museum_score", _num),
     "Investment Score": ("investment_score", _num),
     "Liquidity Score": ("liquidity_score", _num),
@@ -277,6 +335,8 @@ SELECT
     h.assumed_grade,
     h.grade_rating,
     h.collection_pillar,
+    h.inventory_bucket,
+    h.inventory_bucket_source,
     h.museum_score,
     h.investment_score,
     h.liquidity_score,
@@ -303,12 +363,33 @@ SELECT
     i.cover_date,
     i.is_key_issue,
     i.key_reason,
-    v.cover_label
+    v.cover_label,
+    live.live_obs_count,
+    live.live_listing_count,
+    live.live_low,
+    live.live_high,
+    live.live_observed_at
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
 JOIN vault_comic.issue i ON i.id = v.issue_id
 JOIN vault_comic.series s ON s.id = i.series_id
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(*) AS live_obs_count,
+        COUNT(*) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_listing_count,
+        MIN(ask_price) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_low,
+        MAX(ask_price) FILTER (
+            WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        ) AS live_high,
+        MAX(observed_at) AS live_observed_at
+    FROM vault_market.listing_observation lo
+    WHERE lo.holding_source_row_id = h.source_row_id
+) live ON TRUE
 WHERE h.source_row_id = %s
 """
 
@@ -339,6 +420,11 @@ def update_holding(conn, source_row_id: str, fields: dict) -> dict:
             meta_patch[clz_key] = _yn(val) if val is not None else "No"
         elif val is not None:
             meta_patch[clz_key] = val
+
+    if "Inventory Bucket" in fields:
+        sets.append("inventory_bucket_source = %s")
+        params.append("operator")
+        meta_patch["Inventory Bucket Source"] = "operator"
 
     if not sets:
         raise ValueError("No editable fields in patch")

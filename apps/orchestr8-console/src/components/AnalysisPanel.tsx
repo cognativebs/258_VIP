@@ -36,6 +36,12 @@ export function AnalysisPanel() {
   const [showContext, setShowContext] = useState(false);
   const [market, setMarket] = useState<MarketEvidenceBundle | null>(null);
   const [marketStatus, setMarketStatus] = useState<"idle" | "loading" | "ready">("idle");
+  const [signals, setSignals] = useState<{
+    active?: Array<{ id: string; title?: string; body: string; sourceId?: string }>;
+    quarantinedCount?: number;
+    feedKind?: string;
+    provenance?: { notes?: string; verificationStatus?: string };
+  } | null>(null);
 
   const loading = session.loading;
   const busy = Boolean(liveKind);
@@ -57,6 +63,12 @@ export function AnalysisPanel() {
 
   useEffect(() => {
     void refresh();
+    void fetch("/api/vip/signals/context", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setSignals(data);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -83,8 +95,8 @@ export function AnalysisPanel() {
 
   const contextJson = useMemo(() => {
     if (!bundle || bundle.source === "none") return "{}";
-    return contextToJson(buildAnalysisContext(bundle, slice, market));
-  }, [bundle, slice, market]);
+    return contextToJson(buildAnalysisContext(bundle, slice, market, signals));
+  }, [bundle, slice, market, signals]);
 
   const gate = useMemo(() => liquidationGateFromMarket(market), [market]);
 
@@ -107,7 +119,7 @@ export function AnalysisPanel() {
         roles: roster.roles,
         mode: roster.roles.length === 1 ? "single" : roster.mode,
         council: roster.councilId,
-        contextJson: contextToJson(buildAnalysisContext(bundle, slice, fresh)),
+        contextJson: contextToJson(buildAnalysisContext(bundle, slice, fresh, signals)),
       });
     } catch {
       /* session.error */

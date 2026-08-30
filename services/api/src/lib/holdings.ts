@@ -1,3 +1,8 @@
+import {
+  classifyInventoryBucket,
+  type InventoryBucket,
+  type InventoryBucketAssignment,
+} from "@vip/core-model";
 import { markInferred, markObserved } from "@vip/evidence";
 import { printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
@@ -14,6 +19,12 @@ export type ApiHolding = {
   publisher: string;
   quantity: number;
   pillar: string | null;
+  inventoryBucket?: InventoryBucket;
+  inventoryBucketAssignment?: InventoryBucketAssignment;
+  liveRangeLabel?: string | null;
+  liveLow?: number | null;
+  liveHigh?: number | null;
+  liveListingCount?: number | null;
   museumScore: number | null;
   investmentScore: number | null;
   liquidityScore: number | null;
@@ -81,6 +92,32 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     ? "pokemon-seed@0.1.0"
     : "clz-python-ingest@0.2.0";
 
+  const pillar = row["Collection Pillar"] != null ? String(row["Collection Pillar"]) : null;
+  const recommendation =
+    row["Recommendation"] != null ? String(row["Recommendation"]) : null;
+  const storedBucket = String(row["Inventory Bucket"] ?? row.inventory_bucket ?? "").trim();
+  const storedAssign = String(
+    row["Inventory Bucket Source"] ?? row.inventory_bucket_source ?? "",
+  ).trim();
+  const classified = classifyInventoryBucket({
+    pillar,
+    recommendation,
+    valueLocked: yes(row["Value Locked"]),
+  });
+  const inventoryBucket: InventoryBucket =
+    storedAssign === "operator" &&
+    (storedBucket === "personal_collection" ||
+      storedBucket === "investment_vault" ||
+      storedBucket === "dealer_inventory")
+      ? storedBucket
+      : storedBucket === "personal_collection" ||
+          storedBucket === "investment_vault" ||
+          storedBucket === "dealer_inventory"
+        ? storedBucket
+        : classified.bucket;
+  const inventoryBucketAssignment: InventoryBucketAssignment =
+    storedAssign === "operator" ? "operator" : "inferred";
+
   return {
     id: String(row["CLZ Hash"] ?? `holding-${index}`),
     assetName: [series, issue && `#${issue}`, row["Edition / Variant"]].filter(Boolean).join(" "),
@@ -88,12 +125,17 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     issue,
     publisher: String(row["Publisher"] ?? ""),
     quantity: num(row["Quantity"]) ?? 1,
-    pillar: row["Collection Pillar"] != null ? String(row["Collection Pillar"]) : null,
+    pillar,
     museumScore: num(row["Museum Score"]),
     investmentScore: num(row["Investment Score"]),
     liquidityScore: num(row["Liquidity Score"]),
-    recommendationLabel:
-      row["Recommendation"] != null ? String(row["Recommendation"]) : null,
+    inventoryBucket,
+    inventoryBucketAssignment,
+    liveRangeLabel: row["Live Range"] != null ? String(row["Live Range"]) : null,
+    liveLow: num(row["Live Low"]),
+    liveHigh: num(row["Live High"]),
+    liveListingCount: num(row["Live Listings"]),
+    recommendationLabel: recommendation,
     sellPriority: (["High", "Medium", "Low"] as const).includes(
       row["Sell Priority"] as "High",
     )

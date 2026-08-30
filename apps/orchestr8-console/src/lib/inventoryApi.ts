@@ -19,6 +19,8 @@ type VipHolding = {
   issue: string;
   publisher?: string;
   pillar?: string | null;
+  inventoryBucket?: string | null;
+  liveRangeLabel?: string | null;
   currentPrice?: number | null;
   museumScore?: number | null;
   investmentScore?: number | null;
@@ -70,6 +72,8 @@ function vipHoldingToRow(h: VipHolding) {
     "Issue Full": h.issue,
     Publisher: h.publisher,
     "Collection Pillar": h.pillar,
+    "Inventory Bucket": h.inventoryBucket,
+    "Live Range": h.liveRangeLabel,
     "Current Price": h.currentPrice,
     "Museum Score": h.museumScore,
     "Investment Score": h.investmentScore,

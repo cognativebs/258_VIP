@@ -9,6 +9,12 @@ export type ComicRow = {
   "Edition / Variant"?: string;
   Publisher?: string;
   "Collection Pillar"?: string;
+  "Inventory Bucket"?: string;
+  "Inventory Bucket Source"?: string;
+  "Live Range"?: string | null;
+  "Live Low"?: number | null;
+  "Live High"?: number | null;
+  "Live Listings"?: number | null;
   "Current Price"?: number | null;
   "Cover Price"?: number | null;
   "Purchase Price"?: number | null;
@@ -50,6 +56,7 @@ export type ComicsMeta = {
 export type ComicFilters = {
   query: string;
   pillar: string;
+  bucket: string;
   location: string;
   publisher: string;
   slabStatus: string;
