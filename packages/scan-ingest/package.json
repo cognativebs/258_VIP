@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "report": "node dist/cli-report.js"
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",

@@ -1,10 +1,15 @@
 import { sql } from "drizzle-orm";
+import { field, unknownField, type CardIdentityFields } from "@vip/core-model";
 import {
+  EditStagedUnitRequestSchema,
+  SCAN_EDIT_RULE,
   SCAN_HOLDING_SOURCE,
   SCAN_INGEST_RULE,
   SCAN_SNAPSHOT_SOURCE,
   assessCandidates,
+  baseVsParallelFromEvidence,
   policyFromEnv,
+  type EditStagedUnitRequest,
   type OpenBatchResult,
 } from "@vip/scan-ingest";
 import { getDb } from "../db/client.js";
@@ -233,6 +238,7 @@ export async function listStagedBatches(limit = 25): Promise<StagedBatchRow[]> {
            source, scanner_profile, image_count, expected_card_count,
            processing_status, errors_warnings, telemetry
     FROM vault_media.scan_batch
+    WHERE status IN ('open', 'review')
     ORDER BY created_at DESC
     LIMIT ${limit}
   `);
@@ -670,4 +676,216 @@ export async function rejectUnit(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+export type DiscardBatchResult =
+  | {
+      ok: true;
+      batchId: string;
+      rejected: number;
+      confirmedKept: number;
+    }
+  | { ok: false; status: 404; error: string };
+
+/**
+ * Remove a batch from the Scan queue. Does not delete holdings or master files.
+ * Unresolved cards are rejected. Confirmed cards stay in Collections.
+ */
+export async function discardBatch(batchId: string): Promise<DiscardBatchResult> {
+  const db = getDb();
+  const found = await db.execute(sql`
+    SELECT id FROM vault_media.scan_batch WHERE id = ${batchId}::uuid
+  `);
+  if ((found.rows as Array<{ id: string }>).length === 0) {
+    return { ok: false, status: 404, error: "Scan batch not found" };
+  }
+
+  const rejected = await db.execute(sql`
+    UPDATE vault_media.scan_unit
+    SET status = 'rejected',
+        resolution_mode = 'rejected'::vault_media.scan_resolution_mode,
+        resolution_rule_version = ${SCAN_INGEST_RULE},
+        resolved_at = now(),
+        updated_at = now()
+    WHERE batch_id = ${batchId}::uuid AND resolution_mode IS NULL
+  `);
+  const kept = await db.execute(sql`
+    SELECT count(*)::int AS n FROM vault_media.scan_unit
+    WHERE batch_id = ${batchId}::uuid
+      AND resolution_mode IN ('operator_confirmed', 'auto_high_confidence')
+  `);
+  const confirmedKept = Number((kept.rows as Array<{ n: number }>)[0]?.n ?? 0);
+
+  const warn = await db.execute(sql`
+    SELECT errors_warnings FROM vault_media.scan_batch WHERE id = ${batchId}::uuid
+  `);
+  const existing = (warn.rows as Array<{ errors_warnings: unknown }>)[0]?.errors_warnings;
+  const warnings = Array.isArray(existing) ? existing.filter((w) => typeof w === "string") : [];
+  warnings.push(
+    confirmedKept
+      ? `operator discarded batch — ${confirmedKept} confirmed holding(s) kept`
+      : "operator discarded batch from the review queue",
+  );
+
+  await db.execute(sql`
+    UPDATE vault_media.scan_batch
+    SET status = 'closed',
+        processing_status = 'discarded',
+        errors_warnings = ${JSON.stringify(warnings)}::jsonb,
+        updated_at = now()
+    WHERE id = ${batchId}::uuid
+  `);
+
+  return {
+    ok: true,
+    batchId,
+    rejected: rejected.rowCount ?? 0,
+    confirmedKept,
+  };
+}
+
+function slugPart(value: string | null | undefined, fallback: string): string {
+  const s = (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return s || fallback;
+}
+
+function emptyFields(): CardIdentityFields {
+  const origin = "operator" as const;
+  return {
+    category: unknownField(origin),
+    playerOrCharacter: unknownField(origin),
+    year: unknownField(origin),
+    manufacturer: unknownField(origin),
+    brand: unknownField(origin),
+    setName: unknownField(origin),
+    subsetInsert: unknownField(origin),
+    collectorNumber: unknownField(origin),
+    team: unknownField(origin),
+    rookie: unknownField(origin),
+    parallel: unknownField(origin),
+    serialNumber: unknownField(origin),
+    autograph: unknownField(origin),
+    relic: unknownField(origin),
+  };
+}
+
+export type EditStagedUnitResult =
+  | { ok: true; unitId: string; catalogKey: string; displayName: string }
+  | { ok: false; status: 400 | 404; error: string };
+
+/**
+ * Operator-typed identity on a staged card. Unverified until Confirm.
+ */
+export async function editStagedUnit(
+  unitId: string,
+  body: EditStagedUnitRequest,
+): Promise<EditStagedUnitResult> {
+  const parsed = EditStagedUnitRequestSchema.parse(body);
+  const db = getDb();
+  const unitRes = await db.execute(sql`
+    SELECT id, resolution_mode, category_hint, identity_evidence
+    FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+  `);
+  const unit = (unitRes.rows as Array<{
+    id: string;
+    resolution_mode: string | null;
+    category_hint: string | null;
+    identity_evidence: unknown;
+  }>)[0];
+  if (!unit) {
+    return { ok: false, status: 404, error: "Scan unit not found" };
+  }
+  if (unit.resolution_mode) {
+    return { ok: false, status: 400, error: "Card is already resolved — edit is only for staged cards" };
+  }
+
+  const category = (unit.category_hint === "pokemon" || unit.category_hint === "mtg"
+    ? unit.category_hint
+    : "sports") as "sports" | "pokemon" | "mtg";
+  const setish = parsed.setName ?? parsed.brand ?? null;
+  const displayName = [
+    parsed.year,
+    setish,
+    parsed.playerOrCharacter,
+    parsed.collectorNumber ? `#${parsed.collectorNumber}` : null,
+    parsed.parallel,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const catalogKey = [
+    category,
+    "operator",
+    parsed.year ?? "year",
+    slugPart(parsed.brand ?? parsed.setName, "set"),
+    slugPart(parsed.playerOrCharacter, "player"),
+    parsed.collectorNumber ?? "n",
+  ].join(":");
+
+  const prev = (unit.identity_evidence ?? {}) as {
+    front?: CardIdentityFields;
+    back?: CardIdentityFields;
+  };
+  const origin = "operator" as const;
+  const fused: CardIdentityFields = {
+    ...emptyFields(),
+    category: field(category, 0.9, origin),
+    playerOrCharacter: field(parsed.playerOrCharacter, 0.9, origin),
+    year: parsed.year ? field(String(parsed.year), 0.9, origin) : unknownField(origin),
+    brand: parsed.brand ? field(parsed.brand, 0.85, origin) : unknownField(origin),
+    setName: setish ? field(setish, 0.85, origin) : unknownField(origin),
+    collectorNumber: parsed.collectorNumber
+      ? field(parsed.collectorNumber, 0.9, origin)
+      : unknownField(origin),
+    parallel: parsed.parallel ? field(parsed.parallel, 0.6, origin) : unknownField(origin),
+    team: parsed.team ? field(parsed.team, 0.6, origin) : unknownField(origin),
+  };
+  const evidence = {
+    front: prev.front ?? emptyFields(),
+    back: prev.back ?? emptyFields(),
+    fused,
+    conflictNotes: [] as string[],
+  };
+  const baseVs = baseVsParallelFromEvidence(evidence);
+
+  await db.execute(sql`
+    INSERT INTO vault_media.scan_unit_candidate
+      (unit_id, catalog_key, asset_id, category, display_name, set_name,
+       collector_number, player_or_character, release_year, external_ids,
+       adapter_id, confidence, match_reasons, rank, prov_rule_version,
+       prov_confidence)
+    VALUES (
+      ${unitId}::uuid, ${catalogKey}, NULL, ${category}, ${displayName},
+      ${setish}, ${parsed.collectorNumber ?? null}, ${parsed.playerOrCharacter},
+      ${parsed.year ?? null}, ${JSON.stringify([])}::jsonb,
+      ${"operator-edit-v1"}, ${0.9},
+      ARRAY['operator_edit'],
+      ${0},
+      ${SCAN_EDIT_RULE},
+      ${0.9}
+    )
+    ON CONFLICT (unit_id, catalog_key) DO UPDATE SET
+      display_name = EXCLUDED.display_name,
+      set_name = EXCLUDED.set_name,
+      collector_number = EXCLUDED.collector_number,
+      player_or_character = EXCLUDED.player_or_character,
+      release_year = EXCLUDED.release_year,
+      confidence = EXCLUDED.confidence,
+      adapter_id = EXCLUDED.adapter_id,
+      rank = EXCLUDED.rank
+  `);
+
+  await db.execute(sql`
+    UPDATE vault_media.scan_unit
+    SET identification_status = 'inferred',
+        review_status = 'needs_confirmation',
+        review_route = 'MEDIUM',
+        identity_evidence = ${JSON.stringify(evidence)}::jsonb,
+        base_vs_parallel = ${JSON.stringify(baseVs)}::jsonb,
+        top_confidence = ${0.9},
+        confidence_band = 'review',
+        updated_at = now()
+    WHERE id = ${unitId}::uuid AND resolution_mode IS NULL
+  `);
+
+  return { ok: true, unitId, catalogKey, displayName };
 }

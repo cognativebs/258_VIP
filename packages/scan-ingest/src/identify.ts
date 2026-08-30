@@ -24,11 +24,17 @@ type IdentifyInput = Pick<
   "ocrText" | "frontStorageRef" | "categoryHint"
 >;
 
-/** Text the matcher scores against: OCR when present, else the file name. */
+/** PaperStream default names carry no identity — do not score them. */
+export function isGenericScanFileName(name: string): boolean {
+  const stem = (name.split(/[\\/]/).pop() ?? name).replace(/\.[^.]+$/, "");
+  return /^(img|image|scan|doc|dsc)[_-]?\d+$/i.test(stem);
+}
+
+/** Text the matcher scores against: OCR when present, else a non-generic file name. */
 export function queryTextFor(unit: IdentifyInput): string {
-  return normalize(
-    [unit.ocrText, baseName(unit.frontStorageRef)].filter(Boolean).join(" "),
-  );
+  const file = baseName(unit.frontStorageRef);
+  const name = isGenericScanFileName(file) ? "" : file;
+  return normalize([unit.ocrText, name].filter(Boolean).join(" "));
 }
 
 export function buildCatalogQuery(

@@ -25,4 +25,21 @@ describe("fuseCardEvidence", () => {
     expect(ev.fused.year.value).toBeNull();
     expect(ev.fused.playerOrCharacter.value).toBeNull();
   });
+
+  it("prefers a complete back parse over foil-front OCR garbage", () => {
+    const ev = fuseCardEvidence({
+      frontText: "2025 PRIZM AMERICA FOOTBALL",
+      backText: "2025 PANINI PRIZM FOOTBALL NO. 397 KURTIS ROURKE",
+      frontOrigin: "front_ocr",
+      backOrigin: "back_ocr",
+    });
+    expect(ev.conflictNotes).toEqual([]);
+    expect(ev.fused.playerOrCharacter.value).toMatch(/Kurtis Rourke/i);
+    expect(ev.fused.year.value).toBe("2025");
+    expect(ev.fused.collectorNumber.value).toBe("397");
+    expect(ev.fused.playerOrCharacter.origin).toBe("back_ocr");
+    const split = baseVsParallelFromEvidence(ev);
+    expect(split.baseDisplayName).toMatch(/Rourke/i);
+    expect(split.baseConfidence).toBeGreaterThanOrEqual(0.8);
+  });
 });

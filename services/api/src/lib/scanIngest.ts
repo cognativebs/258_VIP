@@ -98,7 +98,13 @@ export function openScanFromApi(body: OpenScanBody) {
 
   return openScanBatch(input, {
     store,
-    catalog: FIXTURE_CATALOG,
+    // Sports lots use pixel OCR + sports parse. The 5-card fixture is not a
+    // production sports catalog. Pokémon / MTG still use it on this in-memory
+    // path until a licensed sports-equivalent adapter exists.
+    catalog:
+      body.categoryHint === "pokemon" || body.categoryHint === "mtg"
+        ? FIXTURE_CATALOG
+        : [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -144,6 +150,8 @@ export function scanMeta() {
       "PaperStream / folder drop or upload (source extensible)",
       "immutable master copy + orientation recorded",
       "duplex pair / filename front (ambiguous → review)",
+      "Tesseract OCR on front+back pixels (generic IMG_#### names ignored)",
+      "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",

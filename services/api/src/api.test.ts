@@ -541,14 +541,16 @@ describe("VIP API", () => {
         rawSnapshots: { storageRef: string; backStorageRef?: string | null }[];
       };
       const unit = opened.batch.units[0]!;
-      expect(unit.candidates[0]?.catalogKey).toBe("sports:topps:1986:jordan:57");
+      const catalogKey = unit.candidates[0]?.catalogKey ?? "";
+      expect(catalogKey).toMatch(/jordan/i);
+      expect(catalogKey).toMatch(/1986/);
       expect(opened.rawSnapshots[0]?.backStorageRef).toBe("scans/fi8170/j_back.jpg");
 
       const confirm = await fetch(`${base}/api/scan/units/${unit.id}/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          selectedCandidateKey: "sports:topps:1986:jordan:57",
+          selectedCandidateKey: catalogKey,
           queueEbayListingDraft: true,
         }),
       });

@@ -171,6 +171,18 @@ export const ConfirmUnitRequestSchema = z.object({
 });
 export type ConfirmUnitRequest = z.infer<typeof ConfirmUnitRequestSchema>;
 
+/** Operator correction on a staged card — still unverified until Confirm. */
+export const EditStagedUnitRequestSchema = z.object({
+  playerOrCharacter: z.string().trim().min(1),
+  year: z.number().int().min(1800).max(2100).nullable().optional(),
+  brand: z.string().trim().min(1).nullable().optional(),
+  setName: z.string().trim().min(1).nullable().optional(),
+  collectorNumber: z.string().trim().min(1).nullable().optional(),
+  parallel: z.string().trim().min(1).nullable().optional(),
+  team: z.string().trim().min(1).nullable().optional(),
+});
+export type EditStagedUnitRequest = z.infer<typeof EditStagedUnitRequestSchema>;
+
 export const InventoryCommitSchema = z.object({
   holdingId: UuidSchema,
   assetId: UuidSchema,
