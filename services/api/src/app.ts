@@ -64,6 +64,9 @@ import {
   acceptanceRows,
   ingestRicohBatch,
   ingestUploadedFiles,
+  finishUploadSession,
+  startUploadSession,
+  writeUploadFile,
   RicohIntakeError,
 } from "./lib/ricohIntake.js";
 import { sendScanMedia } from "./lib/scanMedia.js";
@@ -887,6 +890,7 @@ export function createApp(deps: AppDeps = {}) {
         batchId: result.batchId,
         source: result.source,
         scannerProfile: result.scannerProfile,
+        pairingMethod: result.pairingMethod,
         staged: result.staged,
         stagingError: null,
         telemetry: result.telemetry,
@@ -905,7 +909,77 @@ export function createApp(deps: AppDeps = {}) {
     }
   });
 
-  app.post("/api/scan/import-upload", express.json({ limit: "32mb" }), async (req, res) => {
+  const uploadJson = express.json({ limit: "20mb" });
+
+  app.post("/api/scan/import-upload/start", async (_req, res) => {
+    const started = startUploadSession();
+    res.status(201).json({ ok: true, sessionId: started.sessionId });
+  });
+
+  app.post("/api/scan/import-upload/file", uploadJson, (req, res) => {
+    try {
+      const body = req.body ?? {};
+      if (typeof body.sessionId !== "string" || typeof body.fileName !== "string") {
+        res.status(400).json({ ok: false, error: "sessionId and fileName required" });
+        return;
+      }
+      if (typeof body.contentBase64 !== "string" || !body.contentBase64) {
+        res.status(400).json({ ok: false, error: "contentBase64 required" });
+        return;
+      }
+      const written = writeUploadFile(body.sessionId, body.fileName, body.contentBase64);
+      res.json({ ok: true, ...written });
+    } catch (e) {
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/scan/import-upload/finish", async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      if (typeof body.sessionId !== "string") {
+        res.status(400).json({ ok: false, error: "sessionId required" });
+        return;
+      }
+      const holdings = (await buildInventory(deps)).holdings;
+      const result = await finishUploadSession(body.sessionId, {
+        categoryHint: body.categoryHint ?? null,
+        notes: body.notes,
+        source: body.source,
+        scannerProfile: body.scannerProfile,
+        pairing: body.pairing ?? "auto",
+        holdings,
+      });
+      res.status(201).json({
+        ok: true,
+        folder: result.folder,
+        fileCount: result.imageCount,
+        batchId: result.batchId,
+        source: result.source,
+        scannerProfile: result.scannerProfile,
+        pairingMethod: result.pairingMethod,
+        staged: result.staged,
+        stagingError: null,
+        telemetry: result.telemetry,
+        report: acceptanceRows(result.cards),
+        errorsWarnings: result.errorsWarnings,
+        cards: result.cards,
+        decisionNote: "Candidates are inferred · unverified. Confirm on /scan.",
+      });
+    } catch (e) {
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/scan/import-upload", uploadJson, async (req, res) => {
     try {
       const body = req.body ?? {};
       const files = Array.isArray(body.files) ? body.files : [];
@@ -925,6 +999,7 @@ export function createApp(deps: AppDeps = {}) {
         batchId: result.batchId,
         source: result.source,
         scannerProfile: result.scannerProfile,
+        pairingMethod: result.pairingMethod,
         staged: result.staged,
         stagingError: null,
         telemetry: result.telemetry,

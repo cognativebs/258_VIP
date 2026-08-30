@@ -6,6 +6,10 @@ const vipTarget = process.env.VIP_API_URL ?? "http://127.0.0.1:8787";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Ricoh 600 DPI JPEGs are several MB each; the rewrite proxy defaults to 10MB.
+  experimental: {
+    middlewareClientMaxBodySize: "50mb",
+  },
   async rewrites() {
     return [
       {

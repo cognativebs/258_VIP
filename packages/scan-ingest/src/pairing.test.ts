@@ -44,6 +44,49 @@ describe("pairPagesForReview", () => {
     expect(d.pairingConfidence[0]).toBeGreaterThan(0.9);
   });
 
+  it("uses sequential duplex under auto when PaperStream names have no face labels", () => {
+    const d = pairPagesForReview(
+      [
+        page("IMG_0001.jpg", "a", 0),
+        page("IMG_0002.jpg", "b", 1),
+        page("IMG_0003.jpg", "c", 2),
+        page("IMG_0004.jpg", "d", 3),
+      ],
+      { strategy: "auto" },
+    );
+    expect(d.method).toBe("sequential_duplex");
+    expect(d.units).toHaveLength(2);
+    expect(d.units[0]?.back?.fileName).toBe("IMG_0002.jpg");
+    expect(d.needsReview.every((n) => n === false)).toBe(true);
+  });
+
+  it("pairs a 23-card PaperStream lot (46 IMG_#### files) instead of 46 singles", () => {
+    const pages = Array.from({ length: 46 }, (_, i) =>
+      page(`IMG_${String(i + 1).padStart(4, "0")}.jpg`, `h${i}`, i),
+    );
+    const d = pairPagesForReview(pages, { strategy: "filename_front_back" });
+    expect(d.method).toBe("sequential_duplex");
+    expect(d.units).toHaveLength(23);
+    expect(d.units.every((u) => u.back)).toBe(true);
+    expect(d.needsReview.filter(Boolean)).toHaveLength(0);
+  });
+
+  it("falls back to sequential when filenames have no front/back labels", () => {
+    const d = pairPagesForReview(
+      [
+        page("IMG_0001.jpg", "a", 0),
+        page("IMG_0002.jpg", "b", 1),
+        page("IMG_0003.jpg", "c", 2),
+        page("IMG_0004.jpg", "d", 3),
+      ],
+      { strategy: "filename_front_back" },
+    );
+    expect(d.method).toBe("sequential_duplex");
+    expect(d.units).toHaveLength(2);
+    expect(d.units[0]?.back).toBeTruthy();
+    expect(d.warnings.join(" ")).toMatch(/sequential duplex/i);
+  });
+
   it("flags two fronts labeled on the same stem", () => {
     const d = pairPagesForReview(
       [

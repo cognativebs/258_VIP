@@ -140,6 +140,7 @@ export function fetchScanBatches(): Promise<{
 export type ImportScanResult = {
   folder: string;
   fileCount: number;
+  pairingMethod?: ScanPairing;
   staged: { unitCount: number; candidateCount: number } | null;
   stagingError: string | null;
   telemetry?: ScanBatchTelemetry;
@@ -169,15 +170,30 @@ export function importScanFolder(body: {
   });
 }
 
-export function importScanUpload(body: {
-  files: Array<{ fileName: string; contentBase64: string }>;
+export function startScanUpload(): Promise<{ sessionId: string }> {
+  return vipFetch("/api/scan/import-upload/start", { method: "POST" });
+}
+
+export function uploadScanFile(body: {
+  sessionId: string;
+  fileName: string;
+  contentBase64: string;
+}): Promise<{ ok: boolean; fileName: string; bytes: number }> {
+  return vipFetch("/api/scan/import-upload/file", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function finishScanUpload(body: {
+  sessionId: string;
   categoryHint?: ScanCategory | null;
   notes?: string;
   pairing?: ScanPairing;
   source?: string;
   scannerProfile?: string;
 }): Promise<ImportScanResult> {
-  return vipFetch("/api/scan/import-upload", {
+  return vipFetch("/api/scan/import-upload/finish", {
     method: "POST",
     body: JSON.stringify(body),
   });

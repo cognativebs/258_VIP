@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchScanBatches,
   fetchScanMeta,
+  finishScanUpload,
   importScanFolder,
-  importScanUpload,
   rejectScanUnit,
   resolveScanUnit,
   scanMediaUrl,
+  startScanUpload,
+  uploadScanFile,
+  type ImportScanResult,
   type ScanCategory,
   type ScanMeta,
   type ScanPairing,
@@ -52,6 +55,41 @@ function isLabTestBatch(batch: StagedBatch): boolean {
   );
 }
 
+function pairingLabel(method: string | undefined): string | null {
+  if (method === "sequential_duplex") return "sequential duplex";
+  if (method === "filename_front_back") return "filename front/back";
+  if (method === "auto") return "auto";
+  return null;
+}
+
+function formatImportStatus(result: ImportScanResult): string {
+  if (result.stagingError) {
+    return `Imported ${result.fileCount} page(s), but staging failed: ${result.stagingError}`;
+  }
+  const cards = result.staged?.unitCount ?? 0;
+  const images = result.fileCount;
+  const how = pairingLabel(result.pairingMethod);
+  const t = result.telemetry;
+  const routes = t
+    ? ` HIGH ${t.high} · MEDIUM ${t.medium} · LOW ${t.low} · CONFLICT ${t.conflicts} · ${t.totalMs}ms.`
+    : "";
+  const fallback = result.errorsWarnings?.find((w) =>
+    /filenames were not \*_front/i.test(w),
+  );
+  const unpaired =
+    images > 1 && cards === images
+      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not confirm this batch."
+      : "";
+  return (
+    `Staged ${cards} card(s) from ${images} image(s)` +
+    (how ? ` (${how})` : "") +
+    `.${routes}` +
+    (fallback ? ` ${fallback}.` : "") +
+    unpaired +
+    " Nothing is in inventory until you confirm."
+  );
+}
+
 function readFileBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -71,7 +109,7 @@ export function ScanIntake() {
   const [store, setStore] = useState<"postgres" | "memory" | null>(null);
   const [folder, setFolder] = useState("");
   const [category, setCategory] = useState<ScanCategory>("sports");
-  const [pairing, setPairing] = useState<ScanPairing>("filename_front_back");
+  const [pairing, setPairing] = useState<ScanPairing>("auto");
   const [notes, setNotes] = useState("");
   const [uploads, setUploads] = useState<File[]>([]);
   const [hideLabBatches, setHideLabBatches] = useState(true);
@@ -109,21 +147,12 @@ export function ScanIntake() {
     setStatus(null);
     try {
       const result = await importScanFolder({
-        folder: folder.trim() || undefined,
+        folder: folder.trim().replace(/^["']|["']$/g, "") || undefined,
         categoryHint: category,
         notes: notes.trim() || undefined,
         pairing,
       });
-      const t = result.telemetry;
-      setStatus(
-        result.stagingError
-          ? `Imported ${result.fileCount} page(s), but staging failed: ${result.stagingError}`
-          : `Staged ${result.staged?.unitCount ?? 0} card(s) from ${result.folder}.` +
-              (t
-                ? ` HIGH ${t.high} · MEDIUM ${t.medium} · LOW ${t.low} · CONFLICT ${t.conflicts} · ${t.totalMs}ms.`
-                : "") +
-              " Nothing is in inventory until you confirm.",
-      );
+      setStatus(formatImportStatus(result));
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
@@ -141,25 +170,32 @@ export function ScanIntake() {
     setError(null);
     setStatus(null);
     try {
-      const files = await Promise.all(
-        uploads.map(async (file) => ({
+      const started = await startScanUpload();
+      for (let i = 0; i < uploads.length; i += 1) {
+        const file = uploads[i]!;
+        setStatus(`Uploading ${i + 1}/${uploads.length}: ${file.name}`);
+        await uploadScanFile({
+          sessionId: started.sessionId,
           fileName: file.name,
           contentBase64: await readFileBase64(file),
-        })),
-      );
-      const result = await importScanUpload({
-        files,
+        });
+      }
+      setStatus(`Pairing and identifying ${uploads.length} image(s)…`);
+      const result = await finishScanUpload({
+        sessionId: started.sessionId,
         categoryHint: category,
         notes: notes.trim() || undefined,
         pairing,
       });
-      setStatus(
-        `Uploaded ${result.fileCount} image(s) → ${result.staged?.unitCount ?? 0} card(s). Review exceptions below.`,
-      );
+      setStatus(formatImportStatus(result));
       setUploads([]);
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(
+        e instanceof Error
+          ? `${e.message} — if a single scan is huge, use Same-PC folder import instead.`
+          : "Upload failed",
+      );
     } finally {
       setBusy(false);
     }
@@ -225,12 +261,51 @@ export function ScanIntake() {
   return (
     <div className="stack">
       <section className="panel">
-        <h3 style={{ marginTop: 0 }}>Upload your Ricoh scans</h3>
+        <h3 style={{ marginTop: 0 }}>Import a scan folder</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Use the box below to pick your PaperStream <strong>004_Cards</strong>{" "}
-          front and back images from this PC. You do not need a <code>D:\</code>{" "}
-          path for that. The Michael Jordan rows are lab tests — hide them on the
-          review queue.
+          Paste the PaperStream output path and click <strong>Import folder</strong>.
+          The folder must exist on this PC (the machine running the VIP API).
+        </p>
+
+        <label className="scan-field">
+          <span>Scan folder</span>
+          <input
+            type="text"
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!text.trim()) return;
+              e.preventDefault();
+              setFolder(text.trim().replace(/^["']|["']$/g, ""));
+            }}
+            placeholder={inboxRoot ?? "D:\\VIP\\scans\\fi8170"}
+            spellCheck={false}
+            autoComplete="off"
+            disabled={busy}
+          />
+          <small className="muted">
+            {inboxRoot
+              ? `Paste a path, or leave blank for VIP_SCAN_INBOX (${inboxRoot}).`
+              : "Paste the full folder path, e.g. D:\\VIP\\scans\\fi8170"}
+          </small>
+        </label>
+
+        <div className="scan-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void startBatch()}
+            disabled={busy}
+          >
+            {busy ? "Working…" : "Import folder"}
+          </button>
+        </div>
+
+        <h3>Or choose image files</h3>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Use this if you do not want to point at a folder. Large 600 DPI lots
+          upload one file at a time.
         </p>
 
         <div
@@ -310,6 +385,10 @@ export function ScanIntake() {
             <option value="filename_front_back">Filename (*_front / *_back)</option>
             <option value="sequential_duplex">Sequential duplex (ADF order)</option>
           </select>
+          <span className="muted" style={{ fontSize: 12 }}>
+            PaperStream <code>IMG_0001</code> / <code>IMG_0002</code> lots: Auto or
+            Sequential. Filename mode needs <code>*_front</code> / <code>*_back</code>.
+          </span>
         </label>
 
         <label className="scan-field">
@@ -322,37 +401,6 @@ export function ScanIntake() {
             disabled={busy}
           />
         </label>
-
-        <details className="scan-folder-details">
-          <summary>Same-PC folder import (optional)</summary>
-          <p className="muted" style={{ fontSize: 13 }}>
-            Only works if that folder already exists on the machine running the
-            VIP API. Create it first if Windows says folder not found.
-          </p>
-          <label className="scan-field">
-            <span>Scan folder</span>
-            <input
-              type="text"
-              value={folder}
-              onChange={(e) => setFolder(e.target.value)}
-              placeholder={inboxRoot ?? "D:\\VIP\\scans\\fi8170"}
-              disabled={busy}
-            />
-            <small className="muted">
-              {inboxRoot
-                ? `Blank uses VIP_SCAN_INBOX (${inboxRoot}).`
-                : "Set VIP_SCAN_INBOX, or type a folder that exists on this PC."}
-            </small>
-          </label>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => void startBatch()}
-            disabled={busy}
-          >
-            {busy ? "Working…" : "Import folder"}
-          </button>
-        </details>
 
         {meta ? (
           <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
@@ -411,14 +459,21 @@ export function ScanIntake() {
 
               {batch.telemetry ? (
                 <p className="scan-telemetry">
-                  images {batch.telemetry.imagesReceived} · paired {batch.telemetry.cardsPaired} ·
-                  fail {batch.telemetry.pairingFailures} · HIGH {batch.telemetry.high} · MEDIUM{" "}
-                  {batch.telemetry.medium} · LOW {batch.telemetry.low} · CONFLICT{" "}
-                  {batch.telemetry.conflicts} · review {batch.telemetry.needsReview} · dups{" "}
-                  {batch.telemetry.duplicateWarnings} · {Math.round(batch.telemetry.totalMs)}ms
+                  images {batch.telemetry.imagesReceived} · cards {batch.units.length} · paired{" "}
+                  {batch.telemetry.cardsPaired} · fail {batch.telemetry.pairingFailures} · HIGH{" "}
+                  {batch.telemetry.high} · MEDIUM {batch.telemetry.medium} · LOW{" "}
+                  {batch.telemetry.low} · CONFLICT {batch.telemetry.conflicts} · review{" "}
+                  {batch.telemetry.needsReview} · dups {batch.telemetry.duplicateWarnings} ·{" "}
+                  {Math.round(batch.telemetry.totalMs)}ms
                   {batch.telemetry.processingFailures
                     ? ` · errors ${batch.telemetry.processingFailures}`
                     : ""}
+                </p>
+              ) : null}
+              {batch.errorsWarnings?.length ? (
+                <p className="muted" style={{ fontSize: 12 }}>
+                  {batch.errorsWarnings.filter((w) => !w.startsWith("unit ")).join(" · ") ||
+                    `${batch.errorsWarnings.length} unit warning(s)`}
                 </p>
               ) : null}
 

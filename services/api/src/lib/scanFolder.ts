@@ -17,10 +17,34 @@ import {
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"];
 
+/** Strip Explorer quotes / extra whitespace so a pasted path just works. */
+export function normalizePastedFolder(raw: string): string {
+  let s = raw.trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  if (s.startsWith("file:///")) {
+    s = decodeURIComponent(s.slice("file:///".length));
+    if (/^[A-Za-z]:\//.test(s)) s = s.replace(/\//g, "\\");
+  }
+  return s;
+}
+
+function sameOrInsideRoot(candidate: string, root: string): boolean {
+  const norm = (p: string) =>
+    process.platform === "win32" ? resolve(p).toLowerCase() : resolve(p);
+  const c = norm(candidate);
+  const r = norm(root);
+  return c === r || c.startsWith(r + sep);
+}
+
 /** Configured inbox root; folder requests must stay inside it when set. */
 export function scanInboxRoot(): string | null {
   const raw = process.env.VIP_SCAN_INBOX?.trim();
-  return raw ? resolve(raw) : null;
+  return raw ? resolve(normalizePastedFolder(raw)) : null;
 }
 
 export function isImageFile(name: string): boolean {
@@ -40,7 +64,7 @@ export type ResolveFolderResult =
  */
 export function resolveScanFolder(requested?: string | null): ResolveFolderResult {
   const root = scanInboxRoot();
-  const wanted = requested?.trim();
+  const wanted = requested ? normalizePastedFolder(requested) : "";
 
   if (!wanted) {
     if (!root) {
@@ -64,7 +88,7 @@ export function resolveScanFolder(requested?: string | null): ResolveFolderResul
   }
 
   const candidate = isAbsolute(wanted) ? resolve(wanted) : resolve(join(root, wanted));
-  if (candidate !== root && !candidate.startsWith(root + sep)) {
+  if (!sameOrInsideRoot(candidate, root)) {
     return {
       ok: false,
       error: `Folder must be inside VIP_SCAN_INBOX (${root}).`,
