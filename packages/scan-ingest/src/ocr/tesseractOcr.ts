@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { platform } from "node:os";
 import {
   classifyOcrSpans,
@@ -41,14 +41,22 @@ function runTesseract(
     });
     let out = "";
     let err = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("tesseract timed out"));
+    }, 8_000);
     child.stdout.on("data", (d: Buffer) => {
       out += d.toString("utf8");
     });
     child.stderr.on("data", (d: Buffer) => {
       err += d.toString("utf8");
     });
-    child.on("error", reject);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
     child.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve(out);
       else reject(new Error(err.trim() || `tesseract exited ${code}`));
     });
@@ -152,6 +160,16 @@ export async function ocrImageFile(
   const hit = cache.get(key);
   if (hit) return hit;
   if (process.env.VIP_SCAN_OCR === "0") {
+    cache.set(key, EMPTY);
+    return EMPTY;
+  }
+  try {
+    if (statSync(imagePath).size < 2048) {
+      const tiny = { ...EMPTY, engine: "skipped-tiny" };
+      cache.set(key, tiny);
+      return tiny;
+    }
+  } catch {
     cache.set(key, EMPTY);
     return EMPTY;
   }

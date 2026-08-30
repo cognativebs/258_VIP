@@ -67,6 +67,11 @@ function letterTokens(text: string, minLen: number): string[] {
     .filter((w) => w.length >= minLen);
 }
 
+function nameTokens(text: string): string[] {
+  const tokens = letterTokens(text, 1);
+  return tokens.some((w) => w.length >= 3) ? tokens : [];
+}
+
 export function classifyOcrLine(text: string): OcrRegionKind {
   const t = text.replace(/\s+/g, " ").trim();
   if (!t) return "unknown";
@@ -87,9 +92,10 @@ function looksLikePlayerTitle(text: string): boolean {
     return false;
   }
   if (/\d/.test(text) && !/\b(jr|sr|ii|iii|iv)\b/i.test(text)) return false;
-  const letters = words.map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => w.length >= 2);
-  if (letters.length !== words.length) return false;
-  return letters.some((w) => w.length >= 3);
+  const letters = words.map((w) => w.replace(/[^A-Za-z]/g, ""));
+  if (letters.some((w) => w.length === 0)) return false;
+  if (!letters.some((w) => w.length >= 3)) return false;
+  return letters.filter((w) => w.length === 1).length <= 2;
 }
 
 export function classifyOcrSpans(
@@ -132,7 +138,11 @@ function firstLabeledNumber(spans: OcrSpan[]): string | null {
 }
 
 function titleCaseName(words: string[]): string {
-  return words.map((w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  return words
+    .map((w) =>
+      w.length <= 2 ? w.toUpperCase() : w[0]!.toUpperCase() + w.slice(1).toLowerCase(),
+    )
+    .join(" ");
 }
 
 function productTokens(text: string): {
@@ -179,7 +189,7 @@ function nameFromRemainder(text: string): string | null {
   if (!leftover || BODY_MARKERS.test(leftover)) return null;
   const words = leftover.split(/\s+/).filter(Boolean);
   if (!looksLikePlayerTitle(leftover)) return null;
-  return titleCaseName(letterTokens(leftover, 2));
+  return titleCaseName(nameTokens(leftover));
 }
 
 function unlabeledNumberAfterIdentity(text: string, player: string | null): string | null {
@@ -232,7 +242,7 @@ function productFields(spans: OcrSpan[]): Pick<
 function titlePlayer(spans: OcrSpan[]): string | null {
   for (const span of spans) {
     if (looksLikePlayerTitle(span.text)) {
-      return titleCaseName(letterTokens(span.text, 2));
+      return titleCaseName(nameTokens(span.text));
     }
   }
   return null;

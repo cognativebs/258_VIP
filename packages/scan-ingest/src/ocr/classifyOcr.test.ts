@@ -24,6 +24,7 @@ describe("classifyOcrLine", () => {
     expect(classifyOcrLine("2021 PANINI DONRUSS FOOTBALL")).toBe("product");
     expect(classifyOcrLine("BAKER MAYFIELD")).toBe("title");
     expect(classifyOcrLine("CJ STROUD")).toBe("title");
+    expect(classifyOcrLine("C) STROUD")).toBe("title");
   });
 });
 
