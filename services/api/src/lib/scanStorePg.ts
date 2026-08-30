@@ -192,6 +192,20 @@ export type StagedUnitRow = {
   duplicateAcknowledged: boolean;
   decisionAction: string | null;
   candidates: StagedCandidateRow[];
+  frontImageId: string | null;
+  backImageId: string | null;
+  normalizedFrontRef: string | null;
+  normalizedBackRef: string | null;
+  pairingMethod: string | null;
+  pairingConfidence: number | null;
+  pairingNeedsReview: boolean;
+  orientation: string | null;
+  identificationStatus: string | null;
+  reviewStatus: string | null;
+  reviewRoute: string | null;
+  identityEvidence: unknown;
+  baseVsParallel: unknown;
+  physicalReimport: boolean;
 };
 
 export type StagedBatchRow = {
@@ -202,13 +216,22 @@ export type StagedBatchRow = {
   notes: string | null;
   createdAt: string;
   units: StagedUnitRow[];
+  source: string | null;
+  scannerProfile: string | null;
+  imageCount: number | null;
+  expectedCardCount: number | null;
+  processingStatus: string | null;
+  errorsWarnings: unknown;
+  telemetry: unknown;
 };
 
 /** Read staged batches back (survives API restart, unlike the in-memory store). */
 export async function listStagedBatches(limit = 25): Promise<StagedBatchRow[]> {
   const db = getDb();
   const batches = await db.execute(sql`
-    SELECT id, session_id, device, status, category_hint, notes, created_at
+    SELECT id, session_id, device, status, category_hint, notes, created_at,
+           source, scanner_profile, image_count, expected_card_count,
+           processing_status, errors_warnings, telemetry
     FROM vault_media.scan_batch
     ORDER BY created_at DESC
     LIMIT ${limit}
@@ -217,78 +240,126 @@ export async function listStagedBatches(limit = 25): Promise<StagedBatchRow[]> {
   const rows = batches.rows as Array<Record<string, unknown>>;
   if (rows.length === 0) return [];
 
-  const out = [];
+  const out: StagedBatchRow[] = [];
   for (const b of rows) {
-    const units = await db.execute(sql`
-      SELECT
-        u.id, u.unit_index, u.status, u.front_storage_ref, u.back_storage_ref,
-        u.selected_candidate_key, u.holding_id, u.confirmed_asset_id,
-        u.resolution_mode, u.resolution_rule_version, u.top_confidence,
-        u.confidence_band, u.duplicate_acknowledged, u.decision_action,
-        COALESCE(
-          (
-            SELECT json_agg(json_build_object(
-              'catalogKey', c.catalog_key,
-              'displayName', c.display_name,
-              'category', c.category,
-              'setName', c.set_name,
-              'collectorNumber', c.collector_number,
-              'confidence', c.confidence,
-              'matchReasons', c.match_reasons,
-              'adapterId', c.adapter_id,
-              'assetId', c.asset_id
-            ) ORDER BY c.confidence DESC)
-            FROM vault_media.scan_unit_candidate c
-            WHERE c.unit_id = u.id
-          ),
-          '[]'::json
-        ) AS candidates
-      FROM vault_media.scan_unit u
-      WHERE u.batch_id = ${b.id as string}::uuid
-      ORDER BY u.unit_index
-    `);
-
-    out.push({
-      id: String(b.id),
-      device: String(b.device),
-      status: String(b.status),
-      categoryHint: (b.category_hint as string | null) ?? null,
-      notes: (b.notes as string | null) ?? null,
-      createdAt: new Date(String(b.created_at)).toISOString(),
-      units: (units.rows as Array<Record<string, unknown>>).map((u) => ({
-        id: String(u.id),
-        unitIndex: Number(u.unit_index),
-        status: String(u.status),
-        frontStorageRef: String(u.front_storage_ref),
-        backStorageRef: (u.back_storage_ref as string | null) ?? null,
-        selectedCandidateKey: (u.selected_candidate_key as string | null) ?? null,
-        holdingId: (u.holding_id as string | null) ?? null,
-        confirmedAssetId: (u.confirmed_asset_id as string | null) ?? null,
-        resolutionMode: (u.resolution_mode as string | null) ?? null,
-        topConfidence: u.top_confidence == null ? null : Number(u.top_confidence),
-        confidenceBand: (u.confidence_band as string | null) ?? null,
-        duplicateAcknowledged: Boolean(u.duplicate_acknowledged),
-        decisionAction: (u.decision_action as string | null) ?? null,
-        candidates: (Array.isArray(u.candidates)
-          ? (u.candidates as Array<Record<string, unknown>>)
-          : []
-        ).map((c) => ({
-          catalogKey: String(c.catalogKey),
-          displayName: String(c.displayName),
-          category: (c.category as string | null) ?? null,
-          setName: (c.setName as string | null) ?? null,
-          collectorNumber: (c.collectorNumber as string | null) ?? null,
-          confidence: Number(c.confidence),
-          matchReasons: Array.isArray(c.matchReasons)
-            ? (c.matchReasons as string[])
-            : [],
-          adapterId: String(c.adapterId ?? "unknown"),
-          assetId: (c.assetId as string | null) ?? null,
-        })),
-      })),
-    });
+    out.push(await hydrateStagedBatch(b));
   }
   return out;
+}
+
+export async function getStagedBatch(id: string): Promise<StagedBatchRow | null> {
+  const db = getDb();
+  const batches = await db.execute(sql`
+    SELECT id, session_id, device, status, category_hint, notes, created_at,
+           source, scanner_profile, image_count, expected_card_count,
+           processing_status, errors_warnings, telemetry
+    FROM vault_media.scan_batch
+    WHERE id = ${id}::uuid
+  `);
+  const row = (batches.rows as Array<Record<string, unknown>>)[0];
+  if (!row) return null;
+  return hydrateStagedBatch(row);
+}
+
+async function hydrateStagedBatch(b: Record<string, unknown>): Promise<StagedBatchRow> {
+  const db = getDb();
+  const units = await db.execute(sql`
+    SELECT
+      u.id, u.unit_index, u.status, u.front_storage_ref, u.back_storage_ref,
+      u.selected_candidate_key, u.holding_id, u.confirmed_asset_id,
+      u.resolution_mode, u.resolution_rule_version, u.top_confidence,
+      u.confidence_band, u.duplicate_acknowledged, u.decision_action,
+      u.front_image_id, u.back_image_id, u.normalized_front_ref, u.normalized_back_ref,
+      u.pairing_method, u.pairing_confidence, u.pairing_needs_review,
+      u.orientation, u.identification_status, u.review_status, u.review_route,
+      u.identity_evidence, u.base_vs_parallel, u.physical_reimport,
+      COALESCE(
+        (
+          SELECT json_agg(json_build_object(
+            'catalogKey', c.catalog_key,
+            'displayName', c.display_name,
+            'category', c.category,
+            'setName', c.set_name,
+            'collectorNumber', c.collector_number,
+            'confidence', c.confidence,
+            'matchReasons', c.match_reasons,
+            'adapterId', c.adapter_id,
+            'assetId', c.asset_id
+          ) ORDER BY c.confidence DESC)
+          FROM vault_media.scan_unit_candidate c
+          WHERE c.unit_id = u.id
+        ),
+        '[]'::json
+      ) AS candidates
+    FROM vault_media.scan_unit u
+    WHERE u.batch_id = ${b.id as string}::uuid
+    ORDER BY u.unit_index
+  `);
+
+  return {
+    id: String(b.id),
+    device: String(b.device),
+    status: String(b.status),
+    categoryHint: (b.category_hint as string | null) ?? null,
+    notes: (b.notes as string | null) ?? null,
+    createdAt: new Date(String(b.created_at)).toISOString(),
+    source: (b.source as string | null) ?? null,
+    scannerProfile: (b.scanner_profile as string | null) ?? null,
+    imageCount: b.image_count == null ? null : Number(b.image_count),
+    expectedCardCount: b.expected_card_count == null ? null : Number(b.expected_card_count),
+    processingStatus: (b.processing_status as string | null) ?? null,
+    errorsWarnings: b.errors_warnings ?? [],
+    telemetry: b.telemetry ?? null,
+    units: (units.rows as Array<Record<string, unknown>>).map(mapStagedUnit),
+  };
+}
+
+function mapStagedUnit(u: Record<string, unknown>): StagedUnitRow {
+  return {
+    id: String(u.id),
+    unitIndex: Number(u.unit_index),
+    status: String(u.status),
+    frontStorageRef: String(u.front_storage_ref),
+    backStorageRef: (u.back_storage_ref as string | null) ?? null,
+    selectedCandidateKey: (u.selected_candidate_key as string | null) ?? null,
+    holdingId: (u.holding_id as string | null) ?? null,
+    confirmedAssetId: (u.confirmed_asset_id as string | null) ?? null,
+    resolutionMode: (u.resolution_mode as string | null) ?? null,
+    topConfidence: u.top_confidence == null ? null : Number(u.top_confidence),
+    confidenceBand: (u.confidence_band as string | null) ?? null,
+    duplicateAcknowledged: Boolean(u.duplicate_acknowledged),
+    decisionAction: (u.decision_action as string | null) ?? null,
+    frontImageId: u.front_image_id ? String(u.front_image_id) : null,
+    backImageId: u.back_image_id ? String(u.back_image_id) : null,
+    normalizedFrontRef: (u.normalized_front_ref as string | null) ?? null,
+    normalizedBackRef: (u.normalized_back_ref as string | null) ?? null,
+    pairingMethod: (u.pairing_method as string | null) ?? null,
+    pairingConfidence: u.pairing_confidence == null ? null : Number(u.pairing_confidence),
+    pairingNeedsReview: Boolean(u.pairing_needs_review),
+    orientation: (u.orientation as string | null) ?? null,
+    identificationStatus: (u.identification_status as string | null) ?? null,
+    reviewStatus: (u.review_status as string | null) ?? null,
+    reviewRoute: (u.review_route as string | null) ?? null,
+    identityEvidence: u.identity_evidence ?? null,
+    baseVsParallel: u.base_vs_parallel ?? null,
+    physicalReimport: Boolean(u.physical_reimport),
+    candidates: (Array.isArray(u.candidates)
+      ? (u.candidates as Array<Record<string, unknown>>)
+      : []
+    ).map((c) => ({
+      catalogKey: String(c.catalogKey),
+      displayName: String(c.displayName),
+      category: (c.category as string | null) ?? null,
+      setName: (c.setName as string | null) ?? null,
+      collectorNumber: (c.collectorNumber as string | null) ?? null,
+      confidence: Number(c.confidence),
+      matchReasons: Array.isArray(c.matchReasons)
+        ? (c.matchReasons as string[])
+        : [],
+      adapterId: String(c.adapterId ?? "unknown"),
+      assetId: (c.assetId as string | null) ?? null,
+    })),
+  };
 }
 
 export type ResolveUnitRequest = {

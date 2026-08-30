@@ -51,15 +51,22 @@ import {
   openScanFromApi,
   scanMeta,
 } from "./lib/scanIngest.js";
-import { importFolderPages, scanInboxRoot } from "./lib/scanFolder.js";
+import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
+  getStagedBatch,
   listStagedBatches,
   loadScanHoldings,
-  persistBatch,
   rejectUnit,
   resolveUnit,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
+import {
+  acceptanceRows,
+  ingestRicohBatch,
+  ingestUploadedFiles,
+  RicohIntakeError,
+} from "./lib/ricohIntake.js";
+import { sendScanMedia } from "./lib/scanMedia.js";
 import {
   inspectBatch001Item,
   loadBatch001,
@@ -733,6 +740,12 @@ export function createApp(deps: AppDeps = {}) {
           ? "POST /api/scan/import-folder starts a batch from this folder"
           : "Set VIP_SCAN_INBOX to your PaperStream output folder to import without a full path",
       },
+      intake: {
+        sourceDefault: "ricoh_fi8170",
+        scannerProfileDefault: "004_Cards",
+        upload: "POST /api/scan/import-upload",
+        review: "GET /api/scan/batches then IQVault /scan",
+      },
     });
   });
 
@@ -783,67 +796,147 @@ export function createApp(deps: AppDeps = {}) {
     res.status(result.ok ? 200 : 400).json(result);
   });
 
-  app.get("/api/scan/batches/:id", (req, res) => {
+  app.get("/api/scan/batches/:id/report", async (req, res) => {
+    try {
+      const staged = await getStagedBatch(String(req.params.id));
+      if (!staged) {
+        res.status(404).json({ error: "Scan batch not found" });
+        return;
+      }
+      res.json({
+        batchId: staged.id,
+        telemetry: staged.telemetry,
+        errorsWarnings: staged.errorsWarnings,
+        report: acceptanceRows(
+          staged.units.map((u) => {
+            const split = (u.baseVsParallel ?? {}) as {
+              baseDisplayName?: string | null;
+              parallelDisplayName?: string | null;
+              baseConfidence?: number;
+              parallelConfidence?: number;
+            };
+            return {
+              originalFrontRef: u.frontStorageRef,
+              pairingNeedsReview: u.pairingNeedsReview,
+              pairingConfidence: u.pairingConfidence ?? 0,
+              reviewRoute: u.reviewRoute ?? "LOW",
+              reviewStatus: u.reviewStatus ?? u.status,
+              physicalReimport: u.physicalReimport,
+              baseVsParallel: {
+                baseDisplayName: split.baseDisplayName ?? null,
+                parallelDisplayName: split.parallelDisplayName ?? null,
+                baseConfidence: split.baseConfidence ?? 0,
+                parallelConfidence: split.parallelConfidence ?? 0,
+              },
+            };
+          }),
+        ),
+      });
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.get("/api/scan/batches/:id", async (req, res) => {
+    try {
+      const staged = await getStagedBatch(String(req.params.id));
+      if (staged) {
+        res.json({ batch: staged, store: "postgres" });
+        return;
+      }
+    } catch {
+      /* fall through to in-memory */
+    }
     const batch = getScanBatch(String(req.params.id));
     if (!batch) {
       res.status(404).json({ error: "Scan batch not found" });
       return;
     }
-    res.json({ batch });
+    res.json({ batch, store: "memory" });
+  });
+
+  app.get("/api/scan/media/:imageId", async (req, res) => {
+    try {
+      await sendScanMedia(res, String(req.params.imageId));
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
   });
 
   /**
-   * Start a batch straight from the PaperStream drop folder so the collector
-   * face does not need curl. Hardware capture still happens in PaperStream.
+   * Start a batch from the PaperStream drop folder. Preserves masters,
+   * pairs front/back, fuses evidence, routes review. Staging only (ADR 0009).
    */
   app.post("/api/scan/import-folder", async (req, res) => {
     try {
       const body = req.body ?? {};
-      const imported = await importFolderPages({
+      const holdings = (await buildInventory(deps)).holdings;
+      const result = await ingestRicohBatch({
         folder: body.folder ?? null,
         categoryHint: body.categoryHint ?? null,
-        pairing: body.pairing,
         notes: body.notes,
-        maxFiles: body.maxFiles,
+        source: body.source,
+        scannerProfile: body.scannerProfile,
+        pairing: body.pairing ?? "auto",
+        holdings,
       });
-      if (!imported.ok) {
-        res.status(imported.status).json({ ok: false, error: imported.error });
-        return;
-      }
-
-      const inventory = inventoryLookupFromHoldings(
-        (await buildInventory(deps)).holdings,
-      );
-      const result = openScanFromApi({
-        categoryHint: body.categoryHint ?? null,
-        notes: body.notes ?? `Imported from ${imported.folder}`,
-        pages: imported.pages,
-        inventory,
-      });
-
-      // ADR 0009: the batch lands in staging only. Nothing reaches
-      // vault_core.asset / vault_collection.holding until a unit resolves.
-      let staged: Awaited<ReturnType<typeof persistBatch>> | null = null;
-      let stagingError: string | null = null;
-      try {
-        staged = await persistBatch(result);
-      } catch (e) {
-        stagingError = e instanceof Error ? e.message : String(e);
-      }
-
       res.status(201).json({
         ok: true,
-        folder: imported.folder,
-        fileCount: imported.fileCount,
-        batch: result.batch,
-        rawSnapshots: result.rawSnapshots,
-        staged,
-        stagingError,
+        folder: result.folder,
+        fileCount: result.imageCount,
+        batchId: result.batchId,
+        source: result.source,
+        scannerProfile: result.scannerProfile,
+        staged: result.staged,
+        stagingError: null,
+        telemetry: result.telemetry,
+        report: acceptanceRows(result.cards),
+        errorsWarnings: result.errorsWarnings,
+        cards: result.cards,
         decisionNote:
-          "Candidates are inferred · unverified until POST /api/scan/units/:id/confirm",
+          "Candidates are inferred · unverified. Confirm on /scan. HIGH auto-resolve only when VIP_SCAN_AUTO_RESOLVE=1.",
       });
     } catch (e) {
-      res.status(400).json({
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
+  app.post("/api/scan/import-upload", express.json({ limit: "32mb" }), async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      const files = Array.isArray(body.files) ? body.files : [];
+      const holdings = (await buildInventory(deps)).holdings;
+      const result = await ingestUploadedFiles(files, {
+        categoryHint: body.categoryHint ?? null,
+        notes: body.notes,
+        source: body.source,
+        scannerProfile: body.scannerProfile,
+        pairing: body.pairing ?? "auto",
+        holdings,
+      });
+      res.status(201).json({
+        ok: true,
+        folder: result.folder,
+        fileCount: result.imageCount,
+        batchId: result.batchId,
+        source: result.source,
+        scannerProfile: result.scannerProfile,
+        staged: result.staged,
+        stagingError: null,
+        telemetry: result.telemetry,
+        report: acceptanceRows(result.cards),
+        errorsWarnings: result.errorsWarnings,
+        cards: result.cards,
+        decisionNote:
+          "Candidates are inferred · unverified. Confirm on /scan.",
+      });
+    } catch (e) {
+      const status = e instanceof RicohIntakeError ? e.status : 400;
+      res.status(status).json({
         ok: false,
         error: e instanceof Error ? e.message : String(e),
       });
