@@ -485,7 +485,12 @@ export function ScanIntake() {
                                 <button
                                   type="button"
                                   className="btn-primary"
-                                  disabled={busy || !top || unit.reviewRoute === "CONFLICT"}
+                                  disabled={
+                                    busy ||
+                                    !top ||
+                                    unit.reviewRoute === "CONFLICT" ||
+                                    conflicts.length > 0
+                                  }
                                   onClick={() => void confirmUnit(unit, top!.catalogKey)}
                                   title={
                                     unit.reviewRoute === "CONFLICT"
