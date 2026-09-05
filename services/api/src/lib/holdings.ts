@@ -3,6 +3,7 @@ import {
   type InventoryBucket,
   type InventoryBucketAssignment,
 } from "@vip/core-model";
+import type { CategoryKind, SalesPathState, SellingDisposition } from "@vip/ebay-sell";
 import { markInferred, markObserved } from "@vip/evidence";
 import { printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
@@ -13,6 +14,36 @@ export type ExternalIdRef = {
 
 export type ApiHolding = {
   id: string;
+  /** Postgres holding.id when known. Distinct from `id` (source_row_id / CLZ hash). */
+  holdingUuid?: string | null;
+  ebaySku?: string | null;
+  categoryKind?: CategoryKind;
+  currentDisposition?: SellingDisposition | null;
+  salesPathState?: SalesPathState;
+  soldAt?: string | null;
+  year?: number | null;
+  sport?: string | null;
+  manufacturer?: string | null;
+  setName?: string | null;
+  playerSubject?: string | null;
+  team?: string | null;
+  cardNumber?: string | null;
+  parallel?: string | null;
+  serialNumber?: string | null;
+  rookieFlag?: boolean;
+  autographFlag?: boolean;
+  relicFlag?: boolean;
+  grader?: string | null;
+  gradeLabel?: string | null;
+  location?: string | null;
+  purchasePrice?: number | null;
+  frontImageUri?: string | null;
+  backImageUri?: string | null;
+  playerTier?: "star" | "starter" | "role" | "unknown";
+  parallelScarce?: boolean;
+  saleVelocity?: "hot" | "normal" | "stale" | "unknown";
+  daysInInventory?: number | null;
+  relatedLotCount?: number;
   assetName: string;
   series: string;
   issue: string;
@@ -120,6 +151,24 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
 
   return {
     id: String(row["CLZ Hash"] ?? `holding-${index}`),
+    holdingUuid: row["Holding UUID"] != null ? String(row["Holding UUID"]) : null,
+    ebaySku: row["eBay SKU"] != null ? String(row["eBay SKU"]) : null,
+    categoryKind: "comic",
+    currentDisposition:
+      row["Current Disposition"] != null
+        ? (String(row["Current Disposition"]) as SellingDisposition)
+        : null,
+    salesPathState:
+      row["Sales Path State"] != null
+        ? (String(row["Sales Path State"]) as SalesPathState)
+        : "available",
+    year: num(row["Year"] ?? row.release_year),
+    setName: series || null,
+    playerSubject: series || null,
+    cardNumber: issue || null,
+    location: row["Location"] != null ? String(row["Location"]) : null,
+    purchasePrice: num(row["Purchase Price"]),
+    frontImageUri: String(row["Cover Image URL"] ?? "").trim() || null,
     assetName: [series, issue && `#${issue}`, row["Edition / Variant"]].filter(Boolean).join(" "),
     series,
     issue,

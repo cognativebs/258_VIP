@@ -74,7 +74,8 @@ export default function ListingsPage() {
       <p className="page-sub">
         Drafts only. submitReady stays false until a human Submit. Personal Collection is
         blocked unless an override note is captured. LIVE ranges are Browse listings ·
-        unverified — not sold comps.
+        unverified — not sold comps. The closed-loop Inventory API path lives on{" "}
+        <a href="/ebay">/ebay</a>.
       </p>
       {error ? <div className="error">{error}</div> : null}
       <form className="panel" onSubmit={(e) => void queue(e)} style={{ marginBottom: 16 }}>
