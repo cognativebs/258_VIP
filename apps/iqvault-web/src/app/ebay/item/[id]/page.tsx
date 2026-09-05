@@ -144,7 +144,8 @@ export default function EbayItemPage() {
       <Nav active="/ebay" />
       <h1 className="page-title">{detail?.holding.assetName ?? "Item"}</h1>
       <p className="page-sub">
-        <Link href="/ebay">eBay dashboard</Link> · SKU {detail?.asset.sku ?? "unminted"} · FMV is a
+        <Link href="/ebay">eBay dashboard</Link> · SKU{" "}
+        {detail?.asset.sku ?? detail?.listings[0]?.sku ?? "unminted"} · FMV is a
         range + evidence, not a point fact.
       </p>
       {error ? <div className="error">{error}</div> : null}
