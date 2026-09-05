@@ -63,17 +63,19 @@ describe("Inventory API adapter", () => {
   it("creates item + offer + publish and is idempotent on retry", async () => {
     const paths: string[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
-      const url = String(input);
-      paths.push(`${init?.method} ${url}`);
-      if (url.includes("/inventory_item/")) return new Response("{}", { status: 204 });
-      if (url.endsWith("/offer") && init?.method === "POST") {
-        return new Response(JSON.stringify({ offerId: "OFFER-1" }), { status: 201 });
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      paths.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.includes("/inventory_item/")) {
+        return new Response(null, { status: 204 });
       }
-      if (url.includes("/offer/OFFER-1/publish")) {
+      if (url.includes("/offer/") && url.endsWith("/publish")) {
         return new Response(JSON.stringify({ listingId: "LST-1" }), { status: 200 });
       }
+      if (url.includes("/sell/inventory/v1/offer") && (init?.method === "POST" || init?.method === "PUT")) {
+        return new Response(JSON.stringify({ offerId: "OFFER-1" }), { status: 201 });
+      }
       if (url.includes("/offer/OFFER-1")) return new Response("{}", { status: 200 });
-      return new Response("no", { status: 404 });
+      return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
     };
     const client = createEbayHttpClient({
       env: "sandbox",

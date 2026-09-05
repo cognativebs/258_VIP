@@ -104,7 +104,9 @@ export function proposeLots(
       if (seen.has(fingerprint)) continue;
       seen.add(fingerprint);
       const proposal = scoreLot(slice, `${grouper.key}:${groupKey}`, grouper.name(slice), labor);
-      if (proposal.netDollarsPerLaborMinute < minNet) continue;
+      if (proposal.netDollarsPerLaborMinute < minNet) {
+        proposal.reasonCodes.push("BELOW_MIN_NET_PER_LABOR_MINUTE");
+      }
       proposals.push(proposal);
     }
   }
