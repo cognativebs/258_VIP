@@ -142,8 +142,14 @@ export const SellingAssetInputSchema = z.object({
   backImageUri: z.string().nullable().optional(),
   storageLocation: z.string().nullable().optional(),
   ownershipBucket: InventoryBucketSchema,
-  currentDisposition: SellingDispositionSchema.nullable().optional(),
-  salesPathState: SalesPathStateSchema.default("available"),
+  currentDisposition: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    SellingDispositionSchema.nullable().optional(),
+  ),
+  salesPathState: z.preprocess(
+    (v) => (v === "" || v == null ? "available" : v),
+    SalesPathStateSchema.default("available"),
+  ),
   quantity: z.number().int().positive().default(1),
   playerTier: z.enum(["star", "starter", "role", "unknown"]).default("unknown"),
   parallelScarce: z.boolean().default(false),

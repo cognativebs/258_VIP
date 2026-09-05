@@ -77,6 +77,35 @@ export type ApiHolding = {
   provenance: ReturnType<typeof markObserved> | ReturnType<typeof markInferred>;
 };
 
+const DISPOSITIONS = new Set<SellingDisposition>([
+  "PC",
+  "HOLD",
+  "GRADE",
+  "SINGLE",
+  "LOT",
+  "BULK",
+  "LCS_SHOW",
+  "DONATE",
+  "REVIEW",
+]);
+const SALES_PATHS = new Set<SalesPathState>([
+  "available",
+  "reserved",
+  "listed_single",
+  "listed_lot",
+  "sold",
+]);
+
+function parseDisposition(value: unknown): SellingDisposition | null {
+  const raw = String(value ?? "").trim();
+  return DISPOSITIONS.has(raw as SellingDisposition) ? (raw as SellingDisposition) : null;
+}
+
+function parseSalesPath(value: unknown): SalesPathState {
+  const raw = String(value ?? "").trim();
+  return SALES_PATHS.has(raw as SalesPathState) ? (raw as SalesPathState) : "available";
+}
+
 function parseExternalIds(row: Record<string, unknown>): ExternalIdRef[] {
   const raw = row["ExternalIds"] ?? row["externalIds"];
   if (!Array.isArray(raw)) return [];
@@ -151,17 +180,11 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
 
   return {
     id: String(row["CLZ Hash"] ?? `holding-${index}`),
-    holdingUuid: row["Holding UUID"] != null ? String(row["Holding UUID"]) : null,
-    ebaySku: row["eBay SKU"] != null ? String(row["eBay SKU"]) : null,
+    holdingUuid: String(row["Holding UUID"] ?? "").trim() || null,
+    ebaySku: String(row["eBay SKU"] ?? "").trim() || null,
     categoryKind: "comic",
-    currentDisposition:
-      row["Current Disposition"] != null
-        ? (String(row["Current Disposition"]) as SellingDisposition)
-        : null,
-    salesPathState:
-      row["Sales Path State"] != null
-        ? (String(row["Sales Path State"]) as SalesPathState)
-        : "available",
+    currentDisposition: parseDisposition(row["Current Disposition"]),
+    salesPathState: parseSalesPath(row["Sales Path State"]),
     year: num(row["Year"] ?? row.release_year),
     setName: series || null,
     playerSubject: series || null,

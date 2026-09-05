@@ -51,7 +51,7 @@ export function holdingToSellingAsset(holding: ApiHolding): SellingAssetInput {
     backImageUri: holding.backImageUri ?? null,
     storageLocation: holding.location ?? null,
     ownershipBucket: holding.inventoryBucket ?? "dealer_inventory",
-    currentDisposition: (holding.currentDisposition as SellingDisposition | null) ?? null,
+    currentDisposition: holding.currentDisposition || null,
     salesPathState: holding.salesPathState ?? "available",
     quantity: holding.quantity,
     playerTier: holding.playerTier ?? "unknown",
