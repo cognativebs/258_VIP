@@ -56,4 +56,20 @@ describe("mapInventoryRow inventory buckets", () => {
     expect(h.inventoryBucket).toBe("dealer_inventory");
     expect(h.inventoryBucketAssignment).toBe("operator");
   });
+
+  it("treats blank current disposition as unset", () => {
+    const h = mapInventoryRow(
+      {
+        "CLZ Hash": "clz-blank-disp",
+        Series: "X-Men",
+        "Current Disposition": "",
+        "Sales Path State": "",
+        "eBay SKU": "",
+      },
+      0,
+    );
+    expect(h.currentDisposition).toBeNull();
+    expect(h.salesPathState).toBe("available");
+    expect(h.ebaySku).toBeNull();
+  });
 });
