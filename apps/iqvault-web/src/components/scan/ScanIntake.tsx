@@ -14,6 +14,7 @@ import {
   startScanUpload,
   swapScanFaces,
   uploadScanFile,
+  type BaseVsParallel,
   type ImportScanResult,
   type ScanCategory,
   type ScanMeta,
@@ -48,6 +49,67 @@ function pct(n: number | null | undefined): string {
 
 function fileName(ref: string): string {
   return ref.split(/[\\/]/).pop() ?? ref;
+}
+
+function spanKinds(spans: unknown[] | undefined): string {
+  if (!spans?.length) return "none";
+  return spans
+    .map((s) => {
+      const row = s as { kind?: string; text?: string };
+      return `${row.kind ?? "unknown"}: ${(row.text ?? "").slice(0, 48)}`;
+    })
+    .join(" · ");
+}
+
+function IdentificationDebug({
+  unit,
+  split,
+}: {
+  unit: StagedUnit;
+  split: BaseVsParallel | null | undefined;
+}) {
+  const debug = unit.identityEvidence?.debug;
+  if (!debug) return null;
+  const winner = debug.winningCandidate;
+  return (
+    <details className="scan-debug">
+      <summary>Identification debug</summary>
+      <p>
+        <strong>Why:</strong> {debug.whyWon ?? "—"}
+      </p>
+      <p>
+        base {pct(debug.baseConfidence ?? split?.baseConfidence)} · parallel{" "}
+        {pct(debug.parallelConfidence ?? split?.parallelConfidence)}
+      </p>
+      <p>
+        <strong>Winner:</strong>{" "}
+        {winner ? `${winner.displayName} (${winner.catalogKey})` : "none"}
+      </p>
+      <p>
+        <strong>Candidates:</strong>{" "}
+        {debug.candidatesConsidered?.length
+          ? debug.candidatesConsidered
+              .map((c) => `${c.displayName} ${Math.round(c.confidence * 100)}%`)
+              .join(" · ")
+          : "none"}
+      </p>
+      <p>
+        <strong>OCR front:</strong> {debug.rawOcr?.front || "(empty)"}
+      </p>
+      <p>
+        <strong>OCR back:</strong> {debug.rawOcr?.back || "(empty)"}
+      </p>
+      <p>
+        <strong>OCR regions:</strong> {spanKinds(debug.rawOcr?.frontSpans)} /{" "}
+        {spanKinds(debug.rawOcr?.backSpans)}
+      </p>
+      <pre>
+        {debug.structuredVision
+          ? JSON.stringify(debug.structuredVision, null, 2)
+          : "vision not run or skipped"}
+      </pre>
+    </details>
+  );
 }
 
 /** ADR 0009 / fixture lots — not the operator's Ricoh drop. */
@@ -674,6 +736,7 @@ export function ScanIntake() {
                                 {conflicts.join("; ")}
                               </div>
                             ) : null}
+                            <IdentificationDebug unit={unit} split={split} />
                             {editingId === unit.id ? (
                               <div className="scan-edit">
                                 <label>

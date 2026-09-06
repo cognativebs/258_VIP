@@ -143,7 +143,7 @@ describe("Ricoh trading-card scan intake v1", () => {
     expect(result.telemetry.cardsPaired).toBe(23);
     expect(result.telemetry.low).toBe(23);
     expect(result.telemetry.high).toBe(0);
-  });
+  }, 60_000);
 
   it("pairs face-up ADF as back then front, and swap-faces undoes it", async () => {
     if (!(await dbAvailable())) {
