@@ -73,6 +73,18 @@ describe("disposition boundary rules", () => {
     ).toBe("PC");
   });
 
+  it("treats a completed sale as terminal even for personal collection", () => {
+    const rec = recommendDisposition(
+      asset({
+        fmv: fmv(20),
+        ownershipBucket: "personal_collection",
+        salesPathState: "sold",
+      }),
+    );
+    expect(rec.disposition).toBe("HOLD");
+    expect(rec.reasonCodes).toContain("ALREADY_SOLD");
+  });
+
   it("logs a human override as USER and does not silently ignore it", () => {
     const rec = recommendDisposition(asset({ fmv: fmv(1) }), {
       disposition: "SINGLE",

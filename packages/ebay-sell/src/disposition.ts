@@ -26,6 +26,9 @@ export function recommendDisposition(
     return pack(override.disposition, 1, ["USER_OVERRIDE"], override.reasonText, override.actor ?? "USER");
   }
 
+  if (asset.salesPathState === "sold") {
+    return pack("HOLD", 0.99, ["ALREADY_SOLD"], "Already sold — do not relist.");
+  }
   if (asset.ownershipBucket === "personal_collection" || asset.pcThesis) {
     return pack("PC", 0.9, ["PERSONAL_COLLECTION"], "Personal collection / PC thesis — not for routine sale.");
   }
@@ -34,9 +37,6 @@ export function recommendDisposition(
   }
   if (asset.holdThesis) {
     return pack("HOLD", 0.8, ["HOLD_THESIS"], "Hold thesis overrides listing until the operator lifts it.");
-  }
-  if (asset.salesPathState === "sold") {
-    return pack("HOLD", 0.99, ["ALREADY_SOLD"], "Already sold — do not relist.");
   }
 
   const fmv = asset.fmv?.mid ?? null;

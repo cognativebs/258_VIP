@@ -212,10 +212,7 @@ export function listingStatusFromOffer(
   const root = asRecord(body);
   const listing = asRecord(root?.listing);
   const offerStatus = (readString(body, "status") ?? "").toUpperCase();
-  const listingStatus = (listing && readString(listing, "listingStatus")
-    ? readString(listing, "listingStatus")
-    : ""
-  ).toUpperCase();
+  const listingStatus = ((listing ? readString(listing, "listingStatus") : null) ?? "").toUpperCase();
   if (listingStatus === "ENDED") return "ENDED";
   if (offerStatus === "PUBLISHED" && listingStatus === "ACTIVE") return "ACTIVE";
   if (offerStatus === "PUBLISHED") return "PUBLISHED";
