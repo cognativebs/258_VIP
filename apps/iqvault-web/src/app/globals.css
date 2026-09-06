@@ -401,6 +401,22 @@ th {
   min-height: calc(100vh - 88px);
 }
 
+button:not(.hunt-card):not(.nav-link) {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:not(.hunt-card):not(.nav-link):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 button.hunt-card {
   display: block;
   width: 100%;

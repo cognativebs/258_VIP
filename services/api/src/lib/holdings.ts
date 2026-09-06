@@ -3,6 +3,7 @@ import {
   type InventoryBucket,
   type InventoryBucketAssignment,
 } from "@vip/core-model";
+import type { CategoryKind, SalesPathState, SellingDisposition } from "@vip/ebay-sell";
 import { markInferred, markObserved } from "@vip/evidence";
 import { printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
 
@@ -13,6 +14,36 @@ export type ExternalIdRef = {
 
 export type ApiHolding = {
   id: string;
+  /** Postgres holding.id when known. Distinct from `id` (source_row_id / CLZ hash). */
+  holdingUuid?: string | null;
+  ebaySku?: string | null;
+  categoryKind?: CategoryKind;
+  currentDisposition?: SellingDisposition | null;
+  salesPathState?: SalesPathState;
+  soldAt?: string | null;
+  year?: number | null;
+  sport?: string | null;
+  manufacturer?: string | null;
+  setName?: string | null;
+  playerSubject?: string | null;
+  team?: string | null;
+  cardNumber?: string | null;
+  parallel?: string | null;
+  serialNumber?: string | null;
+  rookieFlag?: boolean;
+  autographFlag?: boolean;
+  relicFlag?: boolean;
+  grader?: string | null;
+  gradeLabel?: string | null;
+  location?: string | null;
+  purchasePrice?: number | null;
+  frontImageUri?: string | null;
+  backImageUri?: string | null;
+  playerTier?: "star" | "starter" | "role" | "unknown";
+  parallelScarce?: boolean;
+  saleVelocity?: "hot" | "normal" | "stale" | "unknown";
+  daysInInventory?: number | null;
+  relatedLotCount?: number;
   assetName: string;
   series: string;
   issue: string;
@@ -45,6 +76,35 @@ export type ApiHolding = {
   externalIds: ExternalIdRef[];
   provenance: ReturnType<typeof markObserved> | ReturnType<typeof markInferred>;
 };
+
+const DISPOSITIONS = new Set<SellingDisposition>([
+  "PC",
+  "HOLD",
+  "GRADE",
+  "SINGLE",
+  "LOT",
+  "BULK",
+  "LCS_SHOW",
+  "DONATE",
+  "REVIEW",
+]);
+const SALES_PATHS = new Set<SalesPathState>([
+  "available",
+  "reserved",
+  "listed_single",
+  "listed_lot",
+  "sold",
+]);
+
+function parseDisposition(value: unknown): SellingDisposition | null {
+  const raw = String(value ?? "").trim();
+  return DISPOSITIONS.has(raw as SellingDisposition) ? (raw as SellingDisposition) : null;
+}
+
+function parseSalesPath(value: unknown): SalesPathState {
+  const raw = String(value ?? "").trim();
+  return SALES_PATHS.has(raw as SalesPathState) ? (raw as SalesPathState) : "available";
+}
 
 function parseExternalIds(row: Record<string, unknown>): ExternalIdRef[] {
   const raw = row["ExternalIds"] ?? row["externalIds"];
@@ -120,6 +180,18 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
 
   return {
     id: String(row["CLZ Hash"] ?? `holding-${index}`),
+    holdingUuid: String(row["Holding UUID"] ?? "").trim() || null,
+    ebaySku: String(row["eBay SKU"] ?? "").trim() || null,
+    categoryKind: "comic",
+    currentDisposition: parseDisposition(row["Current Disposition"]),
+    salesPathState: parseSalesPath(row["Sales Path State"]),
+    year: num(row["Year"] ?? row.release_year),
+    setName: series || null,
+    playerSubject: series || null,
+    cardNumber: issue || null,
+    location: row["Location"] != null ? String(row["Location"]) : null,
+    purchasePrice: num(row["Purchase Price"]),
+    frontImageUri: String(row["Cover Image URL"] ?? "").trim() || null,
     assetName: [series, issue && `#${issue}`, row["Edition / Variant"]].filter(Boolean).join(" "),
     series,
     issue,

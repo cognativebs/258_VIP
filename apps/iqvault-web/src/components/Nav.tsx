@@ -14,6 +14,7 @@ const links = [
   { href: "/hunts", label: "Hunts" },
   { href: "/sell-queue", label: "Sell" },
   { href: "/listings", label: "List" },
+  { href: "/ebay", label: "eBay" },
   { href: "/transactions", label: "Txns" },
   { href: "/signals", label: "Signals" },
   { href: "/watchlist", label: "Watch" },
