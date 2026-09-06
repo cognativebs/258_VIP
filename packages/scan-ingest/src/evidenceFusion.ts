@@ -6,11 +6,14 @@ import {
   type EvidenceField,
   type EvidenceOrigin,
 } from "@vip/core-model";
+import type { StructuredOcrExtract } from "./ocr/classifyOcr.js";
 import {
   isSportsStopToken,
   parseSportsIdentity,
   type SportsParsedIdentity,
 } from "./sportsIdentity.js";
+
+const OCR_FIELD_CONFIDENCE = 0.68;
 
 function fromParsed(
   parsed: SportsParsedIdentity | null,
@@ -83,6 +86,64 @@ function compatibleValues(a: string, b: string): boolean {
   const al = lastName(a);
   const bl = lastName(b);
   return Boolean(al && bl && al === bl);
+}
+
+export function isCompleteFields(f: CardIdentityFields): boolean {
+  const words = f.playerOrCharacter.value
+    ? f.playerOrCharacter.value.split(/\s+/).length
+    : 0;
+  return Boolean(
+    f.year.value &&
+      (f.brand.value || f.manufacturer.value) &&
+      words >= 2 &&
+      f.collectorNumber.value,
+  );
+}
+
+export function fieldsFromStructuredOcr(
+  extract: StructuredOcrExtract,
+  origin: EvidenceOrigin,
+  confidence = OCR_FIELD_CONFIDENCE,
+): CardIdentityFields {
+  const empty = unknownField(origin);
+  return {
+    category: extract.player || extract.year ? field("sports", 0.5, origin) : empty,
+    playerOrCharacter: extract.player ? field(extract.player, confidence, origin) : empty,
+    year: extract.year ? field(String(extract.year), confidence, origin) : empty,
+    manufacturer: extract.manufacturer
+      ? field(extract.manufacturer, confidence, origin)
+      : empty,
+    brand: extract.brand ? field(extract.brand, confidence, origin) : empty,
+    setName: extract.set ? field(extract.set, confidence * 0.9, origin) : empty,
+    subsetInsert: empty,
+    collectorNumber: extract.number ? field(extract.number, confidence, origin) : empty,
+    team: empty,
+    rookie: empty,
+    parallel: empty,
+    serialNumber: empty,
+    autograph: empty,
+    relic: empty,
+  };
+}
+
+export function emptyIdentityFields(origin: EvidenceOrigin = "inference"): CardIdentityFields {
+  const empty = unknownField(origin);
+  return {
+    category: empty,
+    playerOrCharacter: empty,
+    year: empty,
+    manufacturer: empty,
+    brand: empty,
+    setName: empty,
+    subsetInsert: empty,
+    collectorNumber: empty,
+    team: empty,
+    rookie: empty,
+    parallel: empty,
+    serialNumber: empty,
+    autograph: empty,
+    relic: empty,
+  };
 }
 
 function isCompleteBase(parsed: SportsParsedIdentity | null): boolean {
@@ -182,6 +243,107 @@ export function fuseCardEvidence(input: {
     relic: pick(front.relic, back.relic, conflictNotes, "relic", prefer),
   };
   return { front, back, fused, conflictNotes };
+}
+
+export function fuseIdentitySides(input: {
+  front: CardIdentityFields;
+  back: CardIdentityFields;
+}): CardIdentityEvidence {
+  const conflictNotes: string[] = [];
+  const frontComplete = isCompleteFields(input.front);
+  const backComplete = isCompleteFields(input.back);
+  const prefer: "front" | "back" | "none" =
+    backComplete && !frontComplete
+      ? "back"
+      : frontComplete && !backComplete
+        ? "front"
+        : "none";
+  const fused: CardIdentityFields = {
+    category: pick(input.front.category, input.back.category, conflictNotes, "category", prefer),
+    playerOrCharacter: pick(
+      input.front.playerOrCharacter,
+      input.back.playerOrCharacter,
+      conflictNotes,
+      "player",
+      prefer,
+    ),
+    year: pick(input.front.year, input.back.year, conflictNotes, "year", prefer),
+    manufacturer: pick(
+      input.front.manufacturer,
+      input.back.manufacturer,
+      conflictNotes,
+      "manufacturer",
+      prefer,
+    ),
+    brand: pick(input.front.brand, input.back.brand, conflictNotes, "brand", prefer),
+    setName: pick(input.front.setName, input.back.setName, conflictNotes, "set", prefer),
+    subsetInsert: pick(
+      input.front.subsetInsert,
+      input.back.subsetInsert,
+      conflictNotes,
+      "insert",
+      prefer,
+    ),
+    collectorNumber: pick(
+      input.front.collectorNumber,
+      input.back.collectorNumber,
+      conflictNotes,
+      "number",
+      prefer,
+    ),
+    team: pick(input.front.team, input.back.team, conflictNotes, "team", prefer),
+    rookie: pick(input.front.rookie, input.back.rookie, conflictNotes, "rookie", prefer),
+    parallel: pick(input.front.parallel, input.back.parallel, conflictNotes, "parallel", prefer),
+    serialNumber: pick(
+      input.front.serialNumber,
+      input.back.serialNumber,
+      conflictNotes,
+      "serial",
+      prefer,
+    ),
+    autograph: pick(input.front.autograph, input.back.autograph, conflictNotes, "autograph", prefer),
+    relic: pick(input.front.relic, input.back.relic, conflictNotes, "relic", prefer),
+  };
+  return { front: input.front, back: input.back, fused, conflictNotes };
+}
+
+/** Fill empty fused fields from overlay. Incompatible observed values become conflicts. */
+export function overlayIdentityFields(
+  base: CardIdentityFields,
+  overlay: CardIdentityFields,
+  conflicts: string[],
+  label: string,
+): CardIdentityFields {
+  const out = { ...base };
+  const keys = Object.keys(base) as Array<keyof CardIdentityFields>;
+  for (const key of keys) {
+    const a = base[key];
+    const b = overlay[key];
+    if (!b.value) continue;
+    if (!a.value) {
+      out[key] = b;
+      continue;
+    }
+    if (compatibleValues(a.value, b.value)) {
+      out[key] = a.confidence >= b.confidence ? a : b;
+      continue;
+    }
+    conflicts.push(`${key}: ${label} “${b.value}” vs “${a.value}”`);
+    out[key] = unknownField("inference");
+  }
+  return out;
+}
+
+export function structuredIdentityQuery(fields: CardIdentityFields): string {
+  return [
+    fields.year.value,
+    fields.manufacturer.value,
+    fields.brand.value,
+    fields.collectorNumber.value && `#${fields.collectorNumber.value}`,
+    fields.playerOrCharacter.value,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function baseVsParallelFromEvidence(evidence: CardIdentityEvidence) {

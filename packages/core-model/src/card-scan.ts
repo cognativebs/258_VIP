@@ -4,7 +4,7 @@ import { z } from "zod";
  * Ricoh / PaperStream trading-card scan intake v1.
  * Extends existing ScanBatch / ScanUnit — does not replace them.
  */
-export const CARD_SCAN_RULE = "card-scan-intake@0.3.0";
+export const CARD_SCAN_RULE = "card-scan-intake@0.4.0";
 
 export const ScanSourceSchema = z.string().min(1);
 export const ScannerProfileSchema = z.string().min(1);
@@ -52,11 +52,70 @@ export const CardIdentityFieldsSchema = z.object({
 });
 export type CardIdentityFields = z.infer<typeof CardIdentityFieldsSchema>;
 
+export const OcrRegionKindSchema = z.enum([
+  "card_number",
+  "title",
+  "copyright",
+  "product",
+  "logo",
+  "body",
+  "unknown",
+]);
+export type OcrRegionKind = z.infer<typeof OcrRegionKindSchema>;
+
+export const OcrSpanSchema = z.object({
+  text: z.string(),
+  kind: OcrRegionKindSchema,
+  bbox: z
+    .object({
+      x: z.number(),
+      y: z.number(),
+      w: z.number(),
+      h: z.number(),
+    })
+    .nullable(),
+  confidence: z.number().nullable(),
+});
+export type OcrSpan = z.infer<typeof OcrSpanSchema>;
+
+export const FieldObservationStatusSchema = z.enum([
+  "observed",
+  "inferred",
+  "unknown",
+]);
+export type FieldObservationStatus = z.infer<typeof FieldObservationStatusSchema>;
+
+export const CandidateDebugSchema = z.object({
+  catalogKey: z.string(),
+  displayName: z.string(),
+  confidence: z.number(),
+  matchReasons: z.array(z.string()),
+});
+export type CandidateDebug = z.infer<typeof CandidateDebugSchema>;
+
+/** Per-card identification debug — OCR is evidence, not the ID engine. */
+export const IdentificationDebugSchema = z.object({
+  rawOcr: z.object({
+    front: z.string(),
+    back: z.string(),
+    frontSpans: z.array(OcrSpanSchema).default([]),
+    backSpans: z.array(OcrSpanSchema).default([]),
+  }),
+  structuredVision: z.unknown().nullable(),
+  candidatesConsidered: z.array(CandidateDebugSchema),
+  winningCandidate: CandidateDebugSchema.nullable(),
+  whyWon: z.string(),
+  baseConfidence: z.number().min(0).max(1),
+  parallelConfidence: z.number().min(0).max(1),
+});
+export type IdentificationDebug = z.infer<typeof IdentificationDebugSchema>;
+
 export const CardIdentityEvidenceSchema = z.object({
   front: CardIdentityFieldsSchema,
   back: CardIdentityFieldsSchema,
   fused: CardIdentityFieldsSchema,
   conflictNotes: z.array(z.string()),
+  debug: IdentificationDebugSchema.optional(),
 });
 export type CardIdentityEvidence = z.infer<typeof CardIdentityEvidenceSchema>;
 

@@ -88,7 +88,23 @@ export type StagedUnit = {
   identificationStatus?: string | null;
   reviewStatus?: string | null;
   reviewRoute?: string | null;
-  identityEvidence?: { conflictNotes?: string[] } | null;
+  identityEvidence?: {
+    conflictNotes?: string[];
+    debug?: {
+      rawOcr?: { front?: string; back?: string; frontSpans?: unknown[]; backSpans?: unknown[] };
+      structuredVision?: unknown;
+      candidatesConsidered?: Array<{
+        catalogKey: string;
+        displayName: string;
+        confidence: number;
+        matchReasons: string[];
+      }>;
+      winningCandidate?: { catalogKey: string; displayName: string; confidence: number } | null;
+      whyWon?: string;
+      baseConfidence?: number;
+      parallelConfidence?: number;
+    };
+  } | null;
   baseVsParallel?: BaseVsParallel | null;
   physicalReimport?: boolean;
 };

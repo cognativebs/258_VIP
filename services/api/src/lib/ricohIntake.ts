@@ -241,18 +241,6 @@ export async function ingestRicohBatch(
       }
       const top = pixelId.candidates[0] ?? unit.candidates[0];
       await upsertPixelCandidates(unit.id, pixelId.candidates);
-      // Catalog may fill a missing field, never break a recorded conflict.
-      if (
-        top?.playerOrCharacter &&
-        !evidence.fused.playerOrCharacter.value &&
-        evidence.conflictNotes.length === 0
-      ) {
-        evidence.fused.playerOrCharacter = {
-          value: top.playerOrCharacter,
-          confidence: top.confidence,
-          origin: "catalog",
-        };
-      }
       const baseVs = baseVsParallelFromEvidence(evidence);
       const pairingNeedsReview = pairing.needsReview[i] ?? false;
       const route = routeReview({
@@ -640,7 +628,7 @@ async function upsertPixelCandidates(
         ${candidate.setName ?? null}, ${candidate.collectorNumber ?? null},
         ${candidate.playerOrCharacter ?? null}, ${candidate.year ?? null},
         ${JSON.stringify(candidate.externalIds)}::jsonb,
-        ${"pixel-ocr-v1"}, ${candidate.confidence},
+        ${"pixel-id-v2"}, ${candidate.confidence},
         ARRAY(
           SELECT jsonb_array_elements_text(${JSON.stringify(candidate.matchReasons)}::jsonb)
         ),
