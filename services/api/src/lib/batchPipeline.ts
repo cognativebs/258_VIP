@@ -243,7 +243,7 @@ export async function runBatch001Sports(): Promise<BatchRun> {
     throw new Error(imported.error);
   }
 
-  const opened = openScanFromApi({
+  const opened = await openScanFromApi({
     categoryHint: "sports",
     notes: "Batch 001 sports — ingest → identify → bucket → price → disposition → eBay-ready",
     pages: imported.pages,

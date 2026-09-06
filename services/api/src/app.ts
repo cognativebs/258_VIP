@@ -1093,7 +1093,7 @@ export function createApp(deps: AppDeps = {}) {
         Array.isArray(body.inventory) && body.inventory.length > 0
           ? body.inventory
           : inventoryLookupFromHoldings((await buildInventory(deps)).holdings);
-      const result = openScanFromApi({ ...body, inventory });
+      const result = await openScanFromApi({ ...body, inventory });
       res.status(201).json({
         batch: result.batch,
         rawSnapshots: result.rawSnapshots,

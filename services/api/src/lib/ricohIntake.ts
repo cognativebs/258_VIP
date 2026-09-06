@@ -28,6 +28,7 @@ import {
 import { getDb } from "../db/client.js";
 import type { ApiHolding } from "./holdings.js";
 import { importFolderPages, resolveScanFolder } from "./scanFolder.js";
+import { catalogResolverEnabled, getCatalogResolver } from "./catalogLive.js";
 import { inventoryLookupFromHoldings, openScanFromApi } from "./scanIngest.js";
 import { persistBatch, resolveUnit } from "./scanStorePg.js";
 
@@ -171,15 +172,17 @@ export async function ingestRicohBatch(
     categoryHint: req.categoryHint ?? "sports",
   });
 
-  const opened = openScanFromApi({
+  const categoryHint = req.categoryHint ?? "sports";
+  const opened = await openScanFromApi({
     device: source,
-    categoryHint: req.categoryHint ?? "sports",
+    categoryHint,
     notes: req.notes ?? `Ricoh intake · profile ${scannerProfile}`,
     units: pairing.units.map((u, i) => ({
       ...u,
       unitIndex: i,
     })),
     inventory: inventoryLookupFromHoldings(req.holdings ?? []),
+    skipResolver: catalogResolverEnabled(categoryHint),
   });
 
   const staged = await persistBatch(opened, {
@@ -232,7 +235,10 @@ export async function ingestRicohBatch(
         sidecarBack: backSrc ? sidecarSync(backSrc) : "",
         frontFileName: basename(frontSrc),
         backFileName: backSrc ? basename(backSrc) : "",
-        categoryHint: req.categoryHint ?? "sports",
+        categoryHint,
+        resolver: catalogResolverEnabled(categoryHint)
+          ? getCatalogResolver()
+          : undefined,
       });
       const evidence = pixelId.evidence;
       visionCostUsd += pixelId.estimatedCostUsd;
@@ -640,7 +646,7 @@ async function upsertPixelCandidates(
         ${candidate.setName ?? null}, ${candidate.collectorNumber ?? null},
         ${candidate.playerOrCharacter ?? null}, ${candidate.year ?? null},
         ${JSON.stringify(candidate.externalIds)}::jsonb,
-        ${"pixel-ocr-v1"}, ${candidate.confidence},
+        ${candidate.adapterId ?? "pixel-ocr-v1"}, ${candidate.confidence},
         ARRAY(
           SELECT jsonb_array_elements_text(${JSON.stringify(candidate.matchReasons)}::jsonb)
         ),

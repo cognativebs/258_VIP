@@ -34,8 +34,18 @@ export function parseTcgdexCards(
   }));
 }
 
+export type TcgdexFetch = (
+  url: string,
+  init?: RequestInit,
+) => Promise<{
+  ok: boolean;
+  text: () => Promise<string>;
+  headers: { get: (name: string) => string | null };
+}>;
+
 export async function fetchTcgdexRaw(
   query: CatalogQuery,
+  fetchImpl: TcgdexFetch = fetch,
 ): Promise<CatalogRawResponse | null> {
   const q = query.text.trim();
   if (!q) return null;
@@ -43,7 +53,7 @@ export async function fetchTcgdexRaw(
   if (category && category !== "pokemon") return null;
   const name = q.split(/\s+/).slice(0, 3).join(" ");
   const url = `${TCGDEX}/cards?name=${encodeURIComponent(name)}`;
-  const res = await fetch(url, { headers: { accept: "application/json" } });
+  const res = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!res.ok) return null;
   const payload = await res.text();
   return {
@@ -57,15 +67,17 @@ export async function fetchTcgdexRaw(
  * Not used for sports. TCGplayer public API is closed (AGENTS.md).
  * Catalog truth only — never a valuation (ADR 0010 / plan 0001 Phase 1).
  */
-export function createTcgdexCatalogAdapter(): CatalogAdapter {
+export function createTcgdexCatalogAdapter(opts: { fetch?: TcgdexFetch } = {}): CatalogAdapter {
+  const fetchImpl = opts.fetch ?? fetch;
   return {
     id: "tcgdex",
     label: "TCGdex (pokemon)",
     categories: ["pokemon"],
-    fetchRaw: fetchTcgdexRaw,
+    timeoutMs: 1500,
+    fetchRaw: (query) => fetchTcgdexRaw(query, fetchImpl),
     parseRaw: parseTcgdexCards,
     async search(query: CatalogQuery): Promise<CatalogCard[]> {
-      const raw = await fetchTcgdexRaw(query);
+      const raw = await fetchTcgdexRaw(query, fetchImpl);
       if (!raw) return [];
       return parseTcgdexCards(raw, query);
     },

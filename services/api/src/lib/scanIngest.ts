@@ -10,12 +10,19 @@ import {
   confirmScanUnit,
   ebayCredsFromEnv,
   openScanBatch,
+  openScanBatchWithResolver,
   type ConfirmUnitRequest,
   type InventoryLookupRow,
+  type OpenBatchResult,
   type ScanBatchInput,
   type ScanPageInput,
 } from "@vip/scan-ingest";
 import type { ApiHolding } from "./holdings.js";
+import {
+  catalogResolverEnabled,
+  getCatalogResolver,
+  resetCatalogResolver,
+} from "./catalogLive.js";
 
 /** Process-local intake store (Postgres capture_session is the durable path). */
 const store = new ScanSessionStore();
@@ -26,6 +33,7 @@ export function getScanStore(): ScanSessionStore {
 
 export function resetScanStoreForTests(): void {
   store.clear();
+  resetCatalogResolver();
 }
 
 /** Map VIP inventory rows into the scan duplicate-check shape. */
@@ -65,9 +73,14 @@ export type OpenScanBody = {
   >;
   inventory?: InventoryLookupRow[];
   pairing?: "sequential_duplex" | "filename_front_back";
+  /**
+   * Ricoh intake OCRs pixels first, then resolves. Skip here so an empty
+   * query cannot poison the content-hash cache.
+   */
+  skipResolver?: boolean;
 };
 
-export function openScanFromApi(body: OpenScanBody) {
+export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResult> {
   let input: ScanBatchInput;
   if (body.units?.length) {
     input = ScanBatchInputSchema.parse({
@@ -96,15 +109,22 @@ export function openScanFromApi(body: OpenScanBody) {
     throw new Error("body.units or body.pages required");
   }
 
+  const category = body.categoryHint ?? input.categoryHint ?? null;
+  if (!body.skipResolver && catalogResolverEnabled(category)) {
+    return openScanBatchWithResolver(input, {
+      store,
+      resolver: getCatalogResolver(),
+      catalog: FIXTURE_CATALOG,
+      inventory: body.inventory,
+      ebayCreds: ebayCredsFromEnv(),
+    });
+  }
+
   return openScanBatch(input, {
     store,
     // Sports lots use pixel OCR + sports parse. The 5-card fixture is not a
-    // production sports catalog. Pokémon / MTG still use it on this in-memory
-    // path until a licensed sports-equivalent adapter exists.
-    catalog:
-      body.categoryHint === "pokemon" || body.categoryHint === "mtg"
-        ? FIXTURE_CATALOG
-        : [],
+    // production sports catalog.
+    catalog: category === "pokemon" || category === "mtg" ? FIXTURE_CATALOG : [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -153,6 +173,8 @@ export function scanMeta() {
       "Tesseract OCR on front+back pixels (generic IMG_#### names ignored)",
       "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
+      "CatalogResolver fan-out (fixture + TCGdex for Pokémon; Magic fixture until Scryfall)",
+      "identification cache by content_hash · provider snapshots before parse",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",
       "physical reimport (hash) vs same card type",

@@ -21,9 +21,14 @@ Shipped (Phase 0 scaffolding, 2026-09-06): `CatalogResolver` fan-out +
 `external_id` merge, content-hash cache, provider snapshot sink, `id_observation`
 writes on resolve, benchmark harness (`scripts/benchmark_identification.py`).
 
-Still missing: live catalog adapters wired as the default scan path
-(Phase 1+), a durable (Postgres) identification cache, and the messy-card
-accuracy measurement against real provider traffic.
+Still missing: Phase 1 accuracy gate (25 real Pokémon scans, top-1 ≥ 80%),
+Scryfall/MTGJSON, CardSight messy-card benchmark, and a Postgres asset
+adapter so re-scans converge on confirmed assets.
+
+Wired 2026-09-06: resolver is the default Pokémon/MTG path on
+`POST /api/scan/batches`; Ricoh OCRs first then resolves. TCGdex is on
+unless `VIP_CATALOG_TCGDEX=0`. Provider bytes go to `raw_snapshots`.
+Resolver output is cached in `vault_media.identification_cache`.
 
 ## Phase 0 — Resolver, cache, snapshots, benchmark harness
 

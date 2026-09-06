@@ -146,7 +146,7 @@ third-party-access licence limit).
 - [x] **Phase 0** Snapshot every provider response before parsing (rule 3)
 - [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
 - [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
-- [ ] **Phase 1** `TcgdexCatalogAdapter` (Pokémon, free, keyless) — catalog truth only, not pricing
+- [ ] **Phase 1** `TcgdexCatalogAdapter` wired on Pokémon intake — **gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id (adapter + snapshots + cache shipped 2026-09-06)
 - [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target

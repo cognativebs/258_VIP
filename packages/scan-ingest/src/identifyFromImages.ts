@@ -1,5 +1,6 @@
 import type { CardIdentityEvidence } from "@vip/core-model";
 import { fuseCardEvidence, baseVsParallelFromEvidence } from "./evidenceFusion.js";
+import type { CatalogResolver } from "./catalog/resolver.js";
 import { identifyUnit, isGenericScanFileName } from "./identify.js";
 import { ocrImageFile, type OcrResult } from "./ocr/tesseractOcr.js";
 import type { IdentityCandidate, ScanCategory } from "./schemas.js";
@@ -42,6 +43,8 @@ export async function identifyFromPairedImages(input: {
   frontFileName?: string;
   backFileName?: string;
   categoryHint?: ScanCategory | null;
+  /** When set, catalog fan-out runs after OCR (same bytes → cache). */
+  resolver?: CatalogResolver;
 }): Promise<ImageIdResult> {
   const notes: string[] = [];
   const frontOcr = await ocrImageFile(input.frontPath, input.frontHash);
@@ -98,14 +101,23 @@ export async function identifyFromPairedImages(input: {
     }
   }
 
-  const candidates = identifyUnit(
-    {
-      ocrText: identityText([frontText, backText]),
-      frontStorageRef: frontName,
-      categoryHint: input.categoryHint ?? null,
-    },
-    { catalog: [], categoryHint: input.categoryHint ?? null },
-  );
+  const identifyInput = {
+    ocrText: identityText([frontText, backText]),
+    frontStorageRef: frontName,
+    categoryHint: input.categoryHint ?? null,
+  };
+  const candidates = input.resolver
+    ? (
+        await input.resolver.resolve({
+          unit: identifyInput,
+          contentHash: input.frontHash ?? null,
+          opts: { categoryHint: input.categoryHint ?? null },
+        })
+      ).candidates
+    : identifyUnit(identifyInput, {
+        catalog: [],
+        categoryHint: input.categoryHint ?? null,
+      });
 
   return {
     frontOcr,

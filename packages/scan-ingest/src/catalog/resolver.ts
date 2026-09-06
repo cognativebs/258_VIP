@@ -145,8 +145,13 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
     cache,
     async resolve(input: CatalogResolveInput): Promise<CatalogResolverResult> {
       const hash = input.contentHash?.trim() || null;
-      if (hash) {
-        const hit = cache.get(hash);
+      const query = buildCatalogQuery(input.unit, input.opts);
+      const cacheable =
+        Boolean(hash) &&
+        Boolean(query.text.trim() || (query.externalIds?.length ?? 0) > 0);
+
+      if (cacheable && hash) {
+        const hit = await cache.get(hash);
         if (hit) {
           return CatalogResolverResultSchema.parse({
             ...hit,
@@ -156,8 +161,6 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
           });
         }
       }
-
-      const query = buildCatalogQuery(input.unit, input.opts);
       const category = query.category ?? null;
       const jobs = deps.adapters.map(async (adapter) => {
         if (!adapterApplies(adapter, category)) {
@@ -214,7 +217,7 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
         }),
       });
 
-      if (hash) cache.set(hash, result);
+      if (cacheable && hash) await cache.set(hash, result);
       return result;
     },
   };

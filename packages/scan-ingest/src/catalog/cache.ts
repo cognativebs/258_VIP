@@ -5,19 +5,19 @@ import type { CatalogResolverResult } from "./resolver-schemas.js";
  * Same bytes must always yield the same candidates without a provider call.
  */
 export type IdentificationCache = {
-  get: (contentHash: string) => CatalogResolverResult | undefined;
-  set: (contentHash: string, result: CatalogResolverResult) => void;
-  size: () => number;
+  get: (contentHash: string) => Promise<CatalogResolverResult | undefined>;
+  set: (contentHash: string, result: CatalogResolverResult) => Promise<void>;
+  size?: () => number;
 };
 
 export function createMemoryIdentificationCache(): IdentificationCache {
   const store = new Map<string, CatalogResolverResult>();
   return {
-    get(contentHash) {
+    async get(contentHash) {
       const hit = store.get(contentHash);
       return hit ? structuredClone(hit) : undefined;
     },
-    set(contentHash, result) {
+    async set(contentHash, result) {
       store.set(contentHash, structuredClone(result));
     },
     size: () => store.size,

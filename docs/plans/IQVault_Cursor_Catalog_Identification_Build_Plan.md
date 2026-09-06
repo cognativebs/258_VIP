@@ -4,7 +4,9 @@ Cursor work order for ADR 0010 / [plan 0001](0001-catalog-adapter-rollout.md) Ph
 The named file was not in the repo; this is the committed spec for the scaffolding
 that later adapters (TCGdex, Scryfall, CardSight) plug into.
 
-**Out of scope this slice:** live TCGdex/Scryfall/CardSight rollout gates,
+**Follow-up (2026-09-06):** resolver + TCGdex wired on Pokémon/MTG intake;
+Postgres cache + provider snapshots. Phase 1 accuracy gate still needs 25
+real scans. Still out of scope: Scryfall/CardSight rollout gates,
 Card Hedge valuation, eBay ePID, auto-resolve enablement, Yu-Gi-Oh,
 SportsCardsPro / PriceCharting.
 

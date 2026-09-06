@@ -247,6 +247,24 @@ describe("CatalogResolver", () => {
     );
   });
 
+  it("does not cache a resolve with empty query text", async () => {
+    const calls = { n: 0 };
+    const cache = createMemoryIdentificationCache();
+    const resolver = createCatalogResolver({
+      cache,
+      adapters: [countingAdapter("fixture-catalog", [CHARIZARD], calls)],
+    });
+    await resolver.resolve({
+      unit: {
+        ocrText: null,
+        frontStorageRef: "IMG_0001.jpg",
+        categoryHint: "pokemon",
+      },
+      contentHash: "empty-ocr-hash",
+    });
+    expect(cache.size?.()).toBe(0);
+  });
+
   it("uses the fixture adapter through the resolver without changing scores", async () => {
     const resolver = createCatalogResolver({
       adapters: [createFixtureCatalogAdapter()],
