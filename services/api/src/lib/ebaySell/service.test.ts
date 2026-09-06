@@ -90,6 +90,11 @@ describe("eBay sell service", () => {
     expect(ingested.completions[0]?.listingStatus).toBe("SOLD");
     expect(ingested.completions[0]?.fmvAtListing?.mid).toBe(4.5);
     expect(ingested.completions[0]?.observation.observationType).toBe("INTERNAL_SALE");
+    const afterSale = await service.itemDetail([card], card.id);
+    expect(afterSale?.holding.ebaySku).toBe(listing.sku);
+    expect(afterSale?.holding.salesPathState).toBe("sold");
+    expect(afterSale?.holding.soldAt).toBeTruthy();
+    expect(afterSale?.disposition.reasonCodes).toContain("ALREADY_SOLD");
 
     const dup = await service.ingestOrderLines([card], {
       orders: [
