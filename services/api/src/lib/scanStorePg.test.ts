@@ -142,6 +142,23 @@ describe("scan staging (ADR 0009)", () => {
     expect(mine?.inventoryBucket).toBe("dealer_inventory");
     expect(mine?.recommendation).toBe("Sell");
 
+    expect(first.idObservationId).toBeTruthy();
+    const obs = await getDb().execute(sql`
+      SELECT predicted_confidence, confirmed_asset_id, was_correct, ocr_text, image_url
+      FROM vault_market.id_observation
+      WHERE id = ${Number(first.idObservationId)}
+    `);
+    const row = (obs.rows as Array<Record<string, unknown>>)[0];
+    expect(row).toBeTruthy();
+    expect(String(row!.confirmed_asset_id)).toBe(first.assetId);
+    expect(row!.image_url).toBeTruthy();
+    const unitRow = await getDb().execute(sql`
+      SELECT id_observation_ref FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+    `);
+    expect(String((unitRow.rows as Array<Record<string, unknown>>)[0]!.id_observation_ref)).toBe(
+      first.idObservationId,
+    );
+
     void staged;
   });
 

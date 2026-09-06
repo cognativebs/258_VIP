@@ -141,11 +141,11 @@ Ordered so the metered provider is not the first dependency. Yu-Gi-Oh and
 SportsCardsPro are out of scope this round (the latter also has a
 third-party-access licence limit).
 
-- [ ] **Phase 0** `CatalogResolver` fan-out + merge on `external_id` corroboration
-- [ ] **Phase 0** Identification cache keyed on `raw_snapshots.content_hash` (re-runs cost zero calls)
-- [ ] **Phase 0** Snapshot every provider response before parsing (rule 3)
-- [ ] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
-- [ ] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
+- [x] **Phase 0** `CatalogResolver` fan-out + merge on `external_id` corroboration
+- [x] **Phase 0** Identification cache keyed on `raw_snapshots.content_hash` (re-runs cost zero calls)
+- [x] **Phase 0** Snapshot every provider response before parsing (rule 3)
+- [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
+- [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
 - [ ] **Phase 1** `TcgdexCatalogAdapter` (Pokémon, free, keyless) — catalog truth only, not pricing
 - [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
