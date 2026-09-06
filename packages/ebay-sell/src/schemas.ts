@@ -323,6 +323,8 @@ export type DispositionHistory = z.infer<typeof DispositionHistorySchema>;
 export const DailyQueueItemSchema = z.object({
   inventoryId: z.string().min(1),
   lotId: z.string().uuid().nullable().optional(),
+  title: z.string().min(1).optional(),
+  imageUri: z.string().nullable().optional(),
   priorityScore: z.number(),
   bucket: z.enum(["high_liquidity", "event_trending", "stale", "scarce", "experiment"]),
   recommendedFormat: ListingFormatSchema,

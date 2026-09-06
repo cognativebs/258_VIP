@@ -4,6 +4,7 @@ import {
   LISTING_QUEUE_RANK_RULE,
 } from "./constants.js";
 import { recommendDisposition } from "./disposition.js";
+import { buildListingTitle } from "./listing-builder.js";
 import { pickDefaultStrategy, quotePrice } from "./pricing.js";
 import type { DailyQueueItem, MarketEvent, SellingAssetInput } from "./schemas.js";
 
@@ -127,6 +128,8 @@ function scoreQueueCandidate(
 
   return {
     inventoryId: asset.inventoryId,
+    title: buildListingTitle(asset),
+    imageUri: asset.frontImageUri ?? null,
     priorityScore,
     bucket,
     recommendedFormat: "FIXED_PRICE",

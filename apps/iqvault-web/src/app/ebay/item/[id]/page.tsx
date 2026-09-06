@@ -145,7 +145,9 @@ export default function EbayItemPage() {
       <h1 className="page-title">{detail?.holding.assetName ?? "Item"}</h1>
       <p className="page-sub">
         <Link href="/ebay">eBay dashboard</Link> · SKU{" "}
-        {detail?.asset.sku ?? detail?.listings[0]?.sku ?? "unminted"} · FMV is a
+        {detail?.holding.ebaySku ?? detail?.asset.sku ?? detail?.listings[0]?.sku ?? "unminted"}{" "}
+        · path {detail?.holding.salesPathState ?? "available"}
+        {detail?.holding.soldAt ? ` · sold ${detail.holding.soldAt}` : ""} · FMV is a
         range + evidence, not a point fact.
       </p>
       {error ? <div className="error">{error}</div> : null}

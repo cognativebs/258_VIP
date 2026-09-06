@@ -199,6 +199,37 @@ function readString(body: unknown, key: string): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
 
+function asRecord(body: unknown): Record<string, unknown> | null {
+  return body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+}
+
+/** Map GET /offer to our listing status. Never invent SOLD from an unpublished offer. */
+export function listingStatusFromOffer(
+  body: unknown,
+  current: MarketplaceListing["status"],
+): MarketplaceListing["status"] {
+  if (current === "SOLD") return "SOLD";
+  const root = asRecord(body);
+  const listing = asRecord(root?.listing);
+  const offerStatus = (readString(body, "status") ?? "").toUpperCase();
+  const listingStatus = (listing && readString(listing, "listingStatus")
+    ? readString(listing, "listingStatus")
+    : ""
+  ).toUpperCase();
+  if (listingStatus === "ENDED") return "ENDED";
+  if (offerStatus === "PUBLISHED" && listingStatus === "ACTIVE") return "ACTIVE";
+  if (offerStatus === "PUBLISHED") return "PUBLISHED";
+  if (offerStatus === "UNPUBLISHED" && (current === "PUBLISHED" || current === "ACTIVE")) {
+    return "ENDED";
+  }
+  return current;
+}
+
+export function listingIdFromOffer(body: unknown): string | null {
+  const listing = asRecord(asRecord(body)?.listing);
+  return (listing && readString(listing, "listingId")) || readString(body, "listingId");
+}
+
 function fail(
   listing: MarketplaceListing,
   errorClass: PublishListingResult["errorClass"],

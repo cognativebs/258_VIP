@@ -13,8 +13,8 @@ async function main() {
   const comics = await loadComicsHoldings();
   const holdings = comics.holdings;
   if (cmd === "listing-sync") {
-    const health = await service.connection();
-    console.log(JSON.stringify({ job: "listing-sync", ...health }, null, 2));
+    const result = await service.syncListingStates();
+    console.log(JSON.stringify({ job: "listing-sync", ...result }, null, 2));
     return;
   }
   if (cmd === "order-sync") {

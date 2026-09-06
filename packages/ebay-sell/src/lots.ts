@@ -100,7 +100,8 @@ export function proposeLots(
       if (members.length < minMembers) continue;
       const slice = members.slice(0, maxMembers);
       const ids = slice.map((m) => m.inventoryId).sort();
-      const fingerprint = `${grouper.key}:${ids.join(",")}`;
+      // Same holdings under player/set/year_set is one cluster, not three lots.
+      const fingerprint = ids.join(",");
       if (seen.has(fingerprint)) continue;
       seen.add(fingerprint);
       const proposal = scoreLot(slice, `${grouper.key}:${groupKey}`, grouper.name(slice), labor);

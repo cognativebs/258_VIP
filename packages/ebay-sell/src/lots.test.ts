@@ -60,4 +60,17 @@ describe("lot builder", () => {
     expect(exactMembership(playerLot!)).not.toContain("pc");
     expect(playerLot?.netDollarsPerLaborMinute).toBeGreaterThan(0);
   });
+
+  it("does not emit the same membership under player/set/year_set", () => {
+    const assets = [
+      card("a", "Patrick Mahomes", 3.2),
+      card("b", "Patrick Mahomes", 2.1),
+      card("c", "Patrick Mahomes", 1.8),
+      card("d", "Patrick Mahomes", 2.4),
+    ];
+    const lots = proposeLots(assets);
+    const sameMembers = lots.filter((l) => [...l.inventoryIds].sort().join(",") === "a,b,c,d");
+    expect(sameMembers).toHaveLength(1);
+    expect(sameMembers[0]?.groupingKey.startsWith("player:")).toBe(true);
+  });
 });

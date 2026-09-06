@@ -91,13 +91,15 @@ Existing `listing_draft`, Browse `listing_observation`, and scan intake stay.
 5. Create draft → review title/images/price → Approve/publish.
 6. Sandbox: create/replace inventory item → create offer → publish offer.
 7. Order ingest (`POST /api/ebay/sell/orders/ingest` or `npm run job:ebay-order-sync`)
-   maps SKU → holding, marks SOLD, writes `INTERNAL_SALE`.
+   maps SKU → holding, marks listing SOLD, persists `holding.ebay_sku` /
+   `sales_path_state=sold` / `sold_at`, writes `INTERNAL_SALE`.
+   `daysToSale` is only computed when `listedAt` was set by a real publish.
 
 ## Jobs (independent)
 
 | Job | Command | Cadence |
 |-----|---------|---------|
-| Listing state | `npm run job:ebay-listing-sync` | every few hours |
+| Listing state | `npm run job:ebay-listing-sync` | GET offer per listing with an offer id; idle without OAuth |
 | Orders | `npm run job:ebay-order-sync` | hourly while selling |
 | Traffic | `npm run job:ebay-traffic-sync` | daily |
 
@@ -124,4 +126,6 @@ duplicate order ingest, and duplicate publish prevention.
 | `/ebay/item/[id]` | Identity / valuation / disposition / listings / traffic / orders / observations / decisions |
 | `/ebay/experiments` | $1–$5 singles vs lots experiment |
 
-`/listings` remains the older draft queue (`submitReady: false`).
+`/listings` remains the older local draft queue (`submitReady: false`). The
+queue UI shows card titles (and cover thumbnails when present). Drafting a
+listing mints and persists `holding.ebay_sku`.

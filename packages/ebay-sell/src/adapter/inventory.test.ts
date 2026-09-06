@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { markInferred } from "@vip/evidence";
 import { createEbayHttpClient } from "./client.js";
-import { createInventoryAdapter } from "./inventory.js";
+import { createInventoryAdapter, listingIdFromOffer, listingStatusFromOffer } from "./inventory.js";
 import type { ListingDraftPayload, MarketplaceListing } from "../schemas.js";
 
 const payload: ListingDraftPayload = {
@@ -112,5 +112,17 @@ describe("Inventory API adapter", () => {
     });
     expect(result.status).toBe("ERROR");
     expect(result.errorClass).toBe("non_retryable");
+  });
+
+  it("maps GET offer status without inventing a sale", () => {
+    expect(
+      listingStatusFromOffer(
+        { status: "PUBLISHED", listing: { listingId: "LST-9", listingStatus: "ACTIVE" } },
+        "PUBLISHED",
+      ),
+    ).toBe("ACTIVE");
+    expect(listingIdFromOffer({ listing: { listingId: "LST-9" } })).toBe("LST-9");
+    expect(listingStatusFromOffer({ status: "UNPUBLISHED" }, "ACTIVE")).toBe("ENDED");
+    expect(listingStatusFromOffer({ status: "UNPUBLISHED" }, "SOLD")).toBe("SOLD");
   });
 });

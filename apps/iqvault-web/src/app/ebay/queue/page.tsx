@@ -8,6 +8,8 @@ import { apiGet, apiPost } from "@/lib/api";
 type QueueItem = {
   id: string;
   inventoryId: string;
+  title?: string;
+  imageUri?: string | null;
   priorityScore: number;
   bucket: string;
   recommendedFormat: string;
@@ -84,9 +86,19 @@ export default function EbayQueuePage() {
               items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <Link href={`/ebay/item/${item.inventoryId}`}>{item.inventoryId}</Link>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {item.bucket} · {item.priorityScore}
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      {item.imageUri ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.imageUri} alt="" width={40} height={56} style={{ objectFit: "cover" }} />
+                      ) : null}
+                      <div>
+                        <Link href={`/ebay/item/${item.inventoryId}`}>
+                          {item.title ?? item.inventoryId}
+                        </Link>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {item.bucket} · {item.priorityScore}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>{item.recommendedPrice != null ? `$${item.recommendedPrice}` : "—"}</td>

@@ -195,11 +195,7 @@ export function registerEbaySellRoutes(app: Express, deps: EbaySellRouteDeps): v
   });
 
   app.post("/api/ebay/sell/jobs/listing-sync", async (_req, res) => {
-    res.json({
-      ok: true,
-      note: "Listing-state sync uses GET offer per active listing when connected.",
-      connection: await deps.service.connection(),
-    });
+    res.json(await deps.service.syncListingStates());
   });
 
   app.post("/api/ebay/sell/jobs/order-sync", async (_req, res) => {

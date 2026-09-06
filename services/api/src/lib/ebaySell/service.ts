@@ -20,6 +20,8 @@ import {
   evaluateExperiment,
   exchangeAuthorizationCode,
   highValueRequiresApproval,
+  listingIdFromOffer,
+  listingStatusFromOffer,
   normalizeEbayOrders,
   normalizeTrafficRecords,
   orderLineKey,
@@ -37,7 +39,7 @@ import {
   type StoredUserToken,
 } from "@vip/ebay-sell";
 import type { ApiHolding } from "../holdings.js";
-import { holdingToSellingAsset } from "./project.js";
+import { applyHoldingPatch, holdingToSellingAsset, type HoldingSellPatch } from "./project.js";
 import type { EbaySellStore, StoredLot, StoredQueueItem } from "./store.js";
 
 export type EbaySellDeps = {
@@ -93,6 +95,26 @@ export function createEbaySellService(deps: EbaySellDeps) {
     return connection();
   }
 
+  async function persistHolding(holding: ApiHolding, patch: HoldingSellPatch) {
+    await deps.store.patchHolding(holding.id, patch);
+    if (holding.holdingUuid && holding.holdingUuid !== holding.id) {
+      await deps.store.patchHolding(holding.holdingUuid, patch);
+    }
+  }
+
+  async function hydrateHolding(holding: ApiHolding): Promise<ApiHolding> {
+    const byId = await deps.store.getHoldingPatch(holding.id);
+    const byUuid =
+      holding.holdingUuid && holding.holdingUuid !== holding.id
+        ? await deps.store.getHoldingPatch(holding.holdingUuid)
+        : null;
+    return applyHoldingPatch(applyHoldingPatch(holding, byUuid), byId);
+  }
+
+  async function hydrateHoldings(holdings: ApiHolding[]): Promise<ApiHolding[]> {
+    return Promise.all(holdings.map((h) => hydrateHolding(h)));
+  }
+
   function ensureSku(holding: ApiHolding): string {
     if (holding.ebaySku) return holding.ebaySku;
     const category = holdingToSellingAsset(holding).category;
@@ -120,10 +142,11 @@ export function createEbaySellService(deps: EbaySellDeps) {
     listing: MarketplaceListing;
     payload: ListingDraftPayload;
   }> {
-    const asset = holdingToSellingAsset(holding);
-    const sku = ensureSku(holding);
+    const live = await hydrateHolding(holding);
+    const asset = holdingToSellingAsset(live);
+    const sku = ensureSku(live);
     const payload = buildListingDraftPayload({ ...asset, sku });
-    const idempotencyKey = `${holding.id}:ebay:single`;
+    const idempotencyKey = `${live.id}:ebay:single`;
     const existing = await deps.store.findListingByIdempotency(idempotencyKey);
     if (existing && (ACTIVE_LISTING_STATUSES as readonly string[]).includes(existing.status)) {
       return { listing: existing, payload };
@@ -131,10 +154,10 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const listings = await deps.store.listListings();
     const lots = await deps.store.listLots();
     assertListingExclusivity({
-      inventoryId: holding.id,
-      quantity: holding.quantity,
-      salesPathState: holding.salesPathState ?? "available",
-      existingListings: listings.filter((l) => l.inventoryId === holding.id),
+      inventoryId: live.id,
+      quantity: live.quantity,
+      salesPathState: live.salesPathState ?? "available",
+      existingListings: listings.filter((l) => l.inventoryId === live.id),
       lotMemberships: lots.flatMap((lot) =>
         lot.inventoryIds.map((id) => ({ lotId: lot.id, inventoryId: id, lotStatus: lot.status })),
       ),
@@ -142,8 +165,8 @@ export function createEbaySellService(deps: EbaySellDeps) {
     });
     const listing: MarketplaceListing = {
       id: existing?.id ?? randomUUID(),
-      inventoryId: holding.id,
-      holdingUuid: holding.holdingUuid ?? null,
+      inventoryId: live.id,
+      holdingUuid: live.holdingUuid ?? null,
       marketplace: "ebay",
       sku,
       listingKind: "single",
@@ -177,13 +200,15 @@ export function createEbaySellService(deps: EbaySellDeps) {
       }),
     };
     await deps.store.upsertListing(listing);
+    await persistHolding(live, { ebaySku: sku });
     return { listing, payload };
   }
 
   async function approveAndPublish(holding: ApiHolding, listingId: string) {
     const listing = await deps.store.getListing(listingId);
     if (!listing) throw new Error("Listing not found");
-    const asset = holdingToSellingAsset(holding);
+    const live = await hydrateHolding(holding);
+    const asset = holdingToSellingAsset(live);
     const payload = buildListingDraftPayload({ ...asset, sku: listing.sku });
     if (payload.publishBlockedReasons.length) {
       const errored = {
@@ -247,6 +272,12 @@ export function createEbaySellService(deps: EbaySellDeps) {
       updatedAt: now(),
     };
     await deps.store.upsertListing(next);
+    if (next.status === "PUBLISHED" || next.status === "ACTIVE") {
+      await persistHolding(live, {
+        ebaySku: next.sku,
+        salesPathState: next.listingKind === "lot" ? "listed_lot" : "listed_single",
+      });
+    }
     return { listing: next, published: next.status === "PUBLISHED" || next.status === "ACTIVE", connection: health };
   }
 
@@ -254,18 +285,20 @@ export function createEbaySellService(deps: EbaySellDeps) {
     holdings: ApiHolding[],
     rawPayload: unknown,
   ): Promise<{ ingested: number; skipped: number; completions: SaleCompletionResult[] }> {
+    const liveHoldings = await hydrateHoldings(holdings);
     const lines = normalizeEbayOrders(rawPayload);
     let ingested = 0;
     let skipped = 0;
     const completions: SaleCompletionResult[] = [];
-    const bySku = new Map(holdings.map((h) => [ensureSku(h), h]));
+    const bySku = new Map(liveHoldings.map((h) => [ensureSku(h), h]));
     for (const line of lines) {
       if (await deps.store.hasOrderLine(line.externalOrderId, line.externalLineItemId)) {
         skipped += 1;
         continue;
       }
       const listing = await deps.store.findListingBySku(line.sku);
-      const holding = bySku.get(line.sku) ?? holdings.find((h) => h.ebaySku === line.sku);
+      const holding =
+        bySku.get(line.sku) ?? liveHoldings.find((h) => h.ebaySku === line.sku);
       const orderId = randomUUID();
       await deps.store.insertOrder(
         {
@@ -322,6 +355,31 @@ export function createEbaySellService(deps: EbaySellDeps) {
           updatedAt: now(),
         });
         await deps.store.insertObservation(done.observation);
+        const soldHolding = holding ?? liveHoldings.find((h) => h.id === listing.inventoryId);
+        if (soldHolding) {
+          await persistHolding(soldHolding, {
+            ebaySku: listing.sku,
+            salesPathState: "sold",
+            soldAt: line.orderCreatedAt,
+          });
+          await deps.store.insertDisposition({
+            id: randomUUID(),
+            inventoryId: listing.inventoryId,
+            previousDisposition: soldHolding.currentDisposition ?? null,
+            newDisposition: "HOLD",
+            reasonCode: "ALREADY_SOLD",
+            reasonText: "Checkout completed — do not relist.",
+            confidence: 0.99,
+            recommendedBy: "RULE",
+            createdAt: now(),
+          });
+        } else {
+          await deps.store.patchHolding(listing.inventoryId, {
+            ebaySku: listing.sku,
+            salesPathState: "sold",
+            soldAt: line.orderCreatedAt,
+          });
+        }
         completions.push(done);
       }
     }
@@ -377,7 +435,56 @@ export function createEbaySellService(deps: EbaySellDeps) {
     }
   }
 
+  async function syncListingStates() {
+    const health = await connection();
+    if (!health.canPublish) {
+      return { ok: false, reason: "eBay Sell not connected — listing sync idle", synced: 0, ...health };
+    }
+    const cfg = config();
+    const token = await deps.store.getToken();
+    if (!cfg || !token) {
+      return { ok: false, reason: "eBay Sell not connected — listing sync idle", synced: 0, ...health };
+    }
+    const client = createEbayHttpClient({
+      env: cfg.env,
+      accessToken: token.accessToken,
+      fetchImpl: deps.fetchImpl,
+      onAudit: (e) => deps.store.writeAudit(e),
+    });
+    const adapter = createInventoryAdapter(client);
+    const listings = await deps.store.listListings();
+    let synced = 0;
+    for (const listing of listings) {
+      if (!listing.externalOfferId || listing.status === "SOLD") continue;
+      const res = await adapter.getOffer(listing.externalOfferId);
+      if (!res.ok) {
+        await deps.store.upsertListing({
+          ...listing,
+          lastSyncedAt: now(),
+          errorClass: res.errorClass,
+          errorMessage: res.errorMessage,
+          updatedAt: now(),
+        });
+        continue;
+      }
+      const nextStatus = listingStatusFromOffer(res.body, listing.status);
+      const listingId = listingIdFromOffer(res.body);
+      await deps.store.upsertListing({
+        ...listing,
+        status: nextStatus,
+        externalListingId: listingId ?? listing.externalListingId,
+        lastSyncedAt: now(),
+        errorClass: null,
+        errorMessage: null,
+        updatedAt: now(),
+      });
+      synced += 1;
+    }
+    return { ok: true, synced, connection: health };
+  }
+
   async function dashboard(holdings: ApiHolding[]) {
+    const liveHoldings = await hydrateHoldings(holdings);
     const [listings, orders, lines, metrics, health] = await Promise.all([
       deps.store.listListings(),
       deps.store.listOrders(),
@@ -385,7 +492,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
       deps.store.listMetrics(),
       connection(),
     ]);
-    const unlistedSellable = holdings.filter((h) => {
+    const unlistedSellable = liveHoldings.filter((h) => {
       const asset = holdingToSellingAsset(h);
       const rec = recommendDisposition(asset);
       return (
@@ -435,8 +542,9 @@ export function createEbaySellService(deps: EbaySellDeps) {
   async function rebuildQueue(holdings: ApiHolding[]) {
     const date = now().toISOString().slice(0, 10);
     const events = await deps.store.listEvents();
+    const liveHoldings = await hydrateHoldings(holdings);
     const items = buildDailyListingQueue({
-      assets: holdings.map(holdingToSellingAsset),
+      assets: liveHoldings.map(holdingToSellingAsset),
       events,
     });
     const stored: StoredQueueItem[] = items.map((item) => ({
@@ -458,7 +566,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const date = now().toISOString().slice(0, 10);
     const item = (await deps.store.listQueue(date)).find((q) => q.id === itemId);
     if (!item) throw new Error("Queue item not found");
-    const holding = holdings.find((h) => h.id === item.inventoryId);
+    const holding = (await hydrateHoldings(holdings)).find((h) => h.id === item.inventoryId);
     if (!holding) throw new Error("Holding not found for queue item");
     await deps.store.updateQueueItem(itemId, { operatorAction: action, operatorNote: note });
     if (action === "hold" || action === "change_disposition" || action === "reject") {
@@ -475,8 +583,8 @@ export function createEbaySellService(deps: EbaySellDeps) {
   }
 
   async function lots(holdings: ApiHolding[]) {
-    const proposals = proposeLots(holdings.map(holdingToSellingAsset));
-    return proposals;
+    const liveHoldings = await hydrateHoldings(holdings);
+    return proposeLots(liveHoldings.map(holdingToSellingAsset));
   }
 
   async function acceptLot(proposal: ReturnType<typeof proposeLots>[number]) {
@@ -492,8 +600,9 @@ export function createEbaySellService(deps: EbaySellDeps) {
   }
 
   async function itemDetail(holdings: ApiHolding[], inventoryId: string) {
-    const holding = holdings.find((h) => h.id === inventoryId);
-    if (!holding) return null;
+    const found = holdings.find((h) => h.id === inventoryId || h.holdingUuid === inventoryId);
+    if (!found) return null;
+    const holding = await hydrateHolding(found);
     const asset = holdingToSellingAsset(holding);
     const rec = recommendDisposition(asset);
     const [listings, observations, history, lots] = await Promise.all([
@@ -548,6 +657,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     draftFromHolding,
     approveAndPublish,
     ingestOrderLines,
+    syncListingStates,
     syncOrders,
     syncTraffic,
     dashboard,

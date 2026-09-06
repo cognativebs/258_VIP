@@ -72,11 +72,20 @@ export default function ListingsPage() {
       <Nav active="/listings" />
       <h1 className="page-title">eBay listing drafts</h1>
       <p className="page-sub">
-        Drafts only. submitReady stays false until a human Submit. Personal Collection is
-        blocked unless an override note is captured. LIVE ranges are Browse listings ·
-        unverified — not sold comps. The closed-loop Inventory API path lives on{" "}
-        <a href="/ebay">/ebay</a>.
+        Legacy Browse-range drafts only. <code>submitReady</code> stays false until a human
+        Submit. Personal Collection is blocked unless an override note is captured. LIVE
+        ranges are Browse listings · unverified — not sold comps.
       </p>
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <strong>Closed-loop selling is on /ebay.</strong>
+        <p className="muted" style={{ marginBottom: 8 }}>
+          Draft → approve → Inventory API publish → orders / INTERNAL_SALE. Use this page
+          only for the older local draft queue.
+        </p>
+        <a className="nav-link on" href="/ebay">
+          Open eBay selling
+        </a>
+      </div>
       {error ? <div className="error">{error}</div> : null}
       <form className="panel" onSubmit={(e) => void queue(e)} style={{ marginBottom: 16 }}>
         <p className="muted" style={{ marginTop: 0 }}>

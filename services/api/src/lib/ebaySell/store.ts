@@ -15,6 +15,7 @@ import type {
   StoredUserToken,
 } from "@vip/ebay-sell";
 import { getDb } from "../../db/client.js";
+import type { HoldingSellPatch } from "./project.js";
 
 export type StoredLot = LotProposal & {
   id: string;
@@ -56,6 +57,8 @@ export type EbaySellStore = {
   listExperiments(): Promise<Experiment[]>;
   listMetrics(): Promise<ListingMetricSnapshot[]>;
   insertMetrics(rows: ListingMetricSnapshot[]): Promise<void>;
+  patchHolding(inventoryId: string, patch: HoldingSellPatch): Promise<void>;
+  getHoldingPatch(inventoryId: string): Promise<HoldingSellPatch | null>;
 };
 
 export function createMemoryEbaySellStore(): EbaySellStore {
@@ -71,6 +74,7 @@ export function createMemoryEbaySellStore(): EbaySellStore {
   const experiments: Experiment[] = [];
   const metrics: ListingMetricSnapshot[] = [];
   const audit: EbayAuditEvent[] = [];
+  const holdingPatches = new Map<string, HoldingSellPatch>();
 
   return {
     async getToken() {
@@ -164,6 +168,13 @@ export function createMemoryEbaySellStore(): EbaySellStore {
     },
     async insertMetrics(rows) {
       metrics.push(...rows);
+    },
+    async patchHolding(inventoryId, patch) {
+      const prev = holdingPatches.get(inventoryId) ?? {};
+      holdingPatches.set(inventoryId, { ...prev, ...patch });
+    },
+    async getHoldingPatch(inventoryId) {
+      return holdingPatches.get(inventoryId) ?? null;
     },
   };
 }
@@ -654,6 +665,48 @@ export function createPostgresEbaySellStore(): EbaySellStore {
           )
         `);
       }
+    },
+    async patchHolding(inventoryId, patch) {
+      if (patch.ebaySku != null) {
+        await db().execute(sql`
+          UPDATE vault_collection.holding
+          SET ebay_sku = ${patch.ebaySku}, updated_at = now()
+          WHERE source_row_id = ${inventoryId} OR id::text = ${inventoryId}
+        `);
+      }
+      if (patch.salesPathState != null) {
+        await db().execute(sql`
+          UPDATE vault_collection.holding
+          SET sales_path_state = ${patch.salesPathState}, updated_at = now()
+          WHERE source_row_id = ${inventoryId} OR id::text = ${inventoryId}
+        `);
+      }
+      if (patch.soldAt != null) {
+        const soldAt =
+          typeof patch.soldAt === "string" ? patch.soldAt : patch.soldAt.toISOString();
+        await db().execute(sql`
+          UPDATE vault_collection.holding
+          SET sold_at = ${soldAt}::timestamptz, updated_at = now()
+          WHERE source_row_id = ${inventoryId} OR id::text = ${inventoryId}
+        `);
+      }
+    },
+    async getHoldingPatch(inventoryId) {
+      const result = await db().execute(sql`
+        SELECT ebay_sku, sales_path_state, sold_at
+        FROM vault_collection.holding
+        WHERE source_row_id = ${inventoryId} OR id::text = ${inventoryId}
+        LIMIT 1
+      `);
+      const row = (result.rows as Record<string, unknown>[])[0];
+      if (!row) return null;
+      return {
+        ebaySku: row.ebay_sku == null ? null : String(row.ebay_sku),
+        salesPathState: row.sales_path_state
+          ? (String(row.sales_path_state) as HoldingSellPatch["salesPathState"])
+          : undefined,
+        soldAt: row.sold_at ? new Date(String(row.sold_at)) : null,
+      };
     },
   };
 }

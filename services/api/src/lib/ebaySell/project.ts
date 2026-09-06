@@ -2,7 +2,6 @@ import {
   resolveFmv,
   type CategoryKind,
   type SellingAssetInput,
-  type SellingDisposition,
 } from "@vip/ebay-sell";
 import type { ApiHolding } from "../holdings.js";
 
@@ -14,6 +13,29 @@ export function categoryFromHolding(holding: ApiHolding): CategoryKind {
   }
   if (holding.publisher) return "comic";
   return "other";
+}
+
+export type HoldingSellPatch = {
+  ebaySku?: string | null;
+  salesPathState?: SellingAssetInput["salesPathState"];
+  soldAt?: Date | string | null;
+};
+
+export function applyHoldingPatch(holding: ApiHolding, patch: HoldingSellPatch | null | undefined): ApiHolding {
+  if (!patch) return holding;
+  return {
+    ...holding,
+    ebaySku: patch.ebaySku !== undefined ? patch.ebaySku : holding.ebaySku,
+    salesPathState: patch.salesPathState ?? holding.salesPathState,
+    soldAt:
+      patch.soldAt === undefined
+        ? holding.soldAt
+        : patch.soldAt == null
+          ? null
+          : typeof patch.soldAt === "string"
+            ? patch.soldAt
+            : patch.soldAt.toISOString(),
+  };
 }
 
 export function holdingToSellingAsset(holding: ApiHolding): SellingAssetInput {

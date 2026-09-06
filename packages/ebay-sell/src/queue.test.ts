@@ -72,5 +72,6 @@ describe("daily listing queue", () => {
     expect(items.length).toBeLessThanOrEqual(10);
     expect(items.some((i) => i.inventoryId === "pc")).toBe(false);
     expect(items.every((i) => i.confidence > 0)).toBe(true);
+    expect(items.every((i) => (i.title ?? "").length > 0)).toBe(true);
   });
 });
