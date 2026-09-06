@@ -17,14 +17,30 @@ export type CatalogQuery = {
   limit?: number;
 };
 
+export type CatalogRawResponse = {
+  /** Immutable provider bytes — snapshotted before parse (ADR 0010 §4). */
+  payload: string;
+  contentType: string;
+};
+
 export type CatalogAdapter = {
   id: string;
   label: string;
+  /** When set, the resolver skips this adapter for other categories. */
+  categories?: ScanCategory[];
+  /** Per-adapter timeout override. Resolver default applies when omitted. */
+  timeoutMs?: number;
   /**
    * Return catalog rows worth scoring. Adapters may pre-filter, but scoring and
    * confidence stay in the pipeline so every adapter is judged the same way.
    */
   search: (query: CatalogQuery) => Promise<CatalogCard[]>;
+  /**
+   * Optional raw fetch. When present the resolver snapshots `payload` into
+   * `raw_snapshots` *before* `parseRaw` runs.
+   */
+  fetchRaw?: (query: CatalogQuery) => Promise<CatalogRawResponse | null>;
+  parseRaw?: (raw: CatalogRawResponse, query: CatalogQuery) => CatalogCard[];
 };
 
 /** Adapter that can answer without I/O — used for the offline fixture path. */

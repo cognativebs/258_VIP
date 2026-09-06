@@ -17,8 +17,13 @@ Already shipped (ADR 0009, PR #23):
 - Confidence bands and an opt-in auto-resolve gate
 - Canonical write only at resolve, transactional and idempotent
 
-Missing: any real catalog, a resolver that fans out to several adapters,
-response snapshotting, an identification cache, and accuracy measurement.
+Shipped (Phase 0 scaffolding, 2026-09-06): `CatalogResolver` fan-out +
+`external_id` merge, content-hash cache, provider snapshot sink, `id_observation`
+writes on resolve, benchmark harness (`scripts/benchmark_identification.py`).
+
+Still missing: live catalog adapters wired as the default scan path
+(Phase 1+), a durable (Postgres) identification cache, and the messy-card
+accuracy measurement against real provider traffic.
 
 ## Phase 0 — Resolver, cache, snapshots, benchmark harness
 
