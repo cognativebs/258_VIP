@@ -8,7 +8,7 @@ const RICO = {
   tauros:
     "NO..0128..Wild Bull. Pokémon,.HT;.4'7Z.\". WT..253.5.Jbs.\n©2025 Pokémon / Nintendo / Creatures / GAME FREAK",
   stadium:
-    "Prevent all damage counters from being placed on Benched =\nPokémon (both yours and your opponent's) by effects of attacks =\nIllus. MARINA Chikazawa\n085/094 @\n©2025 Pokémon / Nintendo / Creatures / GAME FREAK",
+    "Prevent all damage counters from being placed on Benched =\nPokémon (both yours and your opponent's) by effects of attacks =\nYou may play only | Stadium card during your turn.\nIllus. MARINA Chikazawa\n085/094 @\n©2025 Pokémon / Nintendo / Creatures / GAME FREAK",
   linoone:
     "eer Li iv 100 &\n== Linoone oo\nOnce during your turn, if this Pokémon is on your Bench,\nand if you have any Mega Evolution Pokémon @X in play,\nSlash 70\n(1 (PFLin} 082/094 @ winding paths is not its strong suit.\n©2025 Pokémon / Nintendo / Creatures/GAME FREAK",
   yamper:
@@ -58,6 +58,7 @@ describe("extractPokemonFromOcr", () => {
     expect(extractPokemonFromOcr(RICO.lotad).name).toBe("Lotad");
     expect(extractPokemonFromOcr(RICO.darumakaDex).name).toBe("Darumaka");
     expect(extractPokemonFromOcr(RICO.escavalier).name).toBe("Escavalier");
+    expect(extractPokemonFromOcr(RICO.escavalier).pokedexNumber).toBe(589);
     expect(extractPokemonFromOcr(RICO.wailmer).name).toBe("Wailmer");
     expect(extractPokemonFromOcr(RICO.archaludon).name).toBe("Archaludon");
   });
@@ -88,7 +89,7 @@ describe("extractPokemonFromOcr", () => {
     expect(extractPokemonFromOcr(RICO.carvanha).name).toBe("Carvanha");
     expect(extractPokemonFromOcr(RICO.carvanha).collectorNumber).toBe("060/094");
     expect(extractPokemonFromOcr(RICO.gloom).name).toBe("Gloom");
-    expect(extractPokemonFromOcr(RICO.sealeo).name).toBe("Sealeo");
+    expect(extractPokemonFromOcr(RICO.sealeo).name).toBe("Seel");
     expect(extractPokemonFromOcr(RICO.sealeo).collectorNumber).toBe("021/094");
   });
 
@@ -115,7 +116,7 @@ describe("extractPokemonFromOcr", () => {
   it("classifies basic energy and stadium + number", () => {
     expect(extractPokemonFromOcr(RICO.energy).name).toBe("Basic Energy");
     const stadium = extractPokemonFromOcr(RICO.stadium);
-    expect(stadium.name).toBe("Stadium");
+    expect(stadium.name).toBe("Battle Cage");
     expect(stadium.collectorNumber).toBe("085/094");
   });
 

@@ -65,6 +65,34 @@ describe("TcgdexCatalogAdapter", () => {
     expect(cards[0]?.collectorNumber).toBe("4");
   });
 
+  it("retries without localId when name+number returns no cards", async () => {
+    const urls: string[] = [];
+    const adapter = createTcgdexCatalogAdapter({
+      fetch: async (url) => {
+        urls.push(url);
+        const empty = url.includes("localId");
+        return {
+          ok: true,
+          headers: { get: () => "application/json" },
+          text: async () =>
+            empty
+              ? "[]"
+              : JSON.stringify([{ id: "me02-021", name: "Seel", localId: "021" }]),
+        };
+      },
+    });
+    const cards = await adapter.search({
+      text: "Seel 021/094",
+      category: "pokemon",
+      nameHint: "Seel",
+      collectorNumber: "021/094",
+    });
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toContain("localId");
+    expect(urls[1]).not.toContain("localId");
+    expect(cards[0]?.externalIds[0]?.value).toBe("me02-021");
+  });
+
   it("skips non-pokemon queries and snapshots via fetchRaw", async () => {
     let called = 0;
     const adapter = createTcgdexCatalogAdapter({

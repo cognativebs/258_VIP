@@ -48,6 +48,7 @@ export const ATTACK_NAME_HINTS: Readonly<Record<string, string>> = {
   "prison panic": "Brambleghast",
   "electric run": "Boltund",
   "iron buster": "Escavalier",
-  "bubble drain": "Sealeo",
+  "bashing through thick ice": "Seel",
+  "damage counters from being placed on benched": "Battle Cage",
   "coated attack": "Archaludon",
 };

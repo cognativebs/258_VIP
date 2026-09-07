@@ -153,14 +153,36 @@ export async function fetchTcgdexRaw(
     collectorNumber: query.collectorNumber,
   });
   if (!terms.name) return null;
-  const params = new URLSearchParams({ name: terms.name });
-  if (terms.localId) params.set("localId", terms.localId);
+  const first = await fetchTcgdexCards(fetchImpl, terms.name, terms.localId);
+  if (!first) return null;
+  if (terms.localId && isEmptyCardPayload(first.payload)) {
+    const retry = await fetchTcgdexCards(fetchImpl, terms.name, undefined);
+    if (retry) return retry;
+  }
+  return first;
+}
+
+function isEmptyCardPayload(payload: string): boolean {
+  try {
+    const rows = JSON.parse(payload) as unknown;
+    return Array.isArray(rows) && rows.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchTcgdexCards(
+  fetchImpl: TcgdexFetch,
+  name: string,
+  localId?: string,
+): Promise<CatalogRawResponse | null> {
+  const params = new URLSearchParams({ name });
+  if (localId) params.set("localId", localId);
   const url = `${TCGDEX}/cards?${params.toString()}`;
   const res = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!res.ok) return null;
-  const payload = await res.text();
   return {
-    payload,
+    payload: await res.text(),
     contentType: res.headers.get("content-type") ?? "application/json",
   };
 }

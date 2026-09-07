@@ -127,7 +127,7 @@ function parseCollectorPairs(text: string): Array<{ local: string; printed: stri
 }
 
 function parsePokedexNumber(text: string): number | null {
-  const matches = [...text.matchAll(/\bno[.\s_]+0*(\d{1,4})\b/gi)];
+  const matches = [...text.matchAll(/\bno[.\s_]+0*(\d{1,4})(?![0-9])/gi)];
   for (const m of matches.reverse()) {
     const n = Number(m[1]);
     if (n >= 1 && n <= 1025 && SPECIES_BY_DEX[n]) return n;
@@ -225,10 +225,18 @@ export function extractPokemonFromOcr(text: string): PokemonOcrExtract {
     name = attack;
     methods.push(`attack:${attack}`);
     confidence = 0.62;
+  } else if (/\bbasic\b.{0,16}\b(grass|fire|water|lightning|psychic|fighting|darkness|metal|fairy|dragon)\b.{0,8}\benergy\b/.test(folded)) {
+    const typed = folded.match(
+      /\bbasic\b.{0,16}\b(grass|fire|water|lightning|psychic|fighting|darkness|metal|fairy|dragon)\b.{0,8}\benergy\b/,
+    )!;
+    const type = typed[1]!;
+    name = `${type[0]!.toUpperCase()}${type.slice(1)} Energy`;
+    methods.push(`title:${name}`);
+    confidence = 0.7;
   } else if (/\bbasic\b.{0,24}\benergy\b/.test(folded)) {
     name = "Basic Energy";
     methods.push("title:Basic Energy");
-    confidence = 0.7;
+    confidence = 0.55;
   } else if (/\bstadium\b/.test(folded) && collectorNumber) {
     name = "Stadium";
     methods.push("title:Stadium");

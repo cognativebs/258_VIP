@@ -22,9 +22,10 @@ export function shouldPersistIdentification(
     return result.outcomes.some((o) => o.status === "ok" && o.called);
   }
   if (!real.some((o) => o.status === "ok")) return false;
-  if (result.candidates.length === 0) {
-    return Boolean(query?.nameHint?.trim() || query?.collectorNumber?.trim());
-  }
+  // Empty miss must not freeze "unknown" on this hash — OCR extract and
+  // TCGdex coverage both move. Same-bytes replay still applies when we
+  // actually had candidates.
+  if (result.candidates.length === 0) return false;
   return true;
 }
 

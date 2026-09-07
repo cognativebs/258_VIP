@@ -56,13 +56,13 @@ describe("shouldPersistIdentification", () => {
     ).toBe(false);
   });
 
-  it("persists an empty miss when structured evidence produced a name", () => {
+  it("does not persist an empty miss even when a name was queried", () => {
     expect(
       shouldPersistIdentification(
         result([{ adapterId: "tcgdex", status: "ok", cardCount: 0, elapsedMs: 10, called: true }]),
         { nameHint: "Linoone" },
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not persist a TCGdex timeout", () => {
