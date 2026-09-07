@@ -63,4 +63,15 @@ export const FIXTURE_CATALOG: CatalogCard[] = [
     searchText: "black lotus alpha mtg magic the gathering",
     externalIds: [{ source: "scryfall", value: "lea-black-lotus" }],
   },
+  {
+    catalogKey: "one_piece:op01:001:luffy",
+    category: "one_piece",
+    displayName: "Monkey D. Luffy",
+    setName: "Romance Dawn",
+    collectorNumber: "OP01-003",
+    playerOrCharacter: "Monkey D. Luffy",
+    year: 2022,
+    searchText: "monkey d luffy romance dawn op01-003 one piece bandai",
+    externalIds: [{ source: "onepiece", value: "OP01-003" }],
+  },
 ];

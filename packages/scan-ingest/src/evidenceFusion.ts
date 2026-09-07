@@ -92,6 +92,10 @@ export function isCompleteFields(f: CardIdentityFields): boolean {
   const words = f.playerOrCharacter.value
     ? f.playerOrCharacter.value.split(/\s+/).length
     : 0;
+  const category = (f.category.value ?? "sports").toLowerCase();
+  if (category === "pokemon" || category === "mtg" || category === "one_piece") {
+    return Boolean(f.playerOrCharacter.value && f.collectorNumber.value && words >= 1);
+  }
   return Boolean(
     f.year.value &&
       (f.brand.value || f.manufacturer.value) &&
@@ -103,11 +107,14 @@ export function isCompleteFields(f: CardIdentityFields): boolean {
 export function fieldsFromStructuredOcr(
   extract: StructuredOcrExtract,
   origin: EvidenceOrigin,
+  category: string = "sports",
   confidence = OCR_FIELD_CONFIDENCE,
 ): CardIdentityFields {
   const empty = unknownField(origin);
   return {
-    category: extract.player || extract.year ? field("sports", 0.5, origin) : empty,
+    category: extract.player || extract.year || extract.number
+      ? field(category, 0.5, origin)
+      : empty,
     playerOrCharacter: extract.player ? field(extract.player, confidence, origin) : empty,
     year: extract.year ? field(String(extract.year), confidence, origin) : empty,
     manufacturer: extract.manufacturer

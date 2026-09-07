@@ -77,6 +77,12 @@ curl -s -X POST localhost:8787/api/scan/import-folder \
   -d '{"folder":"ricoh-v1-fixture","categoryHint":"sports","pairing":"filename_front_back","scannerProfile":"004_Cards"}'
 ```
 
+Pick a **category / vertical** on `/scan` before processing. Sports vs TCG
+use different OCR profiles (ADR 0011). Football, Baseball, Soccer, Basketball,
+Pokémon, Magic, and One Piece each have their own number grammar, stop words,
+and completeness rules. A generic Sports or TCG hint is allowed; the pipeline
+may infer a vertical from tokens and marks that inference unverified.
+
 Identification is image-driven: Tesseract reads front and back pixels, then
 year / brand / player / number are parsed and fused. Generic `IMG_####` names
 are ignored. If OCR is too weak and `OPENAI_API_KEY` is set, a structured

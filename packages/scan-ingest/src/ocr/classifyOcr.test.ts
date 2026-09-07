@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   classifyOcrLine,
   extractStructuredFromOcr,
+  privilegedOcrIsComplete,
   spansFromTextBlock,
 } from "./classifyOcr.js";
+import { getOcrProfile } from "./profiles.js";
 
 describe("classifyOcrLine", () => {
   it("does not treat biography prose as a title", () => {
@@ -67,5 +69,42 @@ describe("extractStructuredFromOcr", () => {
     expect(extract.year).toBe(1986);
     expect(extract.manufacturer).toBe("Topps");
     expect(extract.number).toBe("57");
+  });
+});
+
+describe("profile-aware OCR", () => {
+  it("treats Pokémon attack text as body and keeps HP out of the number", () => {
+    const pokemon = getOcrProfile("pokemon");
+    expect(classifyOcrLine("Flip a coin. If heads, this Pokemon is", pokemon)).toBe("body");
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Charizard\n4/102\n120 HP\nThe Pokémon Company", pokemon),
+      pokemon,
+    );
+    expect(extract.player).toMatch(/Charizard/i);
+    expect(extract.number).toBe("4/102");
+    expect(privilegedOcrIsComplete(extract, pokemon)).toBe(true);
+  });
+
+  it("does not require a year for a complete TCG extract", () => {
+    const mtg = getOcrProfile("mtg");
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Black Lotus\nLEA 232\nWizards of the Coast", mtg),
+      mtg,
+    );
+    expect(extract.player).toMatch(/Black Lotus/i);
+    expect(extract.number).toBe("LEA 232");
+    expect(extract.year).toBeNull();
+    expect(privilegedOcrIsComplete(extract, mtg)).toBe(true);
+  });
+
+  it("reads One Piece OP-set numbers and ignores DON/Life lines", () => {
+    const op = getOcrProfile("one_piece");
+    expect(classifyOcrLine("DON!! 2 Give this Leader +2000 power", op)).toBe("body");
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Monkey D Luffy\nOP01-003\nBandai One Piece", op),
+      op,
+    );
+    expect(extract.player).toMatch(/Luffy/i);
+    expect(extract.number).toBe("OP01-003");
   });
 });

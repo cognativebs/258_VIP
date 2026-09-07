@@ -186,6 +186,7 @@ export function batchInputFromPages(
   opts: {
     pairing?: FolderWatchConfig["pairing"];
     categoryHint?: ScanBatchInput["categoryHint"];
+    verticalHint?: ScanBatchInput["verticalHint"];
     notes?: string;
     tenantId?: string | null;
     device?: string;
@@ -201,6 +202,7 @@ export function batchInputFromPages(
     purpose: "inventory_intake",
     qualityTier: "intake",
     categoryHint: opts.categoryHint ?? null,
+    verticalHint: opts.verticalHint ?? null,
     tenantId: opts.tenantId ?? null,
     notes: opts.notes,
     units,

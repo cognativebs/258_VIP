@@ -23,10 +23,15 @@ import {
   type StagedUnit,
 } from "@/lib/scanApi";
 
-const CATEGORIES: Array<{ id: ScanCategory; label: string }> = [
-  { id: "sports", label: "Sports cards" },
-  { id: "pokemon", label: "Pokemon TCG" },
-  { id: "mtg", label: "Magic: The Gathering" },
+const CATEGORIES: Array<{ id: ScanCategory; label: string; group: string }> = [
+  { id: "sports", label: "Sports (generic)", group: "Sports" },
+  { id: "football", label: "Football", group: "Sports" },
+  { id: "baseball", label: "Baseball", group: "Sports" },
+  { id: "soccer", label: "Soccer", group: "Sports" },
+  { id: "basketball", label: "Basketball", group: "Sports" },
+  { id: "pokemon", label: "Pokémon", group: "TCG" },
+  { id: "mtg", label: "Magic: The Gathering", group: "TCG" },
+  { id: "one_piece", label: "One Piece", group: "TCG" },
 ];
 
 const BAND_COPY: Record<string, { label: string; className: string }> = {
@@ -534,12 +539,26 @@ export function ScanIntake() {
             onChange={(e) => setCategory(e.target.value as ScanCategory)}
             disabled={busy}
           >
-            {CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
+            <optgroup label="Sports">
+              {CATEGORIES.filter((c) => c.group === "Sports").map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="TCG">
+              {CATEGORIES.filter((c) => c.group === "TCG").map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
+          <span className="muted" style={{ fontSize: 12 }}>
+            Profile selects identifying mechanics (number formats, stop words,
+            completeness). Sports vs TCG are different engines; Football /
+            Baseball / Soccer / Basketball refine teams and brands.
+          </span>
         </label>
 
         <label className="scan-field">

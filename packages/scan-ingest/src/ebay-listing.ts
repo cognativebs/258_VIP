@@ -115,6 +115,8 @@ export function categoryToEbayLeafHint(category: ScanCategory): string {
       return "183050"; // Toys & Hobbies > Collectible Card Games > Pokémon
     case "mtg":
       return "19107";
+    case "one_piece":
+      return "183454"; // Toys & Hobbies > Collectible Card Games > One Piece
     case "sports":
       return "212"; // Sports Mem, Cards & Fan Shop > Sports Trading Cards
     default:

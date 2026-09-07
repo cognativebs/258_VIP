@@ -13,6 +13,7 @@ import {
   type EbayListingCredentials,
 } from "./ebay-listing.js";
 import { identifyUnit } from "./identify.js";
+import { resolveOcrProfile } from "./ocr/profiles.js";
 import type {
   CatalogCard,
   ConfirmUnitRequest,
@@ -111,12 +112,23 @@ export function openScanBatch(
       unitId,
     });
 
+    const resolved = resolveOcrProfile({
+      hint:
+        unitIn.verticalHint ??
+        parsed.verticalHint ??
+        unitIn.categoryHint ??
+        parsed.categoryHint,
+      evidenceText: ocrText,
+    });
+
     const base: ScanUnit = {
       id: unitId,
       batchId,
       unitIndex: unitIn.unitIndex,
       status: "captured",
-      categoryHint: unitIn.categoryHint ?? parsed.categoryHint ?? null,
+      categoryHint: resolved.resolved.category,
+      verticalHint: resolved.resolved.vertical,
+      ocrProfileId: resolved.profile.id,
       frontStorageRef: unitIn.front.storageRef,
       frontContentHash: unitIn.front.contentHash,
       backStorageRef: unitIn.back?.storageRef ?? null,
@@ -144,6 +156,7 @@ export function openScanBatch(
     const candidates = identifyUnit(base, {
       catalog: deps.catalog,
       categoryHint: base.categoryHint,
+      verticalHint: base.verticalHint,
     });
     base.candidates = candidates;
     base.status = candidates.length > 0 ? "identified" : "needs_review";
@@ -166,7 +179,12 @@ export function openScanBatch(
     device: parsed.device || RICOH_FI8170_DEVICE,
     purpose: parsed.purpose,
     qualityTier: parsed.qualityTier,
-    categoryHint: parsed.categoryHint ?? null,
+    categoryHint:
+      units[0]?.categoryHint ??
+      resolveOcrProfile({
+        hint: parsed.verticalHint ?? parsed.categoryHint,
+      }).resolved.category,
+    verticalHint: parsed.verticalHint ?? units[0]?.verticalHint ?? null,
     tenantId: parsed.tenantId ?? null,
     notes: parsed.notes,
     status: units.some((u) => u.status === "needs_review" || u.status === "duplicate_alert")

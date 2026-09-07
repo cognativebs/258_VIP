@@ -5,14 +5,17 @@ import type { CatalogAdapter, CatalogQuery } from "./catalog/types.js";
 import type {
   CatalogCard,
   IdentityCandidate,
-  ScanCategory,
   ScanUnit,
+  ScanVertical,
 } from "./schemas.js";
+import { resolveOcrProfile } from "./ocr/profiles.js";
 import { sportsParsedCandidate } from "./sportsIdentity.js";
+import { tcgParsedCandidate } from "./tcgIdentity.js";
 
 export type IdentifyOptions = {
   catalog?: CatalogCard[];
   categoryHint?: ScanCategory | null;
+  verticalHint?: ScanVertical | null;
   /** Max candidates returned (ranked). */
   limit?: number;
   /** Exact ids read from a barcode / QR, when the capture provides them. */
@@ -21,7 +24,7 @@ export type IdentifyOptions = {
 
 type IdentifyInput = Pick<
   ScanUnit,
-  "ocrText" | "frontStorageRef" | "categoryHint"
+  "ocrText" | "frontStorageRef" | "categoryHint" | "verticalHint"
 >;
 
 /** PaperStream default names carry no identity — do not score them. */
@@ -41,9 +44,13 @@ export function buildCatalogQuery(
   unit: IdentifyInput,
   opts: IdentifyOptions = {},
 ): CatalogQuery {
+  const resolved = resolveOcrProfile({
+    hint: opts.verticalHint ?? unit.verticalHint ?? opts.categoryHint ?? unit.categoryHint,
+    evidenceText: queryTextFor(unit),
+  });
   return {
     text: queryTextFor(unit),
-    category: opts.categoryHint ?? unit.categoryHint ?? null,
+    category: resolved.resolved.category,
     externalIds: opts.externalIds ?? [],
     limit: opts.limit ?? 5,
   };
@@ -58,8 +65,12 @@ export function identifyUnit(
   opts: IdentifyOptions = {},
 ): IdentityCandidate[] {
   const catalog = opts.catalog ?? FIXTURE_CATALOG;
-  const hint = opts.categoryHint ?? unit.categoryHint ?? null;
   const query = queryTextFor(unit);
+  const resolved = resolveOcrProfile({
+    hint: opts.verticalHint ?? unit.verticalHint ?? opts.categoryHint ?? unit.categoryHint,
+    evidenceText: query,
+  });
+  const hint = resolved.resolved.category;
   const externalIds = opts.externalIds ?? [];
 
   if (!query && externalIds.length === 0) {
@@ -72,7 +83,7 @@ export function identifyUnit(
     externalIds,
     opts.limit ?? 5,
   );
-  return withSportsParse(ranked, query, hint, opts.limit ?? 5);
+  return withParsedIdentity(ranked, query, resolved.resolved.family, resolved.resolved.vertical, opts.limit ?? 5);
 }
 
 /**
@@ -93,23 +104,31 @@ export async function identifyUnitWithAdapter(
     query.externalIds ?? [],
     query.limit ?? 5,
   );
-  return withSportsParse(
+  const resolved = resolveOcrProfile({
+    hint: opts.verticalHint ?? unit.verticalHint ?? opts.categoryHint ?? unit.categoryHint ?? query.category,
+    evidenceText: query.text,
+  });
+  return withParsedIdentity(
     ranked,
     query.text,
-    opts.categoryHint ?? unit.categoryHint ?? query.category ?? null,
+    resolved.resolved.family,
+    resolved.resolved.vertical,
     query.limit ?? 5,
   );
 }
 
-function withSportsParse(
+function withParsedIdentity(
   ranked: IdentityCandidate[],
   query: string,
-  hint: ScanCategory | null,
+  family: "sports" | "tcg",
+  vertical: ScanVertical | null,
   limit: number,
 ): IdentityCandidate[] {
-  const sportsHint = !hint || hint === "sports";
-  if (!sportsHint || !query) return ranked;
-  const parsed = sportsParsedCandidate(query);
+  if (!query) return ranked;
+  const parsed =
+    family === "tcg"
+      ? tcgParsedCandidate(query, vertical)
+      : sportsParsedCandidate(query);
   if (!parsed) return ranked;
   const already = ranked.some(
     (c) =>

@@ -12,6 +12,7 @@ export {
 
 export {
   ScanCategorySchema,
+  ScanVerticalSchema,
   ScanUnitStatusSchema,
   ScanPageInputSchema,
   ScanUnitInputSchema,
@@ -29,6 +30,7 @@ export {
   InventoryLookupRowSchema,
   CatalogCardSchema,
   type ScanCategory,
+  type ScanVertical,
   type ScanUnitStatus,
   type ScanPageInput,
   type ScanUnitInput,
@@ -96,6 +98,37 @@ export {
   SPORTS_PARSE_RULE,
 } from "./sportsIdentity.js";
 export {
+  parseTcgIdentity,
+  tcgParsedCandidate,
+  TCG_PARSE_RULE,
+} from "./tcgIdentity.js";
+export {
+  OCR_PROFILE_RULE,
+  OCR_PROFILES,
+  OCR_PROFILE_OPTIONS,
+  ScanFamilySchema,
+  OcrProfileIdSchema,
+  ScanCategoryHintSchema,
+  OcrEngineSettingsSchema,
+  OcrTitleRuleSchema,
+  OcrCompletenessRuleSchema,
+  ResolvedScanProfileSchema,
+  getOcrProfile,
+  defaultOcrProfile,
+  resolveScanProfileHint,
+  detectVerticalFromText,
+  resolveOcrProfile,
+  inventoryCategoryFor,
+  type ScanFamily,
+  type OcrProfileId,
+  type ScanCategoryHint,
+  type OcrEngineSettings,
+  type OcrTitleRule,
+  type OcrCompletenessRule,
+  type ResolvedScanProfile,
+  type OcrProfile,
+} from "./ocr/profiles.js";
+export {
   FolderWatchAdapter,
   pairPagesIntoUnits,
   batchInputFromPages,
@@ -116,6 +149,7 @@ export {
   classifyOcrLine,
   classifyOcrSpans,
   extractStructuredFromOcr,
+  privilegedOcrIsComplete,
   spansFromTextBlock,
 } from "./ocr/classifyOcr.js";
 export {

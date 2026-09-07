@@ -799,9 +799,13 @@ export async function editStagedUnit(
     return { ok: false, status: 400, error: "Card is already resolved — edit is only for staged cards" };
   }
 
-  const category = (unit.category_hint === "pokemon" || unit.category_hint === "mtg"
-    ? unit.category_hint
-    : "sports") as "sports" | "pokemon" | "mtg";
+  const category = (
+    unit.category_hint === "pokemon" ||
+    unit.category_hint === "mtg" ||
+    unit.category_hint === "one_piece"
+      ? unit.category_hint
+      : "sports"
+  ) as "sports" | "pokemon" | "mtg" | "one_piece";
   const setish = parsed.setName ?? parsed.brand ?? null;
   const displayName = [
     parsed.year,

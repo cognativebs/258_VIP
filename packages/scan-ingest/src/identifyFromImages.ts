@@ -10,13 +10,15 @@ import {
 } from "./evidenceFusion.js";
 import { identifyUnit, isGenericScanFileName } from "./identify.js";
 import {
+  classifyOcrSpans,
   extractStructuredFromOcr,
   privilegedOcrIsComplete,
   spansFromTextBlock,
   type OcrSpan,
 } from "./ocr/classifyOcr.js";
 import { ocrImageFile, type OcrResult } from "./ocr/tesseractOcr.js";
-import type { IdentityCandidate, ScanCategory } from "./schemas.js";
+import type { IdentityCandidate, ScanCategory, ScanVertical } from "./schemas.js";
+import { resolveOcrProfile, type OcrProfile } from "./ocr/profiles.js";
 import {
   extractVisionEvidence,
   shouldRunVision,
@@ -45,8 +47,12 @@ const EMPTY_OCR: OcrResult = {
   spans: [],
 };
 
-function mergeSpans(primary: OcrSpan[], extraText: string | undefined): OcrSpan[] {
-  return [...primary, ...spansFromTextBlock(extraText ?? "")];
+function mergeSpans(
+  primary: OcrSpan[],
+  extraText: string | undefined,
+  profile: OcrProfile,
+): OcrSpan[] {
+  return [...primary, ...spansFromTextBlock(extraText ?? "", profile)];
 }
 
 function applyCatalogFill(
@@ -107,10 +113,10 @@ function whyWon(
       ? "structured evidence produced a query but no candidate ranked"
       : "no privileged OCR/vision fields; unknown is valid";
   }
-  if (winner.catalogKey.startsWith("sports:parsed:")) {
+  if (winner.catalogKey.includes(":parsed:")) {
     return usedVision
-      ? "vision observed fields + privileged OCR; sports-parsed candidate from structured query (not a catalog fabrication)"
-      : "privileged OCR/filename fields; sports-parsed candidate from structured query (not a catalog fabrication)";
+      ? "vision observed fields + privileged OCR; profile-parsed candidate from structured query (not a catalog fabrication)"
+      : "privileged OCR/filename fields; profile-parsed candidate from structured query (not a catalog fabrication)";
   }
   return `catalog ${winner.catalogKey} agreed with observed year/number/player`;
 }
@@ -163,14 +169,21 @@ export async function identifyFromPairedImages(input: {
   frontFileName?: string;
   backFileName?: string;
   categoryHint?: ScanCategory | null;
+  verticalHint?: ScanVertical | null;
   /** Test hook — skip file OCR. */
   ocrOverride?: { front: OcrResult; back: OcrResult };
 }): Promise<ImageIdResult> {
   const notes: string[] = [];
-  const frontOcr = input.ocrOverride?.front ?? (await ocrImageFile(input.frontPath, input.frontHash));
+  const hinted = resolveOcrProfile({
+    hint: input.verticalHint ?? input.categoryHint,
+  });
+  let profile = hinted.profile;
+  const frontOcr =
+    input.ocrOverride?.front ??
+    (await ocrImageFile(input.frontPath, input.frontHash, profile));
   const backOcr = input.ocrOverride?.back
     ?? (input.backPath
-      ? await ocrImageFile(input.backPath, input.backHash)
+      ? await ocrImageFile(input.backPath, input.backHash, profile)
       : EMPTY_OCR);
 
   if (frontOcr.engine === "unavailable" && backOcr.engine === "unavailable") {
@@ -182,19 +195,45 @@ export async function identifyFromPairedImages(input: {
   const frontFile = isGenericScanFileName(frontName) ? "" : frontName;
   const backFile = isGenericScanFileName(backName) ? "" : backName;
 
-  const frontSpans = mergeSpans(frontOcr.spans, input.sidecarFront);
-  const backSpans = mergeSpans(backOcr.spans, input.sidecarBack);
-  const frontExtract = extractStructuredFromOcr(frontSpans);
-  const backExtract = extractStructuredFromOcr(backSpans);
+  const evidenceText = [frontOcr.text, backOcr.text, input.sidecarFront, input.sidecarBack]
+    .filter(Boolean)
+    .join("\n");
+  const refined = resolveOcrProfile({
+    hint: input.verticalHint ?? input.categoryHint,
+    evidenceText,
+  });
+  profile = refined.profile;
+  notes.push(
+    `ocr_profile:${profile.id} source=${refined.resolved.source} family=${profile.family}`,
+  );
+
+  const frontSpans = classifyOcrSpans(
+    mergeSpans(frontOcr.spans, input.sidecarFront, profile).map((s) => ({
+      text: s.text,
+      bbox: s.bbox,
+      confidence: s.confidence,
+    })),
+    profile,
+  );
+  const backSpans = classifyOcrSpans(
+    mergeSpans(backOcr.spans, input.sidecarBack, profile).map((s) => ({
+      text: s.text,
+      bbox: s.bbox,
+      confidence: s.confidence,
+    })),
+    profile,
+  );
+  const frontExtract = extractStructuredFromOcr(frontSpans, profile);
+  const backExtract = extractStructuredFromOcr(backSpans, profile);
 
   let evidence = fuseIdentitySides({
-    front: fieldsFromStructuredOcr(frontExtract, "front_ocr"),
-    back: fieldsFromStructuredOcr(backExtract, "back_ocr"),
+    front: fieldsFromStructuredOcr(frontExtract, "front_ocr", profile.category),
+    back: fieldsFromStructuredOcr(backExtract, "back_ocr", profile.category),
   });
 
   const privilegedComplete =
-    privilegedOcrIsComplete(frontExtract) ||
-    privilegedOcrIsComplete(backExtract);
+    privilegedOcrIsComplete(frontExtract, profile) ||
+    privilegedOcrIsComplete(backExtract, profile);
 
   let usedVision = false;
   let visionModel = "";
@@ -254,9 +293,10 @@ export async function identifyFromPairedImages(input: {
     {
       ocrText: query,
       frontStorageRef: frontName,
-      categoryHint: input.categoryHint ?? null,
+      categoryHint: profile.category,
+      verticalHint: profile.vertical,
     },
-    { catalog: [], categoryHint: input.categoryHint ?? null },
+    { catalog: [], categoryHint: profile.category, verticalHint: profile.vertical },
   );
 
   evidence = {

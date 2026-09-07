@@ -3,8 +3,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import {
   FolderWatchAdapter,
+  inventoryCategoryFor,
   type PairingStrategy,
-  type ScanCategory,
 } from "@vip/scan-ingest";
 
 /**
@@ -147,7 +147,7 @@ export async function readOcrSidecar(imagePath: string): Promise<string | null> 
 
 export type ImportFolderRequest = {
   folder?: string | null;
-  categoryHint?: ScanCategory | null;
+  categoryHint?: string | null;
   pairing?: PairingStrategy;
   notes?: string;
   maxFiles?: number;
@@ -198,7 +198,7 @@ export async function importFolderPages(
   const adapter = new FolderWatchAdapter({
     rootLabel: resolved.path,
     pairing: req.pairing ?? "sequential_duplex",
-    categoryHint: req.categoryHint ?? null,
+    categoryHint: inventoryCategoryFor(req.categoryHint),
   });
   const pages = adapter.ingestDescriptors(
     files.map((f) => ({

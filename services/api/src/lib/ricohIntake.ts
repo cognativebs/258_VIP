@@ -20,6 +20,7 @@ import {
   pairPagesForReview,
   policyFromEnv,
   readImageMeta,
+  resolveOcrProfile,
   routeReview,
   thresholdsFromEnv,
   type DevicePage,
@@ -95,7 +96,7 @@ async function knownFrontHashes(excludeBatchId: string): Promise<Set<string>> {
 
 export type RicohIntakeRequest = {
   folder?: string | null;
-  categoryHint?: "sports" | "pokemon" | "mtg" | null;
+  categoryHint?: string | null;
   notes?: string;
   source?: string;
   scannerProfile?: string;
@@ -132,9 +133,12 @@ export async function ingestRicohBatch(
   const t0 = Date.now();
   const source = req.source?.trim() || DEFAULT_SCAN_SOURCE;
   const scannerProfile = req.scannerProfile?.trim() || DEFAULT_SCANNER_PROFILE;
+  const profileResolved = resolveOcrProfile({
+    hint: req.categoryHint ?? "sports",
+  });
   const imported = await importFolderPages({
     folder: req.folder ?? null,
-    categoryHint: req.categoryHint ?? "sports",
+    categoryHint: profileResolved.resolved.category,
     pairing:
       req.pairing === "filename_front_back" ? "filename_front_back" : "sequential_duplex",
     notes: req.notes,
@@ -152,7 +156,7 @@ export async function ingestRicohBatch(
   const adapter = new FolderWatchAdapter({
     rootLabel: imported.folder,
     pairing: "sequential_duplex",
-    categoryHint: req.categoryHint ?? "sports",
+    categoryHint: profileResolved.resolved.category,
   });
   const pages: DevicePage[] = adapter
     .ingestDescriptors(
@@ -168,7 +172,7 @@ export async function ingestRicohBatch(
 
   const pairing = pairPagesForReview(pages, {
     strategy: req.pairing ?? "auto",
-    categoryHint: req.categoryHint ?? "sports",
+    categoryHint: profileResolved.resolved.category,
   });
 
   const opened = openScanFromApi({
@@ -232,7 +236,8 @@ export async function ingestRicohBatch(
         sidecarBack: backSrc ? sidecarSync(backSrc) : "",
         frontFileName: basename(frontSrc),
         backFileName: backSrc ? basename(backSrc) : "",
-        categoryHint: req.categoryHint ?? "sports",
+        categoryHint: profileResolved.resolved.category,
+        verticalHint: profileResolved.resolved.vertical,
       });
       const evidence = pixelId.evidence;
       visionCostUsd += pixelId.estimatedCostUsd;

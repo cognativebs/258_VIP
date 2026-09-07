@@ -8,9 +8,21 @@ import {
 } from "@vip/core-model";
 import { ProvenanceSchema } from "@vip/evidence";
 
-/** Supported card categories for this intake path. */
-export const ScanCategorySchema = z.enum(["sports", "pokemon", "mtg"]);
+/** Inventory buckets for this intake path. Vertical OCR lives in `ocr/profiles`. */
+export const ScanCategorySchema = z.enum(["sports", "pokemon", "mtg", "one_piece"]);
 export type ScanCategory = z.infer<typeof ScanCategorySchema>;
+
+/** Sport / TCG vertical used to select an OCR + identity profile. */
+export const ScanVerticalSchema = z.enum([
+  "football",
+  "baseball",
+  "soccer",
+  "basketball",
+  "pokemon",
+  "mtg",
+  "one_piece",
+]);
+export type ScanVertical = z.infer<typeof ScanVerticalSchema>;
 
 export const ScanUnitStatusSchema = z.enum([
   "captured",
@@ -45,6 +57,8 @@ export const ScanUnitInputSchema = z.object({
   front: ScanPageInputSchema,
   back: ScanPageInputSchema.optional(),
   categoryHint: ScanCategorySchema.nullable().optional(),
+  /** Finer OCR/identity profile (football, pokemon, …). */
+  verticalHint: ScanVerticalSchema.nullable().optional(),
 });
 export type ScanUnitInput = z.infer<typeof ScanUnitInputSchema>;
 
@@ -53,6 +67,7 @@ export const ScanBatchInputSchema = z.object({
   purpose: CapturePurposeSchema.default("inventory_intake"),
   qualityTier: CaptureQualityTierSchema.default("intake"),
   categoryHint: ScanCategorySchema.nullable().optional(),
+  verticalHint: ScanVerticalSchema.nullable().optional(),
   tenantId: UuidSchema.nullable().optional(),
   /** Operator notes for the batch. */
   notes: z.string().optional(),
@@ -110,6 +125,8 @@ export const ScanUnitSchema = z.object({
   unitIndex: z.number().int().nonnegative(),
   status: ScanUnitStatusSchema,
   categoryHint: ScanCategorySchema.nullable().optional(),
+  verticalHint: ScanVerticalSchema.nullable().optional(),
+  ocrProfileId: z.string().min(1).nullable().optional(),
   frontStorageRef: z.string().min(1),
   frontContentHash: z.string().min(1),
   backStorageRef: z.string().nullable().optional(),
@@ -141,6 +158,7 @@ export const ScanBatchSchema = z.object({
   purpose: CapturePurposeSchema,
   qualityTier: CaptureQualityTierSchema,
   categoryHint: ScanCategorySchema.nullable().optional(),
+  verticalHint: ScanVerticalSchema.nullable().optional(),
   tenantId: UuidSchema.nullable().optional(),
   notes: z.string().optional(),
   status: z.enum(["open", "review", "closed"]),
