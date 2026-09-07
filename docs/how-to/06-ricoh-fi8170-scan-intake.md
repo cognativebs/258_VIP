@@ -120,6 +120,18 @@ confirm that batch.
 
 ## Where to review uncertain cards
 
+After a Pokémon or Magic lot is staged, score the plan 0001 gates on the
+same machine that ran IQVault (this cloud VM cannot see a desktop Postgres):
+
+```bash
+curl -s localhost:8787/api/scan/identification-gate
+python scripts/score_scan_identification.py
+```
+
+Phase 1 needs 25 Pokémon units, a `tcgdex` id on every candidate, top-1 ≥ 80%.
+Phase 2 needs 25 Magic units, a `scryfall` id on every candidate, top-1 ≥ 85%.
+Accuracy is counted only after confirm/correct in Review (`id_observation.was_correct`).
+
 **IQVault → Scan → Review queue** (`/scan`).
 
 Front and back render together. Routes:
