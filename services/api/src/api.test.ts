@@ -49,6 +49,10 @@ afterEach(() => {
     delete process.env.VIP_INCLUDE_POKEMON_SEEDS;
     delete process.env.EBAY_DELETION_VERIFICATION_TOKEN;
     delete process.env.EBAY_DELETION_ENDPOINT_URL;
+    delete process.env.VIP_CATALOG_FIXTURE;
+    delete process.env.VIP_CATALOG_TCGDEX;
+    delete process.env.VIP_CATALOG_SCRYFALL;
+    delete process.env.VIP_CATALOG_PG_ASSETS;
     resetScanStoreForTests();
 });
 
@@ -575,6 +579,11 @@ describe("VIP API", () => {
   });
 
   it("POST /api/scan/units/:id/confirm returns 409 until duplicates are acknowledged", async () => {
+    process.env.VIP_CATALOG_FIXTURE = "1";
+    process.env.VIP_CATALOG_TCGDEX = "0";
+    process.env.VIP_CATALOG_SCRYFALL = "0";
+    process.env.VIP_CATALOG_PG_ASSETS = "0";
+    resetScanStoreForTests();
     await withServer(async (base) => {
       const open = await fetch(`${base}/api/scan/batches`, {
         method: "POST",
