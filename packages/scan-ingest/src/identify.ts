@@ -5,6 +5,7 @@ import type { CatalogAdapter, CatalogQuery } from "./catalog/types.js";
 import type {
   CatalogCard,
   IdentityCandidate,
+  ScanCategory,
   ScanUnit,
   ScanVertical,
 } from "./schemas.js";

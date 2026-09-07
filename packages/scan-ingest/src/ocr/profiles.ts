@@ -195,7 +195,7 @@ const BASKETBALL_TEAMS =
 const POKEMON_BODY =
   /\b(weakness|resistance|retreat|attack|damage|flip a coin|this pokemon|your opponent|bench|prize|ability|poke[- ]?power|poke[- ]?body|during your|knocked out)\b/i;
 const POKEMON_COPY =
-  /\b(copyright|©|\(c\)|the pokemon company|nintendo|creatures|game freak|pokemon)\b/i;
+  /\b(copyright|©|\(c\)|the pok[eé]mon company|nintendo|creatures|game freak)\b/i;
 const POKEMON_PRODUCT =
   /\b(pokemon|pok[eé]mon|scarlet|violet|base set|jungle|fossil|sword|shield|sun|moon|ex|gx|vmax|vstar|promo|svp)\b/i;
 const POKEMON_LABELED =
@@ -219,7 +219,7 @@ const OP_BODY =
 const OP_COPY =
   /\b(copyright|©|\(c\)|bandai|fuji television|shueisha|toei|one piece)\b/i;
 const OP_PRODUCT =
-  /\b(one piece|bandai|romance dawn|paramount war|pillars of strength|awakening|leader|character|event|stage)\b/i;
+  /\b(one piece|bandai|romance dawn|paramount war|pillars of strength|awakening of the new era)\b/i;
 const OP_LABELED = /(?:no\.?|#)\s*((?:OP|ST|EB|PR|P)\d{1,2}-\d{3})\b/i;
 const OP_NUMBER = /\b((?:OP|ST|EB|PR|P)\d{1,2}-\d{3})\b/i;
 const OP_REJECT = /\b(life|power|don)\s*\d{1,4}\b/i;

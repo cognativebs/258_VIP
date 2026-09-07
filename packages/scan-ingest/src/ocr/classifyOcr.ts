@@ -108,15 +108,17 @@ export function classifyOcrLine(text: string, profile?: OcrProfile): OcrRegionKi
   if (!t) return "unknown";
   const words = wordCount(t);
 
-  if (p.copyrightMarkers.test(t)) return "copyright";
+  if (p.copyrightMarkers.test(t) && words <= 8 && !p.bodyMarkers.test(t)) {
+    return "copyright";
+  }
   if (p.rejectAsNumber.test(t) && !p.labeledNumber.test(t)) {
     if (p.bodyMarkers.test(t) || words >= 8) return "body";
     return "unknown";
   }
   if (p.labeledNumber.test(t) && words <= 8) return "card_number";
   if (p.collectorNumber.test(t) && words <= 4 && p.family === "tcg") return "card_number";
-  if (p.productTokens.test(t) && words <= 10) return "product";
   if (p.bodyMarkers.test(t) || words >= 8) return "body";
+  if (p.productTokens.test(t) && words <= 10) return "product";
   if (looksLikeTitle(t, p)) return "title";
   return "unknown";
 }
