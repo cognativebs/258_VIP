@@ -16,13 +16,17 @@ function asCategory(kind: unknown): ScanCategory | null {
 }
 
 function searchPattern(text: string): string | null {
-  const tokens = text
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t.length >= 2)
-    .slice(0, 2);
-  if (tokens.length === 0) return null;
-  return `%${tokens.join("%")}%`;
+  const token =
+    text
+      .trim()
+      .split(/\s+/)
+      .find((t) => t.length >= 3) ??
+    text
+      .trim()
+      .split(/\s+/)
+      .find((t) => t.length >= 2);
+  if (!token) return null;
+  return `%${token}%`;
 }
 
 export async function searchConfirmedAssets(

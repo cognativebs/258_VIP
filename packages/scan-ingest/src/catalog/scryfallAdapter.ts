@@ -46,7 +46,18 @@ export function parseScryfallCards(
     return [];
   }
   const rows = Array.isArray(body.data) ? body.data : [];
-  return rows.slice(0, query.limit ?? 5).map((row) => {
+  const nameHint = query.text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" ")
+    .toLowerCase();
+  const exact = nameHint
+    ? rows.filter((row) => (row.name ?? "").toLowerCase() === nameHint)
+    : [];
+  const ranked = exact.length > 0 ? exact : rows;
+  return ranked.slice(0, query.limit ?? 5).map((row) => {
     const year = row.released_at ? Number(row.released_at.slice(0, 4)) : null;
     return {
       catalogKey: `mtg:scryfall:${row.id ?? row.name}`,
@@ -67,8 +78,13 @@ export function parseScryfallCards(
   });
 }
 
-function searchQuery(text: string): string {
-  return text.trim().split(/\s+/).slice(0, 8).join(" ");
+/** Quote the first two tokens as a name. Extra OCR tokens are not appended —
+ * Scryfall treats them as hard filters and can return zero printings. */
+export function scryfallSearchQuery(text: string): string {
+  const tokens = text.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  if (tokens.length === 0) return "";
+  const name = tokens.slice(0, Math.min(2, tokens.length)).join(" ").replace(/"/g, "");
+  return `name:"${name}"`;
 }
 
 export async function fetchScryfallRaw(
@@ -79,7 +95,7 @@ export async function fetchScryfallRaw(
     throttle?: () => Promise<void>;
   } = {},
 ): Promise<CatalogRawResponse | null> {
-  const q = searchQuery(query.text);
+  const q = scryfallSearchQuery(query.text);
   if (!q) return null;
   if (query.category && query.category !== "mtg") return null;
   if (opts.throttle) await opts.throttle();

@@ -102,6 +102,16 @@ export { mergeCandidatesByExternalId } from "./catalog/merge.js";
 export { buildIdObservation } from "./catalog/id-observation.js";
 export { scoreIdentificationBenchmark } from "./catalog/benchmark.js";
 export {
+  scoreLiveIdentificationGate,
+  LiveIdentificationGateReportSchema,
+  LiveGateUnitSchema,
+  LiveGateSliceSchema,
+  type LiveIdentificationGateReport,
+  type LiveGateUnit,
+  type LiveGateSlice,
+  type LiveGateUnitInput,
+} from "./catalog/live-gate.js";
+export {
   CatalogResolverResultSchema,
   IdObservationRecordSchema,
   IdentificationBenchmarkCaseSchema,
@@ -166,6 +176,7 @@ export {
   createScryfallCatalogAdapter,
   parseScryfallCards,
   fetchScryfallRaw,
+  scryfallSearchQuery,
 } from "./catalog/scryfallAdapter.js";
 export {
   createMtgjsonCatalogAdapter,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createScryfallCatalogAdapter,
   parseScryfallCards,
+  scryfallSearchQuery,
 } from "./scryfallAdapter.js";
 
 const BOLT = {
@@ -15,6 +16,13 @@ const BOLT = {
 };
 
 describe("ScryfallCatalogAdapter", () => {
+  it("quotes the first two tokens as a name so set/number stay filters", () => {
+    expect(scryfallSearchQuery("Lightning Bolt Alpha 161")).toBe(
+      'name:"Lightning Bolt"',
+    );
+    expect(scryfallSearchQuery("Black Lotus")).toBe('name:"Black Lotus"');
+  });
+
   it("parses a list payload into catalog cards with scryfall ids", () => {
     const cards = parseScryfallCards(
       {
@@ -30,6 +38,23 @@ describe("ScryfallCatalogAdapter", () => {
     ]);
     expect(cards[0]?.collectorNumber).toBe("161");
     expect(cards[0]?.year).toBe(1993);
+  });
+
+  it("prefers an exact card name over a double-faced card that contains it", () => {
+    const cards = parseScryfallCards(
+      {
+        payload: JSON.stringify({
+          data: [
+            { id: "dfc", name: "Emeritus of Conflict // Lightning Bolt", set_name: "Strixhaven", collector_number: "113" },
+            { id: "bolt", name: "Lightning Bolt", set_name: "Limited Edition Alpha", collector_number: "161", released_at: "1993-08-05" },
+          ],
+        }),
+        contentType: "application/json",
+      },
+      { text: "Lightning Bolt Alpha 161", category: "mtg", limit: 5 },
+    );
+    expect(cards[0]?.displayName).toBe("Lightning Bolt");
+    expect(cards[0]?.externalIds[0]?.value).toBe("bolt");
   });
 
   it("skips non-mtg queries and snapshots via fetchRaw", async () => {
