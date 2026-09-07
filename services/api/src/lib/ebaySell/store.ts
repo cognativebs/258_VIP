@@ -185,6 +185,13 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Drizzle expands a JS string[] into ($1,$2)::text[], which Postgres rejects. */
+export function toPgTextArrayLiteral(values: string[]): string {
+  return `{${values
+    .map((v) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
+    .join(",")}}`;
+}
+
 export function createPostgresEbaySellStore(): EbaySellStore {
   const db = () => getDb();
   return {
@@ -214,7 +221,7 @@ export function createPostgresEbaySellStore(): EbaySellStore {
           ${process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production" ? "production" : "sandbox"},
           ${token.refreshToken},
           ${token.expiresAt.toISOString()}::timestamptz,
-          ${token.scopes}::text[],
+          ${toPgTextArrayLiteral(token.scopes)}::text[],
           now(),
           now()
         )
