@@ -28,6 +28,7 @@ import {
   policiesFromConfig,
   proposeLots,
   recommendDisposition,
+  resolveUserAccessToken,
   sellAuthStatus,
   type BusinessPolicies,
   type DailyQueueItem,
@@ -58,6 +59,22 @@ export function createEbaySellService(deps: EbaySellDeps) {
 
   function config(): EbaySellAuthConfig | null {
     return ebaySellAuthFromEnv();
+  }
+
+  async function userAccessToken(): Promise<string> {
+    const cfg = config();
+    const stored = await deps.store.getToken();
+    if (!cfg || !stored?.refreshToken) {
+      throw new Error("eBay Sell user token missing — click Connect on /ebay");
+    }
+    const live = await resolveUserAccessToken(cfg, stored, deps.fetchImpl);
+    if (live.refreshToken && live.refreshToken !== stored.refreshToken) {
+      await deps.store.saveToken(live);
+    }
+    if (!live.accessToken) {
+      throw new Error("eBay Sell access token missing after refresh");
+    }
+    return live.accessToken;
   }
 
   async function connection() {
@@ -257,11 +274,10 @@ export function createEbaySellService(deps: EbaySellDeps) {
     if (highValueRequiresApproval(asset.fmv?.mid ?? null, highValueUsd) && !autoPublishHighValue) {
       return { listing: await deps.store.getListing(listingId), published: false, connection: health };
     }
-    const token = await deps.store.getToken();
-    if (!token) throw new Error("eBay Sell user token missing");
+    const accessToken = await userAccessToken();
     const client = createEbayHttpClient({
       env: cfg.env,
-      accessToken: token.accessToken,
+      accessToken,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });
@@ -402,10 +418,10 @@ export function createEbaySellService(deps: EbaySellDeps) {
       return { ok: false, reason: "eBay Sell not connected — order sync idle", ...health };
     }
     const cfg = config()!;
-    const token = await deps.store.getToken();
+    const accessToken = await userAccessToken();
     const client = createEbayHttpClient({
       env: cfg.env,
-      accessToken: token?.accessToken ?? "",
+      accessToken,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });
@@ -422,11 +438,11 @@ export function createEbaySellService(deps: EbaySellDeps) {
     try {
       const listings = (await deps.store.listListings()).filter((l) => l.externalListingId);
       const cfg = config();
-      const token = await deps.store.getToken();
-      if (!cfg || !token) return { ok: false, reason: "idle", snapshots: 0 };
+      if (!cfg) return { ok: false, reason: "idle", snapshots: 0 };
+      const accessToken = await userAccessToken();
       const client = createEbayHttpClient({
         env: cfg.env,
-        accessToken: token.accessToken,
+        accessToken,
         fetchImpl: deps.fetchImpl,
         onAudit: (e) => deps.store.writeAudit(e),
       });
@@ -451,13 +467,13 @@ export function createEbaySellService(deps: EbaySellDeps) {
       return { ok: false, reason: "eBay Sell not connected — listing sync idle", synced: 0, ...health };
     }
     const cfg = config();
-    const token = await deps.store.getToken();
-    if (!cfg || !token) {
+    if (!cfg) {
       return { ok: false, reason: "eBay Sell not connected — listing sync idle", synced: 0, ...health };
     }
+    const accessToken = await userAccessToken();
     const client = createEbayHttpClient({
       env: cfg.env,
-      accessToken: token.accessToken,
+      accessToken,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });

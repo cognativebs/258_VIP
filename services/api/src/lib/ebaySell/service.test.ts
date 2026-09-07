@@ -138,4 +138,67 @@ describe("eBay sell service", () => {
     );
     expect(acted.item.operatorAction).toBe("hold");
   });
+
+  it("refreshes a stored refresh token before publish", async () => {
+    const keys = [
+      "EBAY_APP_ID",
+      "EBAY_CERT_ID",
+      "EBAY_REDIRECT_URI",
+      "EBAY_PAYMENT_POLICY_ID",
+      "EBAY_RETURN_POLICY_ID",
+      "EBAY_FULFILLMENT_POLICY_ID",
+      "EBAY_MERCHANT_LOCATION_KEY",
+    ] as const;
+    const prior = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.EBAY_APP_ID = "app";
+    process.env.EBAY_CERT_ID = "cert";
+    process.env.EBAY_REDIRECT_URI = "https://example.test/ru";
+    process.env.EBAY_PAYMENT_POLICY_ID = "pay";
+    process.env.EBAY_RETURN_POLICY_ID = "ret";
+    process.env.EBAY_FULFILLMENT_POLICY_ID = "ful";
+    process.env.EBAY_MERCHANT_LOCATION_KEY = "home";
+    try {
+      const store = createMemoryEbaySellStore();
+      await store.saveToken({
+        accessToken: "",
+        refreshToken: "refresh-1",
+        expiresAt: new Date(0),
+        scopes: [],
+      });
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes("/oauth2/token")) {
+          return new Response(
+            JSON.stringify({ access_token: "live-access", refresh_token: "refresh-1", expires_in: 7200 }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+        if (url.includes("/offer/") && url.endsWith("/publish")) {
+          return new Response(JSON.stringify({ listingId: "LST-LIVE" }), { status: 200 });
+        }
+        if (url.includes("/sell/inventory/v1/offer") && (init?.method === "POST" || init?.method === "PUT")) {
+          return new Response(JSON.stringify({ offerId: "OFF-LIVE" }), { status: 201 });
+        }
+        return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+      };
+      const service = createEbaySellService({
+        store,
+        fetchImpl,
+        autoPublishHighValue: true,
+        highValueUsd: 50,
+      });
+      const card = holding();
+      const { listing } = await service.draftFromHolding(card);
+      const published = await service.approveAndPublish(card, listing.id);
+      expect(published.published).toBe(true);
+      expect(published.listing?.externalOfferId).toBe("OFF-LIVE");
+      expect(published.listing?.externalListingId).toBe("LST-LIVE");
+    } finally {
+      for (const k of keys) {
+        if (prior[k] == null) delete process.env[k];
+        else process.env[k] = prior[k];
+      }
+    }
+  });
 });
