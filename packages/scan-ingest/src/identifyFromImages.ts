@@ -119,6 +119,19 @@ function applyPokemonOcrExtract(
   return out;
 }
 
+/** Sports title-line junk must not keep CONFLICT after a Pokémon name wins. */
+function dropConflictsResolvedByPokemon(
+  notes: string[],
+  poke: PokemonOcrExtract,
+): string[] {
+  return notes.filter((note) => {
+    if (note.startsWith("player:") && poke.name) return false;
+    if (note.startsWith("number:") && poke.collectorNumber) return false;
+    if (note.startsWith("category:")) return false;
+    return true;
+  });
+}
+
 function whyWon(
   winner: IdentityCandidate | undefined,
   query: string,
@@ -217,19 +230,28 @@ export async function identifyFromPairedImages(input: {
   const frontExtract = extractStructuredFromOcr(frontSpans);
   const backExtract = extractStructuredFromOcr(backSpans);
 
+  const combinedOcr = [frontOcr.text, backOcr.text].filter(Boolean).join("\n");
+  const pokemonExtract = extractPokemonFromOcr(combinedOcr);
+  const pokemonCategory =
+    input.categoryHint === "pokemon" || looksLikePokemonOcr(combinedOcr);
+  if (pokemonCategory) {
+    frontExtract.player = null;
+    backExtract.player = null;
+  }
+
   let evidence = fuseIdentitySides({
     front: fieldsFromStructuredOcr(frontExtract, "front_ocr"),
     back: fieldsFromStructuredOcr(backExtract, "back_ocr"),
   });
 
-  const combinedOcr = [frontOcr.text, backOcr.text].filter(Boolean).join("\n");
-  const pokemonExtract = extractPokemonFromOcr(combinedOcr);
-  const pokemonCategory =
-    input.categoryHint === "pokemon" || looksLikePokemonOcr(combinedOcr);
   if (pokemonCategory && (pokemonExtract.name || pokemonExtract.collectorNumber)) {
     evidence = {
       ...evidence,
       fused: applyPokemonOcrExtract(evidence.fused, pokemonExtract),
+      conflictNotes: dropConflictsResolvedByPokemon(
+        evidence.conflictNotes,
+        pokemonExtract,
+      ),
     };
     notes.push(
       `pokemon_ocr ${pokemonExtract.methods.join(",") || "empty"} · inferred · unverified`,

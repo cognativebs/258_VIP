@@ -19,6 +19,11 @@ describe("classifyOcrLine", () => {
     expect(classifyOcrLine("Pmreianm We Kz Ie")).toBe("unknown");
   });
 
+  it("does not treat Ricoh three-syllable junk or symbol soup as a title", () => {
+    expect(classifyOcrLine("aoe oe oe")).toBe("unknown");
+    expect(classifyOcrLine("a oon _.lr—sCS=CiCOrS")).toBe("unknown");
+  });
+
   it("keeps labeled number / product / two-word player lines", () => {
     expect(classifyOcrLine("NO. 195")).toBe("card_number");
     expect(classifyOcrLine("2021 PANINI DONRUSS FOOTBALL")).toBe("product");

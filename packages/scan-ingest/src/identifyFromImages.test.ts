@@ -86,6 +86,27 @@ describe("identifyFromPairedImages", () => {
     expect(result.notes.some((n) => n.startsWith("pokemon_ocr"))).toBe(true);
   });
 
+  it("does not conflict Carvanha when front/back junk looks like two players", async () => {
+    process.env.VIP_SCAN_VISION = "off";
+    const result = await identifyFromPairedImages({
+      frontPath: "/tmp/unused-front.jpg",
+      backPath: "/tmp/unused-back.jpg",
+      frontFileName: "20260906184941_0011.jpg",
+      backFileName: "20260906184941_0012.jpg",
+      categoryHint: "pokemon",
+      ocrOverride: {
+        front: ocrFromText(
+          "NO..0318 Savage Pokemon HT: 2'7\" WT: 45.9 |bs.\nThis Pokémon also does 10 damage to itself.\naoe oe oe\nSailors avoid Carvanhadensatallcosts.\n060/094 @\n©2025 Pokémon / Nintendo / Creatures / GAME FREAK",
+        ),
+        back: ocrFromText("oe io -£— Eo\na oon _.lr—sCS=CiCOrS"),
+      },
+    });
+    expect(result.evidence.fused.playerOrCharacter.value).toBe("Carvanha");
+    expect(result.evidence.fused.collectorNumber.value).toBe("060/094");
+    expect(result.evidence.conflictNotes.join(" ")).not.toMatch(/player:/);
+    expect(result.evidence.conflictNotes.join(" ")).not.toMatch(/Aoe OE OE/i);
+  });
+
   it("names Black Belt's Training instead of a sports leftover", async () => {
     process.env.VIP_SCAN_VISION = "off";
     const result = await identifyFromPairedImages({
