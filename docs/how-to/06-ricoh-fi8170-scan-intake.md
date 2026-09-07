@@ -83,6 +83,14 @@ are ignored. If OCR is too weak and `OPENAI_API_KEY` is set, a structured
 vision pass runs on both faces (`VIP_SCAN_VISION=auto`). That is a single
 model call, not an Orchestr8 council.
 
+Pokémon / Magic then fan out through `CatalogResolver`: confirmed Postgres
+assets, the tiny fixture catalog, optional local MTGJSON, Scryfall (Magic),
+TCGdex (Pokémon). Sports stays on pixel OCR. Candidates stay
+inferred · unverified until confirm. Disable a provider with
+`VIP_CATALOG_TCGDEX=0`, `VIP_CATALOG_SCRYFALL=0`, or
+`VIP_CATALOG_PG_ASSETS=0`. Point `VIP_MTGJSON_PATH` at an MTGJSON
+AllPrintings subset (or `{ "cards": [...] }`) for offline Magic matching.
+
 ```powershell
 setx VIP_SCAN_TESSERACT "C:\Program Files\Tesseract-OCR\tesseract.exe"
 setx VIP_SCAN_VISION auto

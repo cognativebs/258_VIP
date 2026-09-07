@@ -88,9 +88,19 @@ export function mergeCandidatesByExternalId(
         externalIds = unionExternalIds(externalIds, other.externalIds);
       }
 
+      // Re-scans must keep the confirmed asset when a provider scores higher.
+      // Do not overwrite a confirmed id if two members disagree.
+      const assetIds = new Set(
+        ranked.map((c) => c.assetId).filter((id): id is string => Boolean(id)),
+      );
+      const assetId =
+        primary.assetId ??
+        (assetIds.size === 1 ? [...assetIds][0] : null);
+
       // Keep the best single-adapter score. Do not sum / average / boost.
       return {
         ...primary,
+        assetId,
         externalIds,
         matchReasons: [...reasons],
         confidence: primary.confidence,

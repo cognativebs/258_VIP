@@ -6,9 +6,15 @@ that later adapters (TCGdex, Scryfall, CardSight) plug into.
 
 **Follow-up (2026-09-06):** resolver + TCGdex wired on Pokémon/MTG intake;
 Postgres cache + provider snapshots. Phase 1 accuracy gate still needs 25
-real scans. Still out of scope: Scryfall/CardSight rollout gates,
-Card Hedge valuation, eBay ePID, auto-resolve enablement, Yu-Gi-Oh,
-SportsCardsPro / PriceCharting.
+real scans.
+
+**Follow-up (2026-09-07):** Phase 2 adapters + confirmed-asset adapter.
+`ScryfallCatalogAdapter` (rate-limited, User-Agent set) and
+`MtgjsonCatalogAdapter` (local file via `VIP_MTGJSON_PATH`; works offline).
+`postgres-assets` searches already-confirmed `vault_core.asset` so re-scans
+keep `assetId`. Still out of scope: CardSight, Card Hedge, eBay ePID,
+auto-resolve, Yu-Gi-Oh, SportsCardsPro / PriceCharting. Phase 1/2 scan
+accuracy gates remain operator work.
 
 ## Goal
 
