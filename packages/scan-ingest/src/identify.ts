@@ -271,6 +271,8 @@ function baseName(ref: string): string {
 
 function normalize(s: string): string {
   return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9/#.\s-]+/g, " ")
     .replace(/\s+/g, " ")

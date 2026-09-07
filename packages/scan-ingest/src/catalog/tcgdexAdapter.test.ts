@@ -14,6 +14,22 @@ describe("tcgdexSearchTerms", () => {
     expect(terms.localId).toBe("4");
   });
 
+  it("keeps Mewtwo when OCR says Pokémon and the file is *_front.jpg", () => {
+    const terms = tcgdexSearchTerms({
+      text: "1999 Pokémon #150 Mewtwo mewtwo_front.jpg",
+    });
+    expect(terms.name.toLowerCase()).toBe("mewtwo");
+    expect(terms.localId).toBe("150");
+  });
+
+  it("ignores *_front.jpg filename tokens", () => {
+    const terms = tcgdexSearchTerms({
+      text: "1999 pokemon #150 mewtwo mewtwo front jpg",
+    });
+    expect(terms.name.toLowerCase()).toBe("mewtwo");
+    expect(terms.localId).toBe("150");
+  });
+
   it("prefers a privileged name hint over raw tokens", () => {
     const terms = tcgdexSearchTerms({
       text: "1999 Pokémon #150",

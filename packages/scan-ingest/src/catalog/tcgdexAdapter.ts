@@ -30,6 +30,16 @@ const TCGDEX_SKIP = new Set([
   "promo",
   "illustration",
   "trainer",
+  "front",
+  "back",
+  "jpg",
+  "jpeg",
+  "png",
+  "tif",
+  "tiff",
+  "webp",
+  "image",
+  "scan",
 ]);
 
 /**
@@ -42,11 +52,15 @@ export function tcgdexSearchTerms(input: {
   nameHint?: string;
   collectorNumber?: string;
 }): { name: string; localId?: string } {
-  const text = input.text.trim();
+  const text = input.text
+    .trim()
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "");
   const hashNum = text.match(/#\s*(\d{1,4}[a-z]?)/i);
   const tokens = text
     .toLowerCase()
     .replace(/#/g, " ")
+    .replace(/[._]+/g, " ")
     .split(/\s+/)
     .filter(Boolean);
   const yearLike = /^(19|20)\d{2}$/;
@@ -67,8 +81,12 @@ export function tcgdexSearchTerms(input: {
   const nameTokens = tokens.filter(
     (t) => !/^\d/.test(t) && !TCGDEX_SKIP.has(t) && t.length > 2,
   );
+  const unique: string[] = [];
+  for (const token of nameTokens) {
+    if (!unique.includes(token)) unique.push(token);
+  }
   return {
-    name: nameTokens.slice(0, 2).join(" "),
+    name: unique.slice(0, 2).join(" "),
     localId,
   };
 }
