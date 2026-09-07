@@ -52,15 +52,31 @@ export function registerEbaySellRoutes(app: Express, deps: EbaySellRouteDeps): v
   });
 
   app.get("/api/ebay/sell/auth/callback", async (req, res) => {
+    const accept = String(req.headers.accept ?? "");
+    const wantsHtml = accept.includes("text/html") && !accept.includes("application/json");
+    const web = "http://127.0.0.1:3000/ebay";
     try {
       const code = String(req.query.code ?? "");
       if (!code) {
+        if (wantsHtml) {
+          res.redirect(`${web}?oauth_error=${encodeURIComponent("Missing authorization code")}`);
+          return;
+        }
         res.status(400).json({ error: "Missing authorization code" });
         return;
       }
       const status = await deps.service.handleCallback(code);
+      if (wantsHtml) {
+        res.redirect(`${web}?connected=1`);
+        return;
+      }
       res.json({ ok: true, status });
     } catch (e) {
+      if (wantsHtml) {
+        const msg = e instanceof Error ? e.message : String(e);
+        res.redirect(`${web}?oauth_error=${encodeURIComponent(msg)}`);
+        return;
+      }
       fail(res, e, 502);
     }
   });

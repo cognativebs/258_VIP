@@ -214,18 +214,39 @@ export function createPostgresEbaySellStore(): EbaySellStore {
       };
     },
     async saveToken(token) {
-      await db().execute(sql`
-        INSERT INTO vault_collection.ebay_connection
-          (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
-        VALUES (
-          ${process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production" ? "production" : "sandbox"},
-          ${token.refreshToken},
-          ${token.expiresAt.toISOString()}::timestamptz,
-          ${toPgTextArrayLiteral(token.scopes)}::text[],
-          now(),
-          now()
-        )
-      `);
+      const environment =
+        process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production"
+          ? "production"
+          : "sandbox";
+      const scopesSql =
+        token.scopes.length === 0
+          ? sql`'{}'::text[]`
+          : sql`ARRAY[${sql.join(
+              token.scopes.map((scope) => sql`${scope}`),
+              sql`, `,
+            )}]::text[]`;
+      try {
+        await db().execute(sql`
+          INSERT INTO vault_collection.ebay_connection
+            (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
+          VALUES (
+            ${environment},
+            ${token.refreshToken},
+            ${token.expiresAt.toISOString()}::timestamptz,
+            ${scopesSql},
+            now(),
+            now()
+          )
+        `);
+      } catch (e) {
+        const cause =
+          e && typeof e === "object" && "cause" in e ? String((e as { cause: unknown }).cause) : "";
+        throw new Error(
+          `Failed to persist eBay refresh token: ${e instanceof Error ? e.message : String(e)}${
+            cause ? ` · ${cause}` : ""
+          }`,
+        );
+      }
     },
     async clearToken(error) {
       await db().execute(sql`

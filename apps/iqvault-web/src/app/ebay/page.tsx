@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
@@ -41,15 +42,18 @@ function money(n: number | null | undefined): string {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-export default function EbayDashboardPage() {
+function EbayDashboardInner() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const params = useSearchParams();
+  const oauthError = params.get("oauth_error");
+  const justConnected = params.get("connected") === "1";
 
   useEffect(() => {
     void apiGet<Dashboard>("/api/ebay/sell/dashboard")
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load eBay dashboard"));
-  }, []);
+  }, [justConnected]);
 
   const connected = data?.connection.status.connected ?? false;
 
@@ -71,6 +75,8 @@ export default function EbayDashboardPage() {
         {" · "}
         <Link href="/listings">Legacy drafts</Link>
       </p>
+      {justConnected ? <div className="panel">Sandbox seller connected.</div> : null}
+      {oauthError ? <div className="error">{oauthError}</div> : null}
       {error ? <div className="error">{error}</div> : null}
       <div className="stack" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", display: "grid" }}>
         <div className="stat">
@@ -137,5 +143,13 @@ export default function EbayDashboardPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function EbayDashboardPage() {
+  return (
+    <Suspense fallback={<div className="shell">Loading eBay dashboard…</div>}>
+      <EbayDashboardInner />
+    </Suspense>
   );
 }

@@ -86,7 +86,10 @@ Existing `listing_draft`, Browse `listing_observation`, and scan intake stay.
 
 1. `npm run build:packages` then `npm run api` / `npm run web`.
 2. Open http://127.0.0.1:3000/ebay — connection card must say Idle until OAuth.
-3. `GET /api/ebay/sell/auth/start` → open the URL → callback stores refresh token.
+3. Set the RuName **Auth Accepted URL** to
+   `http://127.0.0.1:3000/ebay/oauth/callback`. On `/ebay`, click
+   **Connect Sandbox seller** (do not copy JSON). The callback stores the
+   refresh token. An Allow code works once; if save fails, click Connect again.
 4. Open `/ebay/queue` or an item at `/ebay/item/{holdingId}`.
 5. Create draft → review title/images/price → Approve/publish.
 6. Sandbox: create/replace inventory item → create offer → publish offer.

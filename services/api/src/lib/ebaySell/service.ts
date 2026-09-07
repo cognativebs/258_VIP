@@ -85,9 +85,19 @@ export function createEbaySellService(deps: EbaySellDeps) {
   async function handleCallback(code: string) {
     const cfg = config();
     if (!cfg) throw new Error("eBay Sell OAuth is not configured");
-    const token = await exchangeAuthorizationCode(cfg, code, deps.fetchImpl);
-    await deps.store.saveToken(token);
-    return sellAuthStatus({ config: cfg, token });
+    try {
+      const token = await exchangeAuthorizationCode(cfg, code, deps.fetchImpl);
+      await deps.store.saveToken(token);
+      return sellAuthStatus({ config: cfg, token });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/invalid_grant/i.test(msg)) {
+        throw new Error(
+          "That Allow code was already used or expired. Open /ebay and click Connect, then Allow once. Do not reuse an old callback URL.",
+        );
+      }
+      throw e;
+    }
   }
 
   async function disconnect() {
