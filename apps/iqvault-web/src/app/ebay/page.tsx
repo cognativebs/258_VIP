@@ -129,7 +129,11 @@ export default function EbayDashboardPage() {
           </p>
         )}
         <p className="muted" style={{ marginBottom: 0 }}>
-          Auth start: <code>/api/ebay/sell/auth/start</code> (VIP :8787). Sandbox first.
+          {!connected ? (
+            <a href="http://127.0.0.1:8787/api/ebay/sell/auth/start">Connect Sandbox seller</a>
+          ) : (
+            "Sandbox seller connected."
+          )}
         </p>
       </div>
     </div>

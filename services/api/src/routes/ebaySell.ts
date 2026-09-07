@@ -41,6 +41,13 @@ export function registerEbaySellRoutes(app: Express, deps: EbaySellRouteDeps): v
   app.get("/api/ebay/sell/auth/start", async (req, res) => {
     const state = String(req.query.state ?? `vip-${Date.now()}`);
     const started = await deps.service.startAuth(state);
+    const accept = String(req.headers.accept ?? "");
+    const wantsRedirect =
+      req.query.redirect === "1" || (accept.includes("text/html") && !accept.includes("application/json"));
+    if (wantsRedirect && "url" in started && started.url) {
+      res.redirect(started.url);
+      return;
+    }
     res.json(started);
   });
 
