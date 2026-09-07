@@ -88,7 +88,9 @@ assets, the tiny fixture catalog, optional local MTGJSON, Scryfall (Magic),
 TCGdex (Pokémon). Sports stays on pixel OCR. Candidates stay
 inferred · unverified until confirm. Disable a provider with
 `VIP_CATALOG_TCGDEX=0`, `VIP_CATALOG_SCRYFALL=0`, or
-`VIP_CATALOG_PG_ASSETS=0`. Point `VIP_MTGJSON_PATH` at an MTGJSON
+`VIP_CATALOG_PG_ASSETS=0`. The 5-card fixture catalog stays off unless
+`VIP_CATALOG_FIXTURE=1` (it was matching “pokemon / holo / rare” on every
+TCG scan). Point `VIP_MTGJSON_PATH` at an MTGJSON
 AllPrintings subset (or `{ "cards": [...] }`) for offline Magic matching.
 
 ```powershell

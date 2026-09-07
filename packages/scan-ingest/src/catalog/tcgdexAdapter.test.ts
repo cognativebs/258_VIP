@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { createTcgdexCatalogAdapter, parseTcgdexCards } from "./tcgdexAdapter.js";
+import {
+  createTcgdexCatalogAdapter,
+  parseTcgdexCards,
+  tcgdexNameQuery,
+} from "./tcgdexAdapter.js";
 
 describe("TcgdexCatalogAdapter", () => {
+  it("searches the Pokémon name, not year/brand/number", () => {
+    expect(tcgdexNameQuery("1999 Pokemon #4 Charizard")).toBe("Charizard");
+    expect(tcgdexNameQuery("Charizard #4 Base")).toBe("Charizard Base");
+    expect(tcgdexNameQuery("1999 Pokemon HP 120")).toBeNull();
+  });
+
   it("parses provider JSON into catalog cards with tcgdex external ids", () => {
     const cards = parseTcgdexCards(
       {

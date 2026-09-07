@@ -122,7 +122,7 @@ export {
   type IdentificationBenchmarkCase,
   type IdentificationBenchmarkReport,
 } from "./catalog/resolver-schemas.js";
-export { parseTcgdexCards, fetchTcgdexRaw } from "./catalog/tcgdexAdapter.js";
+export { parseTcgdexCards, fetchTcgdexRaw, tcgdexNameQuery } from "./catalog/tcgdexAdapter.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,

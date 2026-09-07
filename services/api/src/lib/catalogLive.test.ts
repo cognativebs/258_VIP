@@ -13,6 +13,7 @@ import {
   createPostgresIdentificationCache,
   createPostgresSnapshotSink,
   defaultCatalogAdapters,
+  fixtureCatalogEnabled,
   mtgjsonEnabled,
   pgAssetsEnabled,
   scryfallEnabled,
@@ -52,7 +53,10 @@ describe("catalog live wiring", () => {
     const ids = defaultCatalogAdapters({}).map((a) => a.id);
     expect(ids).toContain("scryfall");
     expect(ids).toContain("postgres-assets");
+    expect(ids).not.toContain("fixture-catalog");
     expect(ids).not.toContain("mtgjson");
+    expect(fixtureCatalogEnabled({})).toBe(false);
+    expect(fixtureCatalogEnabled({ VIP_CATALOG_FIXTURE: "1" })).toBe(true);
     expect(scryfallEnabled({ VIP_CATALOG_SCRYFALL: "0" })).toBe(false);
     expect(pgAssetsEnabled({ VIP_CATALOG_PG_ASSETS: "0" })).toBe(false);
     expect(mtgjsonEnabled({})).toBe(false);

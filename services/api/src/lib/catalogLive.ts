@@ -49,6 +49,12 @@ export function pgAssetsEnabled(
   return env.VIP_CATALOG_PG_ASSETS !== "0";
 }
 
+export function fixtureCatalogEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.VIP_CATALOG_FIXTURE === "1";
+}
+
 export function createPostgresSnapshotSink(): SnapshotSink {
   return {
     async write(input) {
@@ -156,7 +162,9 @@ export function defaultCatalogAdapters(
   if (pgAssetsEnabled(env)) {
     adapters.push(createPostgresAssetCatalogAdapter());
   }
-  adapters.push(createFixtureCatalogAdapter());
+  if (fixtureCatalogEnabled(env)) {
+    adapters.push(createFixtureCatalogAdapter());
+  }
   if (mtgjsonEnabled(env)) {
     adapters.push(createMtgjsonCatalogAdapter({ path: env.VIP_MTGJSON_PATH }));
   }
