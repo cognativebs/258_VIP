@@ -36,6 +36,12 @@ const POKEMON_NAME_STOP = new Set([
   "weakness",
   "resistance",
   "retreat",
+  "the",
+  "company",
+  "nintendo",
+  "creatures",
+  "game",
+  "freak",
 ]);
 
 const MTG_NAME_STOP = new Set([
@@ -53,6 +59,11 @@ const MTG_NAME_STOP = new Set([
   "uncommon",
   "common",
   "legendary",
+  "the",
+  "wizards",
+  "coast",
+  "hasbro",
+  "gathering",
 ]);
 
 const OP_NAME_STOP = new Set([
@@ -70,6 +81,7 @@ const OP_NAME_STOP = new Set([
 function normalize(s: string): string {
   return s
     .toLowerCase()
+    .replace(/[éè]/g, "e")
     .replace(/[^a-z0-9/#.\s-]+/g, " ")
     .replace(/[_./]+/g, " ")
     .replace(/\s+/g, " ")

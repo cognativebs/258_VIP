@@ -342,6 +342,12 @@ export function overlayIdentityFields(
 }
 
 export function structuredIdentityQuery(fields: CardIdentityFields): string {
+  const category = (fields.category.value ?? "sports").toLowerCase();
+  if (category === "pokemon" || category === "mtg" || category === "one_piece") {
+    return [fields.playerOrCharacter.value, fields.collectorNumber.value]
+      .filter(Boolean)
+      .join(" ");
+  }
   return [
     fields.year.value,
     fields.manufacturer.value,

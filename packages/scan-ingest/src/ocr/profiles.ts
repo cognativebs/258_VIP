@@ -201,7 +201,7 @@ const POKEMON_PRODUCT =
 const POKEMON_LABELED =
   /(?:no\.?|#)\s*([A-Za-z]{0,6}\d{1,4}(?:\/\d{1,4})?)\b/i;
 const POKEMON_NUMBER =
-  /\b((?:[A-Z]{2,4}\d{0,2}[-\s])?\d{1,3}\/\d{2,3}|TG\d{2}|SVP[-\s]?\d{1,4}|[A-Z]{2,4}\d{1,3})\b/;
+  /\b((?:[A-Z]{2,4}\d{0,2}[-\s])?\d{1,3}\/\d{2,3}|TG\d{2}|SVP[-\s]?\d{1,4}|[A-Z]{2,4}\d{1,3})\b/i;
 const POKEMON_REJECT = /\b\d{1,3}\s*HP\b|\bHP\s*\d{1,3}\b/i;
 
 const MTG_BODY =
@@ -211,7 +211,7 @@ const MTG_COPY =
 const MTG_PRODUCT =
   /\b(magic|mtg|alpha|beta|unlimited|revised|core set|commander|modern|legacy|mythic|rare|uncommon)\b/i;
 const MTG_LABELED = /(?:no\.?|#)\s*(\d{1,3}(?:\/\d{1,3})?)\b/i;
-const MTG_NUMBER = /\b([A-Z]{3}[-\s]?\d{1,3}|\d{1,3}\/\d{2,3})\b/;
+const MTG_NUMBER = /\b([A-Z]{3}[-\s]?\d{1,3}|\d{1,3}\/\d{2,3})\b/i;
 const MTG_REJECT = /\b([1-9]|1[0-5])\/([1-9]|1[0-5])\b/;
 
 const OP_BODY =

@@ -98,6 +98,8 @@ describe("identifyFromPairedImages", () => {
     expect(result.evidence.fused.collectorNumber.value).toBe("4/102");
     expect(result.evidence.fused.category.value).toBe("pokemon");
     expect(result.candidates[0]?.category).toBe("pokemon");
+    expect(result.candidates[0]?.playerOrCharacter).toMatch(/Charizard/i);
+    expect(result.candidates[0]?.displayName).not.toMatch(/Company/i);
     expect(result.notes.some((n) => n.includes("ocr_profile:pokemon"))).toBe(true);
   });
 });

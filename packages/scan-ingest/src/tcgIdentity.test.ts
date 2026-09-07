@@ -23,6 +23,12 @@ describe("parseTcgIdentity", () => {
     expect(parsed?.category).toBe("mtg");
   });
 
+  it("still reads a lowercased MTG set-code from the identity query", () => {
+    const parsed = parseTcgIdentity("black lotus lea 232", "mtg");
+    expect(parsed?.name).toMatch(/Black Lotus/i);
+    expect(parsed?.collectorNumber).toBe("LEA 232");
+  });
+
   it("rejects Power/Toughness-looking fractions as MTG collector numbers", () => {
     const parsed = parseTcgIdentity("Grizzly Bears 2/2 Creature Magic", "mtg");
     expect(parsed?.collectorNumber ?? null).toBeNull();
