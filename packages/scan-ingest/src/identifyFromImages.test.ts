@@ -67,6 +67,43 @@ describe("identifyFromPairedImages", () => {
     expect(result.evidence.debug?.whyWon).toBeTruthy();
   });
 
+  it("lifts Linoone and 082/094 from Ricoh Pokémon OCR", async () => {
+    process.env.VIP_SCAN_VISION = "off";
+    const result = await identifyFromPairedImages({
+      frontPath: "/tmp/unused-front.jpg",
+      frontFileName: "20260906184941_0007.jpg",
+      categoryHint: "pokemon",
+      ocrOverride: {
+        front: ocrFromText(
+          "== Linoone oo\nSlash 70\n(1 (PFLin} 082/094 @ winding paths is not its strong suit.\n©2025 Pokémon / Nintendo / Creatures/GAME FREAK",
+        ),
+        back: ocrFromText("~~ _ . |"),
+      },
+    });
+    expect(result.evidence.fused.playerOrCharacter.value).toBe("Linoone");
+    expect(result.evidence.fused.collectorNumber.value).toBe("082/094");
+    expect(result.evidence.fused.category.value).toBe("pokemon");
+    expect(result.notes.some((n) => n.startsWith("pokemon_ocr"))).toBe(true);
+  });
+
+  it("names Black Belt's Training instead of a sports leftover", async () => {
+    process.env.VIP_SCAN_VISION = "off";
+    const result = await identifyFromPairedImages({
+      frontPath: "/tmp/unused-front.jpg",
+      frontFileName: "20260906184941_0045.jpg",
+      categoryHint: "pokemon",
+      ocrOverride: {
+        front: ocrFromText(
+          "Black Belt’s Training\nDuring this turn, attacks used by your Pokémon do 40 more\n©2025 Pokémon / Nintendo / Creatures / GAME FREAK",
+        ),
+        back: ocrFromText("- Y ee"),
+      },
+    });
+    expect(result.evidence.fused.playerOrCharacter.value).toBe(
+      "Black Belt's Training",
+    );
+  });
+
   it("leaves unknown player on garbage OCR instead of using leftover tokens", async () => {
     process.env.VIP_SCAN_VISION = "off";
     const result = await identifyFromPairedImages({

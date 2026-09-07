@@ -7,6 +7,13 @@ import type {
 
 const TCGDEX = "https://api.tcgdex.net/v2/en";
 
+function localIdFromCollector(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const t = raw.replace(/^#/, "").trim();
+  const m = t.match(/^(\d{1,3}[a-z]?)(?:\s*\/\s*\d{1,4})?$/i);
+  return m?.[1];
+}
+
 const TCGDEX_SKIP = new Set([
   "base",
   "set",
@@ -67,7 +74,7 @@ export function tcgdexSearchTerms(input: {
   const nums = tokens.filter(
     (t) => /^\d{1,4}[a-z]?$/.test(t) && !yearLike.test(t),
   );
-  const fromHint = input.collectorNumber?.replace(/^#/, "").trim();
+  const fromHint = localIdFromCollector(input.collectorNumber);
   const localId = fromHint || hashNum?.[1] || nums[0];
 
   const hint = input.nameHint?.trim();

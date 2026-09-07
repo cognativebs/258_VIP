@@ -23,10 +23,44 @@ function result(
 }
 
 describe("shouldPersistIdentification", () => {
-  it("persists a completed TCGdex pass", () => {
+  it("persists a completed TCGdex pass with candidates", () => {
     expect(
       shouldPersistIdentification(
-        result([{ adapterId: "tcgdex", status: "ok", cardCount: 2, elapsedMs: 10, called: true }]),
+        result(
+          [{ adapterId: "tcgdex", status: "ok", cardCount: 2, elapsedMs: 10, called: true }],
+          [
+            {
+              catalogKey: "pokemon:tcgdex:sv1-1",
+              category: "pokemon",
+              displayName: "Sprigatito",
+              externalIds: [{ source: "tcgdex", value: "sv1-1" }],
+              confidence: 0.8,
+              matchReasons: ["name:Sprigatito"],
+              provenance: markInferred({
+                source: "catalog_resolver",
+                ruleOrModelVersion: "t",
+                confidence: 0.8,
+              }),
+            },
+          ],
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not persist an empty TCGdex miss without a name/number query", () => {
+    expect(
+      shouldPersistIdentification(
+        result([{ adapterId: "tcgdex", status: "ok", cardCount: 0, elapsedMs: 10, called: true }]),
+      ),
+    ).toBe(false);
+  });
+
+  it("persists an empty miss when structured evidence produced a name", () => {
+    expect(
+      shouldPersistIdentification(
+        result([{ adapterId: "tcgdex", status: "ok", cardCount: 0, elapsedMs: 10, called: true }]),
+        { nameHint: "Linoone" },
       ),
     ).toBe(true);
   });

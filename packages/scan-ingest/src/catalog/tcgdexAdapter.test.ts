@@ -39,6 +39,16 @@ describe("tcgdexSearchTerms", () => {
     expect(terms.name).toBe("Mewtwo");
     expect(terms.localId).toBe("150");
   });
+
+  it("strips set size from a collector NNN/NNN hint", () => {
+    const terms = tcgdexSearchTerms({
+      text: "2025 Pokémon #082/094 Linoone",
+      nameHint: "Linoone",
+      collectorNumber: "082/094",
+    });
+    expect(terms.name).toBe("Linoone");
+    expect(terms.localId).toBe("082");
+  });
 });
 
 describe("TcgdexCatalogAdapter", () => {

@@ -16,6 +16,11 @@ import {
   spansFromTextBlock,
   type OcrSpan,
 } from "./ocr/classifyOcr.js";
+import {
+  extractPokemonFromOcr,
+  looksLikePokemonOcr,
+  type PokemonOcrExtract,
+} from "./ocr/pokemonExtract.js";
 import { ocrImageFile, type OcrResult } from "./ocr/tesseractOcr.js";
 import type { IdentityCandidate, ScanCategory } from "./schemas.js";
 import {
@@ -94,6 +99,22 @@ function applyCatalogFill(
       candidate.confidence,
       "catalog",
     );
+  }
+  return out;
+}
+
+function applyPokemonOcrExtract(
+  fused: CardIdentityEvidence["fused"],
+  poke: PokemonOcrExtract,
+): CardIdentityEvidence["fused"] {
+  if (!poke.name && !poke.collectorNumber) return fused;
+  const out = { ...fused };
+  out.category = field("pokemon", Math.max(0.7, poke.confidence), "front_ocr");
+  if (poke.name) {
+    out.playerOrCharacter = field(poke.name, poke.confidence, "front_ocr");
+  }
+  if (poke.collectorNumber) {
+    out.collectorNumber = field(poke.collectorNumber, poke.confidence, "front_ocr");
   }
   return out;
 }
@@ -201,9 +222,27 @@ export async function identifyFromPairedImages(input: {
     back: fieldsFromStructuredOcr(backExtract, "back_ocr"),
   });
 
+  const combinedOcr = [frontOcr.text, backOcr.text].filter(Boolean).join("\n");
+  const pokemonExtract = extractPokemonFromOcr(combinedOcr);
+  const pokemonCategory =
+    input.categoryHint === "pokemon" || looksLikePokemonOcr(combinedOcr);
+  if (pokemonCategory && (pokemonExtract.name || pokemonExtract.collectorNumber)) {
+    evidence = {
+      ...evidence,
+      fused: applyPokemonOcrExtract(evidence.fused, pokemonExtract),
+    };
+    notes.push(
+      `pokemon_ocr ${pokemonExtract.methods.join(",") || "empty"} · inferred · unverified`,
+    );
+  }
+
+  const pokemonComplete = Boolean(
+    pokemonExtract.name && pokemonExtract.collectorNumber,
+  );
   const privilegedComplete =
     privilegedOcrIsComplete(frontExtract) ||
-    privilegedOcrIsComplete(backExtract);
+    privilegedOcrIsComplete(backExtract) ||
+    pokemonComplete;
 
   let usedVision = false;
   let visionModel = "";

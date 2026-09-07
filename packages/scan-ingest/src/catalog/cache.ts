@@ -2,19 +2,30 @@ import type { CatalogResolverResult } from "./resolver-schemas.js";
 
 export const FIXTURE_ADAPTER_ID = "fixture-catalog";
 
+export type PersistQueryHint = {
+  nameHint?: string;
+  collectorNumber?: string;
+};
+
 /**
  * Persist only a completed real-adapter pass, or a fixture-only resolver
  * (tests / VIP_CATALOG_FIXTURE=1). A TCGdex timeout must not freeze
- * Charizard/Pikachu onto this hash forever.
+ * Charizard/Pikachu onto this hash forever. An empty miss without a
+ * name/number query must not freeze "unknown" onto noisy OCR forever.
  */
 export function shouldPersistIdentification(
   result: CatalogResolverResult,
+  query?: PersistQueryHint,
 ): boolean {
   const real = result.outcomes.filter((o) => o.adapterId !== FIXTURE_ADAPTER_ID);
   if (real.length === 0) {
     return result.outcomes.some((o) => o.status === "ok" && o.called);
   }
-  return real.some((o) => o.status === "ok");
+  if (!real.some((o) => o.status === "ok")) return false;
+  if (result.candidates.length === 0) {
+    return Boolean(query?.nameHint?.trim() || query?.collectorNumber?.trim());
+  }
+  return true;
 }
 
 /**

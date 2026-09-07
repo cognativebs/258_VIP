@@ -146,7 +146,7 @@ third-party-access licence limit).
 - [x] **Phase 0** Snapshot every provider response before parsing (rule 3)
 - [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
 - [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
-- [x] **Phase 1** `TcgdexCatalogAdapter` is the live Pokémon catalog (5-card fixture is `VIP_CATALOG_FIXTURE=1` only, 2026-09-07). **Gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id.
+- [x] **Phase 1** `TcgdexCatalogAdapter` is the live Pokémon catalog (5-card fixture is `VIP_CATALOG_FIXTURE=1` only, 2026-09-07). Pokémon OCR now lifts species / trainer title + `NNN/NNN` before TCGdex; empty misses without a name are not cached (`catalog-resolver@0.3.0`). **Gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id. Re-identify batch `ed919c12-4634-439f-b7b6-28d98fa328f3` after pull + API restart.
 - [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target

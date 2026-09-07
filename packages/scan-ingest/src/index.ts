@@ -157,6 +157,10 @@ export {
   spansFromTextBlock,
 } from "./ocr/classifyOcr.js";
 export {
+  extractPokemonFromOcr,
+  looksLikePokemonOcr,
+} from "./ocr/pokemonExtract.js";
+export {
   extractVisionEvidence,
   shouldRunVision,
   shouldEscalateToVision,
