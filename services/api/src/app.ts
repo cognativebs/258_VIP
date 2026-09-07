@@ -32,7 +32,10 @@ import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
 import { createInventoryTransaction, listInventoryTransactions } from "./lib/transactions.js";
 import { compactSignalsContext, signalsOutputFromFeed } from "./lib/signalsContext.js";
-import { ebayCredsFromEnv } from "@vip/scan-ingest";
+import {
+  ApproveConfirmListRequestSchema,
+  ebayCredsFromEnv,
+} from "@vip/scan-ingest";
 import { LIVE_RANGE_COPY, loadAllLiveRanges } from "./lib/liveRange.js";
 import {
   buildRecommendation,
@@ -822,7 +825,12 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.post("/api/scan/batches/:id/approve-confirm-list", async (req, res) => {
-    const result = await approveConfirmList(String(req.params.id));
+    const parsed = ApproveConfirmListRequestSchema.safeParse(req.body ?? {});
+    const acknowledgeDuplicates =
+      parsed.success && parsed.data.acknowledgeDuplicates === true;
+    const result = await approveConfirmList(String(req.params.id), {
+      acknowledgeDuplicates,
+    });
     if (!result.ok) {
       res.status(result.status).json(result);
       return;

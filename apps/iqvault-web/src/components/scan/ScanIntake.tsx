@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   approveScanConfirmList,
   confirmListCount,
+  confirmListDuplicateUnits,
+  confirmListUnitDisplayName,
   discardScanBatch,
   editScanUnit,
   identificationReportFromBatch,
@@ -11,10 +13,12 @@ import {
   fetchScanMeta,
   finishScanUpload,
   importScanFolder,
+  formatDuplicateCopyVerifyMessage,
   isOnConfirmList,
   reidentifyScanBatch,
   rejectScanUnit,
   scanMediaUrl,
+  ScanApiError,
   setScanUnitConfirmList,
   startScanUpload,
   swapScanFaces,
@@ -331,15 +335,82 @@ export function ScanIntake() {
         `Write ${n} card(s) from the confirm list into Collections as draft holdings? Condition stays NM assumed · unverified.`,
       );
       if (!ok) return;
+
+      const knownDupes = confirmListDuplicateUnits(batch);
+      let acknowledgeDuplicates = false;
+      let skipDupes = false;
+      if (knownDupes.length > 0) {
+        const addCopies = window.confirm(
+          formatDuplicateCopyVerifyMessage(
+            knownDupes.map(confirmListUnitDisplayName),
+          ),
+        );
+        if (addCopies) acknowledgeDuplicates = true;
+        else skipDupes = true;
+      }
+
       setBusy(true);
       setError(null);
       setStatus(null);
       try {
-        const result = await approveScanConfirmList(batch.id);
+        if (skipDupes) {
+          for (const unit of knownDupes) {
+            await setScanUnitConfirmList(unit.id, false);
+          }
+          if (knownDupes.length >= n) {
+            setStatus(
+              `Did not add another copy. Removed ${knownDupes.length} already-held card(s) from the confirm list.`,
+            );
+            await reload();
+            return;
+          }
+        }
+
+        const runApprove = (ack: boolean) =>
+          approveScanConfirmList(batch.id, { acknowledgeDuplicates: ack });
+
+        let result;
+        try {
+          result = await runApprove(acknowledgeDuplicates);
+        } catch (e) {
+          if (
+            !(e instanceof ScanApiError) ||
+            e.code !== "DUPLICATE_UNACKNOWLEDGED" ||
+            !e.duplicates?.length
+          ) {
+            throw e;
+          }
+          const addCopies = window.confirm(
+            e.message ||
+              formatDuplicateCopyVerifyMessage(
+                e.duplicates.map((d) => d.displayName),
+              ),
+          );
+          if (addCopies) {
+            result = await runApprove(true);
+          } else {
+            for (const d of e.duplicates) {
+              await setScanUnitConfirmList(d.unitId, false);
+            }
+            if (e.duplicates.length >= n) {
+              setStatus(
+                `Did not add another copy. Removed ${e.duplicates.length} already-held card(s) from the confirm list.`,
+              );
+              await reload();
+              return;
+            }
+            result = await runApprove(false);
+          }
+        }
+
+        const skippedNote = skipDupes
+          ? `Skipped ${knownDupes.length} already-held card(s). `
+          : "";
         setStatus(
-          result.note ??
-            `Wrote ${result.approved} holding(s).` +
-              (result.failed ? ` ${result.failed} failed.` : ""),
+          skippedNote +
+            (result.note ??
+              `Wrote ${result.approved} holding(s).` +
+                (result.failed ? ` ${result.failed} failed.` : "")),
         );
         if (result.errors?.length) {
           setError(result.errors.slice(0, 3).join(" · "));
@@ -1037,7 +1108,7 @@ export function ScanIntake() {
                                 ) : null}
                                 {unit.duplicateAcknowledged ? (
                                   <div>
-                                    <span className="badge badge-warn">already held — approve adds another</span>
+                                    <span className="badge badge-warn">already held — approve will ask before adding another</span>
                                   </div>
                                 ) : null}
                               </>

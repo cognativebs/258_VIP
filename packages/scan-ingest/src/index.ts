@@ -26,6 +26,8 @@ export {
   ConfirmUnitRequestSchema,
   ConfirmListRequestSchema,
   ApproveConfirmListRequestSchema,
+  ApproveConfirmListDuplicateSchema,
+  ApproveConfirmListConflictSchema,
   EditStagedUnitRequestSchema,
   InventoryCommitSchema,
   EbayListingDraftStatusSchema,
@@ -45,6 +47,8 @@ export {
   type ConfirmUnitRequest,
   type ConfirmListRequest,
   type ApproveConfirmListRequest,
+  type ApproveConfirmListDuplicate,
+  type ApproveConfirmListConflict,
   type EditStagedUnitRequest,
   type InventoryCommit,
   type EbayListingDraftStatus,
@@ -175,6 +179,10 @@ export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
 export { isGenericScanFileName } from "./identify.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";
+export {
+  formatDuplicateCopyVerifyMessage,
+  unitNeedsInventoryCopyAck,
+} from "./confirmListCopy.js";
 export { readImageMeta, orientationOf } from "./jpegMeta.js";
 export type {
   DeviceAdapter,

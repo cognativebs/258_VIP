@@ -136,6 +136,25 @@ export type StagedBatch = {
   telemetry?: ScanBatchTelemetry | null;
 };
 
+export type ScanDuplicateCopy = { unitId: string; displayName: string };
+
+export class ScanApiError extends Error {
+  status: number;
+  code?: string;
+  duplicates?: ScanDuplicateCopy[];
+
+  constructor(
+    message: string,
+    opts: { status: number; code?: string; duplicates?: ScanDuplicateCopy[] },
+  ) {
+    super(message);
+    this.name = "ScanApiError";
+    this.status = opts.status;
+    this.code = opts.code;
+    this.duplicates = opts.duplicates;
+  }
+}
+
 async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${vipBase()}${path}`, {
     ...init,
@@ -143,9 +162,17 @@ async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     signal: AbortSignal.timeout(SCAN_TIMEOUT_MS),
   });
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as T & {
+    error?: string;
+    code?: string;
+    duplicates?: ScanDuplicateCopy[];
+  };
   if (!res.ok) {
-    throw new Error(data.error || `VIP ${path} failed (${res.status})`);
+    throw new ScanApiError(data.error || `VIP ${path} failed (${res.status})`, {
+      status: res.status,
+      code: data.code,
+      duplicates: data.duplicates,
+    });
   }
   return data;
 }
@@ -237,6 +264,42 @@ export function confirmListCount(batch: StagedBatch): number {
   return batch.units.filter(isOnConfirmList).length;
 }
 
+export function unitNeedsInventoryCopyAck(unit: StagedUnit): boolean {
+  return Boolean(unit.duplicateAcknowledged || unit.physicalReimport);
+}
+
+export function confirmListDuplicateUnits(batch: StagedBatch): StagedUnit[] {
+  return batch.units.filter(
+    (unit) => isOnConfirmList(unit) && unitNeedsInventoryCopyAck(unit),
+  );
+}
+
+export function confirmListUnitDisplayName(unit: StagedUnit): string {
+  const top = unit.candidates[0];
+  if (top?.displayName) {
+    const extra = [top.setName, top.collectorNumber].filter(Boolean).join(" ");
+    return extra ? `${top.displayName} (${extra})` : top.displayName;
+  }
+  const winner = unit.identityEvidence?.debug?.winningCandidate?.displayName;
+  if (winner) return winner;
+  return `Card ${unit.unitIndex + 1}`;
+}
+
+export function formatDuplicateCopyVerifyMessage(names: string[]): string {
+  const unique = names.map((n) => n.trim()).filter(Boolean);
+  if (unique.length === 0) {
+    return "A card on this list already exists in inventory. Add another copy?";
+  }
+  if (unique.length === 1) {
+    return `This card already exists in inventory:\n\n${unique[0]}\n\nAdd another copy?`;
+  }
+  return (
+    `These cards already exist in inventory:\n\n` +
+    `${unique.map((n) => `• ${n}`).join("\n")}\n\n` +
+    `Add another copy of each?`
+  );
+}
+
 export function setScanUnitConfirmList(
   unitId: string,
   onList: boolean,
@@ -247,7 +310,10 @@ export function setScanUnitConfirmList(
   });
 }
 
-export function approveScanConfirmList(batchId: string): Promise<{
+export function approveScanConfirmList(
+  batchId: string,
+  body: { acknowledgeDuplicates?: boolean } = {},
+): Promise<{
   ok: boolean;
   approved: number;
   failed: number;
@@ -257,7 +323,7 @@ export function approveScanConfirmList(batchId: string): Promise<{
 }> {
   return vipFetch(
     `/api/scan/batches/${encodeURIComponent(batchId)}/approve-confirm-list`,
-    { method: "POST", body: JSON.stringify({}) },
+    { method: "POST", body: JSON.stringify(body) },
   );
 }
 

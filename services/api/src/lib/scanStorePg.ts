@@ -8,7 +8,9 @@ import {
   SCAN_SNAPSHOT_SOURCE,
   assessCandidates,
   baseVsParallelFromEvidence,
+  formatDuplicateCopyVerifyMessage,
   policyFromEnv,
+  unitNeedsInventoryCopyAck,
   type EditStagedUnitRequest,
   type OpenBatchResult,
 } from "@vip/scan-ingest";
@@ -751,6 +753,11 @@ export async function setUnitConfirmList(
   return { ok: true, unitId, onList, reviewStatus };
 }
 
+export type ApproveConfirmListDuplicate = {
+  unitId: string;
+  displayName: string;
+};
+
 export type ApproveConfirmListResult =
   | {
       ok: true;
@@ -760,14 +767,68 @@ export type ApproveConfirmListResult =
       skipped: number;
       errors: string[];
     }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: 404; error: string }
+  | {
+      ok: false;
+      status: 409;
+      error: string;
+      code: "DUPLICATE_UNACKNOWLEDGED";
+      duplicates: ApproveConfirmListDuplicate[];
+    };
+
+function confirmListDisplayName(unit: StagedUnitRow): string {
+  const top = unit.candidates[0];
+  if (top?.displayName) {
+    const extra = [top.setName, top.collectorNumber].filter(Boolean).join(" ");
+    return extra ? `${top.displayName} (${extra})` : top.displayName;
+  }
+  return `Card ${unit.unitIndex + 1}`;
+}
+
+function holdingMatchesCandidate(
+  holdings: ScanHoldingRow[],
+  top: StagedCandidateRow,
+): boolean {
+  if (top.assetId && holdings.some((h) => h.assetId === top.assetId)) {
+    return true;
+  }
+  const keys = new Set<string>([top.catalogKey]);
+  const suffix = top.catalogKey.split(":").pop();
+  if (suffix) keys.add(suffix);
+  return holdings.some((h) =>
+    h.externalIds.some((e) => keys.has(e.externalValue)),
+  );
+}
+
+async function confirmListAlreadyHeld(
+  units: StagedUnitRow[],
+): Promise<ApproveConfirmListDuplicate[]> {
+  const listed = units.filter(
+    (u) => !u.resolutionMode && u.reviewStatus === "draft_ready",
+  );
+  const holdings = await loadScanHoldings();
+  const byId = new Map<string, ApproveConfirmListDuplicate>();
+  for (const unit of listed) {
+    const top = unit.candidates[0];
+    const flagged = unitNeedsInventoryCopyAck(unit);
+    const liveHit = top ? holdingMatchesCandidate(holdings, top) : false;
+    if (!flagged && !liveHit) continue;
+    byId.set(unit.id, {
+      unitId: unit.id,
+      displayName: confirmListDisplayName(unit),
+    });
+  }
+  return [...byId.values()];
+}
 
 /**
  * Write every draft-ready card on the batch into Collections.
  * Inferred · unverified (NM assumed) until the operator grades later.
+ * Already-held cards require acknowledgeDuplicates — never silently add a copy.
  */
 export async function approveConfirmList(
   batchId: string,
+  input: { acknowledgeDuplicates?: boolean } = {},
 ): Promise<ApproveConfirmListResult> {
   const batch = await getStagedBatch(batchId);
   if (!batch) {
@@ -776,6 +837,18 @@ export async function approveConfirmList(
   const ready = batch.units.filter(
     (u) => !u.resolutionMode && u.reviewStatus === "draft_ready",
   );
+  const duplicates = await confirmListAlreadyHeld(batch.units);
+  if (duplicates.length > 0 && input.acknowledgeDuplicates !== true) {
+    return {
+      ok: false,
+      status: 409,
+      error: formatDuplicateCopyVerifyMessage(
+        duplicates.map((d) => d.displayName),
+      ),
+      code: "DUPLICATE_UNACKNOWLEDGED",
+      duplicates,
+    };
+  }
   let approved = 0;
   let failed = 0;
   const errors: string[] = [];
@@ -790,7 +863,7 @@ export async function approveConfirmList(
       unitId: unit.id,
       catalogKey: top.catalogKey,
       mode: "operator_confirmed",
-      acknowledgeDuplicates: unit.duplicateAcknowledged || unit.physicalReimport,
+      acknowledgeDuplicates: input.acknowledgeDuplicates === true,
     });
     if (!result.ok) {
       failed += 1;
