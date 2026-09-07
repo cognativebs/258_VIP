@@ -915,16 +915,78 @@ export function createApp(deps: AppDeps = {}) {
    * instead of dropping a scan folder (folder drops crash cloud agents).
    */
   app.get("/api/scan/batches/:id/identification-report", async (req, res) => {
+    const id = String(req.params.id);
     try {
-      const staged = await getStagedBatch(String(req.params.id));
-      if (!staged) {
-        res.status(404).json({ error: "Scan batch not found" });
+      const staged = await getStagedBatch(id);
+      if (staged) {
+        res.json(buildIdentificationReport(staged));
         return;
       }
-      res.json(buildIdentificationReport(staged));
-    } catch (e) {
-      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    } catch {
+      /* fall through to in-memory */
     }
+    const memory = getScanBatch(id);
+    if (!memory) {
+      res.status(404).json({ error: "Scan batch not found" });
+      return;
+    }
+    res.json(
+      buildIdentificationReport({
+        id: memory.id,
+        device: memory.device,
+        status: memory.status,
+        categoryHint: memory.categoryHint ?? null,
+        notes: memory.notes ?? null,
+        createdAt: memory.createdAt.toISOString(),
+        source: memory.device,
+        scannerProfile: null,
+        imageCount: memory.units.length,
+        expectedCardCount: memory.units.length,
+        processingStatus: memory.status,
+        errorsWarnings: [],
+        telemetry: null,
+        units: memory.units.map((u) => ({
+          id: u.id,
+          unitIndex: u.unitIndex,
+          status: u.status,
+          frontStorageRef: u.frontStorageRef,
+          backStorageRef: u.backStorageRef ?? null,
+          selectedCandidateKey: u.selectedCandidateKey ?? null,
+          holdingId: u.holdingId ?? null,
+          confirmedAssetId: u.confirmedAssetId ?? null,
+          resolutionMode: u.status === "confirmed" ? "operator_confirmed" : null,
+          topConfidence: u.candidates[0]?.confidence ?? null,
+          confidenceBand: null,
+          duplicateAcknowledged: Boolean(u.duplicateAlert),
+          decisionAction: u.decisionAction ?? null,
+          frontImageId: null,
+          backImageId: null,
+          normalizedFrontRef: null,
+          normalizedBackRef: null,
+          pairingMethod: null,
+          pairingConfidence: null,
+          pairingNeedsReview: false,
+          orientation: null,
+          identificationStatus: u.candidates.length ? "inferred" : "unknown",
+          reviewStatus: u.status,
+          reviewRoute: null,
+          identityEvidence: null,
+          baseVsParallel: null,
+          physicalReimport: false,
+          candidates: u.candidates.map((c) => ({
+            catalogKey: c.catalogKey,
+            displayName: c.displayName,
+            category: c.category,
+            setName: c.setName ?? null,
+            collectorNumber: c.collectorNumber ?? null,
+            confidence: c.confidence,
+            matchReasons: c.matchReasons,
+            adapterId: c.adapterId ?? "unknown",
+            assetId: c.assetId ?? null,
+          })),
+        })),
+      }),
+    );
   });
 
   app.post("/api/scan/batches/:id/reidentify", async (req, res) => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   discardScanBatch,
   editScanUnit,
-  fetchIdentificationReport,
+  identificationReportFromBatch,
   fetchScanBatches,
   fetchScanMeta,
   finishScanUpload,
@@ -460,11 +460,11 @@ export function ScanIntake() {
   }
 
   const copyIdReport = useCallback(
-    async (batchId: string) => {
+    async (batch: StagedBatch) => {
       setBusy(true);
       setError(null);
       try {
-        const report = await fetchIdentificationReport(batchId);
+        const report = identificationReportFromBatch(batch, meta?.catalog);
         const text = JSON.stringify(report, null, 2);
         await navigator.clipboard.writeText(text);
         setStatus(
@@ -476,7 +476,7 @@ export function ScanIntake() {
         setBusy(false);
       }
     },
-    [],
+    [meta],
   );
 
   const reidentify = useCallback(
@@ -757,7 +757,7 @@ export function ScanIntake() {
                     type="button"
                     className="btn-link"
                     disabled={busy}
-                    onClick={() => void copyIdReport(batch.id)}
+                    onClick={() => void copyIdReport(batch)}
                   >
                     Copy ID report
                   </button>

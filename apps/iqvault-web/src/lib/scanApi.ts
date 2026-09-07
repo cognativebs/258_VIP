@@ -280,6 +280,55 @@ export function fetchIdentificationReport(batchId: string): Promise<unknown> {
   return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/identification-report`);
 }
 
+/** Build the report from a batch already on screen — works if the API route is 404. */
+export function identificationReportFromBatch(
+  batch: StagedBatch,
+  catalog?: ScanMeta["catalog"],
+): Record<string, unknown> {
+  const fileOf = (ref: string) => ref.split(/[\\/]/).pop() ?? ref;
+  return {
+    kind: "vip.scan.identification-report",
+    exportedAt: new Date().toISOString(),
+    batchId: batch.id,
+    categoryHint: batch.categoryHint,
+    notes: batch.notes,
+    unitCount: batch.units.length,
+    catalog: catalog ?? null,
+    units: batch.units.map((unit) => {
+      const debug = unit.identityEvidence?.debug;
+      const top = unit.candidates[0];
+      return {
+        unitId: unit.id,
+        unitIndex: unit.unitIndex,
+        status: unit.status,
+        frontFile: fileOf(unit.frontStorageRef),
+        ocrFront: debug?.rawOcr?.front ?? "",
+        ocrBack: debug?.rawOcr?.back ?? "",
+        whyWon: debug?.whyWon ?? "",
+        catalogSource: debug?.catalogSource ?? top?.adapterId ?? "unknown",
+        adapterOutcomes: debug?.adapterOutcomes ?? [],
+        winner: top
+          ? {
+              displayName: top.displayName,
+              catalogKey: top.catalogKey,
+              adapterId: top.adapterId,
+              confidence: top.confidence,
+              collectorNumber: top.collectorNumber,
+              setName: top.setName,
+            }
+          : null,
+        candidates: unit.candidates.slice(0, 5).map((c) => ({
+          displayName: c.displayName,
+          catalogKey: c.catalogKey,
+          adapterId: c.adapterId,
+          confidence: c.confidence,
+          matchReasons: c.matchReasons,
+        })),
+      };
+    }),
+  };
+}
+
 export function reidentifyScanBatch(batchId: string): Promise<{
   ok: boolean;
   reidentified: number;
