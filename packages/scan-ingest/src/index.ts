@@ -90,6 +90,8 @@ export { createCatalogResolver, type CatalogResolver } from "./catalog/resolver.
 export {
   createMemoryIdentificationCache,
   canonicalizeCandidatesJson,
+  shouldPersistIdentification,
+  FIXTURE_ADAPTER_ID,
   type IdentificationCache,
 } from "./catalog/cache.js";
 export {
@@ -112,7 +114,11 @@ export {
   type IdentificationBenchmarkCase,
   type IdentificationBenchmarkReport,
 } from "./catalog/resolver-schemas.js";
-export { parseTcgdexCards, fetchTcgdexRaw } from "./catalog/tcgdexAdapter.js";
+export {
+  parseTcgdexCards,
+  fetchTcgdexRaw,
+  tcgdexSearchTerms,
+} from "./catalog/tcgdexAdapter.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,

@@ -4,6 +4,13 @@ Cursor work order for ADR 0010 / [plan 0001](0001-catalog-adapter-rollout.md) Ph
 The named file was not in the repo; this is the committed spec for the scaffolding
 that later adapters (TCGdex, Scryfall, CardSight) plug into.
 
+**Follow-up (2026-09-07):** live Pokémon intake no longer registers the
+5-card fixture. TCGdex is the production adapter (`VIP_CATALOG_FIXTURE=1`
+opt-in for tests). Cache ignores timeout / fixture-poisoned rows
+(`catalog-resolver@0.2.0`). `/scan` shows the live catalog, can
+**Re-identify**, and **Copy ID report** (OCR + candidates, no images)
+so a 25-scan folder does not have to be dropped into Cursor chat.
+
 **Follow-up (2026-09-06):** resolver + TCGdex wired on Pokémon/MTG intake;
 Postgres cache + provider snapshots. Phase 1 accuracy gate still needs 25
 real scans. Still out of scope: Scryfall/CardSight rollout gates,

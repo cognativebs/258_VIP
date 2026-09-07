@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm";
 import {
   CATALOG_RESOLVER_RULE,
   createCatalogResolver,
-  createFixtureCatalogAdapter,
   createTcgdexCatalogAdapter,
   type CatalogCard,
 } from "@vip/scan-ingest";
@@ -45,6 +44,17 @@ describe("catalog live wiring", () => {
     expect(tcgdexEnabled({ VIP_CATALOG_TCGDEX: "0" })).toBe(false);
   });
 
+  it("does not register the 5-card fixture unless VIP_CATALOG_FIXTURE=1", () => {
+    expect(defaultCatalogAdapters({}).some((a) => a.id === "fixture-catalog")).toBe(
+      false,
+    );
+    expect(
+      defaultCatalogAdapters({ VIP_CATALOG_FIXTURE: "1" }).some(
+        (a) => a.id === "fixture-catalog",
+      ),
+    ).toBe(true);
+  });
+
   it("snapshots TCGdex bytes before parse and replays from Postgres cache", async () => {
     if (!(await dbAvailable())) {
       console.warn("skipping catalog live PG test: no Postgres");
@@ -64,7 +74,6 @@ describe("catalog live wiring", () => {
       cache,
       snapshotSink: sink,
       adapters: [
-        createFixtureCatalogAdapter(),
         createTcgdexCatalogAdapter({ fetch: fetchImpl }),
       ],
     });

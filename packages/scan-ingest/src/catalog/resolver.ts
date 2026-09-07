@@ -11,7 +11,11 @@ import type {
   ScanCategory,
   ScanUnit,
 } from "../schemas.js";
-import { createMemoryIdentificationCache, type IdentificationCache } from "./cache.js";
+import {
+  createMemoryIdentificationCache,
+  shouldPersistIdentification,
+  type IdentificationCache,
+} from "./cache.js";
 import { mergeCandidatesByExternalId } from "./merge.js";
 import {
   CatalogResolverResultSchema,
@@ -217,7 +221,9 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
         }),
       });
 
-      if (cacheable && hash) await cache.set(hash, result);
+      if (cacheable && hash && shouldPersistIdentification(result)) {
+        await cache.set(hash, result);
+      }
       return result;
     },
   };

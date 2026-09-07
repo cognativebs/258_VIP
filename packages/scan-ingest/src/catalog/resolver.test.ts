@@ -247,6 +247,27 @@ describe("CatalogResolver", () => {
     );
   });
 
+  it("does not cache a timeout when a real adapter never returned ok", async () => {
+    const calls = { n: 0 };
+    const cache = createMemoryIdentificationCache();
+    const resolver = createCatalogResolver({
+      cache,
+      timeoutMs: 40,
+      adapters: [
+        countingAdapter("tcgdex", [CHARIZARD], calls, {
+          delayMs: 200,
+          categories: ["pokemon"],
+        }),
+      ],
+    });
+    const result = await resolver.resolve({
+      unit,
+      contentHash: "timeout-no-cache",
+    });
+    expect(result.outcomes[0]?.status).toBe("timeout");
+    expect(cache.size?.()).toBe(0);
+  });
+
   it("does not cache a resolve with empty query text", async () => {
     const calls = { n: 0 };
     const cache = createMemoryIdentificationCache();

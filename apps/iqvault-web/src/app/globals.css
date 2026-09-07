@@ -552,6 +552,26 @@ button.hunt-card {
   border-color: var(--gold);
 }
 
+.scan-catalog-ok,
+.scan-catalog-warn {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 0 0 12px;
+}
+
+.scan-catalog-ok {
+  border: 1px solid #3d6b4a;
+  background: rgba(61, 107, 74, 0.18);
+  color: #c8e0cf;
+}
+
+.scan-catalog-warn {
+  border: 1px solid #8a5a2b;
+  background: rgba(138, 90, 43, 0.18);
+  color: #f0d2a8;
+}
+
 .scan-batch-head {
   display: flex;
   flex-wrap: wrap;

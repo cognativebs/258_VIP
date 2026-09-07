@@ -102,10 +102,11 @@ function whyWon(
   winner: IdentityCandidate | undefined,
   query: string,
   usedVision: boolean,
+  catalogSource: string,
 ): string {
   if (!winner) {
     return query
-      ? "structured evidence produced a query but no candidate ranked"
+      ? `structured evidence produced a query but ${catalogSource} returned no candidate`
       : "no privileged OCR/vision fields; unknown is valid";
   }
   if (winner.catalogKey.startsWith("sports:parsed:")) {
@@ -113,7 +114,7 @@ function whyWon(
       ? "vision observed fields + privileged OCR; sports-parsed candidate from structured query (not a catalog fabrication)"
       : "privileged OCR/filename fields; sports-parsed candidate from structured query (not a catalog fabrication)";
   }
-  return `catalog ${winner.catalogKey} agreed with observed year/number/player`;
+  return `${catalogSource} ${winner.catalogKey} agreed with observed year/number/player`;
 }
 
 function debugBundle(input: {
@@ -127,12 +128,15 @@ function debugBundle(input: {
   whyWon: string;
   baseConfidence: number;
   parallelConfidence: number;
+  catalogSource: string;
+  adapterOutcomes: Array<{ adapterId: string; status: string; cardCount?: number }>;
 }): IdentificationDebug {
   const toDebug = (c: IdentityCandidate) => ({
     catalogKey: c.catalogKey,
     displayName: c.displayName,
     confidence: c.confidence,
     matchReasons: c.matchReasons,
+    adapterId: c.adapterId,
   });
   return {
     rawOcr: {
@@ -147,6 +151,8 @@ function debugBundle(input: {
     whyWon: input.whyWon,
     baseConfidence: input.baseConfidence,
     parallelConfidence: input.parallelConfidence,
+    catalogSource: input.catalogSource,
+    adapterOutcomes: input.adapterOutcomes,
   };
 }
 
@@ -258,18 +264,40 @@ export async function identifyFromPairedImages(input: {
     frontStorageRef: frontName,
     categoryHint: input.categoryHint ?? null,
   };
-  const candidates = input.resolver
-    ? (
-        await input.resolver.resolve({
-          unit: identifyInput,
-          contentHash: input.frontHash ?? null,
-          opts: { categoryHint: input.categoryHint ?? null },
-        })
-      ).candidates
-    : identifyUnit(identifyInput, {
-        catalog: [],
-        categoryHint: input.categoryHint ?? null,
-      });
+  const identifyOpts = {
+    categoryHint: input.categoryHint ?? null,
+    nameHint: evidence.fused.playerOrCharacter.value ?? undefined,
+    collectorNumberHint: evidence.fused.collectorNumber.value ?? undefined,
+  };
+  let catalogSource = "pixel-parse";
+  let adapterOutcomes: Array<{ adapterId: string; status: string; cardCount?: number }> = [];
+  let candidates: IdentityCandidate[];
+  if (input.resolver) {
+    const resolved = await input.resolver.resolve({
+      unit: identifyInput,
+      contentHash: input.frontHash ?? null,
+      opts: identifyOpts,
+    });
+    candidates = resolved.candidates;
+    adapterOutcomes = resolved.outcomes.map((o) => ({
+      adapterId: o.adapterId,
+      status: o.status,
+      cardCount: o.cardCount,
+    }));
+    const used = resolved.outcomes.filter((o) => o.status === "ok" && o.cardCount > 0);
+    const real = used.filter((o) => o.adapterId !== "fixture-catalog");
+    catalogSource =
+      real[0]?.adapterId ??
+      used[0]?.adapterId ??
+      (resolved.cacheHit ? "cache" : "none");
+    if (resolved.cacheHit) notes.push(`catalog cache hit · ${catalogSource}`);
+    else notes.push(`catalog ${catalogSource}`);
+  } else {
+    candidates = identifyUnit(identifyInput, {
+      catalog: [],
+      ...identifyOpts,
+    });
+  }
 
   evidence = {
     ...evidence,
@@ -278,7 +306,7 @@ export async function identifyFromPairedImages(input: {
 
   const split = baseVsParallelFromEvidence(evidence);
   const winner = candidates[0];
-  const reason = whyWon(winner, query, usedVision);
+  const reason = whyWon(winner, query, usedVision, catalogSource);
   evidence.debug = debugBundle({
     frontOcrText: frontOcr.text,
     backOcrText: backOcr.text,
@@ -290,6 +318,8 @@ export async function identifyFromPairedImages(input: {
     whyWon: reason,
     baseConfidence: split.baseConfidence,
     parallelConfidence: split.parallelConfidence,
+    catalogSource,
+    adapterOutcomes,
   });
 
   return {

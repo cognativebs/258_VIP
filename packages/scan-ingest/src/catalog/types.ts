@@ -14,6 +14,10 @@ export type CatalogQuery = {
   category?: ScanCategory | null;
   /** Exact identifiers read from a barcode / QR when present. */
   externalIds?: Array<{ source: string; value: string }>;
+  /** Privileged name from structured OCR / vision — preferred over raw tokens. */
+  nameHint?: string;
+  /** Privileged collector number from structured OCR / vision. */
+  collectorNumber?: string;
   limit?: number;
 };
 

@@ -1,5 +1,22 @@
 import type { CatalogResolverResult } from "./resolver-schemas.js";
 
+export const FIXTURE_ADAPTER_ID = "fixture-catalog";
+
+/**
+ * Persist only a completed real-adapter pass, or a fixture-only resolver
+ * (tests / VIP_CATALOG_FIXTURE=1). A TCGdex timeout must not freeze
+ * Charizard/Pikachu onto this hash forever.
+ */
+export function shouldPersistIdentification(
+  result: CatalogResolverResult,
+): boolean {
+  const real = result.outcomes.filter((o) => o.adapterId !== FIXTURE_ADAPTER_ID);
+  if (real.length === 0) {
+    return result.outcomes.some((o) => o.status === "ok" && o.called);
+  }
+  return real.some((o) => o.status === "ok");
+}
+
 /**
  * Identification cache keyed on `raw_snapshots.content_hash` (ADR 0010 §5).
  * Same bytes must always yield the same candidates without a provider call.

@@ -25,6 +25,13 @@ export type ScanMeta = {
   inbox: { root: string | null; configured: boolean; note: string };
   reviewThresholds?: { highMin: string; mediumMin: string };
   scannerProfileDefault?: string;
+  catalog?: {
+    resolverEnabledFor: string[];
+    adapters: Array<{ id: string; label: string }>;
+    tcgdex: boolean;
+    fixtureCatalog: boolean;
+    note: string;
+  };
 };
 
 export type ScanBatchTelemetry = {
@@ -98,11 +105,14 @@ export type StagedUnit = {
         displayName: string;
         confidence: number;
         matchReasons: string[];
+        adapterId?: string;
       }>;
       winningCandidate?: { catalogKey: string; displayName: string; confidence: number } | null;
       whyWon?: string;
       baseConfidence?: number;
       parallelConfidence?: number;
+      catalogSource?: string;
+      adapterOutcomes?: Array<{ adapterId: string; status: string; cardCount?: number }>;
     };
   } | null;
   baseVsParallel?: BaseVsParallel | null;
@@ -263,6 +273,24 @@ export function discardScanBatch(
 ): Promise<{ ok: boolean; rejected: number; confirmedKept: number }> {
   return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}`, {
     method: "DELETE",
+  });
+}
+
+export function fetchIdentificationReport(batchId: string): Promise<unknown> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/identification-report`);
+}
+
+export function reidentifyScanBatch(batchId: string): Promise<{
+  ok: boolean;
+  reidentified: number;
+  skippedConfirmed: number;
+  skippedMissing: number;
+  catalogSource: string;
+  report?: unknown;
+}> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/reidentify`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

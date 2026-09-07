@@ -1,6 +1,5 @@
 import {
   ConfirmUnitRequestSchema,
-  FIXTURE_CATALOG,
   SCAN_HOLDING_SOURCE,
   SCAN_INGEST_RULE,
   SCAN_INGEST_VERSION,
@@ -21,6 +20,7 @@ import type { ApiHolding } from "./holdings.js";
 import {
   catalogResolverEnabled,
   getCatalogResolver,
+  liveCatalogStatus,
   resetCatalogResolver,
 } from "./catalogLive.js";
 
@@ -114,7 +114,7 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
     return openScanBatchWithResolver(input, {
       store,
       resolver: getCatalogResolver(),
-      catalog: FIXTURE_CATALOG,
+      catalog: [],
       inventory: body.inventory,
       ebayCreds: ebayCredsFromEnv(),
     });
@@ -122,9 +122,9 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
 
   return openScanBatch(input, {
     store,
-    // Sports lots use pixel OCR + sports parse. The 5-card fixture is not a
-    // production sports catalog.
-    catalog: category === "pokemon" || category === "mtg" ? FIXTURE_CATALOG : [],
+    // Sports lots use pixel OCR + sports parse. Live Pokémon/MTG use the
+    // resolver above — never the 5-card fixture unless VIP_CATALOG_FIXTURE=1.
+    catalog: [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -137,7 +137,7 @@ export function confirmScanFromApi(
   const parsed = ConfirmUnitRequestSchema.parse(body);
   return confirmScanUnit(parsed, {
     store,
-    catalog: FIXTURE_CATALOG,
+    catalog: [],
     inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -173,8 +173,8 @@ export function scanMeta() {
       "Tesseract OCR on front+back pixels (generic IMG_#### names ignored)",
       "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
-      "CatalogResolver fan-out (fixture + TCGdex for Pokémon; Magic fixture until Scryfall)",
-      "identification cache by content_hash · provider snapshots before parse",
+      "CatalogResolver fan-out (TCGdex for Pokémon; Magic until Scryfall; fixture opt-in only)",
+      "identification cache by content_hash · skip timeout/fixture-poisoned rows",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",
       "physical reimport (hash) vs same card type",
@@ -193,5 +193,6 @@ export function scanMeta() {
       mediumMin: process.env.VIP_SCAN_MEDIUM_MIN ?? "0.45",
     },
     scannerProfileDefault: "004_Cards",
+    catalog: liveCatalogStatus(),
   };
 }

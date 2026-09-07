@@ -44,7 +44,7 @@ export async function persistBatch(
 ): Promise<PersistBatchResult> {
   const db = getDb();
   const batch = result.batch;
-  const adapterId = opts.adapterId ?? "fixture-catalog";
+  const adapterId = opts.adapterId ?? "catalog-resolver";
   const policy = policyFromEnv();
 
   await db.execute(sql`

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   discardScanBatch,
   editScanUnit,
+  fetchIdentificationReport,
   fetchScanBatches,
   fetchScanMeta,
   finishScanUpload,
   importScanFolder,
+  reidentifyScanBatch,
   rejectScanUnit,
   resolveScanUnit,
   scanMediaUrl,
@@ -74,6 +76,15 @@ function IdentificationDebug({
   return (
     <details className="scan-debug">
       <summary>Identification debug</summary>
+      <p>
+        <strong>Catalog:</strong>{" "}
+        {debug.catalogSource ?? unit.candidates[0]?.adapterId ?? "—"}
+        {debug.adapterOutcomes?.length
+          ? ` · ${debug.adapterOutcomes
+              .map((o) => `${o.adapterId}:${o.status}${o.cardCount != null ? `(${o.cardCount})` : ""}`)
+              .join(" ")}`
+          : ""}
+      </p>
       <p>
         <strong>Why:</strong> {debug.whyWon ?? "—"}
       </p>
@@ -176,7 +187,13 @@ export function ScanIntake() {
   const [batches, setBatches] = useState<StagedBatch[]>([]);
   const [store, setStore] = useState<"postgres" | "memory" | null>(null);
   const [folder, setFolder] = useState("");
-  const [category, setCategory] = useState<ScanCategory>("sports");
+  const [category, setCategory] = useState<ScanCategory>(() => {
+    if (typeof window === "undefined") return "sports";
+    const saved = window.localStorage.getItem("vip.scan.category");
+    return saved === "pokemon" || saved === "mtg" || saved === "sports"
+      ? saved
+      : "sports";
+  });
   const [pairing, setPairing] = useState<ScanPairing>("auto");
   const [notes, setNotes] = useState("");
   const [uploads, setUploads] = useState<File[]>([]);
@@ -216,6 +233,11 @@ export function ScanIntake() {
       );
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("vip.scan.category", category);
+  }, [category]);
 
   const startBatch = useCallback(async () => {
     setBusy(true);
@@ -419,12 +441,70 @@ export function ScanIntake() {
     : batches;
   const hiddenCount = batches.length - visibleBatches.length;
 
+  function inferCategoryFromNames(names: string[]): ScanCategory | null {
+    const blob = names.join(" ").toLowerCase();
+    if (/pokemon|pokémon|poke\b|tcgdex|pikachu|charizard|mewtwo/.test(blob)) {
+      return "pokemon";
+    }
+    if (/\bmtg\b|magic the gathering|scryfall/.test(blob)) return "mtg";
+    return null;
+  }
+
   function takeFiles(list: FileList | File[] | null) {
     const next = Array.from(list ?? []).filter((f) =>
       /\.(jpe?g|png|tiff?|webp)$/i.test(f.name),
     );
     setUploads(next);
+    const inferred = inferCategoryFromNames(next.map((f) => f.name));
+    if (inferred) setCategory(inferred);
   }
+
+  const copyIdReport = useCallback(
+    async (batchId: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const report = await fetchIdentificationReport(batchId);
+        const text = JSON.stringify(report, null, 2);
+        await navigator.clipboard.writeText(text);
+        setStatus(
+          "Copied identification report (OCR + candidates, no images). Paste that into Cursor — do not drop the scan folder into chat.",
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not copy report");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
+  const reidentify = useCallback(
+    async (batchId: string) => {
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await reidentifyScanBatch(batchId);
+        setStatus(
+          `Re-identified ${result.reidentified} card(s) via ${result.catalogSource}` +
+            (result.skippedConfirmed
+              ? ` · left ${result.skippedConfirmed} confirmed`
+              : "") +
+            (result.skippedMissing
+              ? ` · ${result.skippedMissing} missing master file(s)`
+              : "") +
+            ". Nothing is in inventory until you confirm.",
+        );
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Re-identify failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
 
   return (
     <div className="stack">
@@ -433,14 +513,39 @@ export function ScanIntake() {
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           Paste the PaperStream output path and click <strong>Import folder</strong>.
           The folder must exist on this PC (the machine running the VIP API).
+          Do not drop the image folder into Cursor chat — use{" "}
+          <strong>Copy ID report</strong> after import.
         </p>
+
+        {meta?.catalog ? (
+          <div
+            className={
+              meta.catalog.fixtureCatalog ? "scan-catalog-warn" : "scan-catalog-ok"
+            }
+          >
+            <strong>Live catalog:</strong>{" "}
+            {meta.catalog.adapters.length
+              ? meta.catalog.adapters.map((a) => a.label).join(" + ")
+              : "none"}
+            {meta.catalog.fixtureCatalog
+              ? " — 5-card fixture is opted in. Turn off VIP_CATALOG_FIXTURE for real Pokémon IDs."
+              : meta.catalog.tcgdex
+                ? " — Pokémon IDs come from TCGdex, not the 5-card fixture."
+                : ` — ${meta.catalog.note}`}
+          </div>
+        ) : null}
 
         <label className="scan-field">
           <span>Scan folder</span>
           <input
             type="text"
             value={folder}
-            onChange={(e) => setFolder(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setFolder(next);
+              const inferred = inferCategoryFromNames([next]);
+              if (inferred) setCategory(inferred);
+            }}
             onPaste={(e) => {
               const text = e.clipboardData.getData("text");
               if (!text.trim()) return;
@@ -540,6 +645,12 @@ export function ScanIntake() {
               </option>
             ))}
           </select>
+          {category === "sports" ? (
+            <small className="scan-catalog-warn" style={{ display: "block", marginTop: 6 }}>
+              Sports is selected — Pokémon scans will not call TCGdex. Switch to
+              Pokemon TCG before import.
+            </small>
+          ) : null}
         </label>
 
         <label className="scan-field">
@@ -640,6 +751,24 @@ export function ScanIntake() {
                       onClick={() => void swapFaces({ batchId: batch.id })}
                     >
                       Swap front/back
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busy}
+                    onClick={() => void copyIdReport(batch.id)}
+                  >
+                    Copy ID report
+                  </button>
+                  {batch.categoryHint === "pokemon" || batch.categoryHint === "mtg" ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busy}
+                      onClick={() => void reidentify(batch.id)}
+                    >
+                      Re-identify with live catalog
                     </button>
                   ) : null}
                   <button

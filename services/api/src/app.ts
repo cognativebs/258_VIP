@@ -73,6 +73,8 @@ import {
   RicohIntakeError,
 } from "./lib/ricohIntake.js";
 import { sendScanMedia } from "./lib/scanMedia.js";
+import { buildIdentificationReport } from "./lib/identificationReport.js";
+import { reidentifyStagedBatch, ReidentifyError } from "./lib/reidentifyBatch.js";
 import {
   inspectBatch001Item,
   loadBatch001,
@@ -905,6 +907,46 @@ export function createApp(deps: AppDeps = {}) {
       });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  /**
+   * Compact OCR + candidate JSON — no image bytes. Paste this into chat
+   * instead of dropping a scan folder (folder drops crash cloud agents).
+   */
+  app.get("/api/scan/batches/:id/identification-report", async (req, res) => {
+    try {
+      const staged = await getStagedBatch(String(req.params.id));
+      if (!staged) {
+        res.status(404).json({ error: "Scan batch not found" });
+        return;
+      }
+      res.json(buildIdentificationReport(staged));
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.post("/api/scan/batches/:id/reidentify", async (req, res) => {
+    try {
+      const result = await reidentifyStagedBatch(String(req.params.id));
+      res.json({
+        ok: true,
+        batchId: result.batchId,
+        categoryHint: result.categoryHint,
+        reidentified: result.reidentified,
+        skippedConfirmed: result.skippedConfirmed,
+        skippedMissing: result.skippedMissing,
+        catalogSource: result.catalogSource,
+        batch: result.batch,
+        report: buildIdentificationReport(result.batch),
+      });
+    } catch (e) {
+      const status = e instanceof ReidentifyError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   });
 

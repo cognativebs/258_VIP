@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { createTcgdexCatalogAdapter, parseTcgdexCards } from "./tcgdexAdapter.js";
+import {
+  createTcgdexCatalogAdapter,
+  parseTcgdexCards,
+  tcgdexSearchTerms,
+} from "./tcgdexAdapter.js";
+
+describe("tcgdexSearchTerms", () => {
+  it("extracts Charizard from a structured year/set query", () => {
+    const terms = tcgdexSearchTerms({
+      text: "1999 Pokémon #4 Charizard",
+    });
+    expect(terms.name.toLowerCase()).toBe("charizard");
+    expect(terms.localId).toBe("4");
+  });
+
+  it("prefers a privileged name hint over raw tokens", () => {
+    const terms = tcgdexSearchTerms({
+      text: "1999 Pokémon #150",
+      nameHint: "Mewtwo",
+      collectorNumber: "150",
+    });
+    expect(terms.name).toBe("Mewtwo");
+    expect(terms.localId).toBe("150");
+  });
+});
 
 describe("TcgdexCatalogAdapter", () => {
   it("parses provider JSON into catalog cards with tcgdex external ids", () => {

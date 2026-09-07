@@ -28,6 +28,13 @@ export function tcgdexEnabled(
   return env.VIP_CATALOG_TCGDEX !== "0";
 }
 
+/** Offline 5-card fixture — opt-in only. Never the live Pokémon catalog. */
+export function fixtureCatalogEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.VIP_CATALOG_FIXTURE === "1";
+}
+
 export function createPostgresSnapshotSink(): SnapshotSink {
   return {
     async write(input) {
@@ -104,7 +111,9 @@ export function createPostgresIdentificationCache(): IdentificationCache {
             ${contentHash}, ${CATALOG_RESOLVER_RULE},
             ${JSON.stringify(result)}::jsonb, ${result.providerCalls}
           )
-          ON CONFLICT (content_hash, resolver_version) DO NOTHING
+          ON CONFLICT (content_hash, resolver_version) DO UPDATE SET
+            payload = EXCLUDED.payload,
+            provider_calls = EXCLUDED.provider_calls
         `);
       } catch {
         // Process-local cache still satisfies same-process replay.
@@ -131,11 +140,52 @@ export function resetCatalogResolver(): void {
 export function defaultCatalogAdapters(
   env: NodeJS.ProcessEnv = process.env,
 ): CatalogAdapter[] {
-  const adapters: CatalogAdapter[] = [createFixtureCatalogAdapter()];
+  const adapters: CatalogAdapter[] = [];
+  if (fixtureCatalogEnabled(env)) {
+    adapters.push(createFixtureCatalogAdapter());
+  }
   if (tcgdexEnabled(env)) {
     adapters.push(createTcgdexCatalogAdapter());
   }
   return adapters;
+}
+
+export function liveCatalogStatus(env: NodeJS.ProcessEnv = process.env) {
+  const adapters = defaultCatalogAdapters(env);
+  const fixtureOn = fixtureCatalogEnabled(env);
+  const tcgdexOn = tcgdexEnabled(env);
+  return {
+    resolverEnabledFor: ["pokemon", "mtg"] as const,
+    adapters: adapters.map((a) => ({ id: a.id, label: a.label })),
+    tcgdex: tcgdexOn,
+    fixtureCatalog: fixtureOn,
+    note: fixtureOn
+      ? "VIP_CATALOG_FIXTURE=1 — 5-card fixture is opted in (tests/offline only)."
+      : tcgdexOn
+        ? "Pokémon identification uses TCGdex. The 5-card fixture is not in the live adapter list."
+        : "No live Pokémon catalog. TCGdex is off (VIP_CATALOG_TCGDEX=0).",
+  };
+}
+
+export async function invalidateIdentificationCache(
+  hashes: string[],
+): Promise<number> {
+  resetCatalogResolver();
+  if (hashes.length === 0) return 0;
+  try {
+    const db = getDb();
+    let n = 0;
+    for (const hash of hashes) {
+      const res = await db.execute(sql`
+        DELETE FROM vault_media.identification_cache
+        WHERE content_hash = ${hash}
+      `);
+      n += Number(res.rowCount ?? 0);
+    }
+    return n;
+  } catch {
+    return 0;
+  }
 }
 
 export function getCatalogResolver(): CatalogResolver {
