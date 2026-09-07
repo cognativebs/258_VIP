@@ -229,6 +229,38 @@ export function finishScanUpload(body: {
   });
 }
 
+export function isOnConfirmList(unit: StagedUnit): boolean {
+  return !unit.resolutionMode && unit.reviewStatus === "draft_ready";
+}
+
+export function confirmListCount(batch: StagedBatch): number {
+  return batch.units.filter(isOnConfirmList).length;
+}
+
+export function setScanUnitConfirmList(
+  unitId: string,
+  onList: boolean,
+): Promise<{ ok: boolean; onList: boolean; reviewStatus: string; note?: string }> {
+  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/confirm-list`, {
+    method: "POST",
+    body: JSON.stringify({ onList }),
+  });
+}
+
+export function approveScanConfirmList(batchId: string): Promise<{
+  ok: boolean;
+  approved: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+  note?: string;
+}> {
+  return vipFetch(
+    `/api/scan/batches/${encodeURIComponent(batchId)}/approve-confirm-list`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
 /** The ADR 0009 boundary: staging → canonical inventory. */
 export function resolveScanUnit(
   unitId: string,
@@ -329,7 +361,10 @@ export function identificationReportFromBatch(
   };
 }
 
-export function reidentifyScanBatch(batchId: string): Promise<{
+export function reidentifyScanBatch(
+  batchId: string,
+  opts?: { unitId?: string },
+): Promise<{
   ok: boolean;
   reidentified: number;
   skippedConfirmed: number;
@@ -339,7 +374,7 @@ export function reidentifyScanBatch(batchId: string): Promise<{
 }> {
   return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/reidentify`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(opts?.unitId ? { unitId: opts.unitId } : {}),
   });
 }
 

@@ -53,6 +53,7 @@ import {
 } from "./lib/scanIngest.js";
 import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
+  approveConfirmList,
   discardBatch,
   editStagedUnit,
   getStagedBatch,
@@ -60,6 +61,7 @@ import {
   loadScanHoldings,
   rejectUnit,
   resolveUnit,
+  setUnitConfirmList,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
 import {
@@ -804,6 +806,36 @@ export function createApp(deps: AppDeps = {}) {
     res.status(result.ok ? 200 : 400).json(result);
   });
 
+  app.post("/api/scan/units/:id/confirm-list", async (req, res) => {
+    const onList = req.body?.onList !== false;
+    const result = await setUnitConfirmList(String(req.params.id), onList);
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json({
+      ...result,
+      note: onList
+        ? "On the confirm list. Approve Confirm List to write inventory."
+        : "Removed from the confirm list.",
+    });
+  });
+
+  app.post("/api/scan/batches/:id/approve-confirm-list", async (req, res) => {
+    const result = await approveConfirmList(String(req.params.id));
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json({
+      ...result,
+      note:
+        result.approved === 0
+          ? "Nothing on the confirm list to approve."
+          : `Wrote ${result.approved} draft holding(s) to Collections (NM assumed · unverified).`,
+    });
+  });
+
   app.post("/api/scan/units/:id/edit", async (req, res) => {
     try {
       const body = req.body ?? {};
@@ -991,7 +1023,13 @@ export function createApp(deps: AppDeps = {}) {
 
   app.post("/api/scan/batches/:id/reidentify", async (req, res) => {
     try {
-      const result = await reidentifyStagedBatch(String(req.params.id));
+      const unitId =
+        typeof req.body?.unitId === "string" && req.body.unitId.trim()
+          ? String(req.body.unitId)
+          : undefined;
+      const result = await reidentifyStagedBatch(String(req.params.id), {
+        unitId,
+      });
       res.json({
         ok: true,
         batchId: result.batchId,

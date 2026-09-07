@@ -36,6 +36,7 @@ function fileHash(path: string): string {
  */
 export async function reidentifyStagedBatch(
   batchId: string,
+  opts: { unitId?: string } = {},
 ): Promise<{
   batchId: string;
   categoryHint: string | null;
@@ -76,6 +77,7 @@ export async function reidentifyStagedBatch(
   let skippedMissing = 0;
 
   for (const unit of existing.units) {
+    if (opts.unitId && unit.id !== opts.unitId) continue;
     if (unit.resolutionMode) {
       skippedConfirmed += 1;
       continue;

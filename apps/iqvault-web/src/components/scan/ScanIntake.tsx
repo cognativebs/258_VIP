@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  approveScanConfirmList,
+  confirmListCount,
   discardScanBatch,
   editScanUnit,
   identificationReportFromBatch,
@@ -9,10 +11,11 @@ import {
   fetchScanMeta,
   finishScanUpload,
   importScanFolder,
+  isOnConfirmList,
   reidentifyScanBatch,
   rejectScanUnit,
-  resolveScanUnit,
   scanMediaUrl,
+  setScanUnitConfirmList,
   startScanUpload,
   swapScanFaces,
   uploadScanFile,
@@ -157,7 +160,7 @@ function formatImportStatus(result: ImportScanResult): string {
   );
   const unpaired =
     images > 1 && cards === images
-      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not confirm this batch."
+      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not approve this batch."
       : "";
   return (
     `Staged ${cards} card(s) from ${images} image(s)` +
@@ -165,7 +168,7 @@ function formatImportStatus(result: ImportScanResult): string {
     `.${routes}` +
     (fallback ? ` ${fallback}.` : "") +
     unpaired +
-    " Nothing is in inventory until you confirm."
+    " Nothing is in inventory until you Approve Confirm List."
   );
 }
 
@@ -299,25 +302,51 @@ export function ScanIntake() {
     }
   }, [uploads, category, notes, pairing, reload]);
 
-  const confirmUnit = useCallback(
-    async (unit: StagedUnit, catalogKey: string) => {
+  const addToConfirmList = useCallback(
+    async (unit: StagedUnit) => {
       setBusy(true);
       setError(null);
       setStatus(null);
       try {
-        const result = await resolveScanUnit(unit.id, {
-          catalogKey,
-          acknowledgeDuplicates: unit.duplicateAcknowledged || unit.physicalReimport,
-          quantity: 1,
-        });
-        setStatus(
-          result.alreadyResolved
-            ? "Already in inventory — no second holding created."
-            : `Draft inventory created (Dealer · Sell). ${result.note ?? ""}`,
-        );
+        const result = await setScanUnitConfirmList(unit.id, true);
+        setStatus(result.note ?? "Added to the confirm list.");
         await reload();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Confirm failed");
+        setError(e instanceof Error ? e.message : "Could not add to confirm list");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const approveList = useCallback(
+    async (batch: StagedBatch) => {
+      const n = confirmListCount(batch);
+      if (n === 0) {
+        setError("Nothing on the confirm list. Add cards, or wait for Draft-ready matches.");
+        return;
+      }
+      const ok = window.confirm(
+        `Write ${n} card(s) from the confirm list into Collections as draft holdings? Condition stays NM assumed · unverified.`,
+      );
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await approveScanConfirmList(batch.id);
+        setStatus(
+          result.note ??
+            `Wrote ${result.approved} holding(s).` +
+              (result.failed ? ` ${result.failed} failed.` : ""),
+        );
+        if (result.errors?.length) {
+          setError(result.errors.slice(0, 3).join(" · "));
+        }
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Approve confirm list failed");
       } finally {
         setBusy(false);
       }
@@ -379,7 +408,9 @@ export function ScanIntake() {
           collectorNumber: editForm.collectorNumber.trim() || null,
           parallel: editForm.parallel.trim() || null,
         });
-        setStatus(`Saved edit: ${result.displayName}. Confirm to add it to Collections.`);
+        setStatus(
+          `Saved edit: ${result.displayName}. Off the confirm list — Add to Confirm List when it looks right.`,
+        );
         setEditingId(null);
         await reload();
       } catch (e) {
@@ -480,21 +511,21 @@ export function ScanIntake() {
   );
 
   const reidentify = useCallback(
-    async (batchId: string) => {
+    async (batchId: string, unitId?: string) => {
       setBusy(true);
       setError(null);
       setStatus(null);
       try {
-        const result = await reidentifyScanBatch(batchId);
+        const result = await reidentifyScanBatch(batchId, unitId ? { unitId } : undefined);
         setStatus(
           `Re-identified ${result.reidentified} card(s) via ${result.catalogSource}` +
             (result.skippedConfirmed
-              ? ` · left ${result.skippedConfirmed} confirmed`
+              ? ` · left ${result.skippedConfirmed} already in inventory`
               : "") +
             (result.skippedMissing
               ? ` · ${result.skippedMissing} missing master file(s)`
               : "") +
-            ". Nothing is in inventory until you confirm.",
+            ". Draft-ready cards stay on the confirm list until you Approve.",
         );
         await reload();
       } catch (e) {
@@ -707,11 +738,13 @@ export function ScanIntake() {
           {hiddenCount ? `, ${hiddenCount} lab hidden` : ""})
         </h2>
         <p className="muted" style={{ fontSize: 13 }}>
-          Uncertain cards stay here. Front and back are shown together.{" "}
-          <strong>Edit</strong> a card if OCR missed the name, then{" "}
-          <strong>Confirm</strong> to save a draft holding (Dealer Inventory · Sell ·
-          NM assumed · unverified). <strong>Delete batch</strong> clears this queue
-          without removing anything already confirmed into Collections.
+          Nothing is in Collections until you <strong>Approve Confirm List</strong>.
+          Draft-ready matches start on that list.{" "}
+          <strong>Add to Confirm List</strong> for needs-confirmation cards.{" "}
+          <strong>Edit</strong> or <strong>Reject</strong> takes a card off the list.
+          Approve writes draft holdings (NM assumed · unverified). If a scan matches
+          a card you already hold, Approve adds another holding — there is no separate
+          “Add copy” action.
         </p>
         <label className="scan-hide-lab">
           <input
@@ -739,10 +772,11 @@ export function ScanIntake() {
                   <p className="muted" style={{ margin: 0, fontSize: 12 }}>
                     {batch.source ?? batch.device}
                     {batch.scannerProfile ? ` · ${batch.scannerProfile}` : ""} · {batch.status}
+                    {` · confirm list ${confirmListCount(batch)}/${batch.units.filter((u) => !u.resolutionMode).length}`}
                     {batch.notes ? ` · ${batch.notes}` : ""}
                   </p>
                 </div>
-                <div className="scan-actions" style={{ margin: 0 }}>
+                <div className="scan-actions" style={{ margin: 0, flexWrap: "wrap" }}>
                   {batch.units.some((u) => !u.resolutionMode && u.backStorageRef) ? (
                     <button
                       type="button"
@@ -750,7 +784,7 @@ export function ScanIntake() {
                       disabled={busy}
                       onClick={() => void swapFaces({ batchId: batch.id })}
                     >
-                      Swap front/back
+                      Swap ALL faces
                     </button>
                   ) : null}
                   <button
@@ -771,6 +805,19 @@ export function ScanIntake() {
                       Re-identify with live catalog
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={busy || confirmListCount(batch) === 0}
+                    onClick={() => void approveList(batch)}
+                    title={
+                      confirmListCount(batch) === 0
+                        ? "Add cards to the confirm list first"
+                        : `Write ${confirmListCount(batch)} card(s) into Collections`
+                    }
+                  >
+                    Approve confirm list ({confirmListCount(batch)})
+                  </button>
                   <button
                     type="button"
                     className="btn-link"
@@ -824,6 +871,9 @@ export function ScanIntake() {
                       const resolved = unit.resolutionMode != null;
                       const split = unit.baseVsParallel;
                       const conflicts = unit.identityEvidence?.conflictNotes ?? [];
+                      const listed = isOnConfirmList(unit);
+                      const liveCatalog =
+                        batch.categoryHint === "pokemon" || batch.categoryHint === "mtg";
                       return (
                         <tr key={unit.id}>
                           <td>
@@ -977,7 +1027,9 @@ export function ScanIntake() {
                               </>
                             ) : (
                               <>
-                                <span className="badge">staged</span>
+                                <span className={listed ? "badge badge-ok" : "badge badge-warn"}>
+                                  {listed ? "on confirm list" : "needs confirmation"}
+                                </span>
                                 {unit.physicalReimport ? (
                                   <div>
                                     <span className="badge badge-warn">same physical scan</span>
@@ -985,7 +1037,7 @@ export function ScanIntake() {
                                 ) : null}
                                 {unit.duplicateAcknowledged ? (
                                   <div>
-                                    <span className="badge badge-warn">same card type held</span>
+                                    <span className="badge badge-warn">already held — approve adds another</span>
                                   </div>
                                 ) : null}
                               </>
@@ -996,46 +1048,19 @@ export function ScanIntake() {
                               <span className="muted">—</span>
                             ) : (
                               <div className="scan-actions" style={{ margin: 0, flexWrap: "wrap" }}>
-                                <button
-                                  type="button"
-                                  className="btn-primary"
-                                  disabled={
-                                    busy ||
-                                    !top ||
-                                    unit.reviewRoute === "CONFLICT" ||
-                                    conflicts.length > 0
-                                  }
-                                  onClick={() => void confirmUnit(unit, top!.catalogKey)}
-                                  title={
-                                    !top
-                                      ? "Click Edit, enter the card, Save edit, then Confirm"
-                                      : unit.reviewRoute === "CONFLICT" || conflicts.length > 0
-                                        ? "Click Edit to correct the conflict, then Confirm"
-                                        : unit.physicalReimport
-                                          ? "This is the same physical scan — confirm only if you intend a second copy"
-                                          : "Add draft inventory (Dealer · Sell)"
-                                  }
-                                >
-                                  {unit.physicalReimport || unit.duplicateAcknowledged
-                                    ? "Add copy"
-                                    : "Confirm"}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-link"
-                                  disabled={busy}
-                                  onClick={() => startEdit(unit)}
-                                >
-                                  Edit
-                                </button>
-                                {unit.backStorageRef ? (
+                                {!listed ? (
                                   <button
                                     type="button"
-                                    className="btn-link"
-                                    disabled={busy}
-                                    onClick={() => void swapFaces({ unitId: unit.id })}
+                                    className="btn-primary"
+                                    disabled={busy || !top}
+                                    onClick={() => void addToConfirmList(unit)}
+                                    title={
+                                      !top
+                                        ? "Edit the card first so it has an identity"
+                                        : "Stage this card for Approve Confirm List — does not write inventory yet"
+                                    }
                                   >
-                                    Swap faces
+                                    Add to confirm list
                                   </button>
                                 ) : null}
                                 <button
@@ -1046,6 +1071,34 @@ export function ScanIntake() {
                                 >
                                   Reject
                                 </button>
+                                <button
+                                  type="button"
+                                  className="btn-link"
+                                  disabled={busy}
+                                  onClick={() => startEdit(unit)}
+                                >
+                                  Edit
+                                </button>
+                                {liveCatalog ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void reidentify(batch.id, unit.id)}
+                                  >
+                                    Re-identify
+                                  </button>
+                                ) : null}
+                                {unit.backStorageRef ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void swapFaces({ unitId: unit.id })}
+                                  >
+                                    Swap faces
+                                  </button>
+                                ) : null}
                               </div>
                             )}
                           </td>
