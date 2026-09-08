@@ -69,7 +69,18 @@ describe("Inventory API adapter", () => {
       expect(headers.get("Content-Language")).toBe("en-US");
       paths.push(`${init?.method ?? "GET"} ${url}`);
       if (url.includes("/inventory_item/")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          availability?: { shipToLocationAvailability?: { availabilityDistributions?: { merchantLocationKey: string }[] } };
+        };
+        expect(body.availability?.shipToLocationAvailability?.availabilityDistributions?.[0]?.merchantLocationKey).toBe(
+          "home",
+        );
         return new Response(null, { status: 204 });
+      }
+      if (url.includes("/sell/inventory/v1/location/")) {
+        return new Response(JSON.stringify({ merchantLocationKey: "home", merchantLocationStatus: "ENABLED" }), {
+          status: 200,
+        });
       }
       if (url.includes("/offer/") && url.endsWith("/publish")) {
         return new Response(JSON.stringify({ listingId: "LST-1" }), { status: 200 });
@@ -98,6 +109,29 @@ describe("Inventory API adapter", () => {
     });
     expect(second.externalListingId).toBe("LST-1");
     expect(paths.filter((p) => p.includes("/publish")).length).toBe(1);
+  });
+
+  it("stops before offer create when the merchant location is missing", async () => {
+    const paths: string[] = [];
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          paths.push(`${init?.method ?? "GET"} ${url}`);
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/location/")) {
+            return new Response(JSON.stringify({ errors: [{ message: "Location not found" }] }), { status: 404 });
+          }
+          return new Response("should-not-create-offer", { status: 500 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({ listing, payload, policies });
+    expect(result.status).toBe("EBAY_ITEM_CREATED");
+    expect(result.errorMessage).toMatch(/Location not found/);
+    expect(paths.some((p) => p.includes("/offer"))).toBe(false);
   });
 
   it("does not publish when required fields are missing", async () => {

@@ -21,7 +21,7 @@ export type PublishListingResult = {
  */
 export function createInventoryAdapter(client: EbayHttpClient) {
   return {
-    async createOrReplaceInventoryItem(payload: ListingDraftPayload) {
+    async createOrReplaceInventoryItem(payload: ListingDraftPayload, merchantLocationKey?: string) {
       return client.request({
         method: "PUT",
         path: `/sell/inventory/v1/inventory_item/${encodeURIComponent(payload.sku)}`,
@@ -35,9 +35,26 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           },
           condition: payload.condition,
           availability: {
-            shipToLocationAvailability: { quantity: payload.quantity },
+            shipToLocationAvailability: {
+              quantity: payload.quantity,
+              ...(merchantLocationKey
+                ? {
+                    availabilityDistributions: [
+                      { merchantLocationKey, quantity: payload.quantity },
+                    ],
+                  }
+                : {}),
+            },
           },
         },
+      });
+    },
+
+    async getInventoryLocation(merchantLocationKey: string) {
+      return client.request({
+        method: "GET",
+        path: `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+        idempotencyKey: `get-location:${merchantLocationKey}`,
       });
     },
 
@@ -100,9 +117,34 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           errorMessage: input.payload.publishBlockedReasons.join(", "),
         };
       }
-      const item = await this.createOrReplaceInventoryItem(input.payload);
+      const item = await this.createOrReplaceInventoryItem(
+        input.payload,
+        input.policies.merchantLocationKey,
+      );
       if (!item.ok) {
         return fail(input.listing, item.errorClass, item.errorMessage, "EBAY_ITEM_CREATED");
+      }
+      const location = await this.getInventoryLocation(input.policies.merchantLocationKey);
+      if (!location.ok) {
+        return {
+          status: "EBAY_ITEM_CREATED",
+          externalOfferId: input.listing.externalOfferId,
+          externalListingId: input.listing.externalListingId,
+          errorClass: location.errorClass,
+          errorMessage:
+            location.errorMessage ??
+            `eBay inventory location "${input.policies.merchantLocationKey}" was not found. Create it with PUT /sell/inventory/v1/location/${input.policies.merchantLocationKey} and merchantLocationStatus ENABLED.`,
+        };
+      }
+      const locationStatus = readString(location.body, "merchantLocationStatus");
+      if (locationStatus && locationStatus !== "ENABLED") {
+        return {
+          status: "EBAY_ITEM_CREATED",
+          externalOfferId: input.listing.externalOfferId,
+          externalListingId: input.listing.externalListingId,
+          errorClass: "non_retryable",
+          errorMessage: `eBay inventory location "${input.policies.merchantLocationKey}" is ${locationStatus}, not ENABLED.`,
+        };
       }
       const offer = await this.createOffer(
         input.payload,
