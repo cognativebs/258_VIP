@@ -136,6 +136,7 @@ describe("Inventory API adapter", () => {
 
   it("creates a missing Sandbox merchant location then publishes", async () => {
     const paths: string[] = [];
+    let locationCreated = false;
     const adapter = createInventoryAdapter(
       createEbayHttpClient({
         env: "sandbox",
@@ -145,13 +146,19 @@ describe("Inventory API adapter", () => {
           paths.push(`${init?.method ?? "GET"} ${url}`);
           if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
           if (url.includes("/location/home") && (init?.method ?? "GET") === "GET") {
-            return new Response(JSON.stringify({ errors: [{ message: "merchantLocationKey not found." }] }), {
-              status: 404,
+            if (!locationCreated) {
+              return new Response(JSON.stringify({ errors: [{ message: "merchantLocationKey not found." }] }), {
+                status: 404,
+              });
+            }
+            return new Response(JSON.stringify({ merchantLocationKey: "home", merchantLocationStatus: "ENABLED" }), {
+              status: 200,
             });
           }
           if (url.includes("/location/home") && init?.method === "PUT") {
             const body = JSON.parse(String(init.body ?? "{}")) as { merchantLocationStatus?: string };
             expect(body.merchantLocationStatus).toBe("ENABLED");
+            locationCreated = true;
             return new Response(null, { status: 204 });
           }
           if (url.includes("/offer/") && url.endsWith("/publish")) {

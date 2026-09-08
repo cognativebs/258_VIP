@@ -121,10 +121,34 @@ export function createEbayHttpClient(opts: CreateEbayHttpClientOptions): EbayHtt
   };
 }
 
-function extractErrorMessage(body: unknown): string | null {
+export function formatEbayErrorBody(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
-  const rec = body as { errors?: { message?: string }[]; message?: string };
-  if (Array.isArray(rec.errors) && rec.errors[0]?.message) return rec.errors[0].message;
+  const rec = body as {
+    errors?: {
+      errorId?: number;
+      message?: string;
+      longMessage?: string;
+      parameters?: { name?: string; value?: string }[];
+    }[];
+    message?: string;
+  };
+  if (Array.isArray(rec.errors) && rec.errors.length > 0) {
+    return rec.errors
+      .map((err) => {
+        const id = err.errorId != null ? `#${err.errorId}` : "";
+        const text = (err.longMessage || err.message || "").trim();
+        const params = (err.parameters ?? [])
+          .map((p) => (p.name && p.value ? `${p.name}=${p.value}` : p.value || p.name || ""))
+          .filter(Boolean)
+          .join(", ");
+        return [id, text, params].filter(Boolean).join(" ");
+      })
+      .join(" · ");
+  }
   if (typeof rec.message === "string") return rec.message;
   return null;
+}
+
+function extractErrorMessage(body: unknown): string | null {
+  return formatEbayErrorBody(body);
 }

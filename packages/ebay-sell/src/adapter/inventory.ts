@@ -85,6 +85,7 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           name: merchantLocationKey,
           merchantLocationStatus: "ENABLED",
           locationTypes: ["WAREHOUSE"],
+          locationInstructions: "Sandbox warehouse for IQVault listings.",
           location: { address },
         },
       });
@@ -149,31 +150,22 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           errorMessage: input.payload.publishBlockedReasons.join(", "),
         };
       }
-      const item = await this.createOrReplaceInventoryItem(
-        input.payload,
-        input.policies.merchantLocationKey,
-      );
-      if (!item.ok) {
-        return fail(input.listing, item.errorClass, item.errorMessage, "EBAY_ITEM_CREATED");
-      }
-      const location = await this.getInventoryLocation(input.policies.merchantLocationKey);
+      const locationKey = input.policies.merchantLocationKey;
+      let location = await this.getInventoryLocation(locationKey);
       if (!location.ok && input.ensureLocation) {
-        const created = await this.createInventoryLocation(
-          input.policies.merchantLocationKey,
-          input.ensureLocation,
-        );
+        const created = await this.createInventoryLocation(locationKey, input.ensureLocation);
         if (!created.ok) {
           return {
             status: "EBAY_ITEM_CREATED",
             externalOfferId: input.listing.externalOfferId,
             externalListingId: input.listing.externalListingId,
             errorClass: created.errorClass,
-            errorMessage:
-              created.errorMessage ??
-              `Failed to create eBay inventory location "${input.policies.merchantLocationKey}"`,
+            errorMessage: `Create location ${locationKey}: ${created.errorMessage ?? "Invalid request"}`,
           };
         }
-      } else if (!location.ok) {
+        location = await this.getInventoryLocation(locationKey);
+      }
+      if (!location.ok) {
         const listed = await this.listInventoryLocations();
         const existing = locationKeysFromList(listed.body);
         return {
@@ -182,9 +174,8 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           externalListingId: input.listing.externalListingId,
           errorClass: location.errorClass,
           errorMessage: existing.length
-            ? `merchantLocationKey "${input.policies.merchantLocationKey}" not found. Existing Inventory locations: ${existing.join(", ")}. Set EBAY_MERCHANT_LOCATION_KEY to one of those.`
-            : (location.errorMessage ??
-              `eBay inventory location "${input.policies.merchantLocationKey}" was not found. Create it with PUT /sell/inventory/v1/location/${input.policies.merchantLocationKey} and merchantLocationStatus ENABLED.`),
+            ? `Get location ${locationKey}: not found. Existing Inventory locations: ${existing.join(", ")}. Set EBAY_MERCHANT_LOCATION_KEY to one of those.`
+            : `Get location ${locationKey}: ${location.errorMessage ?? "not found"}`,
         };
       }
       const locationStatus = readString(location.body, "merchantLocationStatus");
@@ -194,8 +185,12 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           externalOfferId: input.listing.externalOfferId,
           externalListingId: input.listing.externalListingId,
           errorClass: "non_retryable",
-          errorMessage: `eBay inventory location "${input.policies.merchantLocationKey}" is ${locationStatus}, not ENABLED.`,
+          errorMessage: `eBay inventory location "${locationKey}" is ${locationStatus}, not ENABLED.`,
         };
+      }
+      const item = await this.createOrReplaceInventoryItem(input.payload, locationKey);
+      if (!item.ok) {
+        return fail(input.listing, item.errorClass, `Inventory item: ${item.errorMessage}`, "EBAY_ITEM_CREATED");
       }
       const offer = await this.createOffer(
         input.payload,
@@ -212,7 +207,7 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           externalOfferId: null,
           externalListingId: input.listing.externalListingId,
           errorClass: offer.errorClass,
-          errorMessage: offer.errorMessage,
+          errorMessage: `Create offer: ${offer.errorMessage}`,
         };
       }
       const resolvedOfferId = offerId ?? input.listing.externalOfferId;
@@ -242,7 +237,7 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           externalOfferId: resolvedOfferId,
           externalListingId: null,
           errorClass: published.errorClass,
-          errorMessage: published.errorMessage,
+          errorMessage: `Publish offer: ${published.errorMessage}`,
         };
       }
       return {
@@ -274,14 +269,6 @@ function offerBody(payload: ListingDraftPayload, policies: BusinessPolicies) {
         value: String(payload.recommendedListPrice ?? ""),
         currency: payload.currency,
       },
-      ...(payload.minimumAcceptablePrice
-        ? {
-            minimumAdvertisedPrice: {
-              value: String(payload.minimumAcceptablePrice),
-              currency: payload.currency,
-            },
-          }
-        : {}),
     },
   };
 }
