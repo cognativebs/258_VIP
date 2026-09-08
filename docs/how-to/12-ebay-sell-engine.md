@@ -92,7 +92,10 @@ Existing `listing_draft`, Browse `listing_observation`, and scan intake stay.
    refresh token. An Allow code works once; if save fails, click Connect again.
 4. Open `/ebay/queue` or an item at `/ebay/item/{holdingId}`.
 5. Create draft → review title/images/price → Approve/publish.
-6. Sandbox: create/replace inventory item → create offer → publish offer.
+6. Sandbox: ensure Inventory location (warehouse city/state/postal, key
+   `EBAY_MERCHANT_LOCATION_KEY` or fallback `iqv_home`) → inventory item →
+   offer (GTC, no MAP, listingDescription) → publish offer. Comics use
+   category `63` with Publisher / Issue Number / Era aspects.
 7. Order ingest (`POST /api/ebay/sell/orders/ingest` or `npm run job:ebay-order-sync`)
    maps SKU → holding, marks listing SOLD, persists `holding.ebay_sku` /
    `sales_path_state=sold` / `sold_at`, writes `INTERNAL_SALE`.

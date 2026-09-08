@@ -25,6 +25,7 @@ export type EbayHttpClient = {
 export type CreateEbayHttpClientOptions = {
   env: EbayEnvironment;
   accessToken: string;
+  marketplaceId?: string;
   fetchImpl?: typeof fetch;
   onAudit?: (event: EbayAuditEvent) => void | Promise<void>;
   maxRetries?: number;
@@ -59,8 +60,10 @@ export function createEbayHttpClient(opts: CreateEbayHttpClientOptions): EbayHtt
               Authorization: `Bearer ${opts.accessToken}`,
               Accept: "application/json",
               "Accept-Language": "en-US",
-              "Content-Language": "en-US",
-              ...(input.body !== undefined ? { "Content-Type": "application/json" } : {}),
+              "X-EBAY-C-MARKETPLACE-ID": opts.marketplaceId ?? "EBAY_US",
+              ...(input.body !== undefined
+                ? { "Content-Type": "application/json", "Content-Language": "en-US" }
+                : {}),
               ...(input.headers ?? {}),
             },
             body: input.body !== undefined ? JSON.stringify(input.body) : undefined,

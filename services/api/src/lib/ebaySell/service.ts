@@ -288,6 +288,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const client = createEbayHttpClient({
       env: cfg.env,
       accessToken,
+      marketplaceId: cfg.marketplaceId,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });
@@ -433,6 +434,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const client = createEbayHttpClient({
       env: cfg.env,
       accessToken,
+      marketplaceId: cfg.marketplaceId,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });
@@ -454,6 +456,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
       const client = createEbayHttpClient({
         env: cfg.env,
         accessToken,
+        marketplaceId: cfg.marketplaceId,
         fetchImpl: deps.fetchImpl,
         onAudit: (e) => deps.store.writeAudit(e),
       });
@@ -485,6 +488,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const client = createEbayHttpClient({
       env: cfg.env,
       accessToken,
+      marketplaceId: cfg.marketplaceId,
       fetchImpl: deps.fetchImpl,
       onAudit: (e) => deps.store.writeAudit(e),
     });

@@ -1,4 +1,4 @@
-import type { BusinessPolicies, ListingDraftPayload, MarketplaceListing } from "../schemas.js";
+import type { BusinessPolicies, EbayApiResult, ListingDraftPayload, MarketplaceListing } from "../schemas.js";
 import type { EbayHttpClient } from "./client.js";
 
 export type InventoryLocationAddress = {
@@ -77,18 +77,27 @@ export function createInventoryAdapter(client: EbayHttpClient) {
     },
 
     async createInventoryLocation(merchantLocationKey: string, address: InventoryLocationAddress) {
-      return client.request({
-        method: "PUT",
-        path: `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
-        idempotencyKey: `put-location:${merchantLocationKey}`,
-        body: {
-          name: "IQVault Warehouse",
-          merchantLocationStatus: "ENABLED",
-          locationTypes: ["WAREHOUSE"],
-          locationInstructions: "Items ship from here.",
-          location: { address },
-        },
-      });
+      const path = `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`;
+      const bodies = warehouseLocationBodies(address);
+      let last: EbayApiResult = {
+        ok: false,
+        status: 0,
+        errorClass: "non_retryable",
+        errorMessage: "location create not sent",
+      };
+      for (const method of ["PUT", "POST"] as const) {
+        for (const [i, body] of bodies.entries()) {
+          const res = await client.request({
+            method,
+            path,
+            idempotencyKey: `${method.toLowerCase()}-location:${merchantLocationKey}:${i}`,
+            body,
+          });
+          if (res.ok) return res;
+          last = res;
+        }
+      }
+      return last;
     },
 
     async getInventoryItem(sku: string) {
@@ -257,6 +266,32 @@ export function createInventoryAdapter(client: EbayHttpClient) {
   };
 }
 
+function warehouseLocationBodies(address: InventoryLocationAddress) {
+  const region = {
+    city: address.city,
+    stateOrProvince: address.stateOrProvince,
+    postalCode: address.postalCode,
+    country: address.country,
+  };
+  return [
+    {
+      name: "IQVault Warehouse",
+      locationTypes: ["WAREHOUSE"],
+      location: { address: region },
+    },
+    {
+      name: "IQVault Warehouse",
+      locationTypes: ["WAREHOUSE"],
+      location: {
+        address: {
+          addressLine1: address.addressLine1,
+          ...region,
+        },
+      },
+    },
+  ];
+}
+
 function offerBody(payload: ListingDraftPayload, policies: BusinessPolicies) {
   return {
     sku: payload.sku,
@@ -264,6 +299,9 @@ function offerBody(payload: ListingDraftPayload, policies: BusinessPolicies) {
     format: payload.format,
     availableQuantity: payload.quantity,
     categoryId: payload.categoryId,
+    listingDescription: payload.description,
+    listingDuration: "GTC",
+    includeCatalogProductDetails: false,
     listingPolicies: {
       fulfillmentPolicyId: policies.fulfillmentPolicyId,
       paymentPolicyId: policies.paymentPolicyId,

@@ -66,7 +66,10 @@ describe("Inventory API adapter", () => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const headers = new Headers(init?.headers);
       expect(headers.get("Accept-Language")).toBe("en-US");
-      expect(headers.get("Content-Language")).toBe("en-US");
+      expect(headers.get("X-EBAY-C-MARKETPLACE-ID")).toBe("EBAY_US");
+      if (init?.body != null) {
+        expect(headers.get("Content-Language")).toBe("en-US");
+      }
       paths.push(`${init?.method ?? "GET"} ${url}`);
       if (url.includes("/inventory_item/")) {
         const body = JSON.parse(String(init?.body ?? "{}")) as {
@@ -155,9 +158,9 @@ describe("Inventory API adapter", () => {
               status: 200,
             });
           }
-          if (url.includes("/location/home") && init?.method === "PUT") {
-            const body = JSON.parse(String(init.body ?? "{}")) as { merchantLocationStatus?: string };
-            expect(body.merchantLocationStatus).toBe("ENABLED");
+          if (url.includes("/location/home") && (init?.method === "PUT" || init?.method === "POST")) {
+            const body = JSON.parse(String(init.body ?? "{}")) as { locationTypes?: string[] };
+            expect(body.locationTypes).toEqual(["WAREHOUSE"]);
             locationCreated = true;
             return new Response(null, { status: 204 });
           }

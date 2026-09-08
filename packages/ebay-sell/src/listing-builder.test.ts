@@ -77,4 +77,24 @@ describe("listing builder", () => {
     expect(blocked.publishBlockedReasons).toContain("IMAGE_REQUIRED");
     expect(blocked.publishBlockedReasons).toContain("IDENTITY_PLAYER_REQUIRED");
   });
+
+  it("uses Comics category 63 and comic aspects, not sports card aspects", () => {
+    const comic = buildListingDraftPayload({
+      ...asset,
+      category: "comic",
+      year: 2013,
+      setName: "Age of Ultron",
+      playerSubject: "Age of Ultron",
+      cardNumber: "2A",
+      manufacturer: "Marvel",
+      grader: null,
+      grade: "NM",
+    });
+    expect(comic.categoryId).toBe("63");
+    expect(comic.aspects.Publisher).toEqual(["Marvel"]);
+    expect(comic.aspects["Issue Number"]).toEqual(["2A"]);
+    expect(comic.aspects.Era).toEqual(["Modern Age (1992-Now)"]);
+    expect(comic.aspects["Player/Subject"]).toBeUndefined();
+    expect(comic.aspects["Card Number"]).toBeUndefined();
+  });
 });

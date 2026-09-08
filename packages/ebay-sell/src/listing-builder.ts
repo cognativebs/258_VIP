@@ -150,6 +150,16 @@ function buildAspects(asset: SellingAssetInput): Record<string, string[]> {
     aspects[k] = [String(v)];
   };
   put("Year", asset.year);
+  if (asset.category === "comic") {
+    put("Publisher", asset.manufacturer);
+    put("Character", asset.playerSubject);
+    put("Issue Number", asset.cardNumber);
+    put("Title", asset.setName);
+    put("Era", comicEra(asset.year));
+    put("Format", "Single Issue");
+    put("Grade", asset.grade);
+    return aspects;
+  }
   put("Set", asset.setName);
   put("Player/Subject", asset.playerSubject);
   put("Team", asset.team);
@@ -162,4 +172,13 @@ function buildAspects(asset: SellingAssetInput): Record<string, string[]> {
   put("Grade", asset.grade);
   put("Features", asset.rookieFlag ? "Rookie" : null);
   return aspects;
+}
+
+function comicEra(year: number | null | undefined): string | null {
+  if (year == null) return null;
+  if (year >= 1992) return "Modern Age (1992-Now)";
+  if (year >= 1984) return "Copper Age (1984-1991)";
+  if (year >= 1970) return "Bronze Age (1970-1983)";
+  if (year >= 1956) return "Silver Age (1956-1969)";
+  return "Golden Age (1938-1955)";
 }
