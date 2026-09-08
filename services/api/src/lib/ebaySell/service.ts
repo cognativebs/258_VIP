@@ -78,8 +78,17 @@ export function createEbaySellService(deps: EbaySellDeps) {
   }
 
   async function connection() {
-    const token = await deps.store.getToken();
-    const status = sellAuthStatus({ config: config(), token });
+    const stored = await deps.store.getToken({ refresh: false });
+    let token = stored;
+    let lastError: string | null = null;
+    if (stored?.refreshToken) {
+      try {
+        token = await deps.store.getToken({ refresh: true });
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
+      }
+    }
+    const status = sellAuthStatus({ config: config(), token: stored, lastError });
     const blockers: string[] = [];
     if (!status.configured) blockers.push("APP_CREDENTIALS");
     if (!status.connected) blockers.push("USER_OAUTH");
@@ -88,6 +97,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
       status,
       canPublish: blockers.length === 0,
       blockers,
+      accessTokenChars: token?.accessToken.length ?? 0,
     };
   }
 

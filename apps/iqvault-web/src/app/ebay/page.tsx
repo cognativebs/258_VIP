@@ -10,6 +10,7 @@ type Dashboard = {
   connection: {
     canPublish: boolean;
     blockers: string[];
+    accessTokenChars?: number;
     status: {
       connected: boolean;
       configured: boolean;
@@ -123,7 +124,14 @@ function EbayDashboardInner() {
       <div className="panel" style={{ marginTop: 16 }}>
         <h3>Connection</h3>
         {data?.connection.canPublish ? (
-          <p className="muted">Sell APIs are authorized and business policies are configured.</p>
+          <p className="muted">
+            Sell APIs are authorized and business policies are configured.
+            {typeof data.connection.accessTokenChars === "number"
+              ? data.connection.accessTokenChars > 0
+                ? ` User access token ready (${data.connection.accessTokenChars} chars).`
+                : " User access token is empty — refresh failed; check the API terminal."
+              : ""}
+          </p>
         ) : (
           <p className="muted">
             Not ready to publish.

@@ -6,6 +6,7 @@ import {
   exchangeAuthorizationCode,
   redactSecrets,
   refreshUserToken,
+  resolveUserAccessToken,
   sellAuthStatus,
 } from "./auth.js";
 
@@ -41,7 +42,11 @@ describe("eBay Sell OAuth", () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       calls.push(String(input));
-      expect(String(init?.body)).not.toContain("access_token");
+      const body = String(init?.body);
+      expect(body).not.toContain("access_token");
+      if (body.includes("grant_type=refresh_token")) {
+        expect(body).not.toContain("scope=");
+      }
       return new Response(
         JSON.stringify({
           access_token: "access-1",
@@ -57,5 +62,11 @@ describe("eBay Sell OAuth", () => {
     const refreshed = await refreshUserToken(config, "refresh-1", fetchImpl);
     expect(refreshed.refreshToken).toBe("refresh-1");
     expect(calls.every((c) => c.includes("/identity/v1/oauth2/token"))).toBe(true);
+    const resolved = await resolveUserAccessToken(
+      config,
+      { accessToken: "", refreshToken: "refresh-1", expiresAt: new Date(0), scopes: [] },
+      fetchImpl,
+    );
+    expect(resolved.accessToken).toBe("access-1");
   });
 });

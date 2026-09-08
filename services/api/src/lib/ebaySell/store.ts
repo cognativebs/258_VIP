@@ -13,6 +13,8 @@ import type {
   MarketplaceOrder,
   MarketplaceOrderLine,
   StoredUserToken,
+  ebaySellAuthFromEnv,
+  resolveUserAccessToken,
 } from "@vip/ebay-sell";
 import { getDb } from "../../db/client.js";
 import type { HoldingSellPatch } from "./project.js";
@@ -30,7 +32,7 @@ export type StoredQueueItem = DailyQueueItem & {
 };
 
 export type EbaySellStore = {
-  getToken(): Promise<StoredUserToken | null>;
+  getToken(options?: { refresh?: boolean }): Promise<StoredUserToken | null>;
   saveToken(token: StoredUserToken): Promise<void>;
   clearToken(error?: string | null): Promise<void>;
   writeAudit(event: EbayAuditEvent): Promise<void>;
@@ -194,61 +196,90 @@ export function toPgTextArrayLiteral(values: string[]): string {
 
 export function createPostgresEbaySellStore(): EbaySellStore {
   const db = () => getDb();
-  return {
-    async getToken() {
-      const result = await db().execute(sql`
-        SELECT refresh_token, access_token_expires_at, scopes
-        FROM vault_collection.ebay_connection
-        ORDER BY updated_at DESC
-        LIMIT 1
+  let accessCache: StoredUserToken | null = null;
+
+  async function loadStoredToken(): Promise<StoredUserToken | null> {
+    const result = await db().execute(sql`
+      SELECT refresh_token, access_token_expires_at, scopes
+      FROM vault_collection.ebay_connection
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `);
+    const row = (result.rows as Record<string, unknown>[])[0];
+    if (!row?.refresh_token) return null;
+    const refreshToken = String(row.refresh_token);
+    if (accessCache && accessCache.refreshToken === refreshToken) {
+      return accessCache;
+    }
+    return {
+      accessToken: "",
+      refreshToken,
+      expiresAt: row.access_token_expires_at
+        ? new Date(String(row.access_token_expires_at))
+        : new Date(0),
+      scopes: Array.isArray(row.scopes) ? (row.scopes as string[]) : [],
+    };
+  }
+
+  async function persistToken(token: StoredUserToken): Promise<void> {
+    const environment =
+      process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production"
+        ? "production"
+        : "sandbox";
+    const scopesSql =
+      token.scopes.length === 0
+        ? sql`'{}'::text[]`
+        : sql`ARRAY[${sql.join(
+            token.scopes.map((scope) => sql`${scope}`),
+            sql`, `,
+          )}]::text[]`;
+    try {
+      await db().execute(sql`
+        INSERT INTO vault_collection.ebay_connection
+          (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
+        VALUES (
+          ${environment},
+          ${token.refreshToken},
+          ${token.expiresAt.toISOString()}::timestamptz,
+          ${scopesSql},
+          now(),
+          now()
+        )
       `);
-      const row = (result.rows as Record<string, unknown>[])[0];
-      if (!row?.refresh_token) return null;
-      return {
-        accessToken: "",
-        refreshToken: String(row.refresh_token),
-        expiresAt: row.access_token_expires_at
-          ? new Date(String(row.access_token_expires_at))
-          : new Date(0),
-        scopes: Array.isArray(row.scopes) ? (row.scopes as string[]) : [],
-      };
+      accessCache = token;
+    } catch (e) {
+      const cause =
+        e && typeof e === "object" && "cause" in e ? String((e as { cause: unknown }).cause) : "";
+      throw new Error(
+        `Failed to persist eBay refresh token: ${e instanceof Error ? e.message : String(e)}${
+          cause ? ` · ${cause}` : ""
+        }`,
+      );
+    }
+  }
+
+  return {
+    async getToken(options) {
+      const stored = await loadStoredToken();
+      if (!stored) {
+        accessCache = null;
+        return null;
+      }
+      if (options?.refresh === false) return stored;
+      const cfg = ebaySellAuthFromEnv();
+      if (!cfg) return stored;
+      const live = await resolveUserAccessToken(cfg, stored);
+      accessCache = live;
+      if (live.accessToken !== stored.accessToken || live.refreshToken !== stored.refreshToken) {
+        await persistToken(live);
+      }
+      return live;
     },
     async saveToken(token) {
-      const environment =
-        process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production"
-          ? "production"
-          : "sandbox";
-      const scopesSql =
-        token.scopes.length === 0
-          ? sql`'{}'::text[]`
-          : sql`ARRAY[${sql.join(
-              token.scopes.map((scope) => sql`${scope}`),
-              sql`, `,
-            )}]::text[]`;
-      try {
-        await db().execute(sql`
-          INSERT INTO vault_collection.ebay_connection
-            (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
-          VALUES (
-            ${environment},
-            ${token.refreshToken},
-            ${token.expiresAt.toISOString()}::timestamptz,
-            ${scopesSql},
-            now(),
-            now()
-          )
-        `);
-      } catch (e) {
-        const cause =
-          e && typeof e === "object" && "cause" in e ? String((e as { cause: unknown }).cause) : "";
-        throw new Error(
-          `Failed to persist eBay refresh token: ${e instanceof Error ? e.message : String(e)}${
-            cause ? ` · ${cause}` : ""
-          }`,
-        );
-      }
+      await persistToken(token);
     },
     async clearToken(error) {
+      accessCache = null;
       await db().execute(sql`
         UPDATE vault_collection.ebay_connection
         SET refresh_token = NULL, disconnected_at = now(), last_error = ${error ?? null}, updated_at = now()

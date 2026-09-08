@@ -165,13 +165,13 @@ export async function exchangeAuthorizationCode(
 export async function refreshUserToken(
   config: EbaySellAuthConfig,
   refreshToken: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
 ): Promise<StoredUserToken> {
-  const scopes = (config.scopes ?? [...DEFAULT_SELL_SCOPES]).join(" ");
+  // Omit scope on refresh so eBay reissues the originally granted Sell scopes.
   return tokenRequest(
     config,
-    { grant_type: "refresh_token", refresh_token: refreshToken, scope: scopes },
-    fetchImpl,
+    { grant_type: "refresh_token", refresh_token: refreshToken },
+    fetchImpl ?? fetch,
   );
 }
 
@@ -214,16 +214,20 @@ async function tokenRequest(
 export async function resolveUserAccessToken(
   config: EbaySellAuthConfig,
   stored: StoredUserToken,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl?: typeof fetch,
   skewMs = 60_000,
 ): Promise<StoredUserToken> {
-  if (stored.accessToken && stored.expiresAt.getTime() - Date.now() > skewMs) {
+  const fetchFn = fetchImpl ?? fetch;
+  if (stored.accessToken.trim() && stored.expiresAt.getTime() - Date.now() > skewMs) {
     return stored;
   }
   if (!stored.refreshToken) {
     throw new Error("eBay Sell refresh token missing — reconnect the seller account");
   }
-  const next = await refreshUserToken(config, stored.refreshToken, fetchImpl);
+  const next = await refreshUserToken(config, stored.refreshToken, fetchFn);
+  if (!next.accessToken.trim()) {
+    throw new Error("eBay Sell access token missing after refresh");
+  }
   return {
     ...next,
     refreshToken: next.refreshToken || stored.refreshToken,
