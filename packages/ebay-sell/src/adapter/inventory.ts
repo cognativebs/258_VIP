@@ -82,10 +82,10 @@ export function createInventoryAdapter(client: EbayHttpClient) {
         path: `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
         idempotencyKey: `put-location:${merchantLocationKey}`,
         body: {
-          name: merchantLocationKey,
+          name: "IQVault Warehouse",
           merchantLocationStatus: "ENABLED",
           locationTypes: ["WAREHOUSE"],
-          locationInstructions: "Sandbox warehouse for IQVault listings.",
+          locationInstructions: "Items ship from here.",
           location: { address },
         },
       });
@@ -150,10 +150,15 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           errorMessage: input.payload.publishBlockedReasons.join(", "),
         };
       }
-      const locationKey = input.policies.merchantLocationKey;
+      let locationKey = input.policies.merchantLocationKey;
       let location = await this.getInventoryLocation(locationKey);
       if (!location.ok && input.ensureLocation) {
-        const created = await this.createInventoryLocation(locationKey, input.ensureLocation);
+        let created = await this.createInventoryLocation(locationKey, input.ensureLocation);
+        if (!created.ok && locationKey === "home") {
+          const fallbackKey = "iqv_home";
+          created = await this.createInventoryLocation(fallbackKey, input.ensureLocation);
+          if (created.ok) locationKey = fallbackKey;
+        }
         if (!created.ok) {
           return {
             status: "EBAY_ITEM_CREATED",
@@ -188,13 +193,14 @@ export function createInventoryAdapter(client: EbayHttpClient) {
           errorMessage: `eBay inventory location "${locationKey}" is ${locationStatus}, not ENABLED.`,
         };
       }
+      const policies = { ...input.policies, merchantLocationKey: locationKey };
       const item = await this.createOrReplaceInventoryItem(input.payload, locationKey);
       if (!item.ok) {
         return fail(input.listing, item.errorClass, `Inventory item: ${item.errorMessage}`, "EBAY_ITEM_CREATED");
       }
       const offer = await this.createOffer(
         input.payload,
-        input.policies,
+        policies,
         input.listing.externalOfferId,
       );
       const offerId =

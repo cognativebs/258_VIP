@@ -133,7 +133,7 @@ export function formatEbayErrorBody(body: unknown): string | null {
     message?: string;
   };
   if (Array.isArray(rec.errors) && rec.errors.length > 0) {
-    return rec.errors
+    const summary = rec.errors
       .map((err) => {
         const id = err.errorId != null ? `#${err.errorId}` : "";
         const text = (err.longMessage || err.message || "").trim();
@@ -144,6 +144,13 @@ export function formatEbayErrorBody(body: unknown): string | null {
         return [id, text, params].filter(Boolean).join(" ");
       })
       .join(" · ");
+    let raw = "";
+    try {
+      raw = JSON.stringify(rec.errors).slice(0, 500);
+    } catch {
+      raw = "";
+    }
+    return raw ? `${summary} [${raw}]` : summary;
   }
   if (typeof rec.message === "string") return rec.message;
   return null;

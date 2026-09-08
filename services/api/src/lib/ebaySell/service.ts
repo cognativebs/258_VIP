@@ -716,10 +716,10 @@ export function createEbaySellService(deps: EbaySellDeps) {
 
 function sandboxMerchantAddress() {
   return {
-    addressLine1: process.env.EBAY_LOCATION_LINE1?.trim() || "500 Main Street",
-    city: process.env.EBAY_LOCATION_CITY?.trim() || "San Jose",
-    stateOrProvince: process.env.EBAY_LOCATION_STATE?.trim() || "CA",
-    postalCode: process.env.EBAY_LOCATION_POSTAL?.trim() || "95131",
+    addressLine1: process.env.EBAY_LOCATION_LINE1?.trim() || "625 6th Ave",
+    city: process.env.EBAY_LOCATION_CITY?.trim() || "New York",
+    stateOrProvince: process.env.EBAY_LOCATION_STATE?.trim() || "NY",
+    postalCode: process.env.EBAY_LOCATION_POSTAL?.trim() || "10011",
     country: process.env.EBAY_LOCATION_COUNTRY?.trim() || "US",
   };
 }
