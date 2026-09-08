@@ -64,6 +64,9 @@ describe("Inventory API adapter", () => {
     const paths: string[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Accept-Language")).toBe("en-US");
+      expect(headers.get("Content-Language")).toBe("en-US");
       paths.push(`${init?.method ?? "GET"} ${url}`);
       if (url.includes("/inventory_item/")) {
         return new Response(null, { status: 204 });

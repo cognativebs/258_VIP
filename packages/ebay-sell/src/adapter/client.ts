@@ -58,6 +58,7 @@ export function createEbayHttpClient(opts: CreateEbayHttpClientOptions): EbayHtt
             headers: {
               Authorization: `Bearer ${opts.accessToken}`,
               Accept: "application/json",
+              "Accept-Language": "en-US",
               "Content-Language": "en-US",
               ...(input.body !== undefined ? { "Content-Type": "application/json" } : {}),
               ...(input.headers ?? {}),
