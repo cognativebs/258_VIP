@@ -174,6 +174,11 @@ describe("eBay sell service", () => {
           );
         }
         if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+        if (url.includes("/sell/inventory/v1/location/")) {
+          return new Response(JSON.stringify({ merchantLocationKey: "home", merchantLocationStatus: "ENABLED" }), {
+            status: 200,
+          });
+        }
         if (url.includes("/offer/") && url.endsWith("/publish")) {
           return new Response(JSON.stringify({ listingId: "LST-LIVE" }), { status: 200 });
         }
