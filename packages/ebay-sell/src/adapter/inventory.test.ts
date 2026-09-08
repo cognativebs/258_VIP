@@ -134,6 +134,52 @@ describe("Inventory API adapter", () => {
     expect(paths.some((p) => p.includes("/offer"))).toBe(false);
   });
 
+  it("creates a missing Sandbox merchant location then publishes", async () => {
+    const paths: string[] = [];
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          paths.push(`${init?.method ?? "GET"} ${url}`);
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/location/home") && (init?.method ?? "GET") === "GET") {
+            return new Response(JSON.stringify({ errors: [{ message: "merchantLocationKey not found." }] }), {
+              status: 404,
+            });
+          }
+          if (url.includes("/location/home") && init?.method === "PUT") {
+            const body = JSON.parse(String(init.body ?? "{}")) as { merchantLocationStatus?: string };
+            expect(body.merchantLocationStatus).toBe("ENABLED");
+            return new Response(null, { status: 204 });
+          }
+          if (url.includes("/offer/") && url.endsWith("/publish")) {
+            return new Response(JSON.stringify({ listingId: "LST-1" }), { status: 200 });
+          }
+          if (url.includes("/sell/inventory/v1/offer")) {
+            return new Response(JSON.stringify({ offerId: "OFFER-1" }), { status: 201 });
+          }
+          return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({
+      listing,
+      payload,
+      policies,
+      ensureLocation: {
+        addressLine1: "500 Main Street",
+        city: "San Jose",
+        stateOrProvince: "CA",
+        postalCode: "95131",
+        country: "US",
+      },
+    });
+    expect(result.status).toBe("PUBLISHED");
+    expect(paths.some((p) => p.startsWith("PUT ") && p.includes("/location/home"))).toBe(true);
+  });
+
   it("does not publish when required fields are missing", async () => {
     const adapter = createInventoryAdapter(
       createEbayHttpClient({

@@ -296,6 +296,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
       listing: { ...listing, status: "APPROVED" },
       payload,
       policies,
+      ensureLocation: cfg.env === "sandbox" ? sandboxMerchantAddress() : null,
     });
     const next: MarketplaceListing = {
       ...listing,
@@ -710,6 +711,16 @@ export function createEbaySellService(deps: EbaySellDeps) {
       const cfg = config();
       return cfg ? policiesFromConfig(cfg) : null;
     },
+  };
+}
+
+function sandboxMerchantAddress() {
+  return {
+    addressLine1: process.env.EBAY_LOCATION_LINE1?.trim() || "500 Main Street",
+    city: process.env.EBAY_LOCATION_CITY?.trim() || "San Jose",
+    stateOrProvince: process.env.EBAY_LOCATION_STATE?.trim() || "CA",
+    postalCode: process.env.EBAY_LOCATION_POSTAL?.trim() || "95131",
+    country: process.env.EBAY_LOCATION_COUNTRY?.trim() || "US",
   };
 }
 

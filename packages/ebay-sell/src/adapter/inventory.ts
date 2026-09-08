@@ -1,10 +1,20 @@
 import type { BusinessPolicies, ListingDraftPayload, MarketplaceListing } from "../schemas.js";
 import type { EbayHttpClient } from "./client.js";
 
+export type InventoryLocationAddress = {
+  addressLine1: string;
+  city: string;
+  stateOrProvince: string;
+  postalCode: string;
+  country: string;
+};
+
 export type PublishListingInput = {
   listing: MarketplaceListing;
   payload: ListingDraftPayload;
   policies: BusinessPolicies;
+  /** When set, a missing merchant location is created (Sandbox bootstrap). */
+  ensureLocation?: InventoryLocationAddress | null;
 };
 
 export type PublishListingResult = {
@@ -55,6 +65,28 @@ export function createInventoryAdapter(client: EbayHttpClient) {
         method: "GET",
         path: `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
         idempotencyKey: `get-location:${merchantLocationKey}`,
+      });
+    },
+
+    async listInventoryLocations() {
+      return client.request({
+        method: "GET",
+        path: "/sell/inventory/v1/location?limit=50",
+        idempotencyKey: "list-locations",
+      });
+    },
+
+    async createInventoryLocation(merchantLocationKey: string, address: InventoryLocationAddress) {
+      return client.request({
+        method: "PUT",
+        path: `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+        idempotencyKey: `put-location:${merchantLocationKey}`,
+        body: {
+          name: merchantLocationKey,
+          merchantLocationStatus: "ENABLED",
+          locationTypes: ["WAREHOUSE"],
+          location: { address },
+        },
       });
     },
 
@@ -125,15 +157,34 @@ export function createInventoryAdapter(client: EbayHttpClient) {
         return fail(input.listing, item.errorClass, item.errorMessage, "EBAY_ITEM_CREATED");
       }
       const location = await this.getInventoryLocation(input.policies.merchantLocationKey);
-      if (!location.ok) {
+      if (!location.ok && input.ensureLocation) {
+        const created = await this.createInventoryLocation(
+          input.policies.merchantLocationKey,
+          input.ensureLocation,
+        );
+        if (!created.ok) {
+          return {
+            status: "EBAY_ITEM_CREATED",
+            externalOfferId: input.listing.externalOfferId,
+            externalListingId: input.listing.externalListingId,
+            errorClass: created.errorClass,
+            errorMessage:
+              created.errorMessage ??
+              `Failed to create eBay inventory location "${input.policies.merchantLocationKey}"`,
+          };
+        }
+      } else if (!location.ok) {
+        const listed = await this.listInventoryLocations();
+        const existing = locationKeysFromList(listed.body);
         return {
           status: "EBAY_ITEM_CREATED",
           externalOfferId: input.listing.externalOfferId,
           externalListingId: input.listing.externalListingId,
           errorClass: location.errorClass,
-          errorMessage:
-            location.errorMessage ??
-            `eBay inventory location "${input.policies.merchantLocationKey}" was not found. Create it with PUT /sell/inventory/v1/location/${input.policies.merchantLocationKey} and merchantLocationStatus ENABLED.`,
+          errorMessage: existing.length
+            ? `merchantLocationKey "${input.policies.merchantLocationKey}" not found. Existing Inventory locations: ${existing.join(", ")}. Set EBAY_MERCHANT_LOCATION_KEY to one of those.`
+            : (location.errorMessage ??
+              `eBay inventory location "${input.policies.merchantLocationKey}" was not found. Create it with PUT /sell/inventory/v1/location/${input.policies.merchantLocationKey} and merchantLocationStatus ENABLED.`),
         };
       }
       const locationStatus = readString(location.body, "merchantLocationStatus");
@@ -239,6 +290,15 @@ function readString(body: unknown, key: string): string | null {
   if (!body || typeof body !== "object") return null;
   const v = (body as Record<string, unknown>)[key];
   return typeof v === "string" && v.trim() ? v : null;
+}
+
+function locationKeysFromList(body: unknown): string[] {
+  const rec = asRecord(body);
+  const rows = rec?.locations;
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => readString(row, "merchantLocationKey"))
+    .filter((key): key is string => Boolean(key));
 }
 
 function asRecord(body: unknown): Record<string, unknown> | null {
