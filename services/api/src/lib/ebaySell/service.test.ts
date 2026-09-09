@@ -206,4 +206,88 @@ describe("eBay sell service", () => {
       }
     }
   });
+
+  it("reports a preflight without touching eBay state", async () => {
+    const keys = [
+      "EBAY_APP_ID",
+      "EBAY_CERT_ID",
+      "EBAY_REDIRECT_URI",
+      "EBAY_PAYMENT_POLICY_ID",
+      "EBAY_RETURN_POLICY_ID",
+      "EBAY_FULFILLMENT_POLICY_ID",
+      "EBAY_MERCHANT_LOCATION_KEY",
+    ] as const;
+    const prior = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.EBAY_APP_ID = "app";
+    process.env.EBAY_CERT_ID = "cert";
+    process.env.EBAY_REDIRECT_URI = "https://example.test/ru";
+    process.env.EBAY_PAYMENT_POLICY_ID = "pay";
+    process.env.EBAY_RETURN_POLICY_ID = "ret";
+    process.env.EBAY_FULFILLMENT_POLICY_ID = "ful";
+    process.env.EBAY_MERCHANT_LOCATION_KEY = "home";
+    try {
+      const store = createMemoryEbaySellStore();
+      await store.saveToken({
+        accessToken: "live-access",
+        refreshToken: "refresh-1",
+        expiresAt: new Date(Date.now() + 3_600_000),
+        scopes: ["https://api.ebay.com/oauth/api_scope/sell.inventory"],
+      });
+      const methods: string[] = [];
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        methods.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.includes("/oauth2/token")) {
+          return new Response(JSON.stringify({ access_token: "app-token", expires_in: 7200 }), { status: 200 });
+        }
+        if (url.includes("/privilege")) {
+          return new Response(JSON.stringify({ sellerRegistrationCompleted: true }), { status: 200 });
+        }
+        if (url.includes("/sell/inventory/v1/location/home")) {
+          return new Response(JSON.stringify({ merchantLocationStatus: "ENABLED" }), { status: 200 });
+        }
+        if (url.includes("/return_policy")) {
+          return new Response(JSON.stringify({ returnPolicies: [{ returnPolicyId: "OTHER", name: "30 day" }] }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/payment_policy")) {
+          return new Response(JSON.stringify({ paymentPolicies: [{ paymentPolicyId: "pay", name: "Pay" }] }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/fulfillment_policy")) {
+          return new Response(
+            JSON.stringify({ fulfillmentPolicies: [{ fulfillmentPolicyId: "ful", name: "Ship" }] }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("get_default_category_tree_id")) {
+          return new Response(JSON.stringify({ categoryTreeId: "0" }), { status: 200 });
+        }
+        if (url.includes("get_item_aspects_for_category")) {
+          return new Response(JSON.stringify({ aspects: [] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+      };
+      const service = createEbaySellService({ store, fetchImpl });
+      const card = holding();
+      await service.draftFromHolding(card);
+      const report = await service.preflight([card]);
+
+      expect(report.ok).toBe(false);
+      expect(report.checks.find((c) => c.id === "return-policy")?.detail).toMatch(/OTHER \(30 day\)/);
+      expect(report.checks.find((c) => c.id === "payment-policy")?.status).toBe("pass");
+      expect(report.checks.find((c) => c.id === "location")?.status).toBe("pass");
+      expect(report.checks.find((c) => c.id === "draft")?.detail).toMatch(/Mahomes/);
+      // Only the OAuth token mint may be a POST — every Sell call must be a read.
+      const writes = methods.filter((m) => !m.startsWith("GET ") && !m.includes("/oauth2/token"));
+      expect(writes).toEqual([]);
+    } finally {
+      for (const k of keys) {
+        if (prior[k] == null) delete process.env[k];
+        else process.env[k] = prior[k];
+      }
+    }
+  });
 });

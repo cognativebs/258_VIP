@@ -38,6 +38,24 @@ type Dashboard = {
   };
 };
 
+type PreflightCheck = {
+  id: string;
+  label: string;
+  status: "pass" | "warn" | "fail" | "skip";
+  detail: string;
+  fix: string | null;
+};
+
+type PreflightReport = {
+  environment: string;
+  marketplaceId: string;
+  ok: boolean;
+  failures: number;
+  warnings: number;
+  skipped: number;
+  checks: PreflightCheck[];
+};
+
 function money(n: number | null | undefined): string {
   if (n == null) return "—";
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -150,6 +168,87 @@ function EbayDashboardInner() {
           )}
         </p>
       </div>
+      <PreflightPanel />
+    </div>
+  );
+}
+
+const BADGE: Record<PreflightCheck["status"], string> = {
+  pass: "badge badge-ok",
+  warn: "badge badge-warn",
+  fail: "badge badge-danger",
+  skip: "badge badge-info",
+};
+
+/**
+ * Rehearses the publish chain read-only so every blocker shows up in one run
+ * instead of one error per Approve / publish click.
+ */
+function PreflightPanel() {
+  const [report, setReport] = useState<PreflightReport | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setReport(await apiGet<PreflightReport>("/api/ebay/sell/preflight", 30_000));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Preflight failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <h3>Publish preflight</h3>
+      <p className="muted">
+        Read-only rehearsal of scopes, seller privileges, business policies, the inventory location
+        and the listing category. It creates nothing on eBay.
+      </p>
+      <button type="button" className="btn-primary" onClick={() => void run()} disabled={running}>
+        {running ? "Running…" : "Run preflight"}
+      </button>
+      {error ? <div className="error" style={{ marginTop: 12 }}>{error}</div> : null}
+      {report ? (
+        <>
+          <p className="muted" style={{ marginTop: 12 }}>
+            {report.environment} · {report.marketplaceId} ·{" "}
+            {report.ok
+              ? `Ready. ${report.warnings} warning(s), ${report.skipped} unverified.`
+              : `Blocked by ${report.failures} check(s).`}
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th>Result</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.checks.map((check) => (
+                  <tr key={check.id}>
+                    <td>{check.label}</td>
+                    <td>
+                      <span className={BADGE[check.status]}>{check.status.toUpperCase()}</span>
+                    </td>
+                    <td>
+                      {check.detail}
+                      {check.fix && check.status !== "pass" ? (
+                        <div className="muted">Fix: {check.fix}</div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

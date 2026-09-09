@@ -90,21 +90,60 @@ Existing `listing_draft`, Browse `listing_observation`, and scan intake stay.
    `http://127.0.0.1:3000/ebay/oauth/callback`. On `/ebay`, click
    **Connect Sandbox seller** (do not copy JSON). The callback stores the
    refresh token. An Allow code works once; if save fails, click Connect again.
-4. Open `/ebay/queue` or an item at `/ebay/item/{holdingId}`.
-5. Create draft → review title/images/price → Approve/publish.
-6. Sandbox: ensure Inventory location (warehouse city/state/postal, key
+4. Run **Publish preflight** on `/ebay` (or `npm run job:ebay-preflight`)
+   before the first publish and again after any environment switch. See
+   [Preflight](#preflight).
+5. Open `/ebay/queue` or an item at `/ebay/item/{holdingId}`.
+6. Create draft → review title/images/price → Approve/publish.
+7. Sandbox: ensure Inventory location (warehouse city/state/postal, key
    `EBAY_MERCHANT_LOCATION_KEY` or fallback `iqv_home`) → inventory item →
    offer (GTC, no MAP, listingDescription) → publish offer. Comics use
    category `63` with Publisher / Issue Number / Era aspects.
-7. Order ingest (`POST /api/ebay/sell/orders/ingest` or `npm run job:ebay-order-sync`)
+8. Order ingest (`POST /api/ebay/sell/orders/ingest` or `npm run job:ebay-order-sync`)
    maps SKU → holding, marks listing SOLD, persists `holding.ebay_sku` /
    `sales_path_state=sold` / `sold_at`, writes `INTERNAL_SALE`.
    `daysToSale` is only computed when `listedAt` was set by a real publish.
+
+## Preflight
+
+`GET /api/ebay/sell/preflight` (button on `/ebay`, or `npm run job:ebay-preflight`)
+rehearses the publish chain with GETs only. It creates nothing, so it is safe
+against Production. One run reports every blocker instead of one per
+Approve/publish click:
+
+| Check | What a failure means |
+|-------|----------------------|
+| Granted OAuth scopes | The stored token predates a scope change — reconnect |
+| Seller account privileges | Seller registration is incomplete on the connected account |
+| Merchant inventory location | The key is not an **Inventory API** location. Seller Hub locations are a different list; the report prints the real keys |
+| Payment / return / fulfillment policy | The configured ID is not on this account for this marketplace. The report prints the real IDs and names |
+| Listing category | eBay rejects the category ID — offers only accept leaf categories |
+| Required item aspects | The category requires aspects the draft does not carry. Map them from stored fields; never invent values |
+| Draft payload | The sample holding is missing images, identity or an FMV range |
+
+Exit code is non-zero when any check fails. Category and aspect checks use a
+client-credentials application token, because a Sell-scoped user token does not
+carry `api_scope`. When that token cannot be minted the two checks report
+`SKIP` — unverified, never `PASS`.
+
+## Environment precedence
+
+`EBAY_ENV` is the sell engine's switch and wins outright. `EBAY_ENVIRONMENT`
+belongs to Browse comps, which default to Production, and is only a fallback.
+`EBAY_ENV=sandbox` therefore keeps publish on Sandbox even when comps run
+against Production.
+
+Before converting to Production: change `EBAY_ENV`, re-run **Connect** (Sandbox
+and Production refresh tokens are not interchangeable), point the policy and
+location IDs at the Production account, and re-run preflight. Production
+keysets also require the marketplace account deletion endpoint in
+[11-ebay-marketplace-deletion.md](11-ebay-marketplace-deletion.md).
 
 ## Jobs (independent)
 
 | Job | Command | Cadence |
 |-----|---------|---------|
+| Preflight | `npm run job:ebay-preflight` | Before a first publish and after any environment switch |
 | Listing state | `npm run job:ebay-listing-sync` | GET offer per listing with an offer id; idle without OAuth |
 | Orders | `npm run job:ebay-order-sync` | hourly while selling |
 | Traffic | `npm run job:ebay-traffic-sync` | daily |
