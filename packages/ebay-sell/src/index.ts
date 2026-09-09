@@ -15,5 +15,6 @@ export * from "./kpis.js";
 export * from "./adapter/auth.js";
 export * from "./adapter/client.js";
 export * from "./adapter/inventory.js";
+export * from "./adapter/preflight.js";
 export * from "./adapter/fulfillment.js";
 export * from "./adapter/analytics.js";

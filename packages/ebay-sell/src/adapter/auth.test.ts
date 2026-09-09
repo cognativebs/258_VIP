@@ -4,10 +4,12 @@ import {
   buildAuthorizationUrl,
   ebaySellAuthFromEnv,
   exchangeAuthorizationCode,
+  mintApplicationToken,
   redactSecrets,
   refreshUserToken,
   resolveUserAccessToken,
   sellAuthStatus,
+  sellEnvironmentFromEnv,
 } from "./auth.js";
 
 const config = {
@@ -68,5 +70,32 @@ describe("eBay Sell OAuth", () => {
       fetchImpl,
     );
     expect(resolved.accessToken).toBe("access-1");
+  });
+
+  it("lets EBAY_ENV override the Browse comps environment", () => {
+    const credentials = {
+      EBAY_APP_ID: "app",
+      EBAY_CERT_ID: "cert",
+      EBAY_REDIRECT_URI: "https://example.test/cb",
+    };
+    // Comps run against Production by default. That must never drag publish
+    // along with it and create real listings from a Sandbox test.
+    expect(sellEnvironmentFromEnv({ EBAY_ENV: "sandbox", EBAY_ENVIRONMENT: "production" })).toBe("sandbox");
+    expect(ebaySellAuthFromEnv({ ...credentials, EBAY_ENV: "sandbox", EBAY_ENVIRONMENT: "production" })?.env).toBe(
+      "sandbox",
+    );
+    expect(sellEnvironmentFromEnv({ EBAY_ENV: "production" })).toBe("production");
+    expect(sellEnvironmentFromEnv({ EBAY_ENVIRONMENT: "production" })).toBe("production");
+    expect(sellEnvironmentFromEnv({})).toBe("sandbox");
+  });
+
+  it("mints an application token for public read APIs", async () => {
+    const bodies: string[] = [];
+    const token = await mintApplicationToken(config, async (_url, init) => {
+      bodies.push(String(init?.body ?? ""));
+      return new Response(JSON.stringify({ access_token: "app-token", expires_in: 7200 }), { status: 200 });
+    });
+    expect(token).toBe("app-token");
+    expect(bodies[0]).toContain("grant_type=client_credentials");
   });
 });

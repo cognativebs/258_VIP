@@ -25,7 +25,8 @@
     "job:comics-comps": "npm run comics-comps -w @vip/api --",
     "job:ebay-listing-sync": "npm run ebay-listing-sync -w @vip/api",
     "job:ebay-order-sync": "npm run ebay-order-sync -w @vip/api",
-    "job:ebay-traffic-sync": "npm run ebay-traffic-sync -w @vip/api"
+    "job:ebay-traffic-sync": "npm run ebay-traffic-sync -w @vip/api",
+    "job:ebay-preflight": "npm run ebay-preflight -w @vip/api --"
   },
   "engines": {
     "node": ">=20"

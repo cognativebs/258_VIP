@@ -187,7 +187,206 @@ describe("Inventory API adapter", () => {
       },
     });
     expect(result.status).toBe("PUBLISHED");
-    expect(paths.some((p) => p.startsWith("PUT ") && p.includes("/location/home"))).toBe(true);
+    // eBay documents createInventoryLocation as POST. A PUT first would waste a
+    // round trip and answer with a contentless "Invalid request".
+    expect(paths.some((p) => p === `POST https://api.sandbox.ebay.com/sell/inventory/v1/location/home`)).toBe(true);
+    expect(paths.some((p) => p.startsWith("PUT ") && p.includes("/location/home"))).toBe(false);
+  });
+
+  it("treats an already-existing location as created", async () => {
+    let created = 0;
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          if (url.includes("/location/home") && (init?.method ?? "GET") === "GET") {
+            return created
+              ? new Response(JSON.stringify({ merchantLocationStatus: "ENABLED" }), { status: 200 })
+              : new Response(JSON.stringify({ errors: [{ message: "not found" }] }), { status: 404 });
+          }
+          if (url.includes("/location/home")) {
+            created += 1;
+            return new Response(
+              JSON.stringify({ errors: [{ errorId: 25801, message: "A location with that key already exists." }] }),
+              { status: 400 },
+            );
+          }
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/offer/") && url.endsWith("/publish")) {
+            return new Response(JSON.stringify({ listingId: "LST-1" }), { status: 200 });
+          }
+          if (url.includes("/sell/inventory/v1/offer")) {
+            return new Response(JSON.stringify({ offerId: "OFFER-1" }), { status: 201 });
+          }
+          return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({
+      listing,
+      payload,
+      policies,
+      ensureLocation: {
+        addressLine1: "500 Main Street",
+        city: "San Jose",
+        stateOrProvince: "CA",
+        postalCode: "95131",
+        country: "US",
+      },
+    });
+    expect(result.status).toBe("PUBLISHED");
+    expect(created).toBe(1);
+  });
+
+  it("reports every location create attempt when eBay rejects them all", async () => {
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          if (url.includes("/location") && (init?.method ?? "GET") === "GET") {
+            return new Response(JSON.stringify({ errors: [{ message: "not found" }] }), { status: 404 });
+          }
+          return new Response(
+            JSON.stringify({ errors: [{ errorId: 2004, message: "Invalid request" }] }),
+            { status: 400 },
+          );
+        },
+      }),
+    );
+    const result = await adapter.publishListing({
+      listing,
+      payload,
+      policies,
+      ensureLocation: {
+        addressLine1: "500 Main Street",
+        city: "San Jose",
+        stateOrProvince: "CA",
+        postalCode: "95131",
+        country: "US",
+      },
+    });
+    expect(result.errorMessage).toMatch(/POST shape1/);
+    expect(result.errorMessage).toMatch(/POST shape2/);
+  });
+
+  it("adopts the offer eBay already holds for the SKU when create is rejected", async () => {
+    const paths: string[] = [];
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          const method = init?.method ?? "GET";
+          paths.push(`${method} ${url}`);
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/location/")) {
+            return new Response(JSON.stringify({ merchantLocationStatus: "ENABLED" }), { status: 200 });
+          }
+          if (url.includes("/offer/OFFER-7/publish")) {
+            return new Response(JSON.stringify({ listingId: "LST-7" }), { status: 200 });
+          }
+          if (url.includes("/offer/OFFER-7") && method === "PUT") {
+            return new Response(null, { status: 204 });
+          }
+          if (url.includes("sku=") && method === "GET") {
+            return new Response(
+              JSON.stringify({ offers: [{ offerId: "OFFER-7", sku: payload.sku, marketplaceId: "EBAY_US" }] }),
+              { status: 200 },
+            );
+          }
+          if (url.endsWith("/sell/inventory/v1/offer") && method === "POST") {
+            return new Response(
+              JSON.stringify({
+                errors: [{ errorId: 25002, message: "A user error has occurred. The offer entity already exists." }],
+              }),
+              { status: 400 },
+            );
+          }
+          return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({ listing, payload, policies });
+    expect(result.status).toBe("PUBLISHED");
+    expect(result.externalOfferId).toBe("OFFER-7");
+    expect(result.externalListingId).toBe("LST-7");
+    expect(paths.some((p) => p.startsWith("PUT ") && p.includes("/offer/OFFER-7"))).toBe(true);
+  });
+
+  it("reads back the listing id when publish reports an already-published offer", async () => {
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          const method = init?.method ?? "GET";
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/location/")) {
+            return new Response(JSON.stringify({ merchantLocationStatus: "ENABLED" }), { status: 200 });
+          }
+          if (url.endsWith("/publish")) {
+            return new Response(
+              JSON.stringify({ errors: [{ errorId: 25002, message: "The offer is already published." }] }),
+              { status: 400 },
+            );
+          }
+          if (url.includes("/offer/OFFER-1") && method === "GET") {
+            return new Response(
+              JSON.stringify({ status: "PUBLISHED", listing: { listingId: "LST-3", listingStatus: "ACTIVE" } }),
+              { status: 200 },
+            );
+          }
+          if (url.endsWith("/sell/inventory/v1/offer") && method === "POST") {
+            return new Response(JSON.stringify({ offerId: "OFFER-1" }), { status: 201 });
+          }
+          return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({ listing, payload, policies });
+    expect(result.status).toBe("PUBLISHED");
+    expect(result.externalListingId).toBe("LST-3");
+    expect(result.errorMessage).toBeNull();
+  });
+
+  it("does not publish a stale offer when the update is rejected", async () => {
+    const adapter = createInventoryAdapter(
+      createEbayHttpClient({
+        env: "sandbox",
+        accessToken: "tok",
+        fetchImpl: async (input, init) => {
+          const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          const method = init?.method ?? "GET";
+          if (url.includes("/inventory_item/")) return new Response(null, { status: 204 });
+          if (url.includes("/location/")) {
+            return new Response(JSON.stringify({ merchantLocationStatus: "ENABLED" }), { status: 200 });
+          }
+          if (url.includes("sku=") && method === "GET") {
+            return new Response(JSON.stringify({ offers: [] }), { status: 200 });
+          }
+          if (url.includes("/offer/OFFER-9") && method === "PUT") {
+            return new Response(
+              JSON.stringify({ errors: [{ errorId: 25019, message: "The price is not allowed." }] }),
+              { status: 400 },
+            );
+          }
+          return new Response(JSON.stringify({ errors: [{ message: `unmocked ${url}` }] }), { status: 404 });
+        },
+      }),
+    );
+    const result = await adapter.publishListing({
+      listing: { ...listing, externalOfferId: "OFFER-9" },
+      payload,
+      policies,
+    });
+    expect(result.status).toBe("EBAY_ITEM_CREATED");
+    expect(result.errorMessage).toMatch(/Update offer: .*price is not allowed/i);
   });
 
   it("does not publish when required fields are missing", async () => {

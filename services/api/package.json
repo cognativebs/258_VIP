@@ -10,6 +10,7 @@
     "ebay-listing-sync": "tsx src/ebaySellJobsCli.ts listing-sync",
     "ebay-order-sync": "tsx src/ebaySellJobsCli.ts order-sync",
     "ebay-traffic-sync": "tsx src/ebaySellJobsCli.ts traffic-sync",
+    "ebay-preflight": "tsx src/ebaySellJobsCli.ts preflight",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

@@ -38,6 +38,16 @@ export function registerEbaySellRoutes(app: Express, deps: EbaySellRouteDeps): v
     res.json(await deps.service.connection());
   });
 
+  app.get("/api/ebay/sell/preflight", async (req, res) => {
+    try {
+      const holdings = await deps.loadHoldings();
+      const inventoryId = req.query.inventoryId ? String(req.query.inventoryId) : null;
+      res.json(await deps.service.preflight(holdings, inventoryId));
+    } catch (e) {
+      fail(res, e, 502);
+    }
+  });
+
   app.get("/api/ebay/sell/auth/start", async (req, res) => {
     const state = String(req.query.state ?? `vip-${Date.now()}`);
     const started = await deps.service.startAuth(state);

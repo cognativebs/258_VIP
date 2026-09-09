@@ -22,6 +22,7 @@ import {
   highValueRequiresApproval,
   listingIdFromOffer,
   listingStatusFromOffer,
+  mintApplicationToken,
   normalizeEbayOrders,
   normalizeTrafficRecords,
   orderLineKey,
@@ -29,7 +30,9 @@ import {
   proposeLots,
   recommendDisposition,
   resolveUserAccessToken,
+  runSellPreflight,
   sellAuthStatus,
+  sellEnvironmentFromEnv,
   type BusinessPolicies,
   type DailyQueueItem,
   type EbaySellAuthConfig,
@@ -37,6 +40,7 @@ import {
   type MarketplaceListing,
   type SaleCompletionResult,
   type SellingDisposition,
+  type SellPreflightReport,
   type StoredUserToken,
 } from "@vip/ebay-sell";
 import type { ApiHolding } from "../holdings.js";
@@ -98,6 +102,102 @@ export function createEbaySellService(deps: EbaySellDeps) {
       canPublish: blockers.length === 0,
       blockers,
       accessTokenChars: token?.accessToken.length ?? 0,
+    };
+  }
+
+  /**
+   * Read-only rehearsal of the publish chain. Creates nothing on eBay, so the
+   * operator can run it before and after switching environments.
+   */
+  async function preflight(
+    holdings: ApiHolding[],
+    inventoryId?: string | null,
+  ): Promise<SellPreflightReport> {
+    const cfg = config();
+    const environment = sellEnvironmentFromEnv();
+    if (!cfg) {
+      return notConfiguredReport(environment, "EBAY_APP_ID, EBAY_CERT_ID and EBAY_REDIRECT_URI are not all set.");
+    }
+    let accessToken: string;
+    try {
+      accessToken = await userAccessToken();
+    } catch (e) {
+      return notConfiguredReport(cfg.env, e instanceof Error ? e.message : String(e), cfg.marketplaceId);
+    }
+    const client = createEbayHttpClient({
+      env: cfg.env,
+      accessToken,
+      marketplaceId: cfg.marketplaceId,
+      fetchImpl: deps.fetchImpl,
+      onAudit: (e) => deps.store.writeAudit(e),
+    });
+    let taxonomyClient = null as ReturnType<typeof createEbayHttpClient> | null;
+    try {
+      taxonomyClient = createEbayHttpClient({
+        env: cfg.env,
+        accessToken: await mintApplicationToken(cfg, deps.fetchImpl),
+        marketplaceId: cfg.marketplaceId,
+        fetchImpl: deps.fetchImpl,
+        onAudit: (e) => deps.store.writeAudit(e),
+      });
+    } catch {
+      taxonomyClient = null;
+    }
+    const stored = await deps.store.getToken({ refresh: false });
+    return runSellPreflight({
+      client,
+      taxonomyClient,
+      environment: cfg.env,
+      marketplaceId: cfg.marketplaceId ?? "EBAY_US",
+      policies: policiesFromConfig(cfg),
+      scopes: stored?.scopes ?? cfg.scopes ?? [],
+      payload: await samplePayload(holdings, inventoryId ?? null),
+      now,
+    });
+  }
+
+  /** The draft the operator is most likely about to publish. */
+  async function samplePayload(
+    holdings: ApiHolding[],
+    inventoryId: string | null,
+  ): Promise<ListingDraftPayload | null> {
+    const pending = (await deps.store.listListings())
+      .filter((l) => !ACTIVE_LISTING_STATUSES.includes(l.status as (typeof ACTIVE_LISTING_STATUSES)[number]))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const target = inventoryId
+      ? holdings.find((h) => h.id === inventoryId || h.holdingUuid === inventoryId)
+      : holdings.find((h) => pending.some((l) => l.inventoryId === h.id));
+    if (!target) return null;
+    const live = await hydrateHolding(target);
+    const listing = pending.find((l) => l.inventoryId === live.id);
+    return buildListingDraftPayload({
+      ...holdingToSellingAsset(live),
+      sku: listing?.sku ?? ensureSku(live),
+    });
+  }
+
+  function notConfiguredReport(
+    environment: EbaySellAuthConfig["env"],
+    detail: string,
+    marketplaceId = "EBAY_US",
+  ): SellPreflightReport {
+    return {
+      ranAt: now(),
+      environment,
+      marketplaceId,
+      ok: false,
+      failures: 1,
+      warnings: 0,
+      skipped: 0,
+      checks: [
+        {
+          id: "connection",
+          label: "eBay Sell connection",
+          status: "fail",
+          detail,
+          fix: "Open /ebay and click Connect, then re-run preflight.",
+        },
+      ],
     };
   }
 
@@ -691,6 +791,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
 
   return {
     connection,
+    preflight,
     startAuth,
     handleCallback,
     disconnect,

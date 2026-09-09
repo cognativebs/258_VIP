@@ -454,3 +454,33 @@ export const ConnectionHealthSchema = z.object({
   blockers: z.array(z.string()),
 });
 export type ConnectionHealth = z.infer<typeof ConnectionHealthSchema>;
+
+/**
+ * `skip` means the check could not run (missing scope, missing input). It is
+ * never reported as a pass — an unrun check is unverified, not healthy.
+ */
+export const PreflightStatusSchema = z.enum(["pass", "warn", "fail", "skip"]);
+export type PreflightStatus = z.infer<typeof PreflightStatusSchema>;
+
+export const PreflightCheckSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  status: PreflightStatusSchema,
+  detail: z.string().min(1),
+  /** Operator-facing remediation. Null when there is nothing to fix. */
+  fix: z.string().nullable().default(null),
+});
+export type PreflightCheck = z.infer<typeof PreflightCheckSchema>;
+
+export const SellPreflightReportSchema = z.object({
+  ranAt: z.coerce.date(),
+  environment: EbayEnvironmentSchema,
+  marketplaceId: z.string().min(1),
+  /** True only when no check failed. Warnings and skips do not clear it silently. */
+  ok: z.boolean(),
+  failures: z.number().int().nonnegative(),
+  warnings: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  checks: z.array(PreflightCheckSchema),
+});
+export type SellPreflightReport = z.infer<typeof SellPreflightReportSchema>;

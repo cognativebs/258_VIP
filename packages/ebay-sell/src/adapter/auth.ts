@@ -36,6 +36,20 @@ export function sellAuthHosts(env: EbayEnvironment): { api: string; auth: string
     : { api: "https://api.ebay.com", auth: "https://auth.ebay.com" };
 }
 
+/**
+ * `EBAY_ENV` is the sell engine's own switch and wins outright. `EBAY_ENVIRONMENT`
+ * belongs to Browse comps, which run against Production by default, so it is only
+ * a fallback — otherwise a comps setting could silently point publish at
+ * Production and create real listings.
+ */
+export function sellEnvironmentFromEnv(env: NodeJS.ProcessEnv = process.env): EbayEnvironment {
+  const explicit = (env.EBAY_ENV ?? "").trim().toLowerCase();
+  if (explicit === "production" || explicit === "sandbox") return explicit;
+  return (env.EBAY_ENVIRONMENT ?? "").trim().toLowerCase() === "production"
+    ? "production"
+    : "sandbox";
+}
+
 export function ebaySellAuthFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): EbaySellAuthConfig | null {
@@ -43,9 +57,7 @@ export function ebaySellAuthFromEnv(
   const certId = (env.EBAY_CERT_ID ?? env.EBAY_CLIENT_SECRET ?? "").trim();
   const redirectUri = (env.EBAY_REDIRECT_URI ?? env.EBAY_RU_NAME ?? "").trim();
   if (!appId || !certId || !redirectUri) return null;
-  const environment = env.EBAY_ENV === "production" || env.EBAY_ENVIRONMENT === "production"
-    ? "production"
-    : "sandbox";
+  const environment = sellEnvironmentFromEnv(env);
   const scopeOverride = env.EBAY_SELL_OAUTH_SCOPE?.trim();
   return {
     env: environment,
@@ -173,6 +185,20 @@ export async function refreshUserToken(
     { grant_type: "refresh_token", refresh_token: refreshToken },
     fetchImpl ?? fetch,
   );
+}
+
+/**
+ * Client-credentials token for public read APIs (Taxonomy). The user token only
+ * carries the Sell scopes granted at consent, so it cannot be assumed to work
+ * for `api_scope` endpoints.
+ */
+export async function mintApplicationToken(
+  config: EbaySellAuthConfig,
+  fetchImpl: typeof fetch = fetch,
+  scope = "https://api.ebay.com/oauth/api_scope",
+): Promise<string> {
+  const token = await tokenRequest(config, { grant_type: "client_credentials", scope }, fetchImpl);
+  return token.accessToken;
 }
 
 async function tokenRequest(
