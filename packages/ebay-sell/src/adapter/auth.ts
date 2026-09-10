@@ -125,7 +125,9 @@ export function sellAuthStatus(input: {
     scopes: input.token?.scopes ?? input.config.scopes ?? [],
     policiesConfigured,
     merchantLocationKey: input.config.merchantLocationKey ?? null,
-    lastError: connected ? input.lastError ?? null : input.lastError ?? "User has not authorized Sell scopes",
+    lastError: connected
+      ? input.lastError ?? null
+      : input.lastError ?? `User has not authorized Sell scopes for ${environment}`,
     mode: connected ? "user_oauth" : "idle",
   };
 }

@@ -69,7 +69,11 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const cfg = config();
     const stored = await deps.store.getToken();
     if (!cfg || !stored?.refreshToken) {
-      throw new Error("eBay Sell user token missing — click Connect on /ebay");
+      // Consent is per environment, so name the one that is unconnected. After
+      // a switch the old environment's token is still stored and still valid.
+      throw new Error(
+        `eBay Sell user token missing for ${cfg?.env ?? sellEnvironmentFromEnv()} — click Connect on /ebay`,
+      );
     }
     const live = await resolveUserAccessToken(cfg, stored, deps.fetchImpl);
     if (live.refreshToken && live.refreshToken !== stored.refreshToken) {

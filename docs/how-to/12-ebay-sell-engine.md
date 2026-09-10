@@ -133,11 +133,22 @@ belongs to Browse comps, which default to Production, and is only a fallback.
 `EBAY_ENV=sandbox` therefore keeps publish on Sandbox even when comps run
 against Production.
 
-Before converting to Production: change `EBAY_ENV`, re-run **Connect** (Sandbox
-and Production refresh tokens are not interchangeable), point the policy and
-location IDs at the Production account, and re-run preflight. Production
-keysets also require the marketplace account deletion endpoint in
-[11-ebay-marketplace-deletion.md](11-ebay-marketplace-deletion.md).
+`vault_collection.ebay_connection` keeps one row per environment, and the token
+the engine reads is the row for whichever environment `EBAY_ENV` names. Sandbox
+and Production tokens therefore coexist: switching back to Sandbox reuses the
+Sandbox consent, and neither environment's token can be handed to the other's
+API host. **Connect** and **Disconnect** both act on the current environment
+only.
+
+Before converting to Production: change `EBAY_ENV`, re-run **Connect** (each
+environment needs its own consent, and preflight reports the unconnected one by
+name), point the policy and location IDs at the Production account, and re-run
+preflight. Production keysets also require the marketplace account deletion
+endpoint in [11-ebay-marketplace-deletion.md](11-ebay-marketplace-deletion.md).
+
+Publish auto-creates a missing Inventory API location on Sandbox only. On
+Production the location must exist first, and preflight fails rather than warns
+when it does not.
 
 ## Jobs (independent)
 

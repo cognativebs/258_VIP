@@ -89,6 +89,14 @@ describe("eBay Sell OAuth", () => {
     expect(sellEnvironmentFromEnv({})).toBe("sandbox");
   });
 
+  it("names the environment that still needs consent", () => {
+    // Consent is per environment. After switching, the status must not read as
+    // if the connection was lost — Production simply has its own authorization.
+    const status = sellAuthStatus({ config: { ...config, env: "production" }, token: null });
+    expect(status.connected).toBe(false);
+    expect(status.lastError).toBe("User has not authorized Sell scopes for production");
+  });
+
   it("mints an application token for public read APIs", async () => {
     const bodies: string[] = [];
     const token = await mintApplicationToken(config, async (_url, init) => {
