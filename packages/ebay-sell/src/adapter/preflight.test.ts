@@ -8,7 +8,7 @@ const payload: ListingDraftPayload = {
   sku: "IQV-COMIC-AAAA",
   title: "2013 Age of Ultron #2A",
   description: "Exact identity.",
-  categoryId: "63",
+  categoryId: "259104",
   format: "FIXED_PRICE",
   condition: "LIKE_NEW",
   imageUrls: ["https://img.example/front.jpg"],
@@ -73,6 +73,33 @@ const taxonomyRoutes = {
       }),
       { status: 200 },
     ),
+};
+
+/** Shape of GET get_category_subtree: leaves are flagged, parents are not. */
+const comicSubtree = {
+  categorySubtreeNode: {
+    category: { categoryId: "63", categoryName: "Comic Books & Memorabilia" },
+    childCategoryTreeNodes: [
+      {
+        category: { categoryId: "259103", categoryName: "Comics" },
+        childCategoryTreeNodes: [
+          {
+            category: { categoryId: "259104", categoryName: "Comics & Graphic Novels" },
+            leafCategoryTreeNode: true,
+          },
+          {
+            category: { categoryId: "259106", categoryName: "Franco-Belgian & European Comics" },
+            childCategoryTreeNodes: [
+              {
+                category: { categoryId: "121889", categoryName: "Franco-Belgian Comics" },
+                leafCategoryTreeNode: true,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 };
 
 function base(overrides: Partial<Parameters<typeof runSellPreflight>[0]> = {}) {
@@ -160,6 +187,7 @@ describe("sell preflight", () => {
   it("fails a category eBay will not accept and does not guess its aspects", async () => {
     const report = await runSellPreflight(
       base({
+        payload: { ...payload, categoryId: "63" },
         taxonomyClient: stubClient({
           get_default_category_tree_id: () => new Response(JSON.stringify({ categoryTreeId: "0" }), { status: 200 }),
           get_item_aspects_for_category: () =>
@@ -167,11 +195,62 @@ describe("sell preflight", () => {
               JSON.stringify({ errors: [{ errorId: 62002, message: "The category is not a leaf category." }] }),
               { status: 400 },
             ),
+          get_category_subtree: () => new Response(JSON.stringify(comicSubtree), { status: 200 }),
         }),
       }),
     );
     expect(check(report, "category").status).toBe("fail");
     expect(check(report, "category").detail).toMatch(/not a leaf/);
+    expect(check(report, "aspects").status).toBe("skip");
+  });
+
+  it("names the real leaves under a rejected parent so the operator can fix it in one pass", async () => {
+    const report = await runSellPreflight(
+      base({
+        payload: { ...payload, categoryId: "63" },
+        taxonomyClient: stubClient({
+          get_default_category_tree_id: () => new Response(JSON.stringify({ categoryTreeId: "0" }), { status: 200 }),
+          get_item_aspects_for_category: () =>
+            new Response(JSON.stringify({ errors: [{ errorId: 62009 }] }), { status: 400 }),
+          get_category_subtree: () => new Response(JSON.stringify(comicSubtree), { status: 200 }),
+        }),
+      }),
+    );
+    const category = check(report, "category");
+    // The leaves come from the account's own tree, nested arbitrarily deep.
+    expect(category.detail).toMatch(/259104 \(Comics & Graphic Novels\)/);
+    expect(category.detail).toMatch(/121889 \(Franco-Belgian Comics\)/);
+    // The parents that caused the rejection must not be offered as answers.
+    expect(category.detail).not.toMatch(/\b63 \(/);
+    expect(category.detail).not.toMatch(/259103 \(/);
+    expect(category.fix).toMatch(/EBAY_CATEGORY_COMIC/);
+  });
+
+  it("still names the override when the subtree cannot be read", async () => {
+    const report = await runSellPreflight(
+      base({
+        payload: { ...payload, categoryId: "19107", sku: "IQV-MTG-AAAA" },
+        taxonomyClient: stubClient({
+          get_default_category_tree_id: () => new Response(JSON.stringify({ categoryTreeId: "0" }), { status: 200 }),
+          get_item_aspects_for_category: () =>
+            new Response(JSON.stringify({ errors: [{ errorId: 62005 }] }), { status: 400 }),
+          get_category_subtree: () => new Response(JSON.stringify({ errors: [{ errorId: 62005 }] }), { status: 400 }),
+        }),
+      }),
+    );
+    expect(check(report, "category").status).toBe("fail");
+    expect(check(report, "category").fix).toMatch(/EBAY_CATEGORY_MTG/);
+  });
+
+  it("fails a draft with no category instead of asking eBay about nothing", async () => {
+    const report = await runSellPreflight(
+      base({
+        payload: { ...payload, categoryId: null, sku: "IQV-OTHER-AAAA" },
+      }),
+    );
+    expect(check(report, "category").status).toBe("fail");
+    expect(check(report, "category").detail).toMatch(/CATEGORY_REQUIRED/);
+    expect(check(report, "category").fix).toMatch(/EBAY_CATEGORY_OTHER/);
     expect(check(report, "aspects").status).toBe("skip");
   });
 

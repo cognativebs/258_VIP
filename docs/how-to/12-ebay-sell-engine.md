@@ -98,7 +98,7 @@ Existing `listing_draft`, Browse `listing_observation`, and scan intake stay.
 7. Sandbox: ensure Inventory location (warehouse city/state/postal, key
    `EBAY_MERCHANT_LOCATION_KEY` or fallback `iqv_home`) → inventory item →
    offer (GTC, no MAP, listingDescription) → publish offer. Comics use
-   category `63` with Publisher / Issue Number / Era aspects.
+   category `259104` with Publisher / Issue Number / Era aspects.
 8. Order ingest (`POST /api/ebay/sell/orders/ingest` or `npm run job:ebay-order-sync`)
    maps SKU → holding, marks listing SOLD, persists `holding.ebay_sku` /
    `sales_path_state=sold` / `sold_at`, writes `INTERNAL_SALE`.
@@ -117,7 +117,7 @@ Approve/publish click:
 | Seller account privileges | Seller registration is incomplete on the connected account |
 | Merchant inventory location | The key is not an **Inventory API** location. Seller Hub locations are a different list; the report prints the real keys |
 | Payment / return / fulfillment policy | The configured ID is not on this account for this marketplace. The report prints the real IDs and names |
-| Listing category | eBay rejects the category ID — offers only accept leaf categories |
+| Listing category | eBay rejects the category ID — offers only accept leaf categories. The report walks the subtree and prints the real leaf IDs and names from your own tree |
 | Required item aspects | The category requires aspects the draft does not carry. Map them from stored fields; never invent values |
 | Draft payload | The sample holding is missing images, identity or an FMV range |
 
@@ -125,6 +125,34 @@ Exit code is non-zero when any check fails. Category and aspect checks use a
 client-credentials application token, because a Sell-scoped user token does not
 carry `api_scope`. When that token cannot be minted the two checks report
 `SKIP` — unverified, never `PASS`.
+
+## Listing categories
+
+An eBay offer can only carry a **leaf** category. Publishing under a parent
+fails with `#25005 … The category selected is not a leaf category`, after the
+offer has already been created — so the offer sits unpublished until the
+category is fixed.
+
+Defaults per asset kind (EBAY_US leaves, eBay's June 2026 structure):
+
+| Kind | Category | Path |
+|------|----------|------|
+| `comic` | `259104` | Comic Books & Memorabilia 63 › Comics 259103 › Comics & Graphic Novels |
+| `sports` | `261328` | Sports Trading Cards 212 › Trading Card Singles |
+| `pokemon`, `mtg` | `183454` | Collectible Card Games 2536 › CCG Individual Cards |
+| `other` | none | Spans the whole site, so no default can be right |
+
+eBay renumbers categories on its own schedule and Sandbox trees lag
+Production, so each kind is overridable with `EBAY_CATEGORY_<KIND>`
+(`EBAY_CATEGORY_COMIC`, `EBAY_CATEGORY_SPORTS`, `EBAY_CATEGORY_POKEMON`,
+`EBAY_CATEGORY_MTG`, `EBAY_CATEGORY_OTHER`). A renumbered category is a config
+change, not a release.
+
+When no category resolves, the draft carries `categoryId: null` and publish is
+blocked with `CATEGORY_REQUIRED` rather than sending a placeholder eBay would
+reject. Preflight's category check names the env var to set, and when eBay
+rejects an ID it walks `get_category_subtree` and prints the real leaves
+underneath it — read the answer off your own tree rather than a published list.
 
 ## Environment precedence
 

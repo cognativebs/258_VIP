@@ -186,7 +186,11 @@ export const ListingDraftPayloadSchema = z.object({
   sku: z.string().min(1).max(50),
   title: z.string().min(1).max(80),
   description: z.string().min(1),
-  categoryId: z.string().min(1),
+  /**
+   * Null when no leaf category is configured for the asset kind. Publish is
+   * blocked in that case rather than sending a placeholder eBay would reject.
+   */
+  categoryId: z.string().min(1).nullable(),
   format: ListingFormatSchema,
   condition: z.string().min(1),
   imageUrls: z.array(z.string().min(1)).default([]),

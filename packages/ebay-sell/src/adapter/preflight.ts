@@ -1,4 +1,6 @@
 import { DEFAULT_SELL_SCOPES } from "../constants.js";
+import { categoryEnvVar } from "../listing-builder.js";
+import { parseEbaySku } from "../sku.js";
 import type {
   BusinessPolicies,
   EbayEnvironment,
@@ -237,6 +239,18 @@ async function categoryChecks(input: SellPreflightInput): Promise<PreflightCheck
       skip("aspects", "Required item aspects", "No draft payload supplied, so aspects were not checked."),
     ];
   }
+  if (!payload.categoryId) {
+    return [
+      {
+        id: "category",
+        label: "Listing category",
+        status: "fail",
+        detail: "The draft carries no leaf category, so publish is blocked with CATEGORY_REQUIRED.",
+        fix: `Set ${categoryEnvVarFor(payload)} to a leaf category ID for this asset kind.`,
+      },
+      skip("aspects", "Required item aspects", "Aspect requirements need a category to look up."),
+    ];
+  }
   const client = input.taxonomyClient;
   if (!client) {
     return [
@@ -270,13 +284,28 @@ async function categoryChecks(input: SellPreflightInput): Promise<PreflightCheck
     idempotencyKey: `preflight:aspects:${payload.categoryId}`,
   });
   if (!aspectsRes.ok) {
+    // A rejected category is almost always a parent, and the operator cannot
+    // act on that alone. Walk the subtree underneath it so the report names
+    // the real leaves from this account's own tree — Sandbox and Production
+    // are numbered independently, so guessing from a published list is how the
+    // wrong ID got here in the first place.
+    const leaves = await leafDescendants(client, treeId, payload.categoryId);
+    const envVar = categoryEnvVarFor(payload);
     return [
       {
         id: "category",
         label: "Listing category",
         status: "fail",
-        detail: `eBay rejected category ${payload.categoryId} on ${input.marketplaceId} (HTTP ${aspectsRes.status}: ${aspectsRes.errorMessage ?? "no detail"}). Offers can only use leaf categories.`,
-        fix: "Pick a current leaf category for this asset kind and update CATEGORY_LEAF in the listing builder.",
+        detail: [
+          `eBay rejected category ${payload.categoryId} on ${input.marketplaceId} (HTTP ${aspectsRes.status}: ${aspectsRes.errorMessage ?? "no detail"}).`,
+          "Offers can only use leaf categories.",
+          leaves.length ? `Leaf categories under it: ${describeLeaves(leaves)}.` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        fix: leaves.length
+          ? `Set ${envVar} to one of the leaf IDs listed above.`
+          : `Set ${envVar} to a leaf category ID from tree ${treeId}, or update CATEGORY_LEAF in the listing builder.`,
       },
       skip("aspects", "Required item aspects", "Aspect requirements could not be read for an invalid category."),
     ];
@@ -345,6 +374,56 @@ function draftCheck(payload: ListingDraftPayload | null): PreflightCheck {
 
 function skip(id: string, label: string, detail: string): PreflightCheck {
   return { id, label, status: "skip", detail, fix: null };
+}
+
+/** How many leaves a failed category check names before it starts counting. */
+const MAX_LEAF_SUGGESTIONS = 12;
+
+type LeafCategory = { id: string; name: string };
+
+/**
+ * The env var that overrides this draft's category. The SKU carries the asset
+ * kind, so the report can name the exact variable instead of a placeholder.
+ */
+function categoryEnvVarFor(payload: ListingDraftPayload): string {
+  const parsed = parseEbaySku(payload.sku);
+  return parsed ? categoryEnvVar(parsed.category) : "EBAY_CATEGORY_<KIND>";
+}
+
+/** Every leaf beneath a category, read from the live tree. Empty when unreadable. */
+async function leafDescendants(
+  client: EbayHttpClient,
+  treeId: string,
+  categoryId: string,
+): Promise<LeafCategory[]> {
+  const res = await client.request({
+    method: "GET",
+    path: `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(treeId)}/get_category_subtree?category_id=${encodeURIComponent(categoryId)}`,
+    idempotencyKey: `preflight:subtree:${categoryId}`,
+  });
+  if (!res.ok) return [];
+  const leaves: LeafCategory[] = [];
+  const seen = new Set<string>();
+  const visit = (node: unknown): void => {
+    const rec = asRecord(node);
+    if (!rec) return;
+    const category = asRecord(rec.category);
+    const id = readString(category, "categoryId");
+    if (rec.leafCategoryTreeNode === true && id && !seen.has(id)) {
+      seen.add(id);
+      leaves.push({ id, name: readString(category, "categoryName") ?? "unnamed" });
+    }
+    const children = rec.childCategoryTreeNodes;
+    if (Array.isArray(children)) for (const child of children) visit(child);
+  };
+  visit(asRecord(res.body)?.categorySubtreeNode);
+  return leaves;
+}
+
+function describeLeaves(leaves: LeafCategory[]): string {
+  const shown = leaves.slice(0, MAX_LEAF_SUGGESTIONS).map((leaf) => `${leaf.id} (${leaf.name})`);
+  const rest = leaves.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")}, and ${rest} more` : shown.join(", ");
 }
 
 function requiredAspectNames(body: unknown): string[] {

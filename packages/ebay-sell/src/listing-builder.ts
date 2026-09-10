@@ -2,13 +2,49 @@ import { EBAY_TITLE_MAX_LEN, HYPE_WORDS, LISTING_BUILDER_RULE } from "./constant
 import { buildEbaySku } from "./sku.js";
 import type { ListingDraftPayload, SellingAssetInput } from "./schemas.js";
 
-const CATEGORY_LEAF: Record<SellingAssetInput["category"], string> = {
-  pokemon: "183050",
-  mtg: "19107",
-  sports: "212",
-  comic: "63",
-  other: "1",
+/**
+ * An offer can only carry a leaf category. Publishing under a parent fails with
+ * eBay error #25005 ("The category selected is not a leaf category"), which is
+ * what the previous values did: 63, 212 and 1 are parents, 183050 sits under
+ * Non-Sport Trading Cards rather than the CCG branch Pokemon and MTG list in,
+ * and 19107 no longer exists.
+ *
+ * These defaults are the EBAY_US leaves as of eBay's June 2026 US structure.
+ * eBay renumbers on its own schedule and Sandbox trees lag Production, so
+ * treat them as a starting point, not a constant: every kind is overridable
+ * with `EBAY_CATEGORY_<KIND>`, and preflight reads the operator's own tree and
+ * names the override to set when a default is wrong.
+ */
+const CATEGORY_LEAF: Record<SellingAssetInput["category"], string | null> = {
+  // Collectible Card Games 2536 > CCG Individual Cards.
+  pokemon: "183454",
+  mtg: "183454",
+  // Sports Trading Cards 212 > Trading Card Singles.
+  sports: "261328",
+  // Comic Books & Memorabilia 63 > Comics 259103 > Comics & Graphic Novels.
+  comic: "259104",
+  // "Other" spans the whole site, so no default can be right. Name one per
+  // deployment instead of guessing on the operator's behalf.
+  other: null,
 };
+
+/** The env var that overrides the built-in leaf category for one asset kind. */
+export function categoryEnvVar(category: SellingAssetInput["category"]): string {
+  return `EBAY_CATEGORY_${category.toUpperCase()}`;
+}
+
+/**
+ * Resolve the leaf category for an asset kind, letting the environment win.
+ * The override is the escape hatch for a tree that has moved on from the
+ * defaults above, so a renumbered category is a config change and not a
+ * release.
+ */
+export function categoryIdFor(
+  category: SellingAssetInput["category"],
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return env[categoryEnvVar(category)]?.trim() || CATEGORY_LEAF[category];
+}
 
 const FILLER = new Set(["the", "a", "an", "and", "of", "for", "with", "card"]);
 
@@ -21,12 +57,13 @@ export function buildListingDraftPayload(asset: SellingAssetInput): ListingDraft
   const title = buildListingTitle(asset);
   const description = buildListingDescription(asset);
   const imageUrls = [asset.frontImageUri, asset.backImageUri].filter((u): u is string => Boolean(u));
-  const blocked = publishBlockers(asset, imageUrls);
+  const categoryId = categoryIdFor(asset.category);
+  const blocked = publishBlockers(asset, imageUrls, categoryId);
   return {
     sku,
     title,
     description,
-    categoryId: CATEGORY_LEAF[asset.category],
+    categoryId,
     format: "FIXED_PRICE",
     condition: mapCondition(asset),
     imageUrls,
@@ -75,9 +112,14 @@ export function buildListingDescription(asset: SellingAssetInput): string {
   return [...lines, `Rule ${LISTING_BUILDER_RULE}.`].join("\n");
 }
 
-export function publishBlockers(asset: SellingAssetInput, imageUrls: string[]): string[] {
+export function publishBlockers(
+  asset: SellingAssetInput,
+  imageUrls: string[],
+  categoryId: string | null = categoryIdFor(asset.category),
+): string[] {
   const reasons: string[] = [];
   if (imageUrls.length < 1) reasons.push("IMAGE_REQUIRED");
+  if (!categoryId) reasons.push("CATEGORY_REQUIRED");
   if (asset.category === "comic") {
     if (!asset.setName && !asset.playerSubject) reasons.push("IDENTITY_SERIES_REQUIRED");
     if (!asset.cardNumber) reasons.push("IDENTITY_ISSUE_REQUIRED");

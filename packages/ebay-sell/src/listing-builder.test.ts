@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildListingDraftPayload,
   buildListingTitle,
+  categoryEnvVar,
+  categoryIdFor,
   shortenTitle,
   stripHype,
 } from "./listing-builder.js";
@@ -78,7 +80,36 @@ describe("listing builder", () => {
     expect(blocked.publishBlockedReasons).toContain("IDENTITY_PLAYER_REQUIRED");
   });
 
-  it("uses Comics category 63 and comic aspects, not sports card aspects", () => {
+  it("uses leaf categories, since a parent category fails publish with #25005", () => {
+    // 63, 212 and 1 are parents and 19107 is retired — the values that made
+    // real Sandbox reject the offer. 183050 is a leaf but sits under Non-Sport
+    // Trading Cards, not the CCG branch Pokemon and MTG list in.
+    const parents = ["63", "212", "1", "19107", "183050"];
+    for (const category of ["comic", "sports", "pokemon", "mtg"] as const) {
+      const id = categoryIdFor(category, {});
+      expect(id, `${category} needs a leaf category`).toBeTruthy();
+      expect(parents, `${category} still points at a non-leaf or retired ID`).not.toContain(id);
+    }
+    expect(categoryIdFor("comic", {})).toBe("259104");
+    expect(categoryIdFor("sports", {})).toBe("261328");
+    expect(categoryIdFor("pokemon", {})).toBe("183454");
+    expect(categoryIdFor("mtg", {})).toBe("183454");
+  });
+
+  it("lets the environment override a category eBay has renumbered", () => {
+    expect(categoryEnvVar("comic")).toBe("EBAY_CATEGORY_COMIC");
+    expect(categoryIdFor("comic", { EBAY_CATEGORY_COMIC: " 12345 " })).toBe("12345");
+    // Blank must not win, or an empty var would block publish on a good default.
+    expect(categoryIdFor("comic", { EBAY_CATEGORY_COMIC: "  " })).toBe("259104");
+  });
+
+  it("blocks publish for a kind with no leaf category instead of inventing one", () => {
+    const draft = buildListingDraftPayload({ ...asset, category: "other" });
+    expect(draft.categoryId).toBeNull();
+    expect(draft.publishBlockedReasons).toContain("CATEGORY_REQUIRED");
+  });
+
+  it("uses the Comics leaf and comic aspects, not sports card aspects", () => {
     const comic = buildListingDraftPayload({
       ...asset,
       category: "comic",
@@ -90,7 +121,7 @@ describe("listing builder", () => {
       grader: null,
       grade: "NM",
     });
-    expect(comic.categoryId).toBe("63");
+    expect(comic.categoryId).toBe("259104");
     expect(comic.aspects.Publisher).toEqual(["Marvel"]);
     expect(comic.aspects["Issue Number"]).toEqual(["2A"]);
     expect(comic.aspects.Era).toEqual(["Modern Age (1992-Now)"]);
