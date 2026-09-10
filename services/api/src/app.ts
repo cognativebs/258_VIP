@@ -36,7 +36,10 @@ import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
 import { createInventoryTransaction, listInventoryTransactions } from "./lib/transactions.js";
 import { compactSignalsContext, signalsOutputFromFeed } from "./lib/signalsContext.js";
-import { ebayCredsFromEnv } from "@vip/scan-ingest";
+import {
+  ApproveConfirmListRequestSchema,
+  ebayCredsFromEnv,
+} from "@vip/scan-ingest";
 import { LIVE_RANGE_COPY, loadAllLiveRanges } from "./lib/liveRange.js";
 import {
   buildRecommendation,
@@ -57,6 +60,7 @@ import {
 } from "./lib/scanIngest.js";
 import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
+  approveConfirmList,
   discardBatch,
   editStagedUnit,
   getStagedBatch,
@@ -64,6 +68,7 @@ import {
   loadScanHoldings,
   rejectUnit,
   resolveUnit,
+  setUnitConfirmList,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
 import { scoreIdentificationGateFromDb } from "./lib/identificationGate.js";
@@ -78,6 +83,8 @@ import {
   RicohIntakeError,
 } from "./lib/ricohIntake.js";
 import { sendScanMedia } from "./lib/scanMedia.js";
+import { buildIdentificationReport } from "./lib/identificationReport.js";
+import { reidentifyStagedBatch, ReidentifyError } from "./lib/reidentifyBatch.js";
 import {
   inspectBatch001Item,
   loadBatch001,
@@ -838,6 +845,41 @@ export function createApp(deps: AppDeps = {}) {
     res.status(result.ok ? 200 : 400).json(result);
   });
 
+  app.post("/api/scan/units/:id/confirm-list", async (req, res) => {
+    const onList = req.body?.onList !== false;
+    const result = await setUnitConfirmList(String(req.params.id), onList);
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json({
+      ...result,
+      note: onList
+        ? "On the confirm list. Approve Confirm List to write inventory."
+        : "Removed from the confirm list.",
+    });
+  });
+
+  app.post("/api/scan/batches/:id/approve-confirm-list", async (req, res) => {
+    const parsed = ApproveConfirmListRequestSchema.safeParse(req.body ?? {});
+    const acknowledgeDuplicates =
+      parsed.success && parsed.data.acknowledgeDuplicates === true;
+    const result = await approveConfirmList(String(req.params.id), {
+      acknowledgeDuplicates,
+    });
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json({
+      ...result,
+      note:
+        result.approved === 0
+          ? "Nothing on the confirm list to approve."
+          : `Wrote ${result.approved} draft holding(s) to Collections (NM assumed · unverified).`,
+    });
+  });
+
   app.post("/api/scan/units/:id/edit", async (req, res) => {
     try {
       const body = req.body ?? {};
@@ -941,6 +983,115 @@ export function createApp(deps: AppDeps = {}) {
       });
     } catch (e) {
       res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  /**
+   * Compact OCR + candidate JSON — no image bytes. Paste this into chat
+   * instead of dropping a scan folder (folder drops crash cloud agents).
+   */
+  app.get("/api/scan/batches/:id/identification-report", async (req, res) => {
+    const id = String(req.params.id);
+    try {
+      const staged = await getStagedBatch(id);
+      if (staged) {
+        res.json(buildIdentificationReport(staged));
+        return;
+      }
+    } catch {
+      /* fall through to in-memory */
+    }
+    const memory = getScanBatch(id);
+    if (!memory) {
+      res.status(404).json({ error: "Scan batch not found" });
+      return;
+    }
+    res.json(
+      buildIdentificationReport({
+        id: memory.id,
+        device: memory.device,
+        status: memory.status,
+        categoryHint: memory.categoryHint ?? null,
+        notes: memory.notes ?? null,
+        createdAt: memory.createdAt.toISOString(),
+        source: memory.device,
+        scannerProfile: null,
+        imageCount: memory.units.length,
+        expectedCardCount: memory.units.length,
+        processingStatus: memory.status,
+        errorsWarnings: [],
+        telemetry: null,
+        units: memory.units.map((u) => ({
+          id: u.id,
+          unitIndex: u.unitIndex,
+          status: u.status,
+          frontStorageRef: u.frontStorageRef,
+          backStorageRef: u.backStorageRef ?? null,
+          selectedCandidateKey: u.selectedCandidateKey ?? null,
+          holdingId: u.holdingId ?? null,
+          confirmedAssetId: u.confirmedAssetId ?? null,
+          resolutionMode: u.status === "confirmed" ? "operator_confirmed" : null,
+          topConfidence: u.candidates[0]?.confidence ?? null,
+          confidenceBand: null,
+          duplicateAcknowledged: Boolean(u.duplicateAlert),
+          decisionAction: u.decisionAction ?? null,
+          frontImageId: null,
+          backImageId: null,
+          normalizedFrontRef: null,
+          normalizedBackRef: null,
+          pairingMethod: null,
+          pairingConfidence: null,
+          pairingNeedsReview: false,
+          orientation: null,
+          identificationStatus: u.candidates.length ? "inferred" : "unknown",
+          reviewStatus: u.status,
+          reviewRoute: null,
+          identityEvidence: null,
+          baseVsParallel: null,
+          physicalReimport: false,
+          candidates: u.candidates.map((c) => ({
+            catalogKey: c.catalogKey,
+            displayName: c.displayName,
+            category: c.category,
+            setName: c.setName ?? null,
+            collectorNumber: c.collectorNumber ?? null,
+            confidence: c.confidence,
+            matchReasons: c.matchReasons,
+            adapterId: c.adapterId ?? "unknown",
+            assetId: c.assetId ?? null,
+            externalIds: c.externalIds ?? [],
+          })),
+        })),
+      }),
+    );
+  });
+
+  app.post("/api/scan/batches/:id/reidentify", async (req, res) => {
+    try {
+      const unitId =
+        typeof req.body?.unitId === "string" && req.body.unitId.trim()
+          ? String(req.body.unitId)
+          : undefined;
+      const result = await reidentifyStagedBatch(String(req.params.id), {
+        unitId,
+      });
+      res.json({
+        ok: true,
+        batchId: result.batchId,
+        categoryHint: result.categoryHint,
+        reidentified: result.reidentified,
+        skippedConfirmed: result.skippedConfirmed,
+        skippedMissing: result.skippedMissing,
+        catalogSource: result.catalogSource,
+        batch: result.batch,
+        report: buildIdentificationReport(result.batch),
+      });
+    } catch (e) {
+      const status = e instanceof ReidentifyError ? e.status : 400;
+      res.status(status).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   });
 

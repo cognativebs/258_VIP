@@ -131,6 +131,10 @@ function looksLikePlayerTitle(text: string): boolean {
   const letters = words.map((w) => w.replace(/[^A-Za-z]/g, ""));
   if (letters.some((w) => w.length === 0)) return false;
   if (!letters.some((w) => w.length >= 3)) return false;
+  // "aoe oe oe" is Ricoh junk, not "Bo Nix" (2 tokens) or "CJ Stroud".
+  if (words.length >= 3 && letters.every((w) => w.length <= 3)) return false;
+  const symbols = text.replace(/[A-Za-z0-9\s.'’-]/g, "");
+  if (symbols.length >= 3) return false;
   if (letters.some((w) => TITLE_STOP.has(w.toLowerCase()))) return false;
   // One-word TCG names (Charizard, Pikachu). Keep short junk out.
   if (words.length === 1 && letters[0]!.length < 5) return false;

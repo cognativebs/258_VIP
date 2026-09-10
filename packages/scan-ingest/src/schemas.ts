@@ -173,6 +173,42 @@ export const ConfirmUnitRequestSchema = z.object({
 });
 export type ConfirmUnitRequest = z.infer<typeof ConfirmUnitRequestSchema>;
 
+/** Stage a card onto the batch confirm list. Does not write inventory. */
+export const ConfirmListRequestSchema = z.object({
+  onList: z.boolean(),
+});
+export type ConfirmListRequest = z.infer<typeof ConfirmListRequestSchema>;
+
+/**
+ * Commit every draft-ready card on a batch into inventory.
+ * When listed cards already exist in inventory, `acknowledgeDuplicates`
+ * must be true or the request returns 409 without writing.
+ */
+export const ApproveConfirmListRequestSchema = z.object({
+  acknowledgeDuplicates: z.boolean().optional(),
+});
+export type ApproveConfirmListRequest = z.infer<
+  typeof ApproveConfirmListRequestSchema
+>;
+
+export const ApproveConfirmListDuplicateSchema = z.object({
+  unitId: UuidSchema,
+  displayName: z.string().min(1),
+});
+export type ApproveConfirmListDuplicate = z.infer<
+  typeof ApproveConfirmListDuplicateSchema
+>;
+
+export const ApproveConfirmListConflictSchema = z.object({
+  ok: z.literal(false),
+  error: z.string().min(1),
+  code: z.literal("DUPLICATE_UNACKNOWLEDGED"),
+  duplicates: z.array(ApproveConfirmListDuplicateSchema).min(1),
+});
+export type ApproveConfirmListConflict = z.infer<
+  typeof ApproveConfirmListConflictSchema
+>;
+
 /** Operator correction on a staged card — still unverified until Confirm. */
 export const EditStagedUnitRequestSchema = z.object({
   playerOrCharacter: z.string().trim().min(1),

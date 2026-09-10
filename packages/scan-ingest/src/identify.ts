@@ -17,6 +17,10 @@ export type IdentifyOptions = {
   limit?: number;
   /** Exact ids read from a barcode / QR, when the capture provides them. */
   externalIds?: Array<{ source: string; value: string }>;
+  /** Privileged character/player name from structured evidence. */
+  nameHint?: string;
+  /** Privileged collector number from structured evidence. */
+  collectorNumberHint?: string;
 };
 
 type IdentifyInput = Pick<
@@ -45,6 +49,8 @@ export function buildCatalogQuery(
     text: queryTextFor(unit),
     category: opts.categoryHint ?? unit.categoryHint ?? null,
     externalIds: opts.externalIds ?? [],
+    nameHint: opts.nameHint,
+    collectorNumber: opts.collectorNumberHint,
     limit: opts.limit ?? 5,
   };
 }
@@ -265,6 +271,8 @@ function baseName(ref: string): string {
 
 function normalize(s: string): string {
   return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9/#.\s-]+/g, " ")
     .replace(/\s+/g, " ")

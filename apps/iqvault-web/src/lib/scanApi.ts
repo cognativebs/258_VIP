@@ -25,6 +25,13 @@ export type ScanMeta = {
   inbox: { root: string | null; configured: boolean; note: string };
   reviewThresholds?: { highMin: string; mediumMin: string };
   scannerProfileDefault?: string;
+  catalog?: {
+    resolverEnabledFor: string[];
+    adapters: Array<{ id: string; label: string }>;
+    tcgdex: boolean;
+    fixtureCatalog: boolean;
+    note: string;
+  };
 };
 
 export type ScanBatchTelemetry = {
@@ -98,11 +105,14 @@ export type StagedUnit = {
         displayName: string;
         confidence: number;
         matchReasons: string[];
+        adapterId?: string;
       }>;
       winningCandidate?: { catalogKey: string; displayName: string; confidence: number } | null;
       whyWon?: string;
       baseConfidence?: number;
       parallelConfidence?: number;
+      catalogSource?: string;
+      adapterOutcomes?: Array<{ adapterId: string; status: string; cardCount?: number }>;
     };
   } | null;
   baseVsParallel?: BaseVsParallel | null;
@@ -126,6 +136,25 @@ export type StagedBatch = {
   telemetry?: ScanBatchTelemetry | null;
 };
 
+export type ScanDuplicateCopy = { unitId: string; displayName: string };
+
+export class ScanApiError extends Error {
+  status: number;
+  code?: string;
+  duplicates?: ScanDuplicateCopy[];
+
+  constructor(
+    message: string,
+    opts: { status: number; code?: string; duplicates?: ScanDuplicateCopy[] },
+  ) {
+    super(message);
+    this.name = "ScanApiError";
+    this.status = opts.status;
+    this.code = opts.code;
+    this.duplicates = opts.duplicates;
+  }
+}
+
 async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${vipBase()}${path}`, {
     ...init,
@@ -133,9 +162,17 @@ async function vipFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     signal: AbortSignal.timeout(SCAN_TIMEOUT_MS),
   });
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as T & {
+    error?: string;
+    code?: string;
+    duplicates?: ScanDuplicateCopy[];
+  };
   if (!res.ok) {
-    throw new Error(data.error || `VIP ${path} failed (${res.status})`);
+    throw new ScanApiError(data.error || `VIP ${path} failed (${res.status})`, {
+      status: res.status,
+      code: data.code,
+      duplicates: data.duplicates,
+    });
   }
   return data;
 }
@@ -219,6 +256,77 @@ export function finishScanUpload(body: {
   });
 }
 
+export function isOnConfirmList(unit: StagedUnit): boolean {
+  return !unit.resolutionMode && unit.reviewStatus === "draft_ready";
+}
+
+export function confirmListCount(batch: StagedBatch): number {
+  return batch.units.filter(isOnConfirmList).length;
+}
+
+export function unitNeedsInventoryCopyAck(unit: StagedUnit): boolean {
+  return Boolean(unit.duplicateAcknowledged || unit.physicalReimport);
+}
+
+export function confirmListDuplicateUnits(batch: StagedBatch): StagedUnit[] {
+  return batch.units.filter(
+    (unit) => isOnConfirmList(unit) && unitNeedsInventoryCopyAck(unit),
+  );
+}
+
+export function confirmListUnitDisplayName(unit: StagedUnit): string {
+  const top = unit.candidates[0];
+  if (top?.displayName) {
+    const extra = [top.setName, top.collectorNumber].filter(Boolean).join(" ");
+    return extra ? `${top.displayName} (${extra})` : top.displayName;
+  }
+  const winner = unit.identityEvidence?.debug?.winningCandidate?.displayName;
+  if (winner) return winner;
+  return `Card ${unit.unitIndex + 1}`;
+}
+
+export function formatDuplicateCopyVerifyMessage(names: string[]): string {
+  const unique = names.map((n) => n.trim()).filter(Boolean);
+  if (unique.length === 0) {
+    return "A card on this list already exists in inventory. Add another copy?";
+  }
+  if (unique.length === 1) {
+    return `This card already exists in inventory:\n\n${unique[0]}\n\nAdd another copy?`;
+  }
+  return (
+    `These cards already exist in inventory:\n\n` +
+    `${unique.map((n) => `• ${n}`).join("\n")}\n\n` +
+    `Add another copy of each?`
+  );
+}
+
+export function setScanUnitConfirmList(
+  unitId: string,
+  onList: boolean,
+): Promise<{ ok: boolean; onList: boolean; reviewStatus: string; note?: string }> {
+  return vipFetch(`/api/scan/units/${encodeURIComponent(unitId)}/confirm-list`, {
+    method: "POST",
+    body: JSON.stringify({ onList }),
+  });
+}
+
+export function approveScanConfirmList(
+  batchId: string,
+  body: { acknowledgeDuplicates?: boolean } = {},
+): Promise<{
+  ok: boolean;
+  approved: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+  note?: string;
+}> {
+  return vipFetch(
+    `/api/scan/batches/${encodeURIComponent(batchId)}/approve-confirm-list`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
 /** The ADR 0009 boundary: staging → canonical inventory. */
 export function resolveScanUnit(
   unitId: string,
@@ -263,6 +371,76 @@ export function discardScanBatch(
 ): Promise<{ ok: boolean; rejected: number; confirmedKept: number }> {
   return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}`, {
     method: "DELETE",
+  });
+}
+
+export function fetchIdentificationReport(batchId: string): Promise<unknown> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/identification-report`);
+}
+
+/** Build the report from a batch already on screen — works if the API route is 404. */
+export function identificationReportFromBatch(
+  batch: StagedBatch,
+  catalog?: ScanMeta["catalog"],
+): Record<string, unknown> {
+  const fileOf = (ref: string) => ref.split(/[\\/]/).pop() ?? ref;
+  return {
+    kind: "vip.scan.identification-report",
+    exportedAt: new Date().toISOString(),
+    batchId: batch.id,
+    categoryHint: batch.categoryHint,
+    notes: batch.notes,
+    unitCount: batch.units.length,
+    catalog: catalog ?? null,
+    units: batch.units.map((unit) => {
+      const debug = unit.identityEvidence?.debug;
+      const top = unit.candidates[0];
+      return {
+        unitId: unit.id,
+        unitIndex: unit.unitIndex,
+        status: unit.status,
+        frontFile: fileOf(unit.frontStorageRef),
+        ocrFront: debug?.rawOcr?.front ?? "",
+        ocrBack: debug?.rawOcr?.back ?? "",
+        whyWon: debug?.whyWon ?? "",
+        catalogSource: debug?.catalogSource ?? top?.adapterId ?? "unknown",
+        adapterOutcomes: debug?.adapterOutcomes ?? [],
+        winner: top
+          ? {
+              displayName: top.displayName,
+              catalogKey: top.catalogKey,
+              adapterId: top.adapterId,
+              confidence: top.confidence,
+              collectorNumber: top.collectorNumber,
+              setName: top.setName,
+            }
+          : null,
+        candidates: unit.candidates.slice(0, 5).map((c) => ({
+          displayName: c.displayName,
+          catalogKey: c.catalogKey,
+          adapterId: c.adapterId,
+          confidence: c.confidence,
+          matchReasons: c.matchReasons,
+        })),
+      };
+    }),
+  };
+}
+
+export function reidentifyScanBatch(
+  batchId: string,
+  opts?: { unitId?: string },
+): Promise<{
+  ok: boolean;
+  reidentified: number;
+  skippedConfirmed: number;
+  skippedMissing: number;
+  catalogSource: string;
+  report?: unknown;
+}> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/reidentify`, {
+    method: "POST",
+    body: JSON.stringify(opts?.unitId ? { unitId: opts.unitId } : {}),
   });
 }
 

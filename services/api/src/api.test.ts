@@ -512,9 +512,23 @@ describe("VIP API", () => {
     await withServer(async (base) => {
       const meta = await fetch(`${base}/api/scan`);
       expect(meta.status).toBe(200);
-      const metaBody = (await meta.json()) as { device: string; qualityTier: string };
+      const metaBody = (await meta.json()) as {
+        device: string;
+        qualityTier: string;
+        catalog?: {
+          tcgdex?: boolean;
+          fixtureCatalog?: boolean;
+          adapters?: { id: string }[];
+        };
+      };
       expect(metaBody.device).toBe("ricoh_fi8170");
       expect(metaBody.qualityTier).toBe("intake");
+      expect(metaBody.catalog?.fixtureCatalog).toBe(false);
+      expect(metaBody.catalog?.tcgdex).toBe(true);
+      expect(metaBody.catalog?.adapters?.some((a) => a.id === "tcgdex")).toBe(true);
+      expect(metaBody.catalog?.adapters?.some((a) => a.id === "fixture-catalog")).toBe(
+        false,
+      );
 
       const open = await fetch(`${base}/api/scan/batches`, {
         method: "POST",

@@ -2,15 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  approveScanConfirmList,
+  confirmListCount,
+  confirmListDuplicateUnits,
+  confirmListUnitDisplayName,
   discardScanBatch,
   editScanUnit,
+  identificationReportFromBatch,
   fetchScanBatches,
   fetchScanMeta,
   finishScanUpload,
   importScanFolder,
+  formatDuplicateCopyVerifyMessage,
+  isOnConfirmList,
+  reidentifyScanBatch,
   rejectScanUnit,
-  resolveScanUnit,
   scanMediaUrl,
+  ScanApiError,
+  setScanUnitConfirmList,
   startScanUpload,
   swapScanFaces,
   uploadScanFile,
@@ -74,6 +83,15 @@ function IdentificationDebug({
   return (
     <details className="scan-debug">
       <summary>Identification debug</summary>
+      <p>
+        <strong>Catalog:</strong>{" "}
+        {debug.catalogSource ?? unit.candidates[0]?.adapterId ?? "—"}
+        {debug.adapterOutcomes?.length
+          ? ` · ${debug.adapterOutcomes
+              .map((o) => `${o.adapterId}:${o.status}${o.cardCount != null ? `(${o.cardCount})` : ""}`)
+              .join(" ")}`
+          : ""}
+      </p>
       <p>
         <strong>Why:</strong> {debug.whyWon ?? "—"}
       </p>
@@ -146,7 +164,7 @@ function formatImportStatus(result: ImportScanResult): string {
   );
   const unpaired =
     images > 1 && cards === images
-      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not confirm this batch."
+      ? " Pairing treated every image as its own card — set Pairing to Sequential duplex and re-import. Do not approve this batch."
       : "";
   return (
     `Staged ${cards} card(s) from ${images} image(s)` +
@@ -154,7 +172,7 @@ function formatImportStatus(result: ImportScanResult): string {
     `.${routes}` +
     (fallback ? ` ${fallback}.` : "") +
     unpaired +
-    " Nothing is in inventory until you confirm."
+    " Nothing is in inventory until you Approve Confirm List."
   );
 }
 
@@ -176,7 +194,13 @@ export function ScanIntake() {
   const [batches, setBatches] = useState<StagedBatch[]>([]);
   const [store, setStore] = useState<"postgres" | "memory" | null>(null);
   const [folder, setFolder] = useState("");
-  const [category, setCategory] = useState<ScanCategory>("sports");
+  const [category, setCategory] = useState<ScanCategory>(() => {
+    if (typeof window === "undefined") return "sports";
+    const saved = window.localStorage.getItem("vip.scan.category");
+    return saved === "pokemon" || saved === "mtg" || saved === "sports"
+      ? saved
+      : "sports";
+  });
   const [pairing, setPairing] = useState<ScanPairing>("auto");
   const [notes, setNotes] = useState("");
   const [uploads, setUploads] = useState<File[]>([]);
@@ -216,6 +240,11 @@ export function ScanIntake() {
       );
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("vip.scan.category", category);
+  }, [category]);
 
   const startBatch = useCallback(async () => {
     setBusy(true);
@@ -277,25 +306,118 @@ export function ScanIntake() {
     }
   }, [uploads, category, notes, pairing, reload]);
 
-  const confirmUnit = useCallback(
-    async (unit: StagedUnit, catalogKey: string) => {
+  const addToConfirmList = useCallback(
+    async (unit: StagedUnit) => {
       setBusy(true);
       setError(null);
       setStatus(null);
       try {
-        const result = await resolveScanUnit(unit.id, {
-          catalogKey,
-          acknowledgeDuplicates: unit.duplicateAcknowledged || unit.physicalReimport,
-          quantity: 1,
-        });
-        setStatus(
-          result.alreadyResolved
-            ? "Already in inventory — no second holding created."
-            : `Draft inventory created (Dealer · Sell). ${result.note ?? ""}`,
-        );
+        const result = await setScanUnitConfirmList(unit.id, true);
+        setStatus(result.note ?? "Added to the confirm list.");
         await reload();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Confirm failed");
+        setError(e instanceof Error ? e.message : "Could not add to confirm list");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const approveList = useCallback(
+    async (batch: StagedBatch) => {
+      const n = confirmListCount(batch);
+      if (n === 0) {
+        setError("Nothing on the confirm list. Add cards, or wait for Draft-ready matches.");
+        return;
+      }
+      const ok = window.confirm(
+        `Write ${n} card(s) from the confirm list into Collections as draft holdings? Condition stays NM assumed · unverified.`,
+      );
+      if (!ok) return;
+
+      const knownDupes = confirmListDuplicateUnits(batch);
+      let acknowledgeDuplicates = false;
+      let skipDupes = false;
+      if (knownDupes.length > 0) {
+        const addCopies = window.confirm(
+          formatDuplicateCopyVerifyMessage(
+            knownDupes.map(confirmListUnitDisplayName),
+          ),
+        );
+        if (addCopies) acknowledgeDuplicates = true;
+        else skipDupes = true;
+      }
+
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        if (skipDupes) {
+          for (const unit of knownDupes) {
+            await setScanUnitConfirmList(unit.id, false);
+          }
+          if (knownDupes.length >= n) {
+            setStatus(
+              `Did not add another copy. Removed ${knownDupes.length} already-held card(s) from the confirm list.`,
+            );
+            await reload();
+            return;
+          }
+        }
+
+        const runApprove = (ack: boolean) =>
+          approveScanConfirmList(batch.id, { acknowledgeDuplicates: ack });
+
+        let result;
+        try {
+          result = await runApprove(acknowledgeDuplicates);
+        } catch (e) {
+          if (
+            !(e instanceof ScanApiError) ||
+            e.code !== "DUPLICATE_UNACKNOWLEDGED" ||
+            !e.duplicates?.length
+          ) {
+            throw e;
+          }
+          const addCopies = window.confirm(
+            e.message ||
+              formatDuplicateCopyVerifyMessage(
+                e.duplicates.map((d) => d.displayName),
+              ),
+          );
+          if (addCopies) {
+            result = await runApprove(true);
+          } else {
+            for (const d of e.duplicates) {
+              await setScanUnitConfirmList(d.unitId, false);
+            }
+            if (e.duplicates.length >= n) {
+              setStatus(
+                `Did not add another copy. Removed ${e.duplicates.length} already-held card(s) from the confirm list.`,
+              );
+              await reload();
+              return;
+            }
+            result = await runApprove(false);
+          }
+        }
+
+        const skippedNote = skipDupes
+          ? `Skipped ${knownDupes.length} already-held card(s). `
+          : "";
+        setStatus(
+          skippedNote +
+            (result.note ??
+              `Wrote ${result.approved} holding(s).` +
+                (result.failed ? ` ${result.failed} failed.` : "")),
+        );
+        if (result.errors?.length) {
+          setError(result.errors.slice(0, 3).join(" · "));
+        }
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Approve confirm list failed");
       } finally {
         setBusy(false);
       }
@@ -357,7 +479,9 @@ export function ScanIntake() {
           collectorNumber: editForm.collectorNumber.trim() || null,
           parallel: editForm.parallel.trim() || null,
         });
-        setStatus(`Saved edit: ${result.displayName}. Confirm to add it to Collections.`);
+        setStatus(
+          `Saved edit: ${result.displayName}. Off the confirm list — Add to Confirm List when it looks right.`,
+        );
         setEditingId(null);
         await reload();
       } catch (e) {
@@ -419,12 +543,70 @@ export function ScanIntake() {
     : batches;
   const hiddenCount = batches.length - visibleBatches.length;
 
+  function inferCategoryFromNames(names: string[]): ScanCategory | null {
+    const blob = names.join(" ").toLowerCase();
+    if (/pokemon|pokémon|poke\b|tcgdex|pikachu|charizard|mewtwo/.test(blob)) {
+      return "pokemon";
+    }
+    if (/\bmtg\b|magic the gathering|scryfall/.test(blob)) return "mtg";
+    return null;
+  }
+
   function takeFiles(list: FileList | File[] | null) {
     const next = Array.from(list ?? []).filter((f) =>
       /\.(jpe?g|png|tiff?|webp)$/i.test(f.name),
     );
     setUploads(next);
+    const inferred = inferCategoryFromNames(next.map((f) => f.name));
+    if (inferred) setCategory(inferred);
   }
+
+  const copyIdReport = useCallback(
+    async (batch: StagedBatch) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const report = identificationReportFromBatch(batch, meta?.catalog);
+        const text = JSON.stringify(report, null, 2);
+        await navigator.clipboard.writeText(text);
+        setStatus(
+          "Copied identification report (OCR + candidates, no images). Paste that into Cursor — do not drop the scan folder into chat.",
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not copy report");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [meta],
+  );
+
+  const reidentify = useCallback(
+    async (batchId: string, unitId?: string) => {
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await reidentifyScanBatch(batchId, unitId ? { unitId } : undefined);
+        setStatus(
+          `Re-identified ${result.reidentified} card(s) via ${result.catalogSource}` +
+            (result.skippedConfirmed
+              ? ` · left ${result.skippedConfirmed} already in inventory`
+              : "") +
+            (result.skippedMissing
+              ? ` · ${result.skippedMissing} missing master file(s)`
+              : "") +
+            ". Draft-ready cards stay on the confirm list until you Approve.",
+        );
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Re-identify failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
 
   return (
     <div className="stack">
@@ -433,14 +615,39 @@ export function ScanIntake() {
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           Paste the PaperStream output path and click <strong>Import folder</strong>.
           The folder must exist on this PC (the machine running the VIP API).
+          Do not drop the image folder into Cursor chat — use{" "}
+          <strong>Copy ID report</strong> after import.
         </p>
+
+        {meta?.catalog ? (
+          <div
+            className={
+              meta.catalog.fixtureCatalog ? "scan-catalog-warn" : "scan-catalog-ok"
+            }
+          >
+            <strong>Live catalog:</strong>{" "}
+            {meta.catalog.adapters.length
+              ? meta.catalog.adapters.map((a) => a.label).join(" + ")
+              : "none"}
+            {meta.catalog.fixtureCatalog
+              ? " — 5-card fixture is opted in. Turn off VIP_CATALOG_FIXTURE for real Pokémon IDs."
+              : meta.catalog.tcgdex
+                ? " — Pokémon IDs come from TCGdex, not the 5-card fixture."
+                : ` — ${meta.catalog.note}`}
+          </div>
+        ) : null}
 
         <label className="scan-field">
           <span>Scan folder</span>
           <input
             type="text"
             value={folder}
-            onChange={(e) => setFolder(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setFolder(next);
+              const inferred = inferCategoryFromNames([next]);
+              if (inferred) setCategory(inferred);
+            }}
             onPaste={(e) => {
               const text = e.clipboardData.getData("text");
               if (!text.trim()) return;
@@ -540,6 +747,12 @@ export function ScanIntake() {
               </option>
             ))}
           </select>
+          {category === "sports" ? (
+            <small className="scan-catalog-warn" style={{ display: "block", marginTop: 6 }}>
+              Sports is selected — Pokémon scans will not call TCGdex. Switch to
+              Pokemon TCG before import.
+            </small>
+          ) : null}
         </label>
 
         <label className="scan-field">
@@ -596,11 +809,13 @@ export function ScanIntake() {
           {hiddenCount ? `, ${hiddenCount} lab hidden` : ""})
         </h2>
         <p className="muted" style={{ fontSize: 13 }}>
-          Uncertain cards stay here. Front and back are shown together.{" "}
-          <strong>Edit</strong> a card if OCR missed the name, then{" "}
-          <strong>Confirm</strong> to save a draft holding (Dealer Inventory · Sell ·
-          NM assumed · unverified). <strong>Delete batch</strong> clears this queue
-          without removing anything already confirmed into Collections.
+          Nothing is in Collections until you <strong>Approve Confirm List</strong>.
+          Draft-ready matches start on that list.{" "}
+          <strong>Add to Confirm List</strong> for needs-confirmation cards.{" "}
+          <strong>Edit</strong> or <strong>Reject</strong> takes a card off the list.
+          Approve writes draft holdings (NM assumed · unverified). If a scan matches
+          a card you already hold, Approve adds another holding — there is no separate
+          “Add copy” action.
         </p>
         <label className="scan-hide-lab">
           <input
@@ -628,10 +843,11 @@ export function ScanIntake() {
                   <p className="muted" style={{ margin: 0, fontSize: 12 }}>
                     {batch.source ?? batch.device}
                     {batch.scannerProfile ? ` · ${batch.scannerProfile}` : ""} · {batch.status}
+                    {` · confirm list ${confirmListCount(batch)}/${batch.units.filter((u) => !u.resolutionMode).length}`}
                     {batch.notes ? ` · ${batch.notes}` : ""}
                   </p>
                 </div>
-                <div className="scan-actions" style={{ margin: 0 }}>
+                <div className="scan-actions" style={{ margin: 0, flexWrap: "wrap" }}>
                   {batch.units.some((u) => !u.resolutionMode && u.backStorageRef) ? (
                     <button
                       type="button"
@@ -639,9 +855,40 @@ export function ScanIntake() {
                       disabled={busy}
                       onClick={() => void swapFaces({ batchId: batch.id })}
                     >
-                      Swap front/back
+                      Swap ALL faces
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busy}
+                    onClick={() => void copyIdReport(batch)}
+                  >
+                    Copy ID report
+                  </button>
+                  {batch.categoryHint === "pokemon" || batch.categoryHint === "mtg" ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busy}
+                      onClick={() => void reidentify(batch.id)}
+                    >
+                      Re-identify with live catalog
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={busy || confirmListCount(batch) === 0}
+                    onClick={() => void approveList(batch)}
+                    title={
+                      confirmListCount(batch) === 0
+                        ? "Add cards to the confirm list first"
+                        : `Write ${confirmListCount(batch)} card(s) into Collections`
+                    }
+                  >
+                    Approve confirm list ({confirmListCount(batch)})
+                  </button>
                   <button
                     type="button"
                     className="btn-link"
@@ -695,6 +942,9 @@ export function ScanIntake() {
                       const resolved = unit.resolutionMode != null;
                       const split = unit.baseVsParallel;
                       const conflicts = unit.identityEvidence?.conflictNotes ?? [];
+                      const listed = isOnConfirmList(unit);
+                      const liveCatalog =
+                        batch.categoryHint === "pokemon" || batch.categoryHint === "mtg";
                       return (
                         <tr key={unit.id}>
                           <td>
@@ -848,7 +1098,9 @@ export function ScanIntake() {
                               </>
                             ) : (
                               <>
-                                <span className="badge">staged</span>
+                                <span className={listed ? "badge badge-ok" : "badge badge-warn"}>
+                                  {listed ? "on confirm list" : "needs confirmation"}
+                                </span>
                                 {unit.physicalReimport ? (
                                   <div>
                                     <span className="badge badge-warn">same physical scan</span>
@@ -856,7 +1108,7 @@ export function ScanIntake() {
                                 ) : null}
                                 {unit.duplicateAcknowledged ? (
                                   <div>
-                                    <span className="badge badge-warn">same card type held</span>
+                                    <span className="badge badge-warn">already held — approve will ask before adding another</span>
                                   </div>
                                 ) : null}
                               </>
@@ -867,46 +1119,19 @@ export function ScanIntake() {
                               <span className="muted">—</span>
                             ) : (
                               <div className="scan-actions" style={{ margin: 0, flexWrap: "wrap" }}>
-                                <button
-                                  type="button"
-                                  className="btn-primary"
-                                  disabled={
-                                    busy ||
-                                    !top ||
-                                    unit.reviewRoute === "CONFLICT" ||
-                                    conflicts.length > 0
-                                  }
-                                  onClick={() => void confirmUnit(unit, top!.catalogKey)}
-                                  title={
-                                    !top
-                                      ? "Click Edit, enter the card, Save edit, then Confirm"
-                                      : unit.reviewRoute === "CONFLICT" || conflicts.length > 0
-                                        ? "Click Edit to correct the conflict, then Confirm"
-                                        : unit.physicalReimport
-                                          ? "This is the same physical scan — confirm only if you intend a second copy"
-                                          : "Add draft inventory (Dealer · Sell)"
-                                  }
-                                >
-                                  {unit.physicalReimport || unit.duplicateAcknowledged
-                                    ? "Add copy"
-                                    : "Confirm"}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-link"
-                                  disabled={busy}
-                                  onClick={() => startEdit(unit)}
-                                >
-                                  Edit
-                                </button>
-                                {unit.backStorageRef ? (
+                                {!listed ? (
                                   <button
                                     type="button"
-                                    className="btn-link"
-                                    disabled={busy}
-                                    onClick={() => void swapFaces({ unitId: unit.id })}
+                                    className="btn-primary"
+                                    disabled={busy || !top}
+                                    onClick={() => void addToConfirmList(unit)}
+                                    title={
+                                      !top
+                                        ? "Edit the card first so it has an identity"
+                                        : "Stage this card for Approve Confirm List — does not write inventory yet"
+                                    }
                                   >
-                                    Swap faces
+                                    Add to confirm list
                                   </button>
                                 ) : null}
                                 <button
@@ -917,6 +1142,34 @@ export function ScanIntake() {
                                 >
                                   Reject
                                 </button>
+                                <button
+                                  type="button"
+                                  className="btn-link"
+                                  disabled={busy}
+                                  onClick={() => startEdit(unit)}
+                                >
+                                  Edit
+                                </button>
+                                {liveCatalog ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void reidentify(batch.id, unit.id)}
+                                  >
+                                    Re-identify
+                                  </button>
+                                ) : null}
+                                {unit.backStorageRef ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void swapFaces({ unitId: unit.id })}
+                                  >
+                                    Swap faces
+                                  </button>
+                                ) : null}
                               </div>
                             )}
                           </td>

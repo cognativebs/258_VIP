@@ -278,6 +278,27 @@ describe("CatalogResolver", () => {
     );
   });
 
+  it("does not cache a timeout when a real adapter never returned ok", async () => {
+    const calls = { n: 0 };
+    const cache = createMemoryIdentificationCache();
+    const resolver = createCatalogResolver({
+      cache,
+      timeoutMs: 40,
+      adapters: [
+        countingAdapter("tcgdex", [CHARIZARD], calls, {
+          delayMs: 200,
+          categories: ["pokemon"],
+        }),
+      ],
+    });
+    const result = await resolver.resolve({
+      unit,
+      contentHash: "timeout-no-cache",
+    });
+    expect(result.outcomes[0]?.status).toBe("timeout");
+    expect(cache.size?.()).toBe(0);
+  });
+
   it("does not cache a resolve with empty query text", async () => {
     const calls = { n: 0 };
     const cache = createMemoryIdentificationCache();
@@ -294,6 +315,39 @@ describe("CatalogResolver", () => {
       contentHash: "empty-ocr-hash",
     });
     expect(cache.size?.()).toBe(0);
+  });
+
+  it("drops weak token_overlap guesses such as Pitch Black for Black Belt", async () => {
+    const calls = { n: 0 };
+    const resolver = createCatalogResolver({
+      adapters: [
+        countingAdapter(
+          "postgres-assets",
+          [
+            {
+              catalogKey: "asset:pitch-black-101",
+              category: "pokemon",
+              displayName: "Pitch Black #101 Mega Darkrai ex",
+              searchText: "pitch black mega darkrai ex",
+              playerOrCharacter: "Mega Darkrai ex",
+              externalIds: [{ source: "asset", value: "1c494730" }],
+            },
+          ],
+          calls,
+        ),
+      ],
+    });
+    const result = await resolver.resolve({
+      unit: {
+        ocrText: "Black Belt's Training",
+        frontStorageRef: "IMG_0045.jpg",
+        categoryHint: "pokemon",
+      },
+      contentHash: "weak-overlap-black",
+      opts: { nameHint: "Black Belt's Training" },
+    });
+    expect(calls.n).toBe(1);
+    expect(result.candidates).toEqual([]);
   });
 
   it("uses the fixture adapter through the resolver without changing scores", async () => {

@@ -11,7 +11,11 @@ import type {
   ScanCategory,
   ScanUnit,
 } from "../schemas.js";
-import { createMemoryIdentificationCache, type IdentificationCache } from "./cache.js";
+import {
+  createMemoryIdentificationCache,
+  shouldPersistIdentification,
+  type IdentificationCache,
+} from "./cache.js";
 import { mergeCandidatesByExternalId } from "./merge.js";
 import {
   CatalogResolverResultSchema,
@@ -43,6 +47,21 @@ export type CatalogResolveInput = {
 };
 
 const DEFAULT_TIMEOUT_MS = 3000;
+
+/** token_overlap at 0.15 is "black" matching "Pitch Black" — not an identity. */
+const MIN_TOKEN_OVERLAP_CONFIDENCE = 0.4;
+
+function catalogCandidateIsUsable(
+  candidate: IdentityCandidate,
+): boolean {
+  const onlyOverlap = candidate.matchReasons.every(
+    (r) => r === "token_overlap" || r.startsWith("corroborated:"),
+  );
+  if (onlyOverlap && candidate.confidence < MIN_TOKEN_OVERLAP_CONFIDENCE) {
+    return false;
+  }
+  return true;
+}
 
 function adapterApplies(
   adapter: CatalogAdapter,
@@ -200,7 +219,9 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
       const scored = settled.flatMap((row) => row.ranked);
       const providerCalls = settled.filter((row) => row.called).length;
 
-      const merged = mergeCandidatesByExternalId(scored).slice(0, query.limit ?? 5);
+      const merged = mergeCandidatesByExternalId(scored)
+        .filter(catalogCandidateIsUsable)
+        .slice(0, query.limit ?? 5);
       const result = CatalogResolverResultSchema.parse({
         candidates: merged,
         outcomes: outcomes.sort((a, b) => a.adapterId.localeCompare(b.adapterId)),
@@ -217,7 +238,16 @@ export function createCatalogResolver(deps: CatalogResolverDeps) {
         }),
       });
 
-      if (cacheable && hash) await cache.set(hash, result);
+      if (
+        cacheable &&
+        hash &&
+        shouldPersistIdentification(result, {
+          nameHint: query.nameHint,
+          collectorNumber: query.collectorNumber,
+        })
+      ) {
+        await cache.set(hash, result);
+      }
       return result;
     },
   };

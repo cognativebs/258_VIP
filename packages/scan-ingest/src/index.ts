@@ -24,6 +24,10 @@ export {
   ScanUnitSchema,
   ScanBatchSchema,
   ConfirmUnitRequestSchema,
+  ConfirmListRequestSchema,
+  ApproveConfirmListRequestSchema,
+  ApproveConfirmListDuplicateSchema,
+  ApproveConfirmListConflictSchema,
   EditStagedUnitRequestSchema,
   InventoryCommitSchema,
   EbayListingDraftStatusSchema,
@@ -41,6 +45,10 @@ export {
   type ScanUnit,
   type ScanBatch,
   type ConfirmUnitRequest,
+  type ConfirmListRequest,
+  type ApproveConfirmListRequest,
+  type ApproveConfirmListDuplicate,
+  type ApproveConfirmListConflict,
   type EditStagedUnitRequest,
   type InventoryCommit,
   type EbayListingDraftStatus,
@@ -90,6 +98,8 @@ export { createCatalogResolver, type CatalogResolver } from "./catalog/resolver.
 export {
   createMemoryIdentificationCache,
   canonicalizeCandidatesJson,
+  shouldPersistIdentification,
+  FIXTURE_ADAPTER_ID,
   type IdentificationCache,
 } from "./catalog/cache.js";
 export {
@@ -122,7 +132,11 @@ export {
   type IdentificationBenchmarkCase,
   type IdentificationBenchmarkReport,
 } from "./catalog/resolver-schemas.js";
-export { parseTcgdexCards, fetchTcgdexRaw, tcgdexNameQuery } from "./catalog/tcgdexAdapter.js";
+export {
+  parseTcgdexCards,
+  fetchTcgdexRaw,
+  tcgdexSearchTerms,
+} from "./catalog/tcgdexAdapter.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,
@@ -161,6 +175,10 @@ export {
   spansFromTextBlock,
 } from "./ocr/classifyOcr.js";
 export {
+  extractPokemonFromOcr,
+  looksLikePokemonOcr,
+} from "./ocr/pokemonExtract.js";
+export {
   extractVisionEvidence,
   shouldRunVision,
   shouldEscalateToVision,
@@ -188,6 +206,10 @@ export {
 export { isGenericScanFileName } from "./identify.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";
+export {
+  formatDuplicateCopyVerifyMessage,
+  unitNeedsInventoryCopyAck,
+} from "./confirmListCopy.js";
 export { readImageMeta, orientationOf } from "./jpegMeta.js";
 export type {
   DeviceAdapter,
