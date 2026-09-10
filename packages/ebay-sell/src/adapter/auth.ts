@@ -37,17 +37,15 @@ export function sellAuthHosts(env: EbayEnvironment): { api: string; auth: string
 }
 
 /**
- * `EBAY_ENV` is the sell engine's own switch and wins outright. `EBAY_ENVIRONMENT`
- * belongs to Browse comps, which run against Production by default, so it is only
- * a fallback — otherwise a comps setting could silently point publish at
- * Production and create real listings.
+ * `EBAY_ENV=production` is the only way to point publish at Production, and
+ * everything else means Sandbox. `EBAY_ENVIRONMENT` belongs to Browse comps,
+ * which run against Production by default and are documented that way, so
+ * falling back to it would arm real money-bearing listings from a comps
+ * setting. Getting this wrong in the safe direction costs one env var; getting
+ * it wrong in the other direction lists a real comic for real money.
  */
 export function sellEnvironmentFromEnv(env: NodeJS.ProcessEnv = process.env): EbayEnvironment {
-  const explicit = (env.EBAY_ENV ?? "").trim().toLowerCase();
-  if (explicit === "production" || explicit === "sandbox") return explicit;
-  return (env.EBAY_ENVIRONMENT ?? "").trim().toLowerCase() === "production"
-    ? "production"
-    : "sandbox";
+  return (env.EBAY_ENV ?? "").trim().toLowerCase() === "production" ? "production" : "sandbox";
 }
 
 export function ebaySellAuthFromEnv(

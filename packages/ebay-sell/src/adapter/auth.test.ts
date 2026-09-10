@@ -72,20 +72,20 @@ describe("eBay Sell OAuth", () => {
     expect(resolved.accessToken).toBe("access-1");
   });
 
-  it("lets EBAY_ENV override the Browse comps environment", () => {
+  it("only reaches Production when EBAY_ENV asks for it", () => {
     const credentials = {
       EBAY_APP_ID: "app",
       EBAY_CERT_ID: "cert",
       EBAY_REDIRECT_URI: "https://example.test/cb",
     };
-    // Comps run against Production by default. That must never drag publish
-    // along with it and create real listings from a Sandbox test.
+    // Comps run against Production by default, and env.example ships
+    // EBAY_ENVIRONMENT=production for them. That must never drag publish along
+    // with it and create real listings from what the operator thinks is a test.
+    expect(sellEnvironmentFromEnv({ EBAY_ENVIRONMENT: "production" })).toBe("sandbox");
     expect(sellEnvironmentFromEnv({ EBAY_ENV: "sandbox", EBAY_ENVIRONMENT: "production" })).toBe("sandbox");
-    expect(ebaySellAuthFromEnv({ ...credentials, EBAY_ENV: "sandbox", EBAY_ENVIRONMENT: "production" })?.env).toBe(
-      "sandbox",
-    );
+    expect(ebaySellAuthFromEnv({ ...credentials, EBAY_ENVIRONMENT: "production" })?.env).toBe("sandbox");
     expect(sellEnvironmentFromEnv({ EBAY_ENV: "production" })).toBe("production");
-    expect(sellEnvironmentFromEnv({ EBAY_ENVIRONMENT: "production" })).toBe("production");
+    expect(ebaySellAuthFromEnv({ ...credentials, EBAY_ENV: "production" })?.env).toBe("production");
     expect(sellEnvironmentFromEnv({})).toBe("sandbox");
   });
 

@@ -128,10 +128,11 @@ carry `api_scope`. When that token cannot be minted the two checks report
 
 ## Environment precedence
 
-`EBAY_ENV` is the sell engine's switch and wins outright. `EBAY_ENVIRONMENT`
-belongs to Browse comps, which default to Production, and is only a fallback.
-`EBAY_ENV=sandbox` therefore keeps publish on Sandbox even when comps run
-against Production.
+`EBAY_ENV=production` is the only thing that points publish at Production.
+Anything else — unset, empty, `sandbox`, a typo — means Sandbox.
+`EBAY_ENVIRONMENT` belongs to Browse comps, which default to Production and are
+configured that way in `env.example`; it is deliberately ignored here so a comps
+setting can never arm real, money-bearing listings.
 
 `vault_collection.ebay_connection` keeps one row per environment, and the token
 the engine reads is the row for whichever environment `EBAY_ENV` names. Sandbox
