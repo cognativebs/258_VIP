@@ -90,6 +90,7 @@ export const CandidateDebugSchema = z.object({
   displayName: z.string(),
   confidence: z.number(),
   matchReasons: z.array(z.string()),
+  adapterId: z.string().optional(),
 });
 export type CandidateDebug = z.infer<typeof CandidateDebugSchema>;
 
@@ -107,6 +108,17 @@ export const IdentificationDebugSchema = z.object({
   whyWon: z.string(),
   baseConfidence: z.number().min(0).max(1),
   parallelConfidence: z.number().min(0).max(1),
+  /** Live catalog that produced the winner — never silently the 5-card fixture. */
+  catalogSource: z.string().optional(),
+  adapterOutcomes: z
+    .array(
+      z.object({
+        adapterId: z.string(),
+        status: z.string(),
+        cardCount: z.number().optional(),
+      }),
+    )
+    .optional(),
 });
 export type IdentificationDebug = z.infer<typeof IdentificationDebugSchema>;
 

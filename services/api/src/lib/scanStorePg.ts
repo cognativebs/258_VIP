@@ -8,7 +8,9 @@ import {
   SCAN_SNAPSHOT_SOURCE,
   assessCandidates,
   baseVsParallelFromEvidence,
+  formatDuplicateCopyVerifyMessage,
   policyFromEnv,
+  unitNeedsInventoryCopyAck,
   type EditStagedUnitRequest,
   type OpenBatchResult,
 } from "@vip/scan-ingest";
@@ -44,7 +46,7 @@ export async function persistBatch(
 ): Promise<PersistBatchResult> {
   const db = getDb();
   const batch = result.batch;
-  const adapterId = opts.adapterId ?? "fixture-catalog";
+  const adapterId = opts.adapterId ?? "catalog-resolver";
   const policy = policyFromEnv();
 
   await db.execute(sql`
@@ -704,6 +706,187 @@ export async function loadScanHoldings(): Promise<ScanHoldingRow[]> {
       ? (row.external_ids as Array<{ source: string; externalValue: string }>)
       : [],
   }));
+}
+
+/**
+ * Put a staged card on (or take it off) the batch confirm list.
+ * Does not write inventory. `draft_ready` means on the list.
+ */
+export async function setUnitConfirmList(
+  unitId: string,
+  onList: boolean,
+): Promise<
+  | { ok: true; unitId: string; onList: boolean; reviewStatus: string }
+  | { ok: false; status: number; error: string }
+> {
+  const db = getDb();
+  const unitRes = await db.execute(sql`
+    SELECT id, resolution_mode
+    FROM vault_media.scan_unit
+    WHERE id = ${unitId}::uuid
+  `);
+  const unit = (unitRes.rows as Array<Record<string, unknown>>)[0];
+  if (!unit) {
+    return { ok: false, status: 404, error: `Unit ${unitId} not found` };
+  }
+  if (unit.resolution_mode) {
+    return {
+      ok: false,
+      status: 409,
+      error: "This card is already resolved and cannot change confirm-list membership",
+    };
+  }
+  if (onList) {
+    const cand = await db.execute(sql`
+      SELECT count(*)::int AS n FROM vault_media.scan_unit_candidate
+      WHERE unit_id = ${unitId}::uuid
+    `);
+    const n = Number((cand.rows as Array<{ n: number }>)[0]?.n ?? 0);
+    if (n < 1) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Edit the card so it has an identity before adding it to the confirm list",
+      };
+    }
+  }
+  const reviewStatus = onList ? "draft_ready" : "needs_confirmation";
+  await db.execute(sql`
+    UPDATE vault_media.scan_unit
+    SET review_status = ${reviewStatus},
+        updated_at = now()
+    WHERE id = ${unitId}::uuid AND resolution_mode IS NULL
+  `);
+  return { ok: true, unitId, onList, reviewStatus };
+}
+
+export type ApproveConfirmListDuplicate = {
+  unitId: string;
+  displayName: string;
+};
+
+export type ApproveConfirmListResult =
+  | {
+      ok: true;
+      batchId: string;
+      approved: number;
+      failed: number;
+      skipped: number;
+      errors: string[];
+    }
+  | { ok: false; status: 404; error: string }
+  | {
+      ok: false;
+      status: 409;
+      error: string;
+      code: "DUPLICATE_UNACKNOWLEDGED";
+      duplicates: ApproveConfirmListDuplicate[];
+    };
+
+function confirmListDisplayName(unit: StagedUnitRow): string {
+  const top = unit.candidates[0];
+  if (top?.displayName) {
+    const extra = [top.setName, top.collectorNumber].filter(Boolean).join(" ");
+    return extra ? `${top.displayName} (${extra})` : top.displayName;
+  }
+  return `Card ${unit.unitIndex + 1}`;
+}
+
+function holdingMatchesCandidate(
+  holdings: ScanHoldingRow[],
+  top: StagedCandidateRow,
+): boolean {
+  if (top.assetId && holdings.some((h) => h.assetId === top.assetId)) {
+    return true;
+  }
+  const keys = new Set<string>([top.catalogKey]);
+  const suffix = top.catalogKey.split(":").pop();
+  if (suffix) keys.add(suffix);
+  return holdings.some((h) =>
+    h.externalIds.some((e) => keys.has(e.externalValue)),
+  );
+}
+
+async function confirmListAlreadyHeld(
+  units: StagedUnitRow[],
+): Promise<ApproveConfirmListDuplicate[]> {
+  const listed = units.filter(
+    (u) => !u.resolutionMode && u.reviewStatus === "draft_ready",
+  );
+  const holdings = await loadScanHoldings();
+  const byId = new Map<string, ApproveConfirmListDuplicate>();
+  for (const unit of listed) {
+    const top = unit.candidates[0];
+    const flagged = unitNeedsInventoryCopyAck(unit);
+    const liveHit = top ? holdingMatchesCandidate(holdings, top) : false;
+    if (!flagged && !liveHit) continue;
+    byId.set(unit.id, {
+      unitId: unit.id,
+      displayName: confirmListDisplayName(unit),
+    });
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Write every draft-ready card on the batch into Collections.
+ * Inferred · unverified (NM assumed) until the operator grades later.
+ * Already-held cards require acknowledgeDuplicates — never silently add a copy.
+ */
+export async function approveConfirmList(
+  batchId: string,
+  input: { acknowledgeDuplicates?: boolean } = {},
+): Promise<ApproveConfirmListResult> {
+  const batch = await getStagedBatch(batchId);
+  if (!batch) {
+    return { ok: false, status: 404, error: `Scan batch ${batchId} not found` };
+  }
+  const ready = batch.units.filter(
+    (u) => !u.resolutionMode && u.reviewStatus === "draft_ready",
+  );
+  const duplicates = await confirmListAlreadyHeld(batch.units);
+  if (duplicates.length > 0 && input.acknowledgeDuplicates !== true) {
+    return {
+      ok: false,
+      status: 409,
+      error: formatDuplicateCopyVerifyMessage(
+        duplicates.map((d) => d.displayName),
+      ),
+      code: "DUPLICATE_UNACKNOWLEDGED",
+      duplicates,
+    };
+  }
+  let approved = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  for (const unit of ready) {
+    const top = unit.candidates[0];
+    if (!top) {
+      failed += 1;
+      errors.push(`${unit.id}: no candidate`);
+      continue;
+    }
+    const result = await resolveUnit({
+      unitId: unit.id,
+      catalogKey: top.catalogKey,
+      mode: "operator_confirmed",
+      acknowledgeDuplicates: input.acknowledgeDuplicates === true,
+    });
+    if (!result.ok) {
+      failed += 1;
+      errors.push(`${unit.id}: ${result.error}`);
+      continue;
+    }
+    approved += 1;
+  }
+  return {
+    ok: true,
+    batchId,
+    approved,
+    failed,
+    skipped: batch.units.length - ready.length,
+    errors,
+  };
 }
 
 /** Reject a unit: keep capture + candidates, write nothing canonical. */

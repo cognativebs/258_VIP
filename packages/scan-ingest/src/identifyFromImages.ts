@@ -17,6 +17,11 @@ import {
   spansFromTextBlock,
   type OcrSpan,
 } from "./ocr/classifyOcr.js";
+import {
+  extractPokemonFromOcr,
+  looksLikePokemonOcr,
+  type PokemonOcrExtract,
+} from "./ocr/pokemonExtract.js";
 import { ocrImageFile, type OcrResult } from "./ocr/tesseractOcr.js";
 import type { IdentityCandidate, ScanCategory, ScanVertical } from "./schemas.js";
 import { resolveOcrProfile, type OcrProfile } from "./ocr/profiles.js";
@@ -104,14 +109,44 @@ function applyCatalogFill(
   return out;
 }
 
+function applyPokemonOcrExtract(
+  fused: CardIdentityEvidence["fused"],
+  poke: PokemonOcrExtract,
+): CardIdentityEvidence["fused"] {
+  if (!poke.name && !poke.collectorNumber) return fused;
+  const out = { ...fused };
+  out.category = field("pokemon", Math.max(0.7, poke.confidence), "front_ocr");
+  if (poke.name) {
+    out.playerOrCharacter = field(poke.name, poke.confidence, "front_ocr");
+  }
+  if (poke.collectorNumber) {
+    out.collectorNumber = field(poke.collectorNumber, poke.confidence, "front_ocr");
+  }
+  return out;
+}
+
+/** Sports title-line junk must not keep CONFLICT after a Pokémon name wins. */
+function dropConflictsResolvedByPokemon(
+  notes: string[],
+  poke: PokemonOcrExtract,
+): string[] {
+  return notes.filter((note) => {
+    if (note.startsWith("player:") && poke.name) return false;
+    if (note.startsWith("number:") && poke.collectorNumber) return false;
+    if (note.startsWith("category:")) return false;
+    return true;
+  });
+}
+
 function whyWon(
   winner: IdentityCandidate | undefined,
   query: string,
   usedVision: boolean,
+  catalogSource: string,
 ): string {
   if (!winner) {
     return query
-      ? "structured evidence produced a query but no candidate ranked"
+      ? `structured evidence produced a query but ${catalogSource} returned no candidate`
       : "no privileged OCR/vision fields; unknown is valid";
   }
   if (winner.catalogKey.includes(":parsed:")) {
@@ -119,7 +154,7 @@ function whyWon(
       ? "vision observed fields + privileged OCR; profile-parsed candidate from structured query (not a catalog fabrication)"
       : "privileged OCR/filename fields; profile-parsed candidate from structured query (not a catalog fabrication)";
   }
-  return `catalog ${winner.catalogKey} agreed with observed year/number/player`;
+  return `${catalogSource} ${winner.catalogKey} agreed with observed year/number/player`;
 }
 
 function debugBundle(input: {
@@ -133,12 +168,15 @@ function debugBundle(input: {
   whyWon: string;
   baseConfidence: number;
   parallelConfidence: number;
+  catalogSource: string;
+  adapterOutcomes: Array<{ adapterId: string; status: string; cardCount?: number }>;
 }): IdentificationDebug {
   const toDebug = (c: IdentityCandidate) => ({
     catalogKey: c.catalogKey,
     displayName: c.displayName,
     confidence: c.confidence,
     matchReasons: c.matchReasons,
+    adapterId: c.adapterId,
   });
   return {
     rawOcr: {
@@ -153,6 +191,8 @@ function debugBundle(input: {
     whyWon: input.whyWon,
     baseConfidence: input.baseConfidence,
     parallelConfidence: input.parallelConfidence,
+    catalogSource: input.catalogSource,
+    adapterOutcomes: input.adapterOutcomes,
   };
 }
 
@@ -229,14 +269,41 @@ export async function identifyFromPairedImages(input: {
   const frontExtract = extractStructuredFromOcr(frontSpans, profile);
   const backExtract = extractStructuredFromOcr(backSpans, profile);
 
+  const combinedOcr = [frontOcr.text, backOcr.text].filter(Boolean).join("\n");
+  const pokemonExtract = extractPokemonFromOcr(combinedOcr);
+  const pokemonCategory =
+    input.categoryHint === "pokemon" || looksLikePokemonOcr(combinedOcr);
+  if (pokemonCategory) {
+    frontExtract.player = null;
+    backExtract.player = null;
+  }
+
   let evidence = fuseIdentitySides({
     front: fieldsFromStructuredOcr(frontExtract, "front_ocr", profile.category),
     back: fieldsFromStructuredOcr(backExtract, "back_ocr", profile.category),
   });
 
+  if (pokemonCategory && (pokemonExtract.name || pokemonExtract.collectorNumber)) {
+    evidence = {
+      ...evidence,
+      fused: applyPokemonOcrExtract(evidence.fused, pokemonExtract),
+      conflictNotes: dropConflictsResolvedByPokemon(
+        evidence.conflictNotes,
+        pokemonExtract,
+      ),
+    };
+    notes.push(
+      `pokemon_ocr ${pokemonExtract.methods.join(",") || "empty"} · inferred · unverified`,
+    );
+  }
+
+  const pokemonComplete = Boolean(
+    pokemonExtract.name && pokemonExtract.collectorNumber,
+  );
   const privilegedComplete =
     privilegedOcrIsComplete(frontExtract, profile) ||
-    privilegedOcrIsComplete(backExtract, profile);
+    privilegedOcrIsComplete(backExtract, profile) ||
+    pokemonComplete;
 
   let usedVision = false;
   let visionModel = "";
@@ -301,19 +368,41 @@ export async function identifyFromPairedImages(input: {
     categoryHint: profile.category,
     verticalHint: profile.vertical,
   };
-  const candidates = input.resolver
-    ? (
-        await input.resolver.resolve({
-          unit: identifyInput,
-          contentHash: input.frontHash ?? null,
-          opts: { categoryHint: profile.category, verticalHint: profile.vertical },
-        })
-      ).candidates
-    : identifyUnit(identifyInput, {
-        catalog: [],
-        categoryHint: profile.category,
-        verticalHint: profile.vertical,
-      });
+  const identifyOpts = {
+    categoryHint: profile.category,
+    verticalHint: profile.vertical,
+    nameHint: evidence.fused.playerOrCharacter.value ?? undefined,
+    collectorNumberHint: evidence.fused.collectorNumber.value ?? undefined,
+  };
+  let catalogSource = "pixel-parse";
+  let adapterOutcomes: Array<{ adapterId: string; status: string; cardCount?: number }> = [];
+  let candidates: IdentityCandidate[];
+  if (input.resolver) {
+    const resolved = await input.resolver.resolve({
+      unit: identifyInput,
+      contentHash: input.frontHash ?? null,
+      opts: identifyOpts,
+    });
+    candidates = resolved.candidates;
+    adapterOutcomes = resolved.outcomes.map((o) => ({
+      adapterId: o.adapterId,
+      status: o.status,
+      cardCount: o.cardCount,
+    }));
+    const used = resolved.outcomes.filter((o) => o.status === "ok" && o.cardCount > 0);
+    const real = used.filter((o) => o.adapterId !== "fixture-catalog");
+    catalogSource =
+      real[0]?.adapterId ??
+      used[0]?.adapterId ??
+      (resolved.cacheHit ? "cache" : "none");
+    if (resolved.cacheHit) notes.push(`catalog cache hit · ${catalogSource}`);
+    else notes.push(`catalog ${catalogSource}`);
+  } else {
+    candidates = identifyUnit(identifyInput, {
+      catalog: [],
+      ...identifyOpts,
+    });
+  }
 
   evidence = {
     ...evidence,
@@ -322,7 +411,7 @@ export async function identifyFromPairedImages(input: {
 
   const split = baseVsParallelFromEvidence(evidence);
   const winner = candidates[0];
-  const reason = whyWon(winner, query, usedVision);
+  const reason = whyWon(winner, query, usedVision, catalogSource);
   evidence.debug = debugBundle({
     frontOcrText: frontOcr.text,
     backOcrText: backOcr.text,
@@ -334,6 +423,8 @@ export async function identifyFromPairedImages(input: {
     whyWon: reason,
     baseConfidence: split.baseConfidence,
     parallelConfidence: split.parallelConfidence,
+    catalogSource,
+    adapterOutcomes,
   });
 
   return {

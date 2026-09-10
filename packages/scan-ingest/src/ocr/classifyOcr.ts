@@ -160,6 +160,10 @@ function looksLikeTitle(text: string, profile: OcrProfile): boolean {
   if (letters.some((w) => w.length === 0) && !allowDigits) return false;
   if (!letters.some((w) => w.length >= 3)) return false;
   if (letters.filter((w) => w.length === 1).length > 2) return false;
+  // "aoe oe oe" is Ricoh junk, not "Bo Nix" (2 tokens) or "CJ Stroud".
+  if (words.length >= 3 && letters.every((w) => w.length <= 3)) return false;
+  const symbols = text.replace(/[A-Za-z0-9\s.'’-]/g, "");
+  if (symbols.length >= 3) return false;
   // A one-word title is only credible when it is long enough to be a real card
   // name (Charizard, Pikachu). Shorter single words are OCR junk.
   if (words.length === 1 && letters[0]!.length < 5) return false;

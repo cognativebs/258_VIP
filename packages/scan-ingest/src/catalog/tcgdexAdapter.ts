@@ -7,65 +7,130 @@ import type {
 
 const TCGDEX = "https://api.tcgdex.net/v2/en";
 
-const NAME_NOISE = new Set([
+function localIdFromCollector(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const t = raw.replace(/^#/, "").trim();
+  const m = t.match(/^(\d{1,3}[a-z]?)(?:\s*\/\s*\d{1,4})?$/i);
+  return m?.[1];
+}
+
+const TCGDEX_SKIP = new Set([
+  "base",
+  "set",
+  "holo",
+  "holofoil",
+  "rare",
   "pokemon",
   "pokémon",
   "tcg",
+  "the",
+  "and",
   "hp",
   "basic",
   "stage",
-  "holo",
-  "rare",
-  "set",
   "ex",
   "gx",
   "vmax",
   "vstar",
+  "scarlet",
+  "violet",
+  "card",
+  "english",
+  "japanese",
+  "promo",
+  "illustration",
+  "trainer",
+  "front",
+  "back",
+  "jpg",
+  "jpeg",
+  "png",
+  "tif",
+  "tiff",
+  "webp",
+  "image",
+  "scan",
 ]);
 
-/** Pull a searchable Pokémon name out of a sports-shaped OCR query. */
-export function tcgdexNameQuery(text: string): string | null {
-  const tokens = text
+/**
+ * Pull a TCGdex `name` + optional `localId` out of structured scan text.
+ * First-three-tokens of "1999 Pokémon #4 Charizard" is "1999 Pokémon #4" and
+ * misses the card. Prefer a privileged name hint, then alphabetic tokens.
+ */
+export function tcgdexSearchTerms(input: {
+  text: string;
+  nameHint?: string;
+  collectorNumber?: string;
+}): { name: string; localId?: string } {
+  const text = input.text
     .trim()
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "");
+  const hashNum = text.match(/#\s*(\d{1,4}[a-z]?)/i);
+  const tokens = text
+    .toLowerCase()
+    .replace(/#/g, " ")
+    .replace(/[._]+/g, " ")
     .split(/\s+/)
-    .map((t) => t.replace(/^#/, ""))
-    .filter((t) => {
-      if (!t) return false;
-      if (/^\d{4}$/.test(t)) return false;
-      if (/^\d+\/?\d*$/.test(t)) return false;
-      if (t.length < 3) return false;
-      if (NAME_NOISE.has(t.toLowerCase())) return false;
-      return true;
-    });
-  if (tokens.length === 0) return null;
-  return tokens.slice(0, 2).join(" ");
+    .filter(Boolean);
+  const yearLike = /^(19|20)\d{2}$/;
+  const nums = tokens.filter(
+    (t) => /^\d{1,4}[a-z]?$/.test(t) && !yearLike.test(t),
+  );
+  const fromHint = localIdFromCollector(input.collectorNumber);
+  const localId = fromHint || hashNum?.[1] || nums[0];
+
+  const hint = input.nameHint?.trim();
+  if (hint) {
+    return {
+      name: hint.split(/\s+/).slice(0, 3).join(" "),
+      localId,
+    };
+  }
+
+  const nameTokens = tokens.filter(
+    (t) => !/^\d/.test(t) && !TCGDEX_SKIP.has(t) && t.length > 2,
+  );
+  const unique: string[] = [];
+  for (const token of nameTokens) {
+    if (!unique.includes(token)) unique.push(token);
+  }
+  return {
+    name: unique.slice(0, 2).join(" "),
+    localId,
+  };
 }
 
 export function parseTcgdexCards(
   raw: CatalogRawResponse,
   query: CatalogQuery,
 ): CatalogCard[] {
-  let rows: Array<{ id?: string; name?: string; localId?: string }>;
+  let rows: Array<{
+    id?: string;
+    name?: string;
+    localId?: string;
+    set?: { name?: string } | string;
+  }>;
   try {
-    rows = JSON.parse(raw.payload) as Array<{
-      id?: string;
-      name?: string;
-      localId?: string;
-    }>;
+    rows = JSON.parse(raw.payload) as typeof rows;
   } catch {
     return [];
   }
-  return (Array.isArray(rows) ? rows : []).slice(0, query.limit ?? 5).map((row) => ({
-    catalogKey: `pokemon:tcgdex:${row.id ?? row.name}`,
-    category: "pokemon" as const,
-    displayName: row.name ?? "Unknown",
-    setName: null,
-    collectorNumber: row.localId ?? null,
-    playerOrCharacter: row.name ?? null,
-    year: null,
-    searchText: `${row.name ?? ""} ${row.localId ?? ""} ${row.id ?? ""}`,
-    externalIds: row.id ? [{ source: "tcgdex", value: row.id }] : [],
-  }));
+  return (Array.isArray(rows) ? rows : []).slice(0, query.limit ?? 8).map((row) => {
+    const setName =
+      typeof row.set === "string" ? row.set : (row.set?.name ?? null);
+    return {
+      catalogKey: `pokemon:tcgdex:${row.id ?? row.name}`,
+      category: "pokemon" as const,
+      displayName: row.name ?? "Unknown",
+      setName,
+      collectorNumber: row.localId ?? null,
+      playerOrCharacter: row.name ?? null,
+      year: null,
+      searchText: `${row.name ?? ""} ${row.localId ?? ""} ${row.id ?? ""} ${setName ?? ""}`,
+      externalIds: row.id ? [{ source: "tcgdex", value: row.id }] : [],
+    };
+  });
 }
 
 export type TcgdexFetch = (
@@ -81,16 +146,46 @@ export async function fetchTcgdexRaw(
   query: CatalogQuery,
   fetchImpl: TcgdexFetch = fetch,
 ): Promise<CatalogRawResponse | null> {
-  const name = tcgdexNameQuery(query.text);
-  if (!name) return null;
+  const q = query.text.trim() || query.nameHint?.trim() || "";
+  if (!q && !query.nameHint) return null;
   const category = query.category;
   if (category && category !== "pokemon") return null;
-  const url = `${TCGDEX}/cards?name=${encodeURIComponent(name)}`;
+  const terms = tcgdexSearchTerms({
+    text: query.text,
+    nameHint: query.nameHint,
+    collectorNumber: query.collectorNumber,
+  });
+  if (!terms.name) return null;
+  const first = await fetchTcgdexCards(fetchImpl, terms.name, terms.localId);
+  if (!first) return null;
+  if (terms.localId && isEmptyCardPayload(first.payload)) {
+    const retry = await fetchTcgdexCards(fetchImpl, terms.name, undefined);
+    if (retry) return retry;
+  }
+  return first;
+}
+
+function isEmptyCardPayload(payload: string): boolean {
+  try {
+    const rows = JSON.parse(payload) as unknown;
+    return Array.isArray(rows) && rows.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchTcgdexCards(
+  fetchImpl: TcgdexFetch,
+  name: string,
+  localId?: string,
+): Promise<CatalogRawResponse | null> {
+  const params = new URLSearchParams({ name });
+  if (localId) params.set("localId", localId);
+  const url = `${TCGDEX}/cards?${params.toString()}`;
   const res = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!res.ok) return null;
-  const payload = await res.text();
   return {
-    payload,
+    payload: await res.text(),
     contentType: res.headers.get("content-type") ?? "application/json",
   };
 }
@@ -106,7 +201,7 @@ export function createTcgdexCatalogAdapter(opts: { fetch?: TcgdexFetch } = {}): 
     id: "tcgdex",
     label: "TCGdex (pokemon)",
     categories: ["pokemon"],
-    timeoutMs: 1500,
+    timeoutMs: 2500,
     fetchRaw: (query) => fetchTcgdexRaw(query, fetchImpl),
     parseRaw: parseTcgdexCards,
     async search(query: CatalogQuery): Promise<CatalogCard[]> {

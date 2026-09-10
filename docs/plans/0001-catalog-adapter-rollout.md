@@ -25,6 +25,13 @@ Still missing: Phase 1 accuracy gate (25 real Pokémon scans, top-1 ≥ 80%),
 Phase 2 accuracy gate (25 Magic scans, top-1 ≥ 85%, offline when the
 MTGJSON mirror is present), CardSight messy-card benchmark.
 
+Wired 2026-09-07: live Pokémon adapters are TCGdex only. The 5-card
+fixture is **not** registered unless `VIP_CATALOG_FIXTURE=1`. Cache
+version is `catalog-resolver@0.3.0` so empty-query TCGdex misses from
+0.2.0 are ignored. Pokémon OCR lifts species / trainer title +
+`NNN/NNN` before the resolver runs. `/scan` can re-identify a staged
+batch and copy a compact identification report (no image bytes).
+
 Wired 2026-09-06: resolver is the default Pokémon/MTG path on
 `POST /api/scan/batches`; Ricoh OCRs first then resolves. TCGdex is on
 unless `VIP_CATALOG_TCGDEX=0`. Provider bytes go to `raw_snapshots`.

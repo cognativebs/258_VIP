@@ -1,6 +1,5 @@
 import {
   ConfirmUnitRequestSchema,
-  FIXTURE_CATALOG,
   OCR_PROFILE_OPTIONS,
   SCAN_HOLDING_SOURCE,
   SCAN_INGEST_RULE,
@@ -23,6 +22,7 @@ import type { ApiHolding } from "./holdings.js";
 import {
   catalogResolverEnabled,
   getCatalogResolver,
+  liveCatalogStatus,
   resetCatalogResolver,
 } from "./catalogLive.js";
 
@@ -127,7 +127,7 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
     return openScanBatchWithResolver(input, {
       store,
       resolver: getCatalogResolver(),
-      catalog: FIXTURE_CATALOG,
+      catalog: [],
       inventory: body.inventory,
       ebayCreds: ebayCredsFromEnv(),
     });
@@ -135,10 +135,9 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
 
   return openScanBatch(input, {
     store,
-    // Sports lots use pixel OCR + sports parse. The 5-card fixture is not a
-    // production sports catalog. TCG still uses it on this in-memory
-    // path until a licensed sports-equivalent adapter exists.
-    catalog: resolved.family === "tcg" ? FIXTURE_CATALOG : [],
+    // Sports lots use pixel OCR + sports parse. Live Pokémon/MTG use the
+    // resolver above — never the 5-card fixture unless VIP_CATALOG_FIXTURE=1.
+    catalog: [],
     inventory: body.inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -151,7 +150,7 @@ export function confirmScanFromApi(
   const parsed = ConfirmUnitRequestSchema.parse(body);
   return confirmScanUnit(parsed, {
     store,
-    catalog: FIXTURE_CATALOG,
+    catalog: [],
     inventory,
     ebayCreds: ebayCredsFromEnv(),
   });
@@ -187,8 +186,8 @@ export function scanMeta() {
       "Tesseract OCR on front+back pixels (category/vertical OCR profile)",
       "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
-      "CatalogResolver fan-out (fixture + TCGdex for Pokémon; Magic fixture until Scryfall)",
-      "identification cache by content_hash · provider snapshots before parse",
+      "CatalogResolver fan-out (TCGdex for Pokémon; Magic until Scryfall; fixture opt-in only)",
+      "identification cache by content_hash · skip timeout/fixture-poisoned rows",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",
       "physical reimport (hash) vs same card type",
@@ -208,5 +207,6 @@ export function scanMeta() {
     },
     scannerProfileDefault: "004_Cards",
     ocrProfiles: OCR_PROFILE_OPTIONS,
+    catalog: liveCatalogStatus(),
   };
 }
