@@ -156,7 +156,12 @@ export function createEbaySellService(deps: EbaySellDeps) {
     });
   }
 
-  /** The draft the operator is most likely about to publish. */
+  /**
+   * The draft the operator is most likely about to publish: the requested
+   * holding, else the newest queued listing. With nothing queued yet it falls
+   * back to any publishable holding, so a first-time bring-up still gets the
+   * category and aspect checks instead of three silent skips.
+   */
   async function samplePayload(
     holdings: ApiHolding[],
     inventoryId: string | null,
@@ -164,16 +169,27 @@ export function createEbaySellService(deps: EbaySellDeps) {
     const pending = (await deps.store.listListings())
       .filter((l) => !ACTIVE_LISTING_STATUSES.includes(l.status as (typeof ACTIVE_LISTING_STATUSES)[number]))
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-    const target = inventoryId
-      ? holdings.find((h) => h.id === inventoryId || h.holdingUuid === inventoryId)
-      : holdings.find((h) => pending.some((l) => l.inventoryId === h.id));
-    if (!target) return null;
-    const live = await hydrateHolding(target);
-    const listing = pending.find((l) => l.inventoryId === live.id);
-    return buildListingDraftPayload({
-      ...holdingToSellingAsset(live),
-      sku: listing?.sku ?? ensureSku(live),
-    });
+    const draftFor = async (holding: ApiHolding) => {
+      const live = await hydrateHolding(holding);
+      const listing = pending.find((l) => l.inventoryId === live.id);
+      return buildListingDraftPayload({
+        ...holdingToSellingAsset(live),
+        sku: listing?.sku ?? ensureSku(live),
+      });
+    };
+    if (inventoryId) {
+      const target = holdings.find((h) => h.id === inventoryId || h.holdingUuid === inventoryId);
+      return target ? draftFor(target) : null;
+    }
+    const queued = holdings.find((h) => pending.some((l) => l.inventoryId === h.id));
+    if (queued) return draftFor(queued);
+    let firstBlocked: ListingDraftPayload | null = null;
+    for (const holding of holdings) {
+      const payload = await draftFor(holding);
+      if (!payload.publishBlockedReasons.length && payload.recommendedListPrice != null) return payload;
+      firstBlocked ??= payload;
+    }
+    return firstBlocked;
   }
 
   function notConfiguredReport(

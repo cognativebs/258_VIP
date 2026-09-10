@@ -272,6 +272,12 @@ describe("eBay sell service", () => {
       };
       const service = createEbaySellService({ store, fetchImpl });
       const card = holding();
+      // Nothing queued yet — preflight must still find a holding to check the
+      // category and aspects against rather than skipping them.
+      const beforeDraft = await service.preflight([card]);
+      expect(beforeDraft.checks.find((c) => c.id === "category")?.status).toBe("pass");
+      expect(beforeDraft.checks.find((c) => c.id === "draft")?.status).toBe("pass");
+
       await service.draftFromHolding(card);
       const report = await service.preflight([card]);
 

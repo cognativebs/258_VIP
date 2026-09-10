@@ -6,6 +6,11 @@ import type { SellPreflightReport } from "@vip/ebay-sell";
 import { createEbaySellService } from "./lib/ebaySell/service.js";
 import { createPostgresEbaySellStore } from "./lib/ebaySell/store.js";
 import { loadComicsHoldings } from "./lib/comicsHoldings.js";
+import { loadLocalEnv } from "./lib/loadEnv.js";
+
+// Without this the jobs see none of services/api/.env and every one of them
+// reports an idle connection instead of doing its work.
+loadLocalEnv();
 
 const cmd = process.argv[2] ?? "order-sync";
 
