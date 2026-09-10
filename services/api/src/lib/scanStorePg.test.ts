@@ -256,6 +256,38 @@ describe("scan staging (ADR 0009)", () => {
     expect(await countScanHoldings()).toBe(before + 1);
   });
 
+  it("refuses to add another copy until the operator acknowledges", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    const unitId = opened.batch.units[0]!.id;
+    const before = await countScanHoldings();
+
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_unit
+      SET duplicate_acknowledged = true
+      WHERE id = ${unitId}::uuid
+    `);
+    const listed = await setUnitConfirmList(unitId, true);
+    expect(listed.ok).toBe(true);
+
+    const blocked = await approveConfirmList(staged.batchId);
+    expect(blocked.ok).toBe(false);
+    if (blocked.ok || blocked.status !== 409) return;
+    expect(blocked.code).toBe("DUPLICATE_UNACKNOWLEDGED");
+    expect(blocked.duplicates.some((d) => d.unitId === unitId)).toBe(true);
+    expect(await countScanHoldings()).toBe(before);
+
+    const approved = await approveConfirmList(staged.batchId, {
+      acknowledgeDuplicates: true,
+    });
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) return;
+    expect(approved.approved).toBe(1);
+    expect(await countScanHoldings()).toBe(before + 1);
+  });
+
   it("hides a discarded batch from the queue without deleting holdings", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
