@@ -342,18 +342,21 @@ export function overlayIdentityFields(
 }
 
 export function structuredIdentityQuery(fields: CardIdentityFields): string {
+  // TCG catalogs key on name plus the printed collector number, and a year or
+  // brand token only pulls the search off the card.
   const category = (fields.category.value ?? "sports").toLowerCase();
   if (category === "pokemon" || category === "mtg" || category === "one_piece") {
     return [fields.playerOrCharacter.value, fields.collectorNumber.value]
       .filter(Boolean)
       .join(" ");
   }
+  // Name first so TCGdex/Scryfall search the card, not the year/brand.
   return [
-    fields.year.value,
-    fields.manufacturer.value,
-    fields.brand.value,
-    fields.collectorNumber.value && `#${fields.collectorNumber.value}`,
     fields.playerOrCharacter.value,
+    fields.collectorNumber.value && `#${fields.collectorNumber.value}`,
+    fields.brand.value,
+    fields.manufacturer.value,
+    fields.year.value,
   ]
     .filter(Boolean)
     .join(" ");

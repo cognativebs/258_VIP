@@ -77,8 +77,29 @@ const FAMILY_STOP: Record<OcrProfile["family"], Set<string>> = {
     "uncommon",
     "rare",
     "mythic",
+    "ultra",
     "holo",
     "holofoil",
+    // Card-anatomy and energy-type lines. A line made of nothing but these is
+    // the type bar or an attack header, never the card name.
+    "weakness",
+    "retreat",
+    "ability",
+    "attack",
+    "attacks",
+    "fire",
+    "water",
+    "grass",
+    "electric",
+    "fighting",
+    "psychic",
+    "colorless",
+    "dragon",
+    "metal",
+    "fairy",
+    "base",
+    "set",
+    "series",
   ]),
 };
 
@@ -139,6 +160,12 @@ function looksLikeTitle(text: string, profile: OcrProfile): boolean {
   if (letters.some((w) => w.length === 0) && !allowDigits) return false;
   if (!letters.some((w) => w.length >= 3)) return false;
   if (letters.filter((w) => w.length === 1).length > 2) return false;
+  // A one-word title is only credible when it is long enough to be a real card
+  // name (Charizard, Pikachu). Shorter single words are OCR junk.
+  if (words.length === 1 && letters[0]!.length < 5) return false;
+  // Only a line that is nothing but stop words is rejected. A per-family set
+  // matched word-by-word would throw away real card names built from common
+  // words, which is why this is `every` and not `some`.
   const stop = FAMILY_STOP[profile.family];
   if (words.every((w) => stop.has(w.toLowerCase()))) return false;
   return true;

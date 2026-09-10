@@ -27,6 +27,10 @@ import {
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
+import { ebaySellAuthFromEnv, sellAuthStatus } from "@vip/ebay-sell";
+import { createEbaySellService } from "./lib/ebaySell/service.js";
+import { createMemoryEbaySellStore, createPostgresEbaySellStore } from "./lib/ebaySell/store.js";
+import { registerEbaySellRoutes } from "./routes/ebaySell.js";
 import { classifyInventoryBucket } from "@vip/core-model";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
@@ -62,6 +66,7 @@ import {
   resolveUnit,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
+import { scoreIdentificationGateFromDb } from "./lib/identificationGate.js";
 import {
   acceptanceRows,
   ingestRicohBatch,
@@ -145,6 +150,8 @@ export type AppDeps = {
   ) => Promise<UpdateComicHoldingResult>;
   /** Injectable so tests do not inherit whatever scans the local DB holds. */
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
+  /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
+  ebaySellService?: ReturnType<typeof createEbaySellService>;
 };
 
 type InventoryBundle = {
@@ -388,6 +395,7 @@ export function createApp(deps: AppDeps = {}) {
     version: "0.3.0",
     ebayComps: ebayAuthStatus(),
     ebayDeletion: ebayDeletionStatus(),
+    ebaySell: sellAuthStatus({ config: ebaySellAuthFromEnv(), token: null }),
   });
   registerEbayDeletionRoutes(app);
   app.get("/health", (_req, res) => {
@@ -401,6 +409,21 @@ export function createApp(deps: AppDeps = {}) {
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
       return { holdings, binders: binder.available ? binder.binders : [] };
+    },
+  });
+
+  const ebaySellService =
+    deps.ebaySellService ??
+    createEbaySellService({
+      store: process.env.VIP_EBAY_SELL_MEMORY === "1"
+        ? createMemoryEbaySellStore()
+        : createPostgresEbaySellStore(),
+    });
+  registerEbaySellRoutes(app, {
+    service: ebaySellService,
+    loadHoldings: async () => {
+      const { holdings } = await buildInventory(deps);
+      return holdings;
     },
   });
 
@@ -751,6 +774,7 @@ export function createApp(deps: AppDeps = {}) {
         scannerProfileDefault: "004_Cards",
         upload: "POST /api/scan/import-upload",
         review: "GET /api/scan/batches then IQVault /scan",
+        identificationGate: "GET /api/scan/identification-gate",
       },
     });
   });
@@ -759,6 +783,18 @@ export function createApp(deps: AppDeps = {}) {
    * Staged batches from Postgres (survive restarts); the in-memory store is
    * only a fallback for a run with no database.
    */
+  app.get("/api/scan/identification-gate", async (_req, res) => {
+    try {
+      const report = await scoreIdentificationGateFromDb();
+      res.json({ ok: true, store: "postgres", ...report });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
   app.get("/api/scan/batches", async (_req, res) => {
     try {
       const staged = await listStagedBatches();
@@ -1093,7 +1129,7 @@ export function createApp(deps: AppDeps = {}) {
         Array.isArray(body.inventory) && body.inventory.length > 0
           ? body.inventory
           : inventoryLookupFromHoldings((await buildInventory(deps)).holdings);
-      const result = openScanFromApi({ ...body, inventory });
+      const result = await openScanFromApi({ ...body, inventory });
       res.status(201).json({
         batch: result.batch,
         rawSnapshots: result.rawSnapshots,

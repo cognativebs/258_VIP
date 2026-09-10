@@ -17,8 +17,24 @@ Already shipped (ADR 0009, PR #23):
 - Confidence bands and an opt-in auto-resolve gate
 - Canonical write only at resolve, transactional and idempotent
 
-Missing: any real catalog, a resolver that fans out to several adapters,
-response snapshotting, an identification cache, and accuracy measurement.
+Shipped (Phase 0 scaffolding, 2026-09-06): `CatalogResolver` fan-out +
+`external_id` merge, content-hash cache, provider snapshot sink, `id_observation`
+writes on resolve, benchmark harness (`scripts/benchmark_identification.py`).
+
+Still missing: Phase 1 accuracy gate (25 real Pokémon scans, top-1 ≥ 80%),
+Phase 2 accuracy gate (25 Magic scans, top-1 ≥ 85%, offline when the
+MTGJSON mirror is present), CardSight messy-card benchmark.
+
+Wired 2026-09-06: resolver is the default Pokémon/MTG path on
+`POST /api/scan/batches`; Ricoh OCRs first then resolves. TCGdex is on
+unless `VIP_CATALOG_TCGDEX=0`. Provider bytes go to `raw_snapshots`.
+Resolver output is cached in `vault_media.identification_cache`.
+
+Wired 2026-09-07: Scryfall on unless `VIP_CATALOG_SCRYFALL=0` (75ms
+throttle + identifying User-Agent). MTGJSON local mirror when
+`VIP_MTGJSON_PATH` points at an AllPrintings subset or `{ cards: [...] }`.
+Confirmed-asset adapter (`postgres-assets`) on unless
+`VIP_CATALOG_PG_ASSETS=0`.
 
 ## Phase 0 — Resolver, cache, snapshots, benchmark harness
 
@@ -74,8 +90,15 @@ price become a valuation (rule 4).
 and an MTGJSON bulk mirror for offline/local matching. Prefer the local mirror,
 fall back to Scryfall.
 
+**Shipped 2026-09-07:** adapters + resolver registration. Scryfall throttles
+≥75ms and sends an identifying User-Agent. MTGJSON loads from
+`VIP_MTGJSON_PATH` (AllPrintings subset or compact `{ cards: [...] }`) and
+shares `scryfall` external ids so the two corroborate without a confidence
+boost. Disable with `VIP_CATALOG_SCRYFALL=0` / `VIP_CATALOG_MTGJSON=0`.
+
 **Gate:** 25 Magic scans; top-1 ≥ 85%; adapter works with the network disabled
-when the mirror is present.
+when the mirror is present. (Offline half is covered in unit tests; live
+accuracy still needs operator scans.)
 
 ## Phase 3 — CardSight (sports + multi-category visual ID, metered)
 

@@ -425,6 +425,11 @@ export function detectVerticalFromText(raw: string): ResolvedScanProfile | null 
 /**
  * Operator hint is authoritative. If the hint is only a family
  * (`sports` / `tcg`) and the text names a vertical, refine — still inferred.
+ *
+ * With no hint at all the family is a fallback, not a choice, so detection may
+ * cross it: an unhinted Pokemon scan has to be able to reach the Pokemon
+ * profile rather than being read with sports title/number rules. Once the
+ * operator names a family, detection stays inside it.
  */
 export function resolveOcrProfile(input: {
   hint?: string | null;
@@ -436,11 +441,8 @@ export function resolveOcrProfile(input: {
     hinted.profileId === "sports_generic" || hinted.profileId === "tcg_generic";
   if (genericFamily && input.evidenceText) {
     const detected = detectVerticalFromText(input.evidenceText);
-    if (
-      detected &&
-      detected.family === profile.family &&
-      detected.vertical
-    ) {
+    const familyOk = hinted.source === "default" || detected?.family === profile.family;
+    if (detected && familyOk && detected.vertical) {
       return { profile: getOcrProfile(detected.profileId), resolved: detected };
     }
   }

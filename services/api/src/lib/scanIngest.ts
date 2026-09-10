@@ -11,13 +11,20 @@ import {
   confirmScanUnit,
   ebayCredsFromEnv,
   openScanBatch,
+  openScanBatchWithResolver,
   resolveScanProfileHint,
   type ConfirmUnitRequest,
   type InventoryLookupRow,
+  type OpenBatchResult,
   type ScanBatchInput,
   type ScanPageInput,
 } from "@vip/scan-ingest";
 import type { ApiHolding } from "./holdings.js";
+import {
+  catalogResolverEnabled,
+  getCatalogResolver,
+  resetCatalogResolver,
+} from "./catalogLive.js";
 
 /** Process-local intake store (Postgres capture_session is the durable path). */
 const store = new ScanSessionStore();
@@ -28,6 +35,7 @@ export function getScanStore(): ScanSessionStore {
 
 export function resetScanStoreForTests(): void {
   store.clear();
+  resetCatalogResolver();
 }
 
 /** Map VIP inventory rows into the scan duplicate-check shape. */
@@ -67,9 +75,14 @@ export type OpenScanBody = {
   >;
   inventory?: InventoryLookupRow[];
   pairing?: "sequential_duplex" | "filename_front_back";
+  /**
+   * Ricoh intake OCRs pixels first, then resolves. Skip here so an empty
+   * query cannot poison the content-hash cache.
+   */
+  skipResolver?: boolean;
 };
 
-export function openScanFromApi(body: OpenScanBody) {
+export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResult> {
   const resolved = resolveScanProfileHint(body.categoryHint);
   let input: ScanBatchInput;
   if (body.units?.length) {
@@ -108,6 +121,16 @@ export function openScanFromApi(body: OpenScanBody) {
     });
   } else {
     throw new Error("body.units or body.pages required");
+  }
+
+  if (!body.skipResolver && catalogResolverEnabled(resolved.category)) {
+    return openScanBatchWithResolver(input, {
+      store,
+      resolver: getCatalogResolver(),
+      catalog: FIXTURE_CATALOG,
+      inventory: body.inventory,
+      ebayCreds: ebayCredsFromEnv(),
+    });
   }
 
   return openScanBatch(input, {
@@ -164,6 +187,8 @@ export function scanMeta() {
       "Tesseract OCR on front+back pixels (category/vertical OCR profile)",
       "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
+      "CatalogResolver fan-out (fixture + TCGdex for Pokémon; Magic fixture until Scryfall)",
+      "identification cache by content_hash · provider snapshots before parse",
       "base identity vs parallel confidence",
       "HIGH / MEDIUM / LOW / CONFLICT review route",
       "physical reimport (hash) vs same card type",

@@ -120,6 +120,9 @@ export type Provenance = {
 
 export type Holding = {
   id: string;
+  ebaySku?: string | null;
+  salesPathState?: string | null;
+  soldAt?: string | null;
   assetName: string;
   series: string;
   issue: string;

@@ -104,6 +104,7 @@ export async function identifyUnitWithAdapter(
     query.text,
     query.externalIds ?? [],
     query.limit ?? 5,
+    adapter.id,
   );
   const resolved = resolveOcrProfile({
     hint: opts.verticalHint ?? unit.verticalHint ?? opts.categoryHint ?? unit.categoryHint ?? query.category,
@@ -144,11 +145,26 @@ function withParsedIdentity(
     .slice(0, limit);
 }
 
+/**
+ * Same pipeline scorer every adapter uses (ADR 0010). A swap cannot
+ * silently redefine what 0.9 means.
+ */
+export function scoreCatalogCards(
+  cards: CatalogCard[],
+  query: string,
+  externalIds: Array<{ source: string; value: string }>,
+  limit: number,
+  adapterId?: string,
+): IdentityCandidate[] {
+  return rankCandidates(cards, query, externalIds, limit, adapterId);
+}
+
 function rankCandidates(
   cards: CatalogCard[],
   query: string,
   externalIds: Array<{ source: string; value: string }>,
   limit: number,
+  adapterId?: string,
 ): IdentityCandidate[] {
   return cards
     .map((card) => {
@@ -160,7 +176,7 @@ function rankCandidates(
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(({ card, score, exact }) =>
-      toCandidate(card, score, matchReasons(query, card, exact)),
+      toCandidate(card, score, matchReasons(query, card, exact), adapterId),
     );
 }
 
@@ -182,6 +198,7 @@ function toCandidate(
   card: CatalogCard,
   confidence: number,
   matchReasons: string[],
+  adapterId?: string,
 ): IdentityCandidate {
   return {
     assetId: card.assetId ?? null,
@@ -193,6 +210,7 @@ function toCandidate(
     playerOrCharacter: card.playerOrCharacter ?? null,
     year: card.year ?? null,
     externalIds: card.externalIds,
+    adapterId,
     confidence,
     matchReasons,
     provenance: markInferred({

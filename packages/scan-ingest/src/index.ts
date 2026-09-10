@@ -4,6 +4,8 @@ export {
   RICOH_FI8170_DEVICE,
   SCAN_INGEST_RULE,
   SCAN_ID_RULE,
+  CATALOG_RESOLVER_RULE,
+  CATALOG_SNAPSHOT_RULE,
   SCAN_EDIT_RULE,
   SCAN_DUP_RULE,
   EBAY_LISTING_RULE,
@@ -52,6 +54,7 @@ export {
 export { ScanSessionStore } from "./store.js";
 export {
   openScanBatch,
+  openScanBatchWithResolver,
   refreshDuplicateAlerts,
   confirmScanUnit,
   type OpenBatchResult,
@@ -63,6 +66,7 @@ export {
   identifyUnitWithAdapter,
   buildCatalogQuery,
   queryTextFor,
+  scoreCatalogCards,
   type IdentifyOptions,
 } from "./identify.js";
 export {
@@ -81,8 +85,46 @@ export {
 export type {
   CatalogAdapter,
   CatalogQuery,
+  CatalogRawResponse,
   SyncCatalogAdapter,
 } from "./catalog/types.js";
+export { createCatalogResolver, type CatalogResolver } from "./catalog/resolver.js";
+export {
+  createMemoryIdentificationCache,
+  canonicalizeCandidatesJson,
+  type IdentificationCache,
+} from "./catalog/cache.js";
+export {
+  createMemorySnapshotSink,
+  hashProviderPayload,
+  catalogSnapshotSource,
+  type SnapshotSink,
+} from "./catalog/snapshots.js";
+export { mergeCandidatesByExternalId } from "./catalog/merge.js";
+export { buildIdObservation } from "./catalog/id-observation.js";
+export { scoreIdentificationBenchmark } from "./catalog/benchmark.js";
+export {
+  scoreLiveIdentificationGate,
+  LiveIdentificationGateReportSchema,
+  LiveGateUnitSchema,
+  LiveGateSliceSchema,
+  type LiveIdentificationGateReport,
+  type LiveGateUnit,
+  type LiveGateSlice,
+  type LiveGateUnitInput,
+} from "./catalog/live-gate.js";
+export {
+  CatalogResolverResultSchema,
+  IdObservationRecordSchema,
+  IdentificationBenchmarkCaseSchema,
+  IdentificationBenchmarkReportSchema,
+  type CatalogResolverResult,
+  type CatalogAdapterOutcome,
+  type IdObservationRecord,
+  type IdentificationBenchmarkCase,
+  type IdentificationBenchmarkReport,
+} from "./catalog/resolver-schemas.js";
+export { parseTcgdexCards, fetchTcgdexRaw, tcgdexNameQuery } from "./catalog/tcgdexAdapter.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,
@@ -160,6 +202,23 @@ export {
   SCAN_VISION_RULE,
 } from "./vision/structuredVision.js";
 export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
+export {
+  createAssetCatalogAdapter,
+  filterAssetCards,
+} from "./catalog/assetAdapter.js";
+export {
+  createScryfallCatalogAdapter,
+  parseScryfallCards,
+  fetchScryfallRaw,
+  scryfallSearchQuery,
+} from "./catalog/scryfallAdapter.js";
+export {
+  createMtgjsonCatalogAdapter,
+  flattenMtgjsonMirror,
+  loadMtgjsonMirror,
+  mtgjsonCardsToCatalog,
+  MTGJSON_MIRROR_SAMPLE,
+} from "./catalog/mtgjsonAdapter.js";
 export { isGenericScanFileName } from "./identify.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";

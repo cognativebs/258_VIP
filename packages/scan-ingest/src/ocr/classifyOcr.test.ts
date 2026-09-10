@@ -5,7 +5,7 @@ import {
   privilegedOcrIsComplete,
   spansFromTextBlock,
 } from "./classifyOcr.js";
-import { getOcrProfile } from "./profiles.js";
+import { getOcrProfile, resolveOcrProfile } from "./profiles.js";
 
 describe("classifyOcrLine", () => {
   it("does not treat biography prose as a title", () => {
@@ -27,6 +27,14 @@ describe("classifyOcrLine", () => {
     expect(classifyOcrLine("BAKER MAYFIELD")).toBe("title");
     expect(classifyOcrLine("CJ STROUD")).toBe("title");
     expect(classifyOcrLine("C) STROUD")).toBe("title");
+  });
+
+  it("does not read a lone word as a title on the sports default", () => {
+    // A sports name is two or more words, so a single word is scan noise here.
+    // The one-word case is real for TCG and is asserted on that profile below.
+    expect(classifyOcrLine("Charizard")).toBe("unknown");
+    expect(classifyOcrLine("Basic")).toBe("unknown");
+    expect(classifyOcrLine("Fire")).toBe("unknown");
   });
 });
 
@@ -70,9 +78,40 @@ describe("extractStructuredFromOcr", () => {
     expect(extract.manufacturer).toBe("Topps");
     expect(extract.number).toBe("57");
   });
+
+  it("reads a one-word Pokémon name as the title", () => {
+    const pokemon = getOcrProfile("pokemon");
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Charizard\nHP 120\nBase Set\n4/102", pokemon),
+      pokemon,
+    );
+    expect(extract.player).toBe("Charizard");
+  });
 });
 
 describe("profile-aware OCR", () => {
+  it("reads one-word TCG names as titles but not card-anatomy words", () => {
+    const pokemon = getOcrProfile("pokemon");
+    expect(classifyOcrLine("Charizard", pokemon)).toBe("title");
+    expect(classifyOcrLine("Pikachu", pokemon)).toBe("title");
+    expect(classifyOcrLine("Basic", pokemon)).toBe("unknown");
+    expect(classifyOcrLine("Fire", pokemon)).toBe("unknown");
+  });
+
+  it("lets an unhinted Pokémon scan reach the Pokémon profile", () => {
+    const { profile, resolved } = resolveOcrProfile({
+      hint: null,
+      evidenceText: "Charizard 120 HP The Pokémon Company 4/102",
+    });
+    expect(profile.id).toBe("pokemon");
+    expect(resolved.source).toBe("inferred");
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Charizard\nHP 120\nBase Set\n4/102", profile),
+      profile,
+    );
+    expect(extract.player).toBe("Charizard");
+  });
+
   it("treats Pokémon attack text as body and keeps HP out of the number", () => {
     const pokemon = getOcrProfile("pokemon");
     expect(classifyOcrLine("Flip a coin. If heads, this Pokemon is", pokemon)).toBe("body");
