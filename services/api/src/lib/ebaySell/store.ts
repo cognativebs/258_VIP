@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import {
   ebaySellAuthFromEnv,
   resolveUserAccessToken,
+  sellEnvironmentFromEnv,
   type DailyQueueItem,
   type DispositionHistory,
   type EbayAuditEvent,
+  type EbayEnvironment,
   type Experiment,
   type ListingMetricSnapshot,
   type LotProposal,
@@ -194,22 +196,37 @@ export function toPgTextArrayLiteral(values: string[]): string {
     .join(",")}}`;
 }
 
-export function createPostgresEbaySellStore(): EbaySellStore {
-  const db = () => getDb();
-  let accessCache: StoredUserToken | null = null;
+/** The only SQL surface the connection rows need, so tests can supply a fake. */
+export type SqlExecutor = {
+  execute(query: SQL): Promise<{ rows: Record<string, unknown>[] }>;
+};
 
-  async function loadStoredToken(): Promise<StoredUserToken | null> {
-    const result = await db().execute(sql`
+export type EbayConnectionStore = Pick<EbaySellStore, "getToken" | "saveToken" | "clearToken">;
+
+/**
+ * `vault_collection.ebay_connection` holds one row per eBay environment, and
+ * every read and write here is scoped to the environment publish is actually
+ * pointed at. Without that scope the newest row wins, so flipping to Production
+ * can hand a leftover Sandbox refresh token to the Production token endpoint —
+ * which fails as a bare `HTTP 400`, naming neither the token nor the mixup.
+ */
+export function createEbayConnectionStore(exec: () => SqlExecutor): EbayConnectionStore {
+  const accessCache = new Map<EbayEnvironment, StoredUserToken>();
+
+  async function loadStoredToken(environment: EbayEnvironment): Promise<StoredUserToken | null> {
+    const result = await exec().execute(sql`
       SELECT refresh_token, access_token_expires_at, scopes
       FROM vault_collection.ebay_connection
+      WHERE environment = ${environment}
       ORDER BY updated_at DESC
       LIMIT 1
     `);
-    const row = (result.rows as Record<string, unknown>[])[0];
+    const row = result.rows[0];
     if (!row?.refresh_token) return null;
     const refreshToken = String(row.refresh_token);
-    if (accessCache && accessCache.refreshToken === refreshToken) {
-      return accessCache;
+    const cached = accessCache.get(environment);
+    if (cached && cached.refreshToken === refreshToken) {
+      return cached;
     }
     return {
       accessToken: "",
@@ -221,11 +238,15 @@ export function createPostgresEbaySellStore(): EbaySellStore {
     };
   }
 
-  async function persistToken(token: StoredUserToken): Promise<void> {
-    const environment =
-      process.env.EBAY_ENV === "production" || process.env.EBAY_ENVIRONMENT === "production"
-        ? "production"
-        : "sandbox";
+  /**
+   * Update in place, insert only when that environment has no row yet. A plain
+   * insert would append a row on every ~2h refresh and leave the connection
+   * spread over rows that disagree.
+   */
+  async function persistToken(
+    environment: EbayEnvironment,
+    token: StoredUserToken,
+  ): Promise<void> {
     const scopesSql =
       token.scopes.length === 0
         ? sql`'{}'::text[]`
@@ -234,19 +255,32 @@ export function createPostgresEbaySellStore(): EbaySellStore {
             sql`, `,
           )}]::text[]`;
     try {
-      await db().execute(sql`
-        INSERT INTO vault_collection.ebay_connection
-          (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
-        VALUES (
-          ${environment},
-          ${token.refreshToken},
-          ${token.expiresAt.toISOString()}::timestamptz,
-          ${scopesSql},
-          now(),
-          now()
-        )
+      const updated = await exec().execute(sql`
+        UPDATE vault_collection.ebay_connection
+        SET refresh_token = ${token.refreshToken},
+            access_token_expires_at = ${token.expiresAt.toISOString()}::timestamptz,
+            scopes = ${scopesSql},
+            connected_at = COALESCE(connected_at, now()),
+            disconnected_at = NULL,
+            updated_at = now()
+        WHERE environment = ${environment}
+        RETURNING id
       `);
-      accessCache = token;
+      if (!updated.rows.length) {
+        await exec().execute(sql`
+          INSERT INTO vault_collection.ebay_connection
+            (environment, refresh_token, access_token_expires_at, scopes, connected_at, updated_at)
+          VALUES (
+            ${environment},
+            ${token.refreshToken},
+            ${token.expiresAt.toISOString()}::timestamptz,
+            ${scopesSql},
+            now(),
+            now()
+          )
+        `);
+      }
+      accessCache.set(environment, token);
     } catch (e) {
       const cause =
         e && typeof e === "object" && "cause" in e ? String((e as { cause: unknown }).cause) : "";
@@ -260,31 +294,45 @@ export function createPostgresEbaySellStore(): EbaySellStore {
 
   return {
     async getToken(options) {
-      const stored = await loadStoredToken();
+      const environment = sellEnvironmentFromEnv();
+      const stored = await loadStoredToken(environment);
       if (!stored) {
-        accessCache = null;
+        accessCache.delete(environment);
         return null;
       }
       if (options?.refresh === false) return stored;
       const cfg = ebaySellAuthFromEnv();
       if (!cfg) return stored;
       const live = await resolveUserAccessToken(cfg, stored);
-      accessCache = live;
+      accessCache.set(environment, live);
       if (live.accessToken !== stored.accessToken || live.refreshToken !== stored.refreshToken) {
-        await persistToken(live);
+        await persistToken(environment, live);
       }
       return live;
     },
     async saveToken(token) {
-      await persistToken(token);
+      await persistToken(sellEnvironmentFromEnv(), token);
     },
     async clearToken(error) {
-      accessCache = null;
-      await db().execute(sql`
+      const environment = sellEnvironmentFromEnv();
+      accessCache.delete(environment);
+      await exec().execute(sql`
         UPDATE vault_collection.ebay_connection
         SET refresh_token = NULL, disconnected_at = now(), last_error = ${error ?? null}, updated_at = now()
+        WHERE environment = ${environment}
       `);
     },
+  };
+}
+
+export function createPostgresEbaySellStore(): EbaySellStore {
+  const db = () => getDb();
+  const connection = createEbayConnectionStore(db);
+
+  return {
+    getToken: connection.getToken,
+    saveToken: connection.saveToken,
+    clearToken: connection.clearToken,
     async writeAudit(event) {
       await db().execute(sql`
         INSERT INTO vault_collection.ebay_api_audit
