@@ -146,7 +146,7 @@ export async function persistBatch(
           ${candidate.setName ?? null}, ${candidate.collectorNumber ?? null},
           ${candidate.playerOrCharacter ?? null}, ${candidate.year ?? null},
           ${JSON.stringify(candidate.externalIds)}::jsonb,
-          ${adapterId}, ${candidate.confidence},
+          ${candidate.adapterId ?? adapterId}, ${candidate.confidence},
           -- Build the text[] from JSON: interpolating a JS array directly makes
           -- Drizzle emit one placeholder per element, which is not a valid cast.
           ARRAY(
@@ -388,8 +388,9 @@ export type ResolveUnitResult =
       decisionAction: "Hold" | "Sell";
       alreadyResolved: boolean;
       note: string;
+      idObservationId?: string | null;
     }
-  | { ok: false; status: 400 | 404 | 409; code: string; error: string };
+  | { ok: false; status: 400 | 409 | 404; code: string; error: string };
 
 /**
  * The one place staging becomes inventory.
@@ -407,7 +408,8 @@ export async function resolveUnit(
 
   const unitRes = await db.execute(sql`
     SELECT u.id, u.status, u.resolution_mode, u.confirmed_asset_id, u.holding_id,
-           u.duplicate_acknowledged, u.raw_snapshot_id, u.category_hint
+           u.duplicate_acknowledged, u.raw_snapshot_id, u.category_hint,
+           u.ocr_text, u.front_storage_ref, u.id_observation_ref
     FROM vault_media.scan_unit u
     WHERE u.id = ${req.unitId}::uuid
   `);
@@ -426,6 +428,7 @@ export async function resolveUnit(
       decisionAction: "Sell",
       alreadyResolved: true,
       note: "Unit was already resolved; returning the existing holding.",
+      idObservationId: unit.id_observation_ref ? String(unit.id_observation_ref) : null,
     };
   }
 
@@ -564,7 +567,51 @@ export async function resolveUnit(
         )
       `);
 
-      return { assetId: assetId!, holdingId };
+      // Benchmark row (ADR 0010 / plan 0001 Phase 0). BIGSERIAL id stored as
+      // text on scan_unit.id_observation_ref — the legacy table is not UUID.
+      const predictedRes = await tx.execute(sql`
+        SELECT asset_id, confidence
+        FROM vault_media.scan_unit_candidate
+        WHERE unit_id = ${req.unitId}::uuid
+        ORDER BY rank ASC NULLS LAST, confidence DESC
+        LIMIT 1
+      `);
+      const predicted = (predictedRes.rows as Array<Record<string, unknown>>)[0];
+      const predictedAssetId = predicted?.asset_id
+        ? String(predicted.asset_id)
+        : null;
+      const predictedConfidence =
+        predicted?.confidence != null ? Number(predicted.confidence) : null;
+      const wasCorrect =
+        predictedAssetId != null ? predictedAssetId === assetId : null;
+      const imageUrl = String(unit.front_storage_ref ?? `scan-unit:${req.unitId}`);
+      const ocrText = (unit.ocr_text as string | null) ?? null;
+
+      const obs = await tx.execute(sql`
+        INSERT INTO vault_market.id_observation
+          (predicted_asset_id, predicted_confidence, confirmed_asset_id,
+           was_correct, image_url, ocr_text)
+        VALUES (
+          ${predictedAssetId ? sql`${predictedAssetId}::uuid` : sql`NULL`},
+          ${predictedConfidence},
+          ${assetId}::uuid,
+          ${wasCorrect},
+          ${imageUrl},
+          ${ocrText}
+        )
+        RETURNING id
+      `);
+      const observationId = String(
+        (obs.rows as Array<Record<string, unknown>>)[0]!.id,
+      );
+
+      await tx.execute(sql`
+        UPDATE vault_media.scan_unit
+        SET id_observation_ref = ${observationId}
+        WHERE id = ${req.unitId}::uuid
+      `);
+
+      return { assetId: assetId!, holdingId, observationId };
     });
 
     return {
@@ -576,6 +623,7 @@ export async function resolveUnit(
       decisionAction: "Sell",
       alreadyResolved: false,
       note: "Holding entered Dealer Inventory as Sell (churn). Condition remains NM assumed · unverified until grading capture",
+      idObservationId: result.observationId,
     };
   } catch (e) {
     return {

@@ -76,7 +76,7 @@ describe("scan staging (ADR 0009)", () => {
 
     const before = await countScanHoldings();
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
 
     expect(staged.unitCount).toBe(1);
@@ -101,7 +101,7 @@ describe("scan staging (ADR 0009)", () => {
   it("survives a reload — staged batches come back from Postgres", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const staged = await persistBatch(stageOneUnit(tag));
+    const staged = await persistBatch(await stageOneUnit(tag));
 
     const batches = await listStagedBatches(50);
     const found = batches.find((b) => b.id === staged.batchId);
@@ -115,7 +115,7 @@ describe("scan staging (ADR 0009)", () => {
   it("crosses into inventory only on resolve, and is idempotent", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
     const unitId = opened.batch.units[0]!.id;
     const catalogKey = opened.batch.units[0]!.candidates[0]!.catalogKey;
@@ -142,13 +142,30 @@ describe("scan staging (ADR 0009)", () => {
     expect(mine?.inventoryBucket).toBe("dealer_inventory");
     expect(mine?.recommendation).toBe("Sell");
 
+    expect(first.idObservationId).toBeTruthy();
+    const obs = await getDb().execute(sql`
+      SELECT predicted_confidence, confirmed_asset_id, was_correct, ocr_text, image_url
+      FROM vault_market.id_observation
+      WHERE id = ${Number(first.idObservationId)}
+    `);
+    const row = (obs.rows as Array<Record<string, unknown>>)[0];
+    expect(row).toBeTruthy();
+    expect(String(row!.confirmed_asset_id)).toBe(first.assetId);
+    expect(row!.image_url).toBeTruthy();
+    const unitRow = await getDb().execute(sql`
+      SELECT id_observation_ref FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+    `);
+    expect(String((unitRow.rows as Array<Record<string, unknown>>)[0]!.id_observation_ref)).toBe(
+      first.idObservationId,
+    );
+
     void staged;
   });
 
   it("keeps a rejected unit's candidates and writes nothing canonical", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     await persistBatch(opened);
     const unitId = opened.batch.units[0]!.id;
 
@@ -174,7 +191,7 @@ describe("scan staging (ADR 0009)", () => {
   it("refuses to resolve a candidate that was never staged for the unit", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     await persistBatch(opened);
     const unitId = opened.batch.units[0]!.id;
 
@@ -191,7 +208,7 @@ describe("scan staging (ADR 0009)", () => {
   it("lets the operator edit a staged card and then confirm a draft holding", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     await persistBatch(opened);
     const unitId = opened.batch.units[0]!.id;
     const before = await countScanHoldings();
@@ -219,7 +236,7 @@ describe("scan staging (ADR 0009)", () => {
   it("hides a discarded batch from the queue without deleting holdings", async () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
-    const opened = stageOneUnit(tag);
+    const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
     const before = await countScanHoldings();
 

@@ -78,6 +78,8 @@ export const IdentityCandidateSchema = z.object({
       }),
     )
     .default([]),
+  /** Which CatalogAdapter produced this row. Corroboration is in matchReasons. */
+  adapterId: z.string().min(1).optional(),
   confidence: z.number().min(0).max(1),
   matchReasons: z.array(z.string()).default([]),
   provenance: ProvenanceSchema,

@@ -1,5 +1,6 @@
 import type { CardIdentityEvidence, IdentificationDebug } from "@vip/core-model";
 import { field } from "@vip/core-model";
+import type { CatalogResolver } from "./catalog/resolver.js";
 import {
   baseVsParallelFromEvidence,
   fieldsFromStructuredOcr,
@@ -163,6 +164,8 @@ export async function identifyFromPairedImages(input: {
   frontFileName?: string;
   backFileName?: string;
   categoryHint?: ScanCategory | null;
+  /** When set, catalog fan-out runs after structured evidence (same bytes → cache). */
+  resolver?: CatalogResolver;
   /** Test hook — skip file OCR. */
   ocrOverride?: { front: OcrResult; back: OcrResult };
 }): Promise<ImageIdResult> {
@@ -250,14 +253,23 @@ export async function identifyFromPairedImages(input: {
   };
 
   const query = structuredIdentityQuery(evidence.fused);
-  const candidates = identifyUnit(
-    {
-      ocrText: query,
-      frontStorageRef: frontName,
-      categoryHint: input.categoryHint ?? null,
-    },
-    { catalog: [], categoryHint: input.categoryHint ?? null },
-  );
+  const identifyInput = {
+    ocrText: query,
+    frontStorageRef: frontName,
+    categoryHint: input.categoryHint ?? null,
+  };
+  const candidates = input.resolver
+    ? (
+        await input.resolver.resolve({
+          unit: identifyInput,
+          contentHash: input.frontHash ?? null,
+          opts: { categoryHint: input.categoryHint ?? null },
+        })
+      ).candidates
+    : identifyUnit(identifyInput, {
+        catalog: [],
+        categoryHint: input.categoryHint ?? null,
+      });
 
   evidence = {
     ...evidence,

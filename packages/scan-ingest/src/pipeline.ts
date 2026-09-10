@@ -13,6 +13,9 @@ import {
   type EbayListingCredentials,
 } from "./ebay-listing.js";
 import { identifyUnit } from "./identify.js";
+import { buildIdObservation } from "./catalog/id-observation.js";
+import type { CatalogResolver } from "./catalog/resolver.js";
+import type { IdObservationRecord } from "./catalog/resolver-schemas.js";
 import type {
   CatalogCard,
   ConfirmUnitRequest,
@@ -67,6 +70,9 @@ export type PipelineDeps = {
   inventory?: InventoryLookupRow[];
   ebayCreds?: EbayListingCredentials;
   now?: () => Date;
+  /** Optional Phase 0 resolver. Sync open still uses identifyUnit. */
+  resolver?: CatalogResolver;
+  recordIdObservation?: (row: IdObservationRecord) => void;
 };
 
 /**
@@ -185,6 +191,62 @@ export function openScanBatch(
 
   store.putBatch(batch);
   return { batch, rawSnapshots };
+}
+
+/**
+ * Same as `openScanBatch`, but identifies through CatalogResolver
+ * (fan-out, cache, provider snapshots). Used when adapters are live.
+ */
+export async function openScanBatchWithResolver(
+  input: ScanBatchInput,
+  deps: PipelineDeps & { resolver: CatalogResolver },
+): Promise<OpenBatchResult> {
+  const store = deps.store ?? new ScanSessionStore();
+  const opened = openScanBatch(input, {
+    ...deps,
+    store,
+    catalog: deps.catalog ?? [],
+  });
+  const now = deps.now?.() ?? new Date();
+  const units = await Promise.all(
+    opened.batch.units.map(async (unit) => {
+      const snap = opened.rawSnapshots.find((s) => s.unitId === unit.id);
+      const resolved = await deps.resolver.resolve({
+        unit,
+        contentHash: snap?.contentHash ?? unit.frontContentHash,
+        opts: { categoryHint: unit.categoryHint, catalog: deps.catalog },
+      });
+      const candidates = resolved.candidates;
+      let status = unit.status;
+      if (unit.status !== "confirmed" && unit.status !== "rejected") {
+        status = candidates.length > 0 ? "identified" : "needs_review";
+      }
+      let duplicateAlert = unit.duplicateAlert;
+      if (candidates.length > 0 && deps.inventory) {
+        const alert = findDuplicates(unit.id, candidates, deps.inventory);
+        if (alert) {
+          duplicateAlert = alert;
+          status = "duplicate_alert";
+        }
+      }
+      return {
+        ...unit,
+        candidates,
+        status,
+        duplicateAlert,
+        updatedAt: now,
+      };
+    }),
+  );
+  const batch = store.updateBatch(opened.batch.id, (b) => ({
+    ...b,
+    units,
+    status: units.some((u) => u.status === "needs_review" || u.status === "duplicate_alert")
+      ? "review"
+      : b.status,
+    updatedAt: now,
+  }));
+  return { batch, rawSnapshots: opened.rawSnapshots };
 }
 
 /**
@@ -346,6 +408,15 @@ export function confirmScanUnit(
   const assetId = candidate.assetId ?? randomUUID();
   const idObservationId = randomUUID();
   const assumedGrade = parsed.assumedGrade ?? "NM";
+  const predicted =
+    [...unit.candidates].sort((a, b) => b.confidence - a.confidence)[0] ?? candidate;
+  const observation = buildIdObservation({
+    predicted,
+    confirmedAssetId: assetId,
+    imageUrl: unit.frontStorageRef,
+    ocrText: unit.ocrText ?? null,
+  });
+  deps.recordIdObservation?.(observation);
 
   let ebayDraft: EbayListingDraft | null = null;
 
