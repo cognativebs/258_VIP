@@ -27,6 +27,10 @@ import {
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
+import { ebaySellAuthFromEnv, sellAuthStatus } from "@vip/ebay-sell";
+import { createEbaySellService } from "./lib/ebaySell/service.js";
+import { createMemoryEbaySellStore, createPostgresEbaySellStore } from "./lib/ebaySell/store.js";
+import { registerEbaySellRoutes } from "./routes/ebaySell.js";
 import { classifyInventoryBucket } from "@vip/core-model";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
@@ -145,6 +149,8 @@ export type AppDeps = {
   ) => Promise<UpdateComicHoldingResult>;
   /** Injectable so tests do not inherit whatever scans the local DB holds. */
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
+  /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
+  ebaySellService?: ReturnType<typeof createEbaySellService>;
 };
 
 type InventoryBundle = {
@@ -388,6 +394,7 @@ export function createApp(deps: AppDeps = {}) {
     version: "0.3.0",
     ebayComps: ebayAuthStatus(),
     ebayDeletion: ebayDeletionStatus(),
+    ebaySell: sellAuthStatus({ config: ebaySellAuthFromEnv(), token: null }),
   });
   registerEbayDeletionRoutes(app);
   app.get("/health", (_req, res) => {
@@ -401,6 +408,21 @@ export function createApp(deps: AppDeps = {}) {
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
       return { holdings, binders: binder.available ? binder.binders : [] };
+    },
+  });
+
+  const ebaySellService =
+    deps.ebaySellService ??
+    createEbaySellService({
+      store: process.env.VIP_EBAY_SELL_MEMORY === "1"
+        ? createMemoryEbaySellStore()
+        : createPostgresEbaySellStore(),
+    });
+  registerEbaySellRoutes(app, {
+    service: ebaySellService,
+    loadHoldings: async () => {
+      const { holdings } = await buildInventory(deps);
+      return holdings;
     },
   });
 
