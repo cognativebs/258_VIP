@@ -49,9 +49,38 @@ describe("tcgdexSearchTerms", () => {
     expect(terms.name).toBe("Linoone");
     expect(terms.localId).toBe("082");
   });
+
+  it("searches the Pokémon name, not year/brand/number", () => {
+    expect(tcgdexSearchTerms({ text: "1999 Pokemon #4 Charizard" })).toMatchObject({
+      name: "charizard",
+      localId: "4",
+    });
+    // "Base" is a set word, so it belongs in the localId filter, not the name.
+    expect(tcgdexSearchTerms({ text: "Charizard #4 Base" })).toMatchObject({
+      name: "charizard",
+      localId: "4",
+    });
+    expect(tcgdexSearchTerms({ text: "1999 Pokemon HP 120" }).name).toBe("");
+  });
 });
 
 describe("TcgdexCatalogAdapter", () => {
+  it("does not call the provider when no name survives the query", async () => {
+    let called = 0;
+    const adapter = createTcgdexCatalogAdapter({
+      fetch: async () => {
+        called += 1;
+        return {
+          ok: true,
+          headers: { get: () => "application/json" },
+          text: async () => "[]",
+        };
+      },
+    });
+    expect(await adapter.search({ text: "1999 Pokemon HP 120", category: "pokemon" })).toEqual([]);
+    expect(called).toBe(0);
+  });
+
   it("parses provider JSON into catalog cards with tcgdex external ids", () => {
     const cards = parseTcgdexCards(
       {

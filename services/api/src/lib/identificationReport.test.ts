@@ -65,6 +65,7 @@ describe("buildIdentificationReport", () => {
               matchReasons: ["name:Mewtwo"],
               adapterId: "tcgdex",
               assetId: null,
+              externalIds: [{ source: "tcgdex", value: "base1-10" }],
             },
           ],
         },

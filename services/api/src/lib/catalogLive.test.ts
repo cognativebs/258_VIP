@@ -12,6 +12,10 @@ import {
   createPostgresIdentificationCache,
   createPostgresSnapshotSink,
   defaultCatalogAdapters,
+  fixtureCatalogEnabled,
+  mtgjsonEnabled,
+  pgAssetsEnabled,
+  scryfallEnabled,
   tcgdexEnabled,
 } from "./catalogLive.js";
 
@@ -51,6 +55,25 @@ describe("catalog live wiring", () => {
     expect(
       defaultCatalogAdapters({ VIP_CATALOG_FIXTURE: "1" }).some(
         (a) => a.id === "fixture-catalog",
+      ),
+    ).toBe(true);
+  });
+
+  it("includes Scryfall and confirmed assets by default; MTGJSON only with a path", () => {
+    const ids = defaultCatalogAdapters({}).map((a) => a.id);
+    expect(ids).toContain("scryfall");
+    expect(ids).toContain("postgres-assets");
+    expect(ids).not.toContain("fixture-catalog");
+    expect(ids).not.toContain("mtgjson");
+    expect(fixtureCatalogEnabled({})).toBe(false);
+    expect(fixtureCatalogEnabled({ VIP_CATALOG_FIXTURE: "1" })).toBe(true);
+    expect(scryfallEnabled({ VIP_CATALOG_SCRYFALL: "0" })).toBe(false);
+    expect(pgAssetsEnabled({ VIP_CATALOG_PG_ASSETS: "0" })).toBe(false);
+    expect(mtgjsonEnabled({})).toBe(false);
+    expect(mtgjsonEnabled({ VIP_MTGJSON_PATH: "/tmp/AllPrintings.json" })).toBe(true);
+    expect(
+      defaultCatalogAdapters({ VIP_MTGJSON_PATH: "/tmp/AllPrintings.json" }).some(
+        (a) => a.id === "mtgjson",
       ),
     ).toBe(true);
   });

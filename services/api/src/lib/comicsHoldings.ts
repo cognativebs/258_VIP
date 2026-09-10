@@ -32,6 +32,11 @@ export type ComicsPayload = {
 
 const HOLDINGS_SQL = sql`
   SELECT
+      h.id AS holding_uuid,
+      h.ebay_sku,
+      h.current_disposition,
+      h.sales_path_state,
+      h.sold_at,
       h.source_row_id,
       h.quantity,
       h.purchase_price,
@@ -57,6 +62,7 @@ const HOLDINGS_SQL = sql`
       h.raw_snapshot_id,
       a.canonical_name,
       a.primary_image_url,
+      a.release_year,
       s.title       AS series_title,
       s.publisher,
       i.issue_number,
@@ -139,6 +145,11 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   }
 
   base["CLZ Hash"] = row.source_row_id ?? base["CLZ Hash"] ?? "";
+  base["Holding UUID"] = row.holding_uuid ?? base["Holding UUID"] ?? "";
+  base["eBay SKU"] = row.ebay_sku ?? base["eBay SKU"] ?? "";
+  base["Current Disposition"] = row.current_disposition ?? base["Current Disposition"] ?? "";
+  base["Sales Path State"] = row.sales_path_state ?? base["Sales Path State"] ?? "available";
+  base["Year"] = num(row.release_year) ?? base["Year"] ?? "";
   base["ExternalIds"] = (row.external_ids as ExternalIdRef[]) ?? [];
   return base;
 }

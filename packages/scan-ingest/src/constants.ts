@@ -9,7 +9,10 @@ export const RICOH_FI8170_DEVICE = "ricoh_fi8170";
 
 export const SCAN_INGEST_RULE = "scan-ingest@0.1.0";
 export const SCAN_ID_RULE = "scan-id-matcher@0.1.0";
-/** Bumped to 0.3.0 so empty-query TCGdex misses from 0.2.0 are ignored. */
+/**
+ * Bumped to 0.3.0 so 0.2.0 cache rows are ignored: they hold empty-query TCGdex
+ * misses and fixture candidates that the fixture gate no longer produces.
+ */
 export const CATALOG_RESOLVER_RULE = "catalog-resolver@0.3.0";
 export const CATALOG_SNAPSHOT_RULE = "catalog-provider-snapshot@0.1.0";
 export const SCAN_EDIT_RULE = "scan-operator-edit@0.1.0";

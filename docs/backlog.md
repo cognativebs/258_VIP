@@ -147,13 +147,13 @@ third-party-access licence limit).
 - [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
 - [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
 - [x] **Phase 1** `TcgdexCatalogAdapter` is the live Pokémon catalog (5-card fixture is `VIP_CATALOG_FIXTURE=1` only, 2026-09-07). Pokémon OCR now lifts species / trainer title + `NNN/NNN` before TCGdex; empty misses without a name are not cached (`catalog-resolver@0.3.0`). **Gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id. Re-identify batch `ed919c12-4634-439f-b7b6-28d98fa328f3` after pull + API restart.
-- [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
+- [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror — **adapters shipped 2026-09-07;** gate open: 25 Magic scans, top-1 ≥ 85%, offline when `VIP_MTGJSON_PATH` is set
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target
 - [ ] **Phase 4** `cardHedgeAdapter` in comps — ranges only, idle without key (rule 4)
 - [ ] **Phase 4** Persist **sold** comps into `vault_market.sale` → `market_value` (schema exists, unwired). Browse listings are not sales — plan 0003 C1.
 - [ ] **Phase 5** eBay Catalog ePID as `external_id` → listing prefill
-- [ ] Postgres asset catalog adapter (repeat scans converge on confirmed assets)
+- [x] Postgres asset catalog adapter (repeat scans converge on confirmed assets) — 2026-09-07
 - [x] Re-identify staged units after a catalog upgrade (no re-scan needed) — `POST /api/scan/batches/:id/reidentify` (2026-09-07)
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09
@@ -247,7 +247,7 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 - AI glasses / wearable interface
 - PSA → CGC/TAG crossover ML
 - Full POS & event management
-- Marketplace listing automation *(scan path queues eBay drafts idle without tokens; live submit still deferred)*
+- Marketplace listing automation *(closed-loop Sell APIs + queue/lots shipped 2026-09-05; SKU/sold path persist + listing-state sync 2026-09-06; live Sandbox publish still needs seller OAuth + policies)*
 - Custom / unsupervised model training
 - Every collectible category at once
 - Final legal names, domains, trademarks — names now chosen (Crucible · Forge · Temper, see [`docs/branding/naming-decision.md`](branding/naming-decision.md)); clearance + store-face name still open

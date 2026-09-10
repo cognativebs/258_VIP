@@ -6,6 +6,8 @@ import {
   createCatalogResolver,
   createFixtureCatalogAdapter,
   createMemoryIdentificationCache,
+  createMtgjsonCatalogAdapter,
+  createScryfallCatalogAdapter,
   createTcgdexCatalogAdapter,
   hashProviderPayload,
   type CatalogAdapter,
@@ -15,6 +17,7 @@ import {
   type SnapshotSink,
 } from "@vip/scan-ingest";
 import { getDb } from "../db/client.js";
+import { createPostgresAssetCatalogAdapter } from "./postgresAssetAdapter.js";
 
 export function catalogResolverEnabled(
   category: "sports" | "pokemon" | "mtg" | null | undefined,
@@ -26,6 +29,24 @@ export function tcgdexEnabled(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   return env.VIP_CATALOG_TCGDEX !== "0";
+}
+
+export function scryfallEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.VIP_CATALOG_SCRYFALL !== "0";
+}
+
+export function mtgjsonEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.VIP_CATALOG_MTGJSON !== "0" && Boolean(env.VIP_MTGJSON_PATH?.trim());
+}
+
+export function pgAssetsEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env.VIP_CATALOG_PG_ASSETS !== "0";
 }
 
 /** Offline 5-card fixture — opt-in only. Never the live Pokémon catalog. */
@@ -141,8 +162,17 @@ export function defaultCatalogAdapters(
   env: NodeJS.ProcessEnv = process.env,
 ): CatalogAdapter[] {
   const adapters: CatalogAdapter[] = [];
+  if (pgAssetsEnabled(env)) {
+    adapters.push(createPostgresAssetCatalogAdapter());
+  }
   if (fixtureCatalogEnabled(env)) {
     adapters.push(createFixtureCatalogAdapter());
+  }
+  if (mtgjsonEnabled(env)) {
+    adapters.push(createMtgjsonCatalogAdapter({ path: env.VIP_MTGJSON_PATH }));
+  }
+  if (scryfallEnabled(env)) {
+    adapters.push(createScryfallCatalogAdapter());
   }
   if (tcgdexEnabled(env)) {
     adapters.push(createTcgdexCatalogAdapter());
