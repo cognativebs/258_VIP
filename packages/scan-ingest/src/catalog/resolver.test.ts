@@ -79,11 +79,42 @@ describe("mergeCandidatesByExternalId", () => {
     };
     const merged = mergeCandidatesByExternalId([a, b]);
     expect(merged).toHaveLength(1);
-    expect(merged[0]!.confidence).toBe(0.82);
-    expect(merged[0]!.matchReasons.some((r) => r.startsWith("corroborated:"))).toBe(
+    expect(merged[0]?.confidence).toBe(0.82);
+    expect(merged[0]?.matchReasons.some((r) => r.startsWith("corroborated:"))).toBe(
       true,
     );
-    expect(merged[0]!.adapterId).toBe("tcgdex");
+    expect(merged[0]?.adapterId).toBe("tcgdex");
+  });
+
+  it("keeps a confirmed assetId when a provider scores higher", () => {
+    const confirmed: IdentityCandidate = {
+      assetId: "11111111-1111-4111-8111-111111111111",
+      catalogKey: "asset:11111111-1111-4111-8111-111111111111",
+      category: "mtg",
+      displayName: "Lightning Bolt",
+      externalIds: [{ source: "scryfall", value: "bolt-id" }],
+      adapterId: "postgres-assets",
+      confidence: 0.7,
+      matchReasons: ["name:Lightning Bolt"],
+      provenance: markInferred({
+        source: "scan_id_matcher",
+        ruleOrModelVersion: "t",
+        confidence: 0.7,
+      }),
+    };
+    const provider: IdentityCandidate = {
+      ...confirmed,
+      assetId: null,
+      catalogKey: "mtg:scryfall:bolt-id",
+      adapterId: "scryfall",
+      confidence: 0.91,
+      matchReasons: ["collector_number:161"],
+    };
+    const merged = mergeCandidatesByExternalId([provider, confirmed]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.confidence).toBe(0.91);
+    expect(merged[0]?.assetId).toBe(confirmed.assetId);
+    expect(merged[0]?.adapterId).toBe("scryfall");
   });
 
   it("does not merge on display name alone", () => {

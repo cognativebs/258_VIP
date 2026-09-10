@@ -102,6 +102,16 @@ export { mergeCandidatesByExternalId } from "./catalog/merge.js";
 export { buildIdObservation } from "./catalog/id-observation.js";
 export { scoreIdentificationBenchmark } from "./catalog/benchmark.js";
 export {
+  scoreLiveIdentificationGate,
+  LiveIdentificationGateReportSchema,
+  LiveGateUnitSchema,
+  LiveGateSliceSchema,
+  type LiveIdentificationGateReport,
+  type LiveGateUnit,
+  type LiveGateSlice,
+  type LiveGateUnitInput,
+} from "./catalog/live-gate.js";
+export {
   CatalogResolverResultSchema,
   IdObservationRecordSchema,
   IdentificationBenchmarkCaseSchema,
@@ -112,7 +122,7 @@ export {
   type IdentificationBenchmarkCase,
   type IdentificationBenchmarkReport,
 } from "./catalog/resolver-schemas.js";
-export { parseTcgdexCards, fetchTcgdexRaw } from "./catalog/tcgdexAdapter.js";
+export { parseTcgdexCards, fetchTcgdexRaw, tcgdexNameQuery } from "./catalog/tcgdexAdapter.js";
 export { findDuplicates } from "./duplicates.js";
 export {
   buildEbayListingDraft,
@@ -158,6 +168,23 @@ export {
   SCAN_VISION_RULE,
 } from "./vision/structuredVision.js";
 export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
+export {
+  createAssetCatalogAdapter,
+  filterAssetCards,
+} from "./catalog/assetAdapter.js";
+export {
+  createScryfallCatalogAdapter,
+  parseScryfallCards,
+  fetchScryfallRaw,
+  scryfallSearchQuery,
+} from "./catalog/scryfallAdapter.js";
+export {
+  createMtgjsonCatalogAdapter,
+  flattenMtgjsonMirror,
+  loadMtgjsonMirror,
+  mtgjsonCardsToCatalog,
+  MTGJSON_MIRROR_SAMPLE,
+} from "./catalog/mtgjsonAdapter.js";
 export { isGenericScanFileName } from "./identify.js";
 export { routeReview, thresholdsFromEnv } from "./reviewRoute.js";
 export { isPhysicalReimport } from "./physicalDuplicate.js";

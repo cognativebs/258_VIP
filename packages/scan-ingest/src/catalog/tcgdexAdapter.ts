@@ -7,6 +7,40 @@ import type {
 
 const TCGDEX = "https://api.tcgdex.net/v2/en";
 
+const NAME_NOISE = new Set([
+  "pokemon",
+  "pokémon",
+  "tcg",
+  "hp",
+  "basic",
+  "stage",
+  "holo",
+  "rare",
+  "set",
+  "ex",
+  "gx",
+  "vmax",
+  "vstar",
+]);
+
+/** Pull a searchable Pokémon name out of a sports-shaped OCR query. */
+export function tcgdexNameQuery(text: string): string | null {
+  const tokens = text
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.replace(/^#/, ""))
+    .filter((t) => {
+      if (!t) return false;
+      if (/^\d{4}$/.test(t)) return false;
+      if (/^\d+\/?\d*$/.test(t)) return false;
+      if (t.length < 3) return false;
+      if (NAME_NOISE.has(t.toLowerCase())) return false;
+      return true;
+    });
+  if (tokens.length === 0) return null;
+  return tokens.slice(0, 2).join(" ");
+}
+
 export function parseTcgdexCards(
   raw: CatalogRawResponse,
   query: CatalogQuery,
@@ -47,11 +81,10 @@ export async function fetchTcgdexRaw(
   query: CatalogQuery,
   fetchImpl: TcgdexFetch = fetch,
 ): Promise<CatalogRawResponse | null> {
-  const q = query.text.trim();
-  if (!q) return null;
+  const name = tcgdexNameQuery(query.text);
+  if (!name) return null;
   const category = query.category;
   if (category && category !== "pokemon") return null;
-  const name = q.split(/\s+/).slice(0, 3).join(" ");
   const url = `${TCGDEX}/cards?name=${encodeURIComponent(name)}`;
   const res = await fetchImpl(url, { headers: { accept: "application/json" } });
   if (!res.ok) return null;

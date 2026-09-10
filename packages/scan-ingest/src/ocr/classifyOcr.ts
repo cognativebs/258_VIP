@@ -56,6 +56,42 @@ const SPORT_STOP = new Set([
   "trading",
 ]);
 
+const TITLE_STOP = new Set([
+  ...SPORT_STOP,
+  "basic",
+  "stage",
+  "energy",
+  "trainer",
+  "weakness",
+  "retreat",
+  "ability",
+  "attacks",
+  "attack",
+  "pokemon",
+  "pokémon",
+  "fire",
+  "water",
+  "grass",
+  "electric",
+  "fighting",
+  "psychic",
+  "colorless",
+  "dragon",
+  "metal",
+  "fairy",
+  "item",
+  "supporter",
+  "stadium",
+  "holo",
+  "rare",
+  "ultra",
+  "common",
+  "uncommon",
+  "base",
+  "set",
+  "series",
+]);
+
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
@@ -87,7 +123,7 @@ export function classifyOcrLine(text: string): OcrRegionKind {
 
 function looksLikePlayerTitle(text: string): boolean {
   const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length < 2 || words.length > 3) return false;
+  if (words.length < 1 || words.length > 3) return false;
   if (PRODUCT_TOKENS.test(text) || BODY_MARKERS.test(text) || COPYRIGHT_MARKERS.test(text)) {
     return false;
   }
@@ -95,6 +131,9 @@ function looksLikePlayerTitle(text: string): boolean {
   const letters = words.map((w) => w.replace(/[^A-Za-z]/g, ""));
   if (letters.some((w) => w.length === 0)) return false;
   if (!letters.some((w) => w.length >= 3)) return false;
+  if (letters.some((w) => TITLE_STOP.has(w.toLowerCase()))) return false;
+  // One-word TCG names (Charizard, Pikachu). Keep short junk out.
+  if (words.length === 1 && letters[0]!.length < 5) return false;
   return letters.filter((w) => w.length === 1).length <= 2;
 }
 
@@ -209,7 +248,7 @@ function unlabeledNumberAfterIdentity(text: string, player: string | null): stri
 
 /**
  * Product/copyright lines may yield year/brand/set/mfr — player only when the
- * leftover after stripping those tokens is a 2–3 word name.
+ * leftover after stripping those tokens is a 1–3 word name.
  */
 function productFields(spans: OcrSpan[]): Pick<
   StructuredOcrExtract,

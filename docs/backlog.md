@@ -147,13 +147,13 @@ third-party-access licence limit).
 - [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
 - [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
 - [ ] **Phase 1** `TcgdexCatalogAdapter` wired on Pokémon intake — **gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id (adapter + snapshots + cache shipped 2026-09-06)
-- [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror (Magic, free)
+- [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror — **adapters shipped 2026-09-07;** gate open: 25 Magic scans, top-1 ≥ 85%, offline when `VIP_MTGJSON_PATH` is set
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target
 - [ ] **Phase 4** `cardHedgeAdapter` in comps — ranges only, idle without key (rule 4)
 - [ ] **Phase 4** Persist **sold** comps into `vault_market.sale` → `market_value` (schema exists, unwired). Browse listings are not sales — plan 0003 C1.
 - [ ] **Phase 5** eBay Catalog ePID as `external_id` → listing prefill
-- [ ] Postgres asset catalog adapter (repeat scans converge on confirmed assets)
+- [x] Postgres asset catalog adapter (repeat scans converge on confirmed assets) — 2026-09-07
 - [ ] Re-identify staged units after a catalog upgrade (no re-scan needed)
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09

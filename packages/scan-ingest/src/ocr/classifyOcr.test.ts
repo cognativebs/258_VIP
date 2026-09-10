@@ -25,6 +25,10 @@ describe("classifyOcrLine", () => {
     expect(classifyOcrLine("BAKER MAYFIELD")).toBe("title");
     expect(classifyOcrLine("CJ STROUD")).toBe("title");
     expect(classifyOcrLine("C) STROUD")).toBe("title");
+    expect(classifyOcrLine("Charizard")).toBe("title");
+    expect(classifyOcrLine("Pikachu")).toBe("title");
+    expect(classifyOcrLine("Basic")).toBe("unknown");
+    expect(classifyOcrLine("Fire")).toBe("unknown");
   });
 });
 
@@ -67,5 +71,12 @@ describe("extractStructuredFromOcr", () => {
     expect(extract.year).toBe(1986);
     expect(extract.manufacturer).toBe("Topps");
     expect(extract.number).toBe("57");
+  });
+
+  it("reads a one-word Pokémon name as the title", () => {
+    const extract = extractStructuredFromOcr(
+      spansFromTextBlock("Charizard\nHP 120\nBase Set\n4/102"),
+    );
+    expect(extract.player).toBe("Charizard");
   });
 });

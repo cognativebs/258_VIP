@@ -23,9 +23,18 @@ export function createFixtureCatalogAdapter(
       : [];
     if (byExternalId.length > 0) return byExternalId;
 
-    return query.category
+    const q = query.text.trim().toLowerCase();
+    if (!q) return [];
+    const scoped = query.category
       ? cards.filter((card) => card.category === query.category)
-      : [...cards];
+      : cards;
+    return scoped.filter((card) => {
+      const name = `${card.playerOrCharacter ?? ""} ${card.displayName}`.toLowerCase();
+      return name
+        .split(/\s+/)
+        .filter((t) => t.length > 2)
+        .some((token) => q.includes(token));
+    });
   };
 
   return {

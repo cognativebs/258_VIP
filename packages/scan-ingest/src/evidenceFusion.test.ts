@@ -4,6 +4,7 @@ import {
   fieldsFromStructuredOcr,
   fuseCardEvidence,
   fuseIdentitySides,
+  structuredIdentityQuery,
 } from "./evidenceFusion.js";
 import { extractStructuredFromOcr, spansFromTextBlock } from "./ocr/classifyOcr.js";
 
@@ -64,5 +65,16 @@ describe("fuseIdentitySides", () => {
     expect(ev.conflictNotes.join(" ")).toMatch(/year|player|number/i);
     expect(ev.fused.playerOrCharacter.value).toBeNull();
     expect(ev.fused.year.value).toBeNull();
+  });
+});
+
+describe("structuredIdentityQuery", () => {
+  it("puts the card name first so TCG adapters do not search the year", () => {
+    const fields = fieldsFromStructuredOcr(
+      extractStructuredFromOcr(spansFromTextBlock("Charizard\nNO. 4")),
+      "front_ocr",
+    );
+    expect(fields.playerOrCharacter.value).toBe("Charizard");
+    expect(structuredIdentityQuery(fields).startsWith("Charizard")).toBe(true);
   });
 });

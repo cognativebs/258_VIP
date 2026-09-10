@@ -66,6 +66,7 @@ import {
   resolveUnit,
   type ScanHoldingRow,
 } from "./lib/scanStorePg.js";
+import { scoreIdentificationGateFromDb } from "./lib/identificationGate.js";
 import {
   acceptanceRows,
   ingestRicohBatch,
@@ -773,6 +774,7 @@ export function createApp(deps: AppDeps = {}) {
         scannerProfileDefault: "004_Cards",
         upload: "POST /api/scan/import-upload",
         review: "GET /api/scan/batches then IQVault /scan",
+        identificationGate: "GET /api/scan/identification-gate",
       },
     });
   });
@@ -781,6 +783,18 @@ export function createApp(deps: AppDeps = {}) {
    * Staged batches from Postgres (survive restarts); the in-memory store is
    * only a fallback for a run with no database.
    */
+  app.get("/api/scan/identification-gate", async (_req, res) => {
+    try {
+      const report = await scoreIdentificationGateFromDb();
+      res.json({ ok: true, store: "postgres", ...report });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
+
   app.get("/api/scan/batches", async (_req, res) => {
     try {
       const staged = await listStagedBatches();

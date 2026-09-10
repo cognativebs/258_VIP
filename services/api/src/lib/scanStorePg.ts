@@ -180,6 +180,7 @@ export type StagedCandidateRow = {
   matchReasons: string[];
   adapterId: string;
   assetId: string | null;
+  externalIds: Array<{ source: string; value: string }>;
 };
 
 export type StagedUnitRow = {
@@ -290,7 +291,8 @@ async function hydrateStagedBatch(b: Record<string, unknown>): Promise<StagedBat
             'confidence', c.confidence,
             'matchReasons', c.match_reasons,
             'adapterId', c.adapter_id,
-            'assetId', c.asset_id
+            'assetId', c.asset_id,
+            'externalIds', c.external_ids
           ) ORDER BY c.confidence DESC)
           FROM vault_media.scan_unit_candidate c
           WHERE c.unit_id = u.id
@@ -364,6 +366,11 @@ function mapStagedUnit(u: Record<string, unknown>): StagedUnitRow {
         : [],
       adapterId: String(c.adapterId ?? "unknown"),
       assetId: (c.assetId as string | null) ?? null,
+      externalIds: Array.isArray(c.externalIds)
+        ? (c.externalIds as Array<{ source?: string; value?: string }>)
+            .filter((e) => e.source && e.value)
+            .map((e) => ({ source: String(e.source), value: String(e.value) }))
+        : [],
     })),
   };
 }

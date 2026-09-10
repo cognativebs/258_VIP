@@ -9,7 +9,7 @@ export const RICOH_FI8170_DEVICE = "ricoh_fi8170";
 
 export const SCAN_INGEST_RULE = "scan-ingest@0.1.0";
 export const SCAN_ID_RULE = "scan-id-matcher@0.1.0";
-export const CATALOG_RESOLVER_RULE = "catalog-resolver@0.1.0";
+export const CATALOG_RESOLVER_RULE = "catalog-resolver@0.2.0";
 export const CATALOG_SNAPSHOT_RULE = "catalog-provider-snapshot@0.1.0";
 export const SCAN_EDIT_RULE = "scan-operator-edit@0.1.0";
 export const SCAN_DUP_RULE = "scan-duplicate-check@0.1.0";

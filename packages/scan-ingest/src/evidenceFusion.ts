@@ -335,12 +335,13 @@ export function overlayIdentityFields(
 }
 
 export function structuredIdentityQuery(fields: CardIdentityFields): string {
+  // Name first so TCGdex/Scryfall search the card, not the year/brand.
   return [
-    fields.year.value,
-    fields.manufacturer.value,
-    fields.brand.value,
-    fields.collectorNumber.value && `#${fields.collectorNumber.value}`,
     fields.playerOrCharacter.value,
+    fields.collectorNumber.value && `#${fields.collectorNumber.value}`,
+    fields.brand.value,
+    fields.manufacturer.value,
+    fields.year.value,
   ]
     .filter(Boolean)
     .join(" ");
