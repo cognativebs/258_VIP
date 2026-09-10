@@ -42,6 +42,31 @@ const ALLOWED_ADDRESS_FIELDS = new Set([
   "stateOrProvince",
 ]);
 
+/**
+ * Leaf categories in this fake's tree. eBay accepts an offer under any
+ * category and only refuses at publish, which is why the operator ended up
+ * with a created offer and no listing.
+ */
+const LEAF_CATEGORIES = new Set(["259104", "259105", "121889", "261328", "183454"]);
+
+function notALeafCategory() {
+  return {
+    status: 400,
+    body: {
+      errors: [
+        {
+          errorId: 25005,
+          domain: "API_INVENTORY",
+          subdomain: "Selling",
+          category: "Request",
+          message:
+            "The eBay listing associated with the inventory item, or the unpublished offer has an invalid category ID. The category selected is not a leaf category.",
+        },
+      ],
+    },
+  };
+}
+
 function invalidRequest() {
   return {
     status: 400,
@@ -62,7 +87,10 @@ function invalidRequest() {
 class FakeEbay {
   readonly calls: Call[] = [];
   locations = new Map<string, Record<string, unknown>>();
-  offers = new Map<string, { offerId: string; sku: string; marketplaceId: string; listingId: string | null }>();
+  offers = new Map<
+    string,
+    { offerId: string; sku: string; marketplaceId: string; listingId: string | null; categoryId: string | null }
+  >();
   items = new Map<string, unknown>();
   private nextOffer = 1;
   private nextListing = 1;
@@ -160,7 +188,13 @@ class FakeEbay {
         };
       }
       const offerId = `OFFER-${this.nextOffer++}`;
-      this.offers.set(offerId, { offerId, sku, marketplaceId: String(body.marketplaceId), listingId: null });
+      this.offers.set(offerId, {
+        offerId,
+        sku,
+        marketplaceId: String(body.marketplaceId),
+        listingId: null,
+        categoryId: body.categoryId == null ? null : String(body.categoryId),
+      });
       return { status: 201, body: { offerId } };
     }
 
@@ -175,12 +209,14 @@ class FakeEbay {
             body: { errors: [{ errorId: 25002, message: "The offer is already published." }] },
           };
         }
+        if (!offer.categoryId || !LEAF_CATEGORIES.has(offer.categoryId)) return notALeafCategory();
         offer.listingId = `LST-${this.nextListing++}`;
         return { status: 200, body: { listingId: offer.listingId } };
       }
       if (!offerMatch[2] && method === "PUT") {
         const invalid = this.validateOffer({ ...body, sku: offer.sku });
         if (invalid) return invalid;
+        offer.categoryId = body.categoryId == null ? null : String(body.categoryId);
         return { status: 204 };
       }
       if (!offerMatch[2] && method === "GET") {
@@ -401,6 +437,41 @@ describe("publish against a contract-enforcing eBay", () => {
     });
     expect(result.status).toBe("PUBLISHED");
     expect(ebay.offers.size).toBe(1);
+  });
+
+  it("reproduces #25005 when the offer carries a parent category", async () => {
+    // Category 63 is what shipped before, and what real Sandbox refused. The
+    // offer is still created, so the failure looks like a stuck draft.
+    const result = await adapter().publishListing({
+      listing: { ...listing, sku: "IQV-COMIC-PARENTCAT" },
+      payload: { ...payload, sku: "IQV-COMIC-PARENTCAT", categoryId: "63" },
+      policies,
+      ensureLocation: sandboxAddress,
+    });
+    expect(result.status).toBe("EBAY_OFFER_CREATED");
+    expect(result.externalListingId).toBeNull();
+    expect(result.errorMessage).toMatch(/#25005/);
+    expect(result.errorMessage).toMatch(/not a leaf category/);
+  });
+
+  it("publishes the same holding once the category is a leaf, reusing the stuck offer", async () => {
+    const stuck = [...ebay.offers.values()].find((o) => o.sku === "IQV-COMIC-PARENTCAT");
+    expect(stuck?.categoryId).toBe("63");
+    const offersBefore = ebay.offers.size;
+
+    const result = await adapter().publishListing({
+      listing: { ...listing, sku: "IQV-COMIC-PARENTCAT", externalOfferId: stuck!.offerId },
+      payload: { ...payload, sku: "IQV-COMIC-PARENTCAT" },
+      policies,
+      ensureLocation: sandboxAddress,
+    });
+
+    expect(result.status).toBe("PUBLISHED");
+    // The stuck offer is updated in place, so a retry cannot strand a
+    // duplicate listing on the operator's account.
+    expect(result.externalOfferId).toBe(stuck!.offerId);
+    expect(ebay.offers.size).toBe(offersBefore);
+    expect(ebay.offers.get(stuck!.offerId)?.categoryId).toBe("259104");
   });
 
   it("surfaces eBay's own message when the location cannot be created", async () => {
