@@ -7,6 +7,7 @@ import {
   structuredIdentityQuery,
 } from "./evidenceFusion.js";
 import { extractStructuredFromOcr, spansFromTextBlock } from "./ocr/classifyOcr.js";
+import { getOcrProfile } from "./ocr/profiles.js";
 
 describe("fuseCardEvidence", () => {
   it("uses both sides and keeps a weak parallel off the base score", () => {
@@ -70,9 +71,11 @@ describe("fuseIdentitySides", () => {
 
 describe("structuredIdentityQuery", () => {
   it("puts the card name first so TCG adapters do not search the year", () => {
+    const pokemon = getOcrProfile("pokemon");
     const fields = fieldsFromStructuredOcr(
-      extractStructuredFromOcr(spansFromTextBlock("Charizard\nNO. 4")),
+      extractStructuredFromOcr(spansFromTextBlock("Charizard\nNO. 4", pokemon), pokemon),
       "front_ocr",
+      "pokemon",
     );
     expect(fields.playerOrCharacter.value).toBe("Charizard");
     expect(structuredIdentityQuery(fields).startsWith("Charizard")).toBe(true);

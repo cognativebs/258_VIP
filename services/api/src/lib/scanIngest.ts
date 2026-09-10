@@ -1,5 +1,6 @@
 import {
   ConfirmUnitRequestSchema,
+  OCR_PROFILE_OPTIONS,
   SCAN_HOLDING_SOURCE,
   SCAN_INGEST_RULE,
   SCAN_INGEST_VERSION,
@@ -10,6 +11,7 @@ import {
   ebayCredsFromEnv,
   openScanBatch,
   openScanBatchWithResolver,
+  resolveScanProfileHint,
   type ConfirmUnitRequest,
   type InventoryLookupRow,
   type OpenBatchResult,
@@ -60,7 +62,7 @@ export function inventoryLookupFromHoldings(
 
 export type OpenScanBody = {
   device?: string;
-  categoryHint?: "sports" | "pokemon" | "mtg" | null;
+  categoryHint?: string | null;
   notes?: string;
   /** Duplex units already paired by the client / PaperStream. */
   units?: ScanBatchInput["units"];
@@ -81,15 +83,26 @@ export type OpenScanBody = {
 };
 
 export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResult> {
+  const resolved = resolveScanProfileHint(body.categoryHint);
   let input: ScanBatchInput;
   if (body.units?.length) {
     input = ScanBatchInputSchema.parse({
       device: body.device ?? "ricoh_fi8170",
       purpose: "inventory_intake",
       qualityTier: "intake",
-      categoryHint: body.categoryHint ?? null,
+      categoryHint: resolved.category,
+      verticalHint: resolved.vertical,
       notes: body.notes,
-      units: body.units,
+      units: body.units.map((u) => {
+        const unitHint = resolveScanProfileHint(
+          u.verticalHint ?? u.categoryHint ?? body.categoryHint,
+        );
+        return {
+          ...u,
+          categoryHint: unitHint.category,
+          verticalHint: unitHint.vertical,
+        };
+      }),
     });
   } else if (body.pages?.length) {
     const pages = body.pages.map((p, i) => ({
@@ -101,7 +114,8 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
     }));
     input = batchInputFromPages(pages, {
       pairing: body.pairing ?? "sequential_duplex",
-      categoryHint: body.categoryHint ?? null,
+      categoryHint: resolved.category,
+      verticalHint: resolved.vertical,
       notes: body.notes,
       device: body.device,
     });
@@ -109,8 +123,7 @@ export async function openScanFromApi(body: OpenScanBody): Promise<OpenBatchResu
     throw new Error("body.units or body.pages required");
   }
 
-  const category = body.categoryHint ?? input.categoryHint ?? null;
-  if (!body.skipResolver && catalogResolverEnabled(category)) {
+  if (!body.skipResolver && catalogResolverEnabled(resolved.category)) {
     return openScanBatchWithResolver(input, {
       store,
       resolver: getCatalogResolver(),
@@ -170,7 +183,7 @@ export function scanMeta() {
       "PaperStream / folder drop or upload (source extensible)",
       "immutable master copy + orientation recorded",
       "duplex pair / filename front (ambiguous → review)",
-      "Tesseract OCR on front+back pixels (generic IMG_#### names ignored)",
+      "Tesseract OCR on front+back pixels (category/vertical OCR profile)",
       "optional structured vision when OCR is weak (not an Orchestr8 council)",
       "front+back evidence fusion (conflicts listed)",
       "CatalogResolver fan-out (TCGdex for Pokémon; Magic until Scryfall; fixture opt-in only)",
@@ -193,6 +206,7 @@ export function scanMeta() {
       mediumMin: process.env.VIP_SCAN_MEDIUM_MIN ?? "0.45",
     },
     scannerProfileDefault: "004_Cards",
+    ocrProfiles: OCR_PROFILE_OPTIONS,
     catalog: liveCatalogStatus(),
   };
 }

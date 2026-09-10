@@ -8,7 +8,15 @@ function vipBase(): string {
 
 const SCAN_TIMEOUT_MS = 120_000;
 
-export type ScanCategory = "sports" | "pokemon" | "mtg";
+export type ScanCategory =
+  | "sports"
+  | "football"
+  | "baseball"
+  | "soccer"
+  | "basketball"
+  | "pokemon"
+  | "mtg"
+  | "one_piece";
 export type ScanPairing =
   | "auto"
   | "filename_front_back"
@@ -25,6 +33,7 @@ export type ScanMeta = {
   inbox: { root: string | null; configured: boolean; note: string };
   reviewThresholds?: { highMin: string; mediumMin: string };
   scannerProfileDefault?: string;
+  ocrProfiles?: Array<{ id: string; label: string; family: string }>;
   catalog?: {
     resolverEnabledFor: string[];
     adapters: Array<{ id: string; label: string }>;

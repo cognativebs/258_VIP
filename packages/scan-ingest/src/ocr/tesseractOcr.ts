@@ -5,6 +5,7 @@ import {
   classifyOcrSpans,
   type OcrSpan,
 } from "./classifyOcr.js";
+import { defaultOcrProfile, type OcrProfile } from "./profiles.js";
 
 export const SCAN_OCR_RULE = "scan-ocr-tesseract@0.2.0";
 
@@ -64,7 +65,7 @@ function runTesseract(
 }
 
 /** Tesseract TSV: level page block par line word left top width height conf text */
-export function spansFromTsv(tsv: string): OcrSpan[] {
+export function spansFromTsv(tsv: string, profile?: OcrProfile): OcrSpan[] {
   const groups = new Map<
     string,
     { texts: string[]; left: number; top: number; right: number; bottom: number; confs: number[] }
@@ -110,7 +111,7 @@ export function spansFromTsv(tsv: string): OcrSpan[] {
       ? g.confs.reduce((s, n) => s + n, 0) / g.confs.length / 100
       : null,
   }));
-  return classifyOcrSpans(lines);
+  return classifyOcrSpans(lines, profile);
 }
 
 function textFromSpans(spans: OcrSpan[]): string {
@@ -155,8 +156,10 @@ const EMPTY: OcrResult = {
 export async function ocrImageFile(
   imagePath: string,
   cacheKey?: string,
+  profile?: OcrProfile,
 ): Promise<OcrResult> {
-  const key = cacheKey ?? imagePath;
+  const p = profile ?? defaultOcrProfile();
+  const key = `${cacheKey ?? imagePath}::${p.id}`;
   const hit = cache.get(key);
   if (hit) return hit;
   if (process.env.VIP_SCAN_OCR === "0") {
@@ -179,15 +182,21 @@ export async function ocrImageFile(
     try {
       let spans: OcrSpan[] = [];
       try {
-        const tsv = await runTesseract(bin, imagePath, ["-l", "eng", "--psm", "6", "tsv"]);
-        spans = spansFromTsv(tsv);
+        const engineArgs = ["-l", p.tesseract.lang, "--psm", String(p.tesseract.psm)];
+        const tsv = await runTesseract(bin, imagePath, [...engineArgs, "tsv"]);
+        spans = spansFromTsv(tsv, p);
       } catch {
-        const raw = await runTesseract(bin, imagePath, ["-l", "eng", "--psm", "6"]);
+        const raw = await runTesseract(bin, imagePath, [
+          "-l",
+          p.tesseract.lang,
+          "--psm",
+          String(p.tesseract.psm),
+        ]);
         const lines = raw
           .split(/\r?\n/)
           .map((t) => t.trim())
           .filter(Boolean);
-        spans = classifyOcrSpans(lines.map((text) => ({ text })));
+        spans = classifyOcrSpans(lines.map((text) => ({ text })), p);
       }
       const text = textFromSpans(spans);
       const result: OcrResult = {

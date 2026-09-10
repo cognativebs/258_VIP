@@ -1,7 +1,13 @@
 /**
- * OCR is evidence, not identity. Classify lines so biography/stats never
- * become the player name, and unlabeled numbers never become the card number.
+ * OCR is evidence, not identity. Classify lines so biography/stats/rules
+ * text never become the name, and HP / power-toughness never become the
+ * collector number. Mechanics come from the active OCR profile.
  */
+
+import {
+  defaultOcrProfile,
+  type OcrProfile,
+} from "./profiles.js";
 
 export type OcrRegionKind =
   | "card_number"
@@ -30,67 +36,72 @@ export type StructuredOcrExtract = {
   usedKinds: OcrRegionKind[];
 };
 
-const BODY_MARKERS =
-  /\b(brought|season|career|drafted|selected|traded|signed|passed|rushed|yards?|touchdowns?|points|average|record|led the|in his|during the|after the|before the|rookie year|pro bowl|all[- ]pro|super bowl)\b/i;
-
-const COPYRIGHT_MARKERS =
-  /\b(copyright|©|\(c\)|llc|inc\.|panini america|topps company|the pokemon company|wizards of the coast|upper deck)\b/i;
-
-const PRODUCT_TOKENS =
-  /\b(panini|topps|donruss|prizm|select|optic|mosaic|bowman|fleer|score|upper\s*deck|leaf|sage|chronicles|contenders|certified|absolute|phoenix|zenith|prestige|playoff|limited|national\s+treasures|one\s+and\s+one|flawless|impeccable|encased|obsidian|spectra|revolution|illusions|hoops|stickers|pokemon|magic|mtg|yugioh)\b/i;
-
-const LABELED_NUMBER = /(?:no\.?|#)\s*([A-Za-z]{0,4}\d{1,4}(?:[A-Za-z]\d?)?)\b/i;
-
 const YEAR_TOKEN = /\b((?:19|20)\d{2})\b/;
 
-const SPORT_STOP = new Set([
-  "football",
-  "basketball",
-  "baseball",
-  "hockey",
-  "soccer",
-  "card",
-  "cards",
-  "rookie",
-  "official",
-  "trading",
-]);
-
-const TITLE_STOP = new Set([
-  ...SPORT_STOP,
-  "basic",
-  "stage",
-  "energy",
-  "trainer",
-  "weakness",
-  "retreat",
-  "ability",
-  "attacks",
-  "attack",
-  "pokemon",
-  "pokémon",
-  "fire",
-  "water",
-  "grass",
-  "electric",
-  "fighting",
-  "psychic",
-  "colorless",
-  "dragon",
-  "metal",
-  "fairy",
-  "item",
-  "supporter",
-  "stadium",
-  "holo",
-  "rare",
-  "ultra",
-  "common",
-  "uncommon",
-  "base",
-  "set",
-  "series",
-]);
+const FAMILY_STOP: Record<OcrProfile["family"], Set<string>> = {
+  sports: new Set([
+    "football",
+    "basketball",
+    "baseball",
+    "hockey",
+    "soccer",
+    "card",
+    "cards",
+    "rookie",
+    "official",
+    "trading",
+  ]),
+  tcg: new Set([
+    "pokemon",
+    "pokémon",
+    "magic",
+    "mtg",
+    "basic",
+    "stage",
+    "evolved",
+    "trainer",
+    "energy",
+    "item",
+    "supporter",
+    "stadium",
+    "creature",
+    "instant",
+    "sorcery",
+    "enchantment",
+    "artifact",
+    "land",
+    "leader",
+    "character",
+    "event",
+    "common",
+    "uncommon",
+    "rare",
+    "mythic",
+    "ultra",
+    "holo",
+    "holofoil",
+    // Card-anatomy and energy-type lines. A line made of nothing but these is
+    // the type bar or an attack header, never the card name.
+    "weakness",
+    "retreat",
+    "ability",
+    "attack",
+    "attacks",
+    "fire",
+    "water",
+    "grass",
+    "electric",
+    "fighting",
+    "psychic",
+    "colorless",
+    "dragon",
+    "metal",
+    "fairy",
+    "base",
+    "set",
+    "series",
+  ]),
+};
 
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -108,37 +119,60 @@ function nameTokens(text: string): string[] {
   return tokens.some((w) => w.length >= 3) ? tokens : [];
 }
 
-export function classifyOcrLine(text: string): OcrRegionKind {
+function profileOf(profile?: OcrProfile): OcrProfile {
+  return profile ?? defaultOcrProfile();
+}
+
+export function classifyOcrLine(text: string, profile?: OcrProfile): OcrRegionKind {
+  const p = profileOf(profile);
   const t = text.replace(/\s+/g, " ").trim();
   if (!t) return "unknown";
   const words = wordCount(t);
 
-  if (COPYRIGHT_MARKERS.test(t)) return "copyright";
-  if (LABELED_NUMBER.test(t) && words <= 8) return "card_number";
-  if (PRODUCT_TOKENS.test(t) && words <= 10) return "product";
-  if (BODY_MARKERS.test(t) || words >= 8) return "body";
-  if (looksLikePlayerTitle(t)) return "title";
+  if (p.copyrightMarkers.test(t) && words <= 8 && !p.bodyMarkers.test(t)) {
+    return "copyright";
+  }
+  if (p.rejectAsNumber.test(t) && !p.labeledNumber.test(t)) {
+    if (p.bodyMarkers.test(t) || words >= 8) return "body";
+    return "unknown";
+  }
+  if (p.labeledNumber.test(t) && words <= 8) return "card_number";
+  if (p.collectorNumber.test(t) && words <= 4 && p.family === "tcg") return "card_number";
+  if (p.bodyMarkers.test(t) || words >= 8) return "body";
+  if (p.productTokens.test(t) && words <= 10) return "product";
+  if (looksLikeTitle(t, p)) return "title";
   return "unknown";
 }
 
-function looksLikePlayerTitle(text: string): boolean {
+function looksLikeTitle(text: string, profile: OcrProfile): boolean {
   const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length < 1 || words.length > 3) return false;
-  if (PRODUCT_TOKENS.test(text) || BODY_MARKERS.test(text) || COPYRIGHT_MARKERS.test(text)) {
+  const { minWords, maxWords, allowSingleWord, allowDigits } = profile.title;
+  const floor = allowSingleWord ? 1 : minWords;
+  if (words.length < floor || words.length > maxWords) return false;
+  if (profile.productTokens.test(text) || profile.bodyMarkers.test(text) || profile.copyrightMarkers.test(text)) {
     return false;
   }
-  if (/\d/.test(text) && !/\b(jr|sr|ii|iii|iv)\b/i.test(text)) return false;
+  if (profile.rejectAsNumber.test(text)) return false;
+  if (/\d/.test(text) && !allowDigits && !/\b(jr|sr|ii|iii|iv|ex|gx|v|vmax|vstar)\b/i.test(text)) {
+    return false;
+  }
   const letters = words.map((w) => w.replace(/[^A-Za-z]/g, ""));
-  if (letters.some((w) => w.length === 0)) return false;
+  if (letters.some((w) => w.length === 0) && !allowDigits) return false;
   if (!letters.some((w) => w.length >= 3)) return false;
+  if (letters.filter((w) => w.length === 1).length > 2) return false;
   // "aoe oe oe" is Ricoh junk, not "Bo Nix" (2 tokens) or "CJ Stroud".
   if (words.length >= 3 && letters.every((w) => w.length <= 3)) return false;
   const symbols = text.replace(/[A-Za-z0-9\s.'’-]/g, "");
   if (symbols.length >= 3) return false;
-  if (letters.some((w) => TITLE_STOP.has(w.toLowerCase()))) return false;
-  // One-word TCG names (Charizard, Pikachu). Keep short junk out.
+  // A one-word title is only credible when it is long enough to be a real card
+  // name (Charizard, Pikachu). Shorter single words are OCR junk.
   if (words.length === 1 && letters[0]!.length < 5) return false;
-  return letters.filter((w) => w.length === 1).length <= 2;
+  // Only a line that is nothing but stop words is rejected. A per-family set
+  // matched word-by-word would throw away real card names built from common
+  // words, which is why this is `every` and not `some`.
+  const stop = FAMILY_STOP[profile.family];
+  if (words.every((w) => stop.has(w.toLowerCase()))) return false;
+  return true;
 }
 
 export function classifyOcrSpans(
@@ -147,13 +181,15 @@ export function classifyOcrSpans(
     bbox?: { x: number; y: number; w: number; h: number } | null;
     confidence?: number | null;
   }>,
+  profile?: OcrProfile,
 ): OcrSpan[] {
+  const p = profileOf(profile);
   return lines
     .map((line) => {
       const text = line.text.replace(/\s+/g, " ").trim();
       return {
         text,
-        kind: classifyOcrLine(text),
+        kind: classifyOcrLine(text, p),
         bbox: line.bbox ?? null,
         confidence: line.confidence ?? null,
       };
@@ -172,10 +208,15 @@ function firstYear(spans: OcrSpan[]): number | null {
   return null;
 }
 
-function firstLabeledNumber(spans: OcrSpan[]): string | null {
+function firstCollectorNumber(spans: OcrSpan[], profile: OcrProfile): string | null {
   for (const span of spans) {
-    const m = span.text.match(LABELED_NUMBER);
-    if (m?.[1]) return m[1].toUpperCase();
+    if (profile.rejectAsNumber.test(span.text) && !profile.labeledNumber.test(span.text)) {
+      continue;
+    }
+    const labeled = span.text.match(profile.labeledNumber);
+    if (labeled?.[1]) return labeled[1].toUpperCase();
+    const raw = span.text.match(profile.collectorNumber);
+    if (raw?.[1]) return raw[1].toUpperCase();
   }
   return null;
 }
@@ -188,13 +229,28 @@ function titleCaseName(words: string[]): string {
     .join(" ");
 }
 
-function productTokens(text: string): {
+function productTokens(text: string, profile: OcrProfile): {
   manufacturer: string | null;
   brand: string | null;
 } {
   const lower = text.toLowerCase();
   let manufacturer: string | null = null;
   let brand: string | null = null;
+  if (profile.family === "tcg") {
+    if (/\bpokemon|pok[eé]mon|nintendo|the pokemon company\b/.test(lower)) {
+      manufacturer = "The Pokémon Company";
+      brand = "Pokémon";
+    }
+    if (/\bwizards|magic the gathering|\bmtg\b/.test(lower)) {
+      manufacturer = manufacturer ?? "Wizards of the Coast";
+      brand = brand ?? "Magic";
+    }
+    if (/\bbandai|one piece\b/.test(lower)) {
+      manufacturer = manufacturer ?? "Bandai";
+      brand = brand ?? "One Piece";
+    }
+    return { manufacturer, brand };
+  }
   if (/\bpanini\b/.test(lower)) manufacturer = "Panini";
   if (/\btopps\b/.test(lower)) manufacturer = manufacturer ?? "Topps";
   if (/\bupper\s*deck\b/.test(lower)) manufacturer = manufacturer ?? "Upper Deck";
@@ -209,42 +265,53 @@ function productTokens(text: string): {
   if (/\bhoops\b/.test(lower)) brand = brand ?? "Hoops";
   if (/\bcontenders\b/.test(lower)) brand = brand ?? "Contenders";
   if (/\bchrome\b/.test(lower)) brand = brand ?? "Chrome";
+  if (/\bheritage\b/.test(lower)) brand = brand ?? "Heritage";
+  if (/\bmerlin\b/.test(lower)) brand = brand ?? "Merlin";
   if (manufacturer && !brand) brand = manufacturer;
   return { manufacturer, brand };
 }
 
-function stripKnownProduct(text: string): string {
+const SPORTS_STRIP =
+  /\b(panini|topps|donruss|prizm|select|optic|mosaic|bowman|fleer|score|upper\s*deck|leaf|llc|inc\.|america|company|copyright|©|chrome|contenders|football|basketball|baseball|hockey|soccer|heritage|finest|merlin|stickers?)\b/gi;
+
+const TCG_STRIP =
+  /\b(pokemon|pok[eé]mon|nintendo|creatures|game freak|the pokemon company|wizards of the coast|wizards|hasbro|magic the gathering|\bmtg\b|bandai|one piece|llc|inc\.|copyright|©|holo|rare|uncommon|common|mythic)\b/gi;
+
+function stripKnownProduct(text: string, profile: OcrProfile): string {
+  const productStrip = profile.family === "tcg" ? TCG_STRIP : SPORTS_STRIP;
   return text
     .replace(YEAR_TOKEN, " ")
-    .replace(LABELED_NUMBER, " ")
+    .replace(profile.labeledNumber, " ")
+    .replace(profile.collectorNumber, " ")
     .replace(/\b\d{1,4}\b/g, " ")
-    .replace(
-      /\b(panini|topps|donruss|prizm|select|optic|mosaic|bowman|fleer|score|upper\s*deck|leaf|llc|inc\.|america|company|copyright|©|chrome|contenders|football|basketball|baseball|hockey|soccer)\b/gi,
-      " ",
-    )
+    .replace(productStrip, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function nameFromRemainder(text: string): string | null {
-  if (BODY_MARKERS.test(text)) return null;
-  const leftover = stripKnownProduct(text);
-  if (!leftover || BODY_MARKERS.test(leftover)) return null;
-  const words = leftover.split(/\s+/).filter(Boolean);
-  if (!looksLikePlayerTitle(leftover)) return null;
-  return titleCaseName(nameTokens(leftover));
+function nameFromRemainder(text: string, profile: OcrProfile): string | null {
+  if (profile.bodyMarkers.test(text)) return null;
+  const leftover = stripKnownProduct(text, profile);
+  if (!leftover || profile.bodyMarkers.test(leftover)) return null;
+  if (!looksLikeTitle(leftover, profile)) return null;
+  const tokens = nameTokens(leftover);
+  if (!tokens.length) return null;
+  return titleCaseName(tokens);
 }
 
-function unlabeledNumberAfterIdentity(text: string, player: string | null): string | null {
-  if (LABELED_NUMBER.test(text)) return null;
+function unlabeledNumberAfterIdentity(
+  text: string,
+  player: string | null,
+  profile: OcrProfile,
+): string | null {
+  if (profile.family === "tcg") return null;
+  if (profile.labeledNumber.test(text)) return null;
+  if (profile.rejectAsNumber.test(text)) return null;
   let rest = text.replace(YEAR_TOKEN, " ");
   if (player) {
     rest = rest.replace(new RegExp(player.replace(/\s+/g, "\\s+"), "i"), " ");
   }
-  rest = rest.replace(
-    /\b(panini|topps|donruss|prizm|select|optic|mosaic|bowman|fleer|score|upper\s*deck|leaf|llc|inc\.|america|company|copyright|chrome|contenders|football|basketball|baseball|hockey|soccer)\b/gi,
-    " ",
-  );
+  rest = rest.replace(SPORTS_STRIP, " ");
   const nums = [...rest.matchAll(/\b(\d{1,4})\b/g)].map((m) => m[1]!);
   if (nums.length === 1) return nums[0]!.toUpperCase();
   return null;
@@ -252,23 +319,26 @@ function unlabeledNumberAfterIdentity(text: string, player: string | null): stri
 
 /**
  * Product/copyright lines may yield year/brand/set/mfr — player only when the
- * leftover after stripping those tokens is a 1–3 word name.
+ * leftover after stripping those tokens is a valid title for this profile.
  */
-function productFields(spans: OcrSpan[]): Pick<
+function productFields(
+  spans: OcrSpan[],
+  profile: OcrProfile,
+): Pick<
   StructuredOcrExtract,
   "year" | "manufacturer" | "brand" | "set" | "player" | "number"
 > {
   const text = spans.map((s) => s.text).join(" ");
-  const { manufacturer, brand } = productTokens(text);
-  const player = nameFromRemainder(text);
-  const setBits = stripKnownProduct(text);
+  const { manufacturer, brand } = productTokens(text, profile);
+  const player = nameFromRemainder(text, profile);
+  const setBits = stripKnownProduct(text, profile);
   const setOk =
     Boolean(setBits) &&
     setBits.length >= 3 &&
     setBits.length <= 32 &&
     wordCount(setBits) <= 3 &&
-    !looksLikePlayerTitle(setBits) &&
-    !BODY_MARKERS.test(setBits);
+    !looksLikeTitle(setBits, profile) &&
+    !profile.bodyMarkers.test(setBits);
   const set = setOk
     ? setBits.replace(/\b\w/g, (c) => c.toUpperCase())
     : brand ?? manufacturer;
@@ -278,20 +348,25 @@ function productFields(spans: OcrSpan[]): Pick<
     brand,
     set: set ?? null,
     player,
-    number: unlabeledNumberAfterIdentity(text, player),
+    number: unlabeledNumberAfterIdentity(text, player, profile),
   };
 }
 
-function titlePlayer(spans: OcrSpan[]): string | null {
+function titlePlayer(spans: OcrSpan[], profile: OcrProfile): string | null {
   for (const span of spans) {
-    if (looksLikePlayerTitle(span.text)) {
-      return titleCaseName(nameTokens(span.text));
+    if (looksLikeTitle(span.text, profile)) {
+      const tokens = nameTokens(span.text);
+      if (tokens.length) return titleCaseName(tokens);
     }
   }
   return null;
 }
 
-export function extractStructuredFromOcr(spans: OcrSpan[]): StructuredOcrExtract {
+export function extractStructuredFromOcr(
+  spans: OcrSpan[],
+  profile?: OcrProfile,
+): StructuredOcrExtract {
+  const p = profileOf(profile);
   const privileged = spans.filter((s) =>
     ["card_number", "title", "copyright", "product", "logo"].includes(s.kind),
   );
@@ -300,9 +375,9 @@ export function extractStructuredFromOcr(spans: OcrSpan[]): StructuredOcrExtract
     privileged.filter((s) =>
       ["product", "copyright", "card_number"].includes(s.kind),
     ),
+    p,
   );
-  const player =
-    titlePlayer(privileged.filter((s) => s.kind === "title")) ?? product.player;
+  const player = titlePlayer(privileged.filter((s) => s.kind === "title"), p) ?? product.player;
   return {
     player,
     year: product.year ?? firstYear(privileged),
@@ -310,28 +385,37 @@ export function extractStructuredFromOcr(spans: OcrSpan[]): StructuredOcrExtract
     brand: product.brand,
     set: product.set,
     number:
-      firstLabeledNumber(privileged.filter((s) => s.kind === "card_number")) ??
-      product.number,
+      firstCollectorNumber(
+        privileged.filter((s) => s.kind === "card_number"),
+        p,
+      ) ?? product.number,
     usedKinds,
   };
 }
 
-export function privilegedOcrIsComplete(extract: StructuredOcrExtract): boolean {
-  return Boolean(
-    extract.player &&
-      extract.year &&
-      extract.number &&
-      (extract.manufacturer || extract.brand || extract.set),
-  );
+export function privilegedOcrIsComplete(
+  extract: StructuredOcrExtract,
+  profile?: OcrProfile,
+): boolean {
+  const rule = profileOf(profile).completeness;
+  const nameWords = extract.player ? extract.player.split(/\s+/).length : 0;
+  if (rule.requireName && (!extract.player || nameWords < rule.minNameWords)) return false;
+  if (rule.requireYear && !extract.year) return false;
+  if (rule.requireNumber && !extract.number) return false;
+  if (rule.requireBrandOrSet && !(extract.manufacturer || extract.brand || extract.set)) {
+    return false;
+  }
+  return true;
 }
 
-export function spansFromTextBlock(text: string): OcrSpan[] {
+export function spansFromTextBlock(text: string, profile?: OcrProfile): OcrSpan[] {
   return classifyOcrSpans(
     text
       .split(/\r?\n/)
       .map((line) => ({ text: line }))
       .filter((l) => l.text.trim().length > 0),
+    profile,
   );
 }
 
-export { SPORT_STOP };
+export const SPORT_STOP = FAMILY_STOP.sports;

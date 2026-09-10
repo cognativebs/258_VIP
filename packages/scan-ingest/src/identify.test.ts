@@ -34,4 +34,17 @@ describe("identifyUnit filename fallback", () => {
       true,
     );
   });
+
+  it("emits a parsed Pokémon candidate from OCR-style set-fraction text", () => {
+    const candidates = identifyUnit({
+      ocrText: "Charizard Base Set 4/102 holo pokemon",
+      frontStorageRef: "IMG_0001.jpg",
+      categoryHint: "pokemon",
+    });
+    expect(candidates.some((c) => c.catalogKey.includes("charizard"))).toBe(true);
+    expect(candidates[0]?.category).toBe("pokemon");
+    expect(candidates.every((c) => c.provenance.verificationStatus === "unverified")).toBe(
+      true,
+    );
+  });
 });

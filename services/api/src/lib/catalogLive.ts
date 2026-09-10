@@ -14,13 +14,15 @@ import {
   type CatalogResolver,
   type CatalogResolverResult,
   type IdentificationCache,
+  type ScanCategory,
   type SnapshotSink,
 } from "@vip/scan-ingest";
 import { getDb } from "../db/client.js";
 import { createPostgresAssetCatalogAdapter } from "./postgresAssetAdapter.js";
 
+/** Only the verticals with a live adapter. One Piece has none yet. */
 export function catalogResolverEnabled(
-  category: "sports" | "pokemon" | "mtg" | null | undefined,
+  category: ScanCategory | null | undefined,
 ): boolean {
   return category === "pokemon" || category === "mtg";
 }

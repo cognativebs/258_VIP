@@ -140,4 +140,24 @@ describe("identifyFromPairedImages", () => {
     expect(result.evidence.fused.year.value).toBeTruthy();
     expect(result.evidence.debug?.candidatesConsidered).toBeDefined();
   });
+
+  it("uses the Pokémon profile so a set-fraction number is enough without a year", async () => {
+    process.env.VIP_SCAN_VISION = "off";
+    const result = await identifyFromPairedImages({
+      frontPath: "/tmp/unused-front.jpg",
+      frontFileName: "IMG_0009.jpg",
+      categoryHint: "pokemon",
+      ocrOverride: {
+        front: ocrFromText("Charizard\n4/102\nThe Pokémon Company"),
+        back: ocrFromText("Fire Blast 120 damage. Flip a coin."),
+      },
+    });
+    expect(result.evidence.fused.playerOrCharacter.value).toMatch(/Charizard/i);
+    expect(result.evidence.fused.collectorNumber.value).toBe("4/102");
+    expect(result.evidence.fused.category.value).toBe("pokemon");
+    expect(result.candidates[0]?.category).toBe("pokemon");
+    expect(result.candidates[0]?.playerOrCharacter).toMatch(/Charizard/i);
+    expect(result.candidates[0]?.displayName).not.toMatch(/Company/i);
+    expect(result.notes.some((n) => n.includes("ocr_profile:pokemon"))).toBe(true);
+  });
 });

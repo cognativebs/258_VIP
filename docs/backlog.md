@@ -119,6 +119,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Collections hub + first-class Pokémon collection page (`/collections`, `/collections/pokemon`) so comics is not the only collection — 2026-08-10
 - [x] Scan intake in IQVault (`/scan` + `POST /api/scan/import-folder`) — no curl to start/import a batch — 2026-08-10
+- [x] **ADR 0011** sports vs TCG OCR profiles + Football/Baseball/Soccer/Basketball/Pokémon/Magic/One Piece identifying mechanics — 2026-09-07
 - [x] **ADR 0009** identity staging — candidates as rows; canonical inventory written only at resolve — 2026-08-10
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10
 - [x] Catalog adapter seam (`CatalogAdapter`) so the fixture catalog is swappable — 2026-08-10
