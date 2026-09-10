@@ -154,7 +154,9 @@ function buildAspects(asset: SellingAssetInput): Record<string, string[]> {
     put("Publisher", asset.manufacturer);
     put("Character", asset.playerSubject);
     put("Issue Number", asset.cardNumber);
-    put("Title", asset.setName);
+    // eBay's comics vocabulary calls this "Series Title". A plain "Title"
+    // aspect is not recognised and is dropped on the floor.
+    put("Series Title", asset.setName);
     put("Era", comicEra(asset.year));
     put("Format", "Single Issue");
     put("Grade", asset.grade);

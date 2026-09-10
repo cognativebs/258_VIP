@@ -94,6 +94,9 @@ describe("listing builder", () => {
     expect(comic.aspects.Publisher).toEqual(["Marvel"]);
     expect(comic.aspects["Issue Number"]).toEqual(["2A"]);
     expect(comic.aspects.Era).toEqual(["Modern Age (1992-Now)"]);
+    // "Series Title" is eBay's name for it; a bare "Title" aspect is ignored.
+    expect(comic.aspects["Series Title"]).toEqual(["Age of Ultron"]);
+    expect(comic.aspects.Title).toBeUndefined();
     expect(comic.aspects["Player/Subject"]).toBeUndefined();
     expect(comic.aspects["Card Number"]).toBeUndefined();
   });
