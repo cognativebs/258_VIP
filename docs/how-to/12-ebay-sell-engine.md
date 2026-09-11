@@ -40,10 +40,21 @@ EBAY_RETURN_POLICY_ID=
 EBAY_FULFILLMENT_POLICY_ID=
 EBAY_HIGH_VALUE_USD=50
 EBAY_AUTO_PUBLISH_HIGH_VALUE=false
+EBAY_LOCATION_LINE1=        # ship-from, Sandbox location bootstrap only
+EBAY_LOCATION_CITY=
+EBAY_LOCATION_STATE=
+EBAY_LOCATION_POSTAL=
+EBAY_LOCATION_COUNTRY=US
 ```
 
 Refresh tokens persist in `vault_collection.ebay_connection`. They are never
 logged. HTTP status is written to `vault_collection.ebay_api_audit`.
+
+`EBAY_APP_ID` and `EBAY_CERT_ID` are one pair shared with the Browse comps.
+A keyset is valid on one host only, so a Sandbox keyset here leaves comps
+(`EBAY_ENVIRONMENT=production`) unable to mint a token, and the reverse blocks
+Sandbox Connect. Both sides agree again once the sell engine runs on
+Production.
 
 ## Migration
 
@@ -153,6 +164,53 @@ blocked with `CATEGORY_REQUIRED` rather than sending a placeholder eBay would
 reject. Preflight's category check names the env var to set, and when eBay
 rejects an ID it walks `get_category_subtree` and prints the real leaves
 underneath it — read the answer off your own tree rather than a published list.
+
+## Where each listing detail comes from
+
+Nothing in a draft is typed into the sell engine. Every field is read from the
+holding, from a business policy on the eBay account, or from one env var, so a
+wrong listing is fixed at its source rather than by editing the draft.
+
+| Listing field | Source | Fix a wrong value by |
+|---------------|--------|----------------------|
+| Title, description, aspects | Holding catalog fields, via `buildListingDraftPayload` | Correcting the holding's identity fields |
+| Category | `EBAY_CATEGORY_<KIND>`, else the built-in leaf | Setting the env var to a leaf from your own tree |
+| Price | FMV range — `mid` lists, `low` is the floor | Re-running valuation on the holding |
+| Photos | Stored front/back scan URIs | Re-scanning; no images means `IMAGE_REQUIRED` |
+| Condition | Grader + grade, else condition text | Recording the slab or condition on the holding |
+| Ship-from / postage | Inventory API **location**, below | The location on the eBay account |
+| Shipping cost, handling | Fulfillment policy on eBay | Seller Hub, then `EBAY_FULFILLMENT_POLICY_ID` |
+| Returns, payment | Return / payment policies on eBay | Seller Hub, then the matching env var |
+
+Aspects are mapped from stored fields only. Preflight's aspect check reports
+what a category requires and the draft lacks; fill the gap on the record, never
+by inventing a value.
+
+## Seller location
+
+The ship-from address is an **Inventory API** location, which is a different
+list from the addresses in Seller Hub. `EBAY_MERCHANT_LOCATION_KEY` names the
+key, and the offer quotes postage from that location's address.
+
+On Sandbox, publish creates the location when the key does not resolve, using
+`EBAY_LOCATION_*`. Unset, those fall back to eBay's own New York sample
+address, so a Sandbox listing will quote postage from a warehouse that is not
+yours until they are set. A key of exactly `home` retries as `iqv_home` when
+eBay rejects the first create.
+
+On Production nothing is auto-created: the location must exist before the first
+publish and `EBAY_LOCATION_*` is ignored. Create it once with
+
+```text
+POST /sell/inventory/v1/location/{key}
+{ "name": "...", "locationTypes": ["WAREHOUSE"],
+  "location": { "address": { "addressLine1": "...", "city": "...",
+                             "stateOrProvince": "...", "postalCode": "...",
+                             "country": "US" } } }
+```
+
+Preflight's location check fails rather than warns on Production, and prints
+the account's real Inventory API keys when the configured one is missing.
 
 ## Environment precedence
 
