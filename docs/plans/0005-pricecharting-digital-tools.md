@@ -5,8 +5,13 @@
 **Live-repo companion:** [ADR 0011](../adr/0011-pricecharting-wiring-on-live-vip.md)
 
 Parked until Core A–C is green here. Do not create `services/edge/` or
-migrations `31`–`34` on this pass. Email PriceCharting about derived-output
-tools before ShopVault architecture hardens. `redistribution_allowed` stays
+migrations `31`–`34` on this pass.
+
+**ShopVault is saved for later** (owner, 2026-09-13). Do not design, migrate,
+or scaffold ShopVault, shop inventory, aging reports, or
+`/v1/shopvault/*`. The PriceCharting terms email in §4 is only required
+when ShopVault comes off the shelf — not for VIP-internal use, and not for
+GradeMath / Flip Score if those ship first. `redistribution_allowed` stays
 `false` until a written vendor reply is filed under `docs/vendor/`.
 
 Logical migration numbers `31`–`34` map to future `YYYYMMDD_NN_*.sql` files

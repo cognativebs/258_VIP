@@ -62,7 +62,8 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
 - Nightly guide snapshots do not accumulate in `listing_observation`.
 - Token: `PRICECHARTING_API_TOKEN` (alias `PRICECHARTING_TOKEN`).
 - Digital Tools (`PC-TOOLS-01`) waits until Core A–C is green here.
-  `redistribution_allowed` for PriceCharting stays false.
+  ShopVault is later — do not design or scaffold it. The vendor terms email
+  waits with ShopVault. `redistribution_allowed` for PriceCharting stays false.
 
 ## Process
 - STOP and report before any destructive operation (DROP, TRUNCATE, destructive ALTER,

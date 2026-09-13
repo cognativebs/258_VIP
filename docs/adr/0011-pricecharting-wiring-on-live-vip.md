@@ -72,9 +72,14 @@ ADR). `PC-CORE-01`'s Python tree under `services/api/app/adapters/` is not
 created. Digital Tools `services/edge/` stays Python/FastAPI when Core A–C is
 green — that is a new service, not a fork of VIP backend logic.
 
-### 5. Digital Tools stays parked
+### 5. Digital Tools stays parked; ShopVault is later
 
 `PC-TOOLS-01` does not start until Core A–C is green **on this schema**.
+**ShopVault is owner-deferred (2026-09-13).** Do not design or build
+ShopVault, shop inventory, aging, or `/v1/shopvault/*` until the owner
+unparks it. The PriceCharting terms email (plan 0005 §4) waits with
+ShopVault — it is not a blocker for VIP-internal Legendary use.
+
 `redistribution_allowed` for `pricecharting` is `false`. Flip it only in a
 commit that attaches a written vendor reply under `docs/vendor/`.
 

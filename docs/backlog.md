@@ -49,7 +49,8 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **PriceCharting comics comps** (2026-09-13): official `/api/products` + `/api/product` when `PRICECHARTING_API_TOKEN` is set; replaces eBay Browse for comics. Guide quotes stay unverified; never `vault_market.sale`. GoCollect deferred (API docs login-gated; no scrape).
 - [x] **PriceCharting wiring picks** (2026-09-13): ADR 0011 + plans 0004/0005 filed. Phase A registry (`evidence_class`, `data_source`, `vendor_product_map`) on live UUID `priced_unit`. Digital Tools parked until Core A–C.
 - [ ] **PriceCharting Core B–F** (plan 0004): nightly snapshots, derived series, emitters, prediction resolve, Orchestr8 tools. Not `listing_observation`.
-- [ ] **PriceCharting Digital Tools** (plan 0005): `services/edge/` after Core A–C; email vendor before ShopVault.
+- [ ] **PriceCharting Digital Tools** (plan 0005): `services/edge/` after Core A–C. GradeMath / Flip Score first if anything ships.
+- [ ] **ShopVault** (plan 0005 Phase 5): **later** (owner 2026-09-13). No design, migration, or `/v1/shopvault/*` until unparked. Terms email to PriceCharting waits with this item.
 - [x] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`. (Week 1 · 2026-08-29)
 - [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
