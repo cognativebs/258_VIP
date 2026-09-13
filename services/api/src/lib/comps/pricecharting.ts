@@ -15,8 +15,10 @@ const PRODUCT_URL = "https://www.pricecharting.com/api/product";
 const MIN_GAP_MS = 1_100;
 
 export function pricechartingToken(env: NodeJS.ProcessEnv = process.env): string | null {
-  const token = env.PRICECHARTING_API_TOKEN?.trim();
-  return token || null;
+  const canonical = env.PRICECHARTING_API_TOKEN?.trim();
+  if (canonical) return canonical;
+  const alias = env.PRICECHARTING_TOKEN?.trim();
+  return alias || null;
 }
 
 function isComicHolding(holding: ApiHolding): boolean {
@@ -104,7 +106,7 @@ async function fetchSold(holding: ApiHolding): Promise<CompsAdapterResult> {
     return {
       adapterId: PRICECHARTING_ADAPTER_ID,
       sales: [],
-      emptyReason: "PRICECHARTING_API_TOKEN is not set",
+      emptyReason: "PRICECHARTING_API_TOKEN (or PRICECHARTING_TOKEN) is not set",
     };
   }
   const query = buildComicBrowseQuery({ series: holding.series, issue: holding.issue });

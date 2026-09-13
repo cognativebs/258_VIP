@@ -7,6 +7,8 @@ export * from "./inventory-transaction.js";
 export * from "./listing-queue.js";
 export * from "./live-range.js";
 export * from "./market.js";
+export * from "./data-source.js";
+export * from "./vendor-match.js";
 export * from "./signals.js";
 export * from "./signals-context.js";
 export * from "./decisions.js";

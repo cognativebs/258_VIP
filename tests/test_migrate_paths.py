@@ -18,7 +18,11 @@ def test_all_sql_migrations_live_in_infra():
     names = [p.name for p in paths]
     assert "20260702_02_tcg.sql" in names
     assert "20260809_01_binder_postgres.sql" in names
+    assert "20260913_02_pricecharting_source_registry.sql" in names
     assert names == sorted(names)
+    reserved = tuple(f"{n}_" for n in range(25, 35))
+    colliding = [n for n in names if n.startswith(reserved)]
+    assert colliding == [], colliding
 
 
 def test_repo_root_has_no_legacy_spine_sql():
