@@ -417,7 +417,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
       listing: { ...listing, status: "APPROVED" },
       payload,
       policies,
-      ensureLocation: cfg.env === "sandbox" ? sandboxMerchantAddress() : null,
+      ensureLocation: cfg.env === "sandbox" ? merchantAddressFromEnv() : null,
     });
     const next: MarketplaceListing = {
       ...listing,
@@ -809,6 +809,46 @@ export function createEbaySellService(deps: EbaySellDeps) {
     return { experiments: list, evaluation: evalResult };
   }
 
+  /**
+   * Create the Inventory API warehouse location publish needs on Production,
+   * where — unlike Sandbox — publish never creates one itself (preflight
+   * fails rather than warns when it is missing). eBay answers "already
+   * exists" as success, so this is safe to re-run against the same key.
+   */
+  async function createLocation(): Promise<{
+    ok: boolean;
+    merchantLocationKey: string;
+    status: number;
+    errorMessage: string | null;
+  }> {
+    const cfg = config();
+    if (!cfg) {
+      throw new Error("eBay Sell OAuth idle — set EBAY_APP_ID, EBAY_CERT_ID, EBAY_REDIRECT_URI");
+    }
+    const merchantLocationKey = cfg.merchantLocationKey;
+    if (!merchantLocationKey) {
+      throw new Error("Set EBAY_MERCHANT_LOCATION_KEY before creating a location.");
+    }
+    const accessToken = await userAccessToken();
+    const client = createEbayHttpClient({
+      env: cfg.env,
+      accessToken,
+      marketplaceId: cfg.marketplaceId,
+      fetchImpl: deps.fetchImpl,
+      onAudit: (e) => deps.store.writeAudit(e),
+    });
+    const result = await createInventoryAdapter(client).createInventoryLocation(
+      merchantLocationKey,
+      merchantAddressFromEnv(),
+    );
+    return {
+      ok: result.ok,
+      merchantLocationKey,
+      status: result.status,
+      errorMessage: result.ok ? null : result.errorMessage,
+    };
+  }
+
   return {
     connection,
     preflight,
@@ -832,6 +872,7 @@ export function createEbaySellService(deps: EbaySellDeps) {
     experiments,
     ensureSku,
     orderLineKey,
+    createLocation,
     policies: () => {
       const cfg = config();
       return cfg ? policiesFromConfig(cfg) : null;
@@ -839,7 +880,8 @@ export function createEbaySellService(deps: EbaySellDeps) {
   };
 }
 
-function sandboxMerchantAddress() {
+/** Ship-from address for the Inventory API warehouse location. */
+function merchantAddressFromEnv() {
   return {
     addressLine1: process.env.EBAY_LOCATION_LINE1?.trim() || "625 6th Ave",
     city: process.env.EBAY_LOCATION_CITY?.trim() || "New York",

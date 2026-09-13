@@ -179,11 +179,24 @@ Publish auto-creates a missing Inventory API location on Sandbox only. On
 Production the location must exist first, and preflight fails rather than warns
 when it does not.
 
+There is no create-location button in the UI. Set `EBAY_MERCHANT_LOCATION_KEY`
+and `EBAY_LOCATION_LINE1`/`CITY`/`STATE`/`POSTAL`/`COUNTRY` in `.env`, then run:
+
+```bash
+npm run job:ebay-create-location
+```
+
+It calls the same Inventory API location create the Sandbox bootstrap uses,
+against whichever environment `EBAY_ENV` names. Idempotent — eBay answers
+"already exists" as success, so re-running it is safe. Re-run preflight
+afterward to confirm the location check passes.
+
 ## Jobs (independent)
 
 | Job | Command | Cadence |
 |-----|---------|---------|
 | Preflight | `npm run job:ebay-preflight` | Before a first publish and after any environment switch |
+| Create location | `npm run job:ebay-create-location` | Once on Production, before the first publish; safe to re-run |
 | Listing state | `npm run job:ebay-listing-sync` | GET offer per listing with an offer id; idle without OAuth |
 | Orders | `npm run job:ebay-order-sync` | hourly while selling |
 | Traffic | `npm run job:ebay-traffic-sync` | daily |
