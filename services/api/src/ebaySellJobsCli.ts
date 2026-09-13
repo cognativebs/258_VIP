@@ -65,6 +65,12 @@ async function main() {
     process.exitCode = report.ok ? 0 : 1;
     return;
   }
+  if (cmd === "create-location") {
+    const result = await service.createLocation();
+    console.log(JSON.stringify({ job: "create-location", ...result }, null, 2));
+    process.exitCode = result.ok ? 0 : 1;
+    return;
+  }
   console.error(`Unknown job: ${cmd}`);
   process.exit(1);
 }
