@@ -1,5 +1,9 @@
 # VIP Backlog
 
+**Binding NOW board:** [plan 0006](plans/0006-sprint-now.md) (2026-09-13).
+P0 money blockers, then P1 revenue ops, then P2 intelligence. Everything
+else waits.
+
 **Feature freeze:** OFF *(lifted 2026-08-02 — owner decision).*  
 Work may proceed without a Now/Next gate. Prefer Orchestr8 Build Spec → Cursor
 for non-trivial features (ADR 0003). Engineering rules 1–6 in `AGENTS.md` still apply.

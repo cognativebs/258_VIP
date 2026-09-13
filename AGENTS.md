@@ -65,6 +65,11 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
   ShopVault is later — do not design or scaffold it. The vendor terms email
   waits with ShopVault. `redistribution_allowed` for PriceCharting stays false.
 
+## Sprint NOW (plan 0006)
+Work only the board in `docs/plans/0006-sprint-now.md`: P0 money blockers,
+then P1 revenue ops, then P2 intelligence. Do not start work that is not
+on that board.
+
 ## Process
 - STOP and report before any destructive operation (DROP, TRUNCATE, destructive ALTER,
   data delete). Never merge or force-push without being asked.
