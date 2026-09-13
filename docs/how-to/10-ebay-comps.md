@@ -7,6 +7,11 @@ This is **not** a sold ledger. eBay Marketplace Insights (completed/sold) is
 gated. Browse search returns **active listing observations**, marked
 `unverified`. Still better than catalog `Current Price` as if it were a comp.
 
+Comics Browse queries are `Series #Issue` inside category 63 (no publisher,
+volume suffix stripped). Returned titles must name that series and issue;
+lots, omnibuses, and TPBs are dropped. LIVE uses only the latest walk for
+each holding so older mismatched asks cannot keep widening the range.
+
 Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 
 ## 1. Create the eBay app (once)
