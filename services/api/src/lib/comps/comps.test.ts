@@ -10,6 +10,7 @@ afterEach(() => {
   delete process.env.EBAY_CERT_ID;
   delete process.env.VIP_COMPS_USE_FIXTURE;
   delete process.env.VIP_COMPS_FIXTURE_JSON;
+  delete process.env.PRICECHARTING_API_TOKEN;
 });
 
 const comic = mapInventoryRow(

@@ -27,4 +27,23 @@ describe("chipFromObservationAgg", () => {
     expect(chip.label).not.toMatch(/sold/i);
     expect(chip.verificationStatus).toBe("unverified");
   });
+
+  it("formats a PriceCharting guide quote without saying sold", () => {
+    const asOf = new Date("2026-09-13T00:00:00.000Z");
+    const chip = chipFromObservationAgg(
+      "clz-1",
+      {
+        holding_source_row_id: "clz-1",
+        listing_count: 1,
+        live_low: 12.5,
+        live_high: 12.5,
+        latest_observed: "2026-09-13T00:00:00.000Z",
+        observation_kind: "guide_quote",
+      },
+      asOf,
+    );
+    expect(chip.label).toBe("$12.50 · 1 guide quote · 0d · unverified");
+    expect(chip.label).not.toMatch(/sold/i);
+    expect(chip.observationKind).toBe("guide_quote");
+  });
 });

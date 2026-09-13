@@ -10,7 +10,9 @@ export type LiveRangeStatus = z.infer<typeof LiveRangeStatusSchema>;
 export const LiveRangeChipSchema = z.object({
   holdingSourceRowId: z.string().min(1),
   status: LiveRangeStatusSchema,
-  observationKind: z.enum(["browse_listing", "browse_empty"]).nullable(),
+  observationKind: z
+    .enum(["browse_listing", "browse_empty", "guide_quote", "guide_empty"])
+    .nullable(),
   low: z.number().positive().nullable(),
   high: z.number().positive().nullable(),
   listingCount: z.number().int().nonnegative(),
@@ -22,7 +24,7 @@ export const LiveRangeChipSchema = z.object({
 });
 export type LiveRangeChip = z.infer<typeof LiveRangeChipSchema>;
 
-export const LIVE_RANGE_RULE = "live-range-chip@0.1.0";
+export const LIVE_RANGE_RULE = "live-range-chip@0.2.0";
 
 export function formatLiveRangeChip(input: {
   status: LiveRangeStatus;
@@ -30,19 +32,24 @@ export function formatLiveRangeChip(input: {
   high: number | null;
   listingCount: number;
   recencyDays: number | null;
+  evidence?: "listings" | "guide quotes";
 }): string {
+  const evidence = input.evidence ?? "listings";
   if (input.status === "not_fetched") return "not fetched";
   if (input.status === "empty" || input.listingCount === 0 || input.low == null) {
-    return "0 listings · unverified";
+    return `0 ${evidence} · unverified`;
   }
   const low = `$${input.low.toFixed(2)}`;
   const high = `$${(input.high ?? input.low).toFixed(2)}`;
   const range = low === high ? low : `${low}–${high}`;
   const n = input.listingCount;
-  const listings = `${n} listing${n === 1 ? "" : "s"}`;
+  const count =
+    evidence === "guide quotes"
+      ? `${n} guide quote${n === 1 ? "" : "s"}`
+      : `${n} listing${n === 1 ? "" : "s"}`;
   const recency =
     input.recencyDays == null ? null : `${Math.round(input.recencyDays)}d`;
-  return [range, listings, recency, "unverified"].filter(Boolean).join(" · ");
+  return [range, count, recency, "unverified"].filter(Boolean).join(" · ");
 }
 
 export function liveRangeChip(input: {
@@ -53,20 +60,21 @@ export function liveRangeChip(input: {
   recencyDays: number | null;
   observedAt: string | null;
   fetched: boolean;
+  observationKind?: "browse_listing" | "browse_empty" | "guide_quote" | "guide_empty" | null;
 }): LiveRangeChip {
   const status: LiveRangeStatus = !input.fetched
     ? "not_fetched"
     : input.listingCount > 0 && input.low != null
       ? "range"
       : "empty";
+  const kind =
+    input.observationKind ??
+    (!input.fetched ? null : input.listingCount > 0 ? "browse_listing" : "browse_empty");
+  const evidence = kind === "guide_quote" || kind === "guide_empty" ? "guide quotes" : "listings";
   return LiveRangeChipSchema.parse({
     holdingSourceRowId: input.holdingSourceRowId,
     status,
-    observationKind: !input.fetched
-      ? null
-      : input.listingCount > 0
-        ? "browse_listing"
-        : "browse_empty",
+    observationKind: kind,
     low: status === "range" ? input.low : null,
     high: status === "range" ? (input.high ?? input.low) : null,
     listingCount: input.fetched ? input.listingCount : 0,
@@ -79,6 +87,7 @@ export function liveRangeChip(input: {
       high: input.high,
       listingCount: input.listingCount,
       recencyDays: input.recencyDays,
+      evidence,
     }),
     ruleOrModelVersion: LIVE_RANGE_RULE,
   });

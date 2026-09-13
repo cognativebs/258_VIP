@@ -17,6 +17,7 @@ export type LiveRangeRow = {
   live_low: unknown;
   live_high: unknown;
   latest_observed: unknown;
+  observation_kind?: unknown;
 };
 
 function num(v: unknown): number | null {
@@ -48,6 +49,14 @@ export function chipFromObservationAgg(
   }
   const observed = row.latest_observed ? new Date(String(row.latest_observed)) : null;
   const observedOk = observed && !Number.isNaN(observed.getTime()) ? observed : null;
+  const kindRaw = String(row.observation_kind ?? "");
+  const observationKind =
+    kindRaw === "guide_quote" ||
+    kindRaw === "guide_empty" ||
+    kindRaw === "browse_listing" ||
+    kindRaw === "browse_empty"
+      ? kindRaw
+      : null;
   return liveRangeChip({
     holdingSourceRowId,
     fetched: true,
@@ -56,6 +65,7 @@ export function chipFromObservationAgg(
     high: num(row.live_high),
     recencyDays: recencyDays(observedOk, asOf),
     observedAt: observedOk ? observedOk.toISOString() : null,
+    observationKind,
   });
 }
 
@@ -83,15 +93,21 @@ export async function loadLiveRangeMap(
     SELECT
       o.holding_source_row_id,
       COUNT(*) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS listing_count,
       MIN(o.ask_price) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS live_low,
       MAX(o.ask_price) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS live_high,
-      MAX(o.observed_at) AS latest_observed
+      MAX(o.observed_at) AS latest_observed,
+      CASE
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'guide_quote') > 0 THEN 'guide_quote'
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'browse_listing') > 0 THEN 'browse_listing'
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'guide_empty') > 0 THEN 'guide_empty'
+        ELSE 'browse_empty'
+      END AS observation_kind
     FROM vault_market.listing_observation o
     JOIN latest l
       ON l.holding_source_row_id = o.holding_source_row_id
@@ -117,15 +133,21 @@ export async function loadAllLiveRanges(): Promise<Map<string, LiveRangeChip>> {
     SELECT
       o.holding_source_row_id,
       COUNT(*) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS listing_count,
       MIN(o.ask_price) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS live_low,
       MAX(o.ask_price) FILTER (
-        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
+        WHERE o.observation_kind IN ('browse_listing', 'guide_quote') AND o.ask_price IS NOT NULL
       ) AS live_high,
-      MAX(o.observed_at) AS latest_observed
+      MAX(o.observed_at) AS latest_observed,
+      CASE
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'guide_quote') > 0 THEN 'guide_quote'
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'browse_listing') > 0 THEN 'browse_listing'
+        WHEN COUNT(*) FILTER (WHERE o.observation_kind = 'guide_empty') > 0 THEN 'guide_empty'
+        ELSE 'browse_empty'
+      END AS observation_kind
     FROM vault_market.listing_observation o
     JOIN latest l
       ON l.holding_source_row_id = o.holding_source_row_id

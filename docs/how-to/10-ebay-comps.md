@@ -14,6 +14,26 @@ each holding so older mismatched asks cannot keep widening the range.
 
 Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 
+## PriceCharting instead of eBay Browse (comics)
+
+When `PRICECHARTING_API_TOKEN` is set in `services/api/.env`, comics comps
+use PriceCharting's official Prices API (`/api/products` then `/api/product`).
+eBay Browse is skipped for comics. Quotes are the current **ungraded/loose
+guide** (pennies → USD), labeled unverified. They are **not** written to
+`vault_market.sale`.
+
+1. Subscribe at https://www.pricecharting.com/pricecharting-pro?f=api
+2. Subscription page → **API/Download** → copy the 40-character token
+3. `PRICECHARTING_API_TOKEN=...` in `services/api/.env`
+4. Restart the API, then `python scripts/migrate_db.py` (adds `guide_quote`)
+5. `npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12`
+
+GoCollect is not implemented. Their API schema is only visible after login;
+we will not scrape the site. If you get docs/access, we can add a second
+adapter on the same seam.
+
+Do **not** put PriceCharting tokens in `orchestr8/.env`.
+
 ## 1. Create the eBay app (once)
 
 1. Open https://developer.ebay.com/my/keys and sign in (or register).

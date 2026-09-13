@@ -56,4 +56,20 @@ describe("liveRangeChip", () => {
     expect(chip.label).toContain("listings");
     expect(chip.label).not.toMatch(/sold/i);
   });
+
+  it("labels a PriceCharting quote as a guide, not a sold listing", () => {
+    const chip = liveRangeChip({
+      holdingSourceRowId: "clz-1",
+      fetched: true,
+      listingCount: 1,
+      low: 12.5,
+      high: 12.5,
+      recencyDays: 0,
+      observedAt: "2026-09-13T00:00:00.000Z",
+      observationKind: "guide_quote",
+    });
+    expect(chip.label).toBe("$12.50 · 1 guide quote · 0d · unverified");
+    expect(chip.label).not.toMatch(/sold/i);
+    expect(chip.observationKind).toBe("guide_quote");
+  });
 });
