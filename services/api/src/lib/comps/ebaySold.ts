@@ -6,6 +6,7 @@ import {
   comicBrowseConfidence,
   listingTitleMatchesComic,
 } from "./comicBrowseMatch.js";
+import { pricechartingToken } from "./pricecharting.js";
 import type { CompSale, CompsAdapter, CompsAdapterResult } from "./types.js";
 
 const RULE = COMIC_BROWSE_RULE;
@@ -42,6 +43,8 @@ function isPricedByBrowse(holding: ApiHolding): boolean {
   if (holding.id.startsWith("binder-slot-")) return false;
   if (holding.externalIds?.some((e) => e.source === "pokemontcg")) return false;
   if (isSports(holding)) return true;
+  // Owner pick: PriceCharting replaces Browse for comics when a token is set.
+  if (pricechartingToken()) return false;
   if (holding.provenance.source === "clz_import") return true;
   return Boolean(holding.series && holding.publisher);
 }

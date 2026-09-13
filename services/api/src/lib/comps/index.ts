@@ -1,10 +1,12 @@
 import type { ApiHolding } from "../holdings.js";
 import { ebaySoldAdapter } from "./ebaySold.js";
+import { pricechartingAdapter } from "./pricecharting.js";
 import { tcgplayerMarketAdapter } from "./tcgplayerMarket.js";
 import type { CompSale, CompsAdapter, CompsAdapterResult } from "./types.js";
 
 export type { CompSale, CompsAdapter, CompsAdapterResult } from "./types.js";
 export { ebaySoldAdapter } from "./ebaySold.js";
+export { pricechartingAdapter } from "./pricecharting.js";
 export { tcgplayerMarketAdapter } from "./tcgplayerMarket.js";
 
 /** Engine-facing sale shape (subset of CompSale). */
@@ -15,7 +17,11 @@ export type EngineSaleComp = {
   source: string;
 };
 
-const DEFAULT_ADAPTERS: CompsAdapter[] = [ebaySoldAdapter, tcgplayerMarketAdapter];
+const DEFAULT_ADAPTERS: CompsAdapter[] = [
+  pricechartingAdapter,
+  ebaySoldAdapter,
+  tcgplayerMarketAdapter,
+];
 
 /** Fixture adapter — tests only. Activated by VIP_COMPS_USE_FIXTURE=1. */
 export function fixtureCompsAdapter(sales: CompSale[]): CompsAdapter {

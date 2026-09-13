@@ -58,6 +58,7 @@ export function observationsFromAdapterResult(input: {
 }): ListingObservation[] {
   const { assetId, holdingId, holdingSourceRowId, adapter, observedAt, rawSnapshotId } = input;
   const listings = adapter.sales.filter((s) => Number.isFinite(s.price) && s.price > 0);
+  const guide = adapter.adapterId === "pricecharting";
   if (!listings.length) {
     return [
       ListingObservationSchema.parse({
@@ -65,17 +66,17 @@ export function observationsFromAdapterResult(input: {
         createdAt: observedAt,
         updatedAt: observedAt,
         provenance: markInferred({
-          source: LISTING_OBSERVATION_SOURCE,
+          source: guide ? "pricecharting" : LISTING_OBSERVATION_SOURCE,
           ruleOrModelVersion: LISTING_OBSERVATION_RULE,
           confidence: 0.2,
-          notes: adapter.emptyReason ?? "no Browse listings matched",
+          notes: adapter.emptyReason ?? (guide ? "no PriceCharting guide matched" : "no Browse listings matched"),
         }),
         assetId,
         holdingId,
         holdingSourceRowId,
         conditionKey: CONDITION_KEY_ANY,
-        observationKind: "browse_empty",
-        source: LISTING_OBSERVATION_SOURCE,
+        observationKind: guide ? "guide_empty" : "browse_empty",
+        source: guide ? "pricecharting" : LISTING_OBSERVATION_SOURCE,
         listingId: `empty:${holdingSourceRowId}`,
         askPrice: null,
         currency: "USD",
@@ -92,17 +93,19 @@ export function observationsFromAdapterResult(input: {
       createdAt: observedAt,
       updatedAt: observedAt,
       provenance: markInferred({
-        source: LISTING_OBSERVATION_SOURCE,
+        source: guide ? "pricecharting" : LISTING_OBSERVATION_SOURCE,
         ruleOrModelVersion: sale.provenance.ruleOrModelVersion,
         confidence: sale.provenance.confidence,
-        notes: "eBay Browse listing · unverified — not a sold ledger row",
+        notes: guide
+          ? "PriceCharting guide quote · unverified — not a sold ledger row"
+          : "eBay Browse listing · unverified — not a sold ledger row",
       }),
       assetId,
       holdingId,
       holdingSourceRowId,
       conditionKey: CONDITION_KEY_ANY,
-      observationKind: "browse_listing",
-      source: LISTING_OBSERVATION_SOURCE,
+      observationKind: guide ? "guide_quote" : "browse_listing",
+      source: guide ? "pricecharting" : LISTING_OBSERVATION_SOURCE,
       listingId,
       askPrice: sale.price,
       currency: "USD",
@@ -111,7 +114,7 @@ export function observationsFromAdapterResult(input: {
       observedAt,
       listingCreatedAt: sale.saleDate,
       rawSnapshotId,
-      providerIds: { ebay_item_id: listingId },
+      providerIds: guide ? { pricecharting_id: listingId } : { ebay_item_id: listingId },
     });
   });
 }

@@ -49,6 +49,39 @@ describe("listingObservation", () => {
     expect(rows[0]?.providerIds.ebay_item_id).toBe("v1|1|0");
   });
 
+  it("maps a PriceCharting quote to guide_quote, never a sale row", () => {
+    const rows = observationsFromAdapterResult({
+      assetId: randomUUID(),
+      holdingId: randomUUID(),
+      holdingSourceRowId: "ac-900",
+      adapter: {
+        adapterId: "pricecharting",
+        sales: [
+          {
+            id: "pricecharting:2314159:loose",
+            listingId: "pc:2314159:loose",
+            price: 12.5,
+            saleDate: new Date("2026-09-13T00:00:00.000Z"),
+            source: "pricecharting.com/guide",
+            title: "Action Comics #900 · ungraded (loose)",
+            provenance: {
+              method: "api",
+              ruleOrModelVersion: "pricecharting-guide@0.1.0",
+              verificationStatus: "unverified",
+              confidence: 0.6,
+            },
+          },
+        ],
+      },
+      observedAt: new Date("2026-09-13T00:00:00.000Z"),
+      rawSnapshotId: null,
+    });
+    expect(rows[0]?.observationKind).toBe("guide_quote");
+    expect(rows[0]?.source).toBe("pricecharting");
+    expect(rows[0]?.askPrice).toBe(12.5);
+    expect(rows[0]?.provenance.verificationStatus).toBe("unverified");
+  });
+
   it("records browse_empty instead of fabricating an ask", () => {
     const rows = observationsFromAdapterResult({
       assetId: randomUUID(),

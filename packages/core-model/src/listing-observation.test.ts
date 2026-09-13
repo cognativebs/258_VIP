@@ -69,6 +69,25 @@ describe("ListingObservation", () => {
       ListingObservationSchema.parse({ ...baseObs(), source: "ebay" }),
     ).toThrow();
   });
+
+  it("accepts a PriceCharting guide quote as unverified, not a sale", () => {
+    const row = ListingObservationSchema.parse({
+      ...baseObs(),
+      observationKind: "guide_quote",
+      source: "pricecharting",
+      listingId: "pc:2314159:loose",
+      askPrice: 12.5,
+      providerIds: { pricecharting_id: "2314159" },
+      provenance: markInferred({
+        source: "pricecharting",
+        ruleOrModelVersion: "pricecharting-guide@0.1.0",
+        notes: "PriceCharting loose guide · unverified — not a sold ledger row",
+      }),
+    });
+    expect(row.observationKind).toBe("guide_quote");
+    expect(row.source).toBe("pricecharting");
+    expect(row.provenance.verificationStatus).toBe("unverified");
+  });
 });
 
 describe("ComicsCompsWalkCursor", () => {

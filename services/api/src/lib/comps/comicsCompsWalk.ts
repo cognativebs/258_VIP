@@ -252,7 +252,12 @@ export async function runComicsCompsWalk(
       const { adapters } = await fetchHolding(row.holding);
       fetchedThisRun += 1;
       const browse =
-        adapters.find((a) => a.adapterId === "ebay-sold" || a.adapterId === "fixture") ?? adapters[0];
+        adapters.find(
+          (a) =>
+            a.adapterId === "pricecharting" ||
+            a.adapterId === "ebay-sold" ||
+            a.adapterId === "fixture",
+        ) ?? adapters[0];
       const fatal = adapters.map((a) => a.emptyReason).find(isFatal);
       if (fatal) {
         cursor = {

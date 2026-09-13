@@ -55,11 +55,19 @@ export type PopulationReport = z.infer<typeof PopulationReportSchema>;
 /** Explicit “unknown condition” — NULL is forbidden (never means any). */
 export const CONDITION_KEY_ANY = "any" as const;
 
-export const ListingObservationKindSchema = z.enum(["browse_listing", "browse_empty"]);
+export const ListingObservationKindSchema = z.enum([
+  "browse_listing",
+  "browse_empty",
+  "guide_quote",
+  "guide_empty",
+]);
 export type ListingObservationKind = z.infer<typeof ListingObservationKindSchema>;
 
+export const ListingObservationSourceSchema = z.enum(["ebay_browse", "pricecharting"]);
+export type ListingObservationSource = z.infer<typeof ListingObservationSourceSchema>;
+
 /**
- * Active listing (ask) or an explicit empty Browse fetch.
+ * Active listing (ask), PriceCharting guide quote, or an explicit empty fetch.
  * Not a `sale` row — do not persist these into vault_market.sale.
  */
 export const ListingObservationSchema = BaseRecordSchema.extend({
@@ -68,7 +76,7 @@ export const ListingObservationSchema = BaseRecordSchema.extend({
   holdingSourceRowId: z.string().min(1),
   conditionKey: z.string().min(1),
   observationKind: ListingObservationKindSchema,
-  source: z.literal("ebay_browse"),
+  source: ListingObservationSourceSchema,
   listingId: z.string().min(1),
   askPrice: z.number().positive().nullable(),
   currency: z.string().length(3).default("USD"),
@@ -79,17 +87,23 @@ export const ListingObservationSchema = BaseRecordSchema.extend({
   rawSnapshotId: UuidSchema.nullable().optional(),
   providerIds: z.record(z.string()).default({}),
 }).superRefine((row, ctx) => {
-  if (row.observationKind === "browse_listing" && row.askPrice == null) {
+  if (
+    (row.observationKind === "browse_listing" || row.observationKind === "guide_quote") &&
+    row.askPrice == null
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "browse_listing requires a positive askPrice",
+      message: `${row.observationKind} requires a positive askPrice`,
       path: ["askPrice"],
     });
   }
-  if (row.observationKind === "browse_empty" && row.askPrice != null) {
+  if (
+    (row.observationKind === "browse_empty" || row.observationKind === "guide_empty") &&
+    row.askPrice != null
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "browse_empty must not carry an askPrice",
+      message: `${row.observationKind} must not carry an askPrice`,
       path: ["askPrice"],
     });
   }
