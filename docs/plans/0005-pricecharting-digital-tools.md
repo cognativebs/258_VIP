@@ -391,6 +391,9 @@ The Notion template holds the framework and the code lookups; a button block cal
 
 ## PHASE 5 — ShopVault ($147)
 
+**Owner hold (2026-09-13): saved for later. Skip this phase.** Do not
+implement anything in this section until the owner unparks ShopVault.
+
 **Migration:** `34_shopvault.sql`
 
 This is the highest-revenue product and the highest redistribution risk. A card shop's whole desire is "give me a price list." That is precisely the thing you cannot sell.
