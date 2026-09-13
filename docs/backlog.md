@@ -47,6 +47,9 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **Comics comps vault walk** (plan 0003 Track A / P1): `vault_market.listing_observation` + `npm run job:comics-comps`. Batch 12, Marvel/DC default, pause/resume, raw snapshots. Analysis cap unchanged.
 - [x] **Comics LIVE query accuracy** (2026-09-13): Browse `Series #Issue` in category 63, title-match the book, drop lots/omnibus/TPB; LIVE chip uses only the latest walk. Still unverified asks — never `vault_market.sale`.
 - [x] **PriceCharting comics comps** (2026-09-13): official `/api/products` + `/api/product` when `PRICECHARTING_API_TOKEN` is set; replaces eBay Browse for comics. Guide quotes stay unverified; never `vault_market.sale`. GoCollect deferred (API docs login-gated; no scrape).
+- [x] **PriceCharting wiring picks** (2026-09-13): ADR 0011 + plans 0004/0005 filed. Phase A registry (`evidence_class`, `data_source`, `vendor_product_map`) on live UUID `priced_unit`. Digital Tools parked until Core A–C.
+- [ ] **PriceCharting Core B–F** (plan 0004): nightly snapshots, derived series, emitters, prediction resolve, Orchestr8 tools. Not `listing_observation`.
+- [ ] **PriceCharting Digital Tools** (plan 0005): `services/edge/` after Core A–C; email vendor before ShopVault.
 - [x] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`. (Week 1 · 2026-08-29)
 - [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
 - [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance

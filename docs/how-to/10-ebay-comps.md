@@ -16,16 +16,20 @@ Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 
 ## PriceCharting instead of eBay Browse (comics)
 
-When `PRICECHARTING_API_TOKEN` is set in `services/api/.env`, comics comps
-use PriceCharting's official Prices API (`/api/products` then `/api/product`).
-eBay Browse is skipped for comics. Quotes are the current **ungraded/loose
-guide** (pennies → USD), labeled unverified. They are **not** written to
-`vault_market.sale`.
+When `PRICECHARTING_API_TOKEN` (or alias `PRICECHARTING_TOKEN`) is set in
+`services/api/.env`, comics comps use PriceCharting's official Prices API
+(`/api/products` then `/api/product`). eBay Browse is skipped for comics.
+Quotes are the current **ungraded/loose guide** (pennies → USD), labeled
+unverified. They are **not** written to `vault_market.sale`.
+
+Nightly snapshot history and the vendor product map are [plan 0004](../plans/0004-pricecharting-core-wiring.md)
+/ [ADR 0011](../adr/0011-pricecharting-wiring-on-live-vip.md). LIVE quotes
+still write `listing_observation`; that is not the history spine.
 
 1. Subscribe at https://www.pricecharting.com/pricecharting-pro?f=api
 2. Subscription page → **API/Download** → copy the 40-character token
 3. `PRICECHARTING_API_TOKEN=...` in `services/api/.env`
-4. Restart the API, then `python scripts/migrate_db.py` (adds `guide_quote`)
+4. Restart the API, then `python scripts/migrate_db.py` (adds `guide_quote` + source registry)
 5. `npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12`
 
 GoCollect is not implemented. Their API schema is only visible after login;

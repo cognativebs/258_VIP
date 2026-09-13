@@ -55,6 +55,15 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
 - Provider IDs live in a `provider_ids` jsonb column. Never a primary or foreign key.
 - The TCGplayer public API is closed to new developers. Do not write code assuming it.
 
+## PriceCharting wiring (PC-CORE-01 / ADR 0011)
+- Plan numbers `25`–`34` are logical only. SQL stays `YYYYMMDD_NN_description.sql`.
+- Join key is live `vault_market.priced_unit` (UUID). Do not create a second
+  `priced_unit` or TCG `price_series()` until TCG plan §2 is answered.
+- Nightly guide snapshots do not accumulate in `listing_observation`.
+- Token: `PRICECHARTING_API_TOKEN` (alias `PRICECHARTING_TOKEN`).
+- Digital Tools (`PC-TOOLS-01`) waits until Core A–C is green here.
+  `redistribution_allowed` for PriceCharting stays false.
+
 ## Process
 - STOP and report before any destructive operation (DROP, TRUNCATE, destructive ALTER,
   data delete). Never merge or force-push without being asked.
