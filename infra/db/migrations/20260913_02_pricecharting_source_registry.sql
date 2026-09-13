@@ -140,8 +140,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   IF OLD.confirmed_at IS NOT NULL THEN
-    IF NEW.last_seen_at IS DISTINCT FROM OLD.last_seen_at
-       AND NEW.data_source_id IS NOT DISTINCT FROM OLD.data_source_id
+    IF NEW.data_source_id IS NOT DISTINCT FROM OLD.data_source_id
        AND NEW.vendor_product_id IS NOT DISTINCT FROM OLD.vendor_product_id
        AND NEW.vendor_product_name IS NOT DISTINCT FROM OLD.vendor_product_name
        AND NEW.vendor_console_name IS NOT DISTINCT FROM OLD.vendor_console_name
