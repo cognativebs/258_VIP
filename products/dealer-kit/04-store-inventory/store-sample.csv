@@ -1,0 +1,8 @@
+sku,name,category,qty,unit_cost,list,margin_pct,vs_target,days_of_supply,reorder,dead_stock,list_vs_secondary,next_action
+PKM-PE-ETB,Pokémon Prismatic Evolutions ETB,sealed,18,48,64,25,on,39,false,none,in_band,Hold and restock on trigger.
+BB-26-CHROME-HBY,2026 Bowman Chrome Hobby,sealed,6,210,279,24.7,on,60,false,none,in_band,Hold and restock on trigger.
+ABS-BAT-001,Absolute Batman #1,singles,24,4.5,12,62.5,above,70,false,none,in_band,Hold and restock on trigger.
+CHAR-UNL-RAW,Base Set Charizard #4 raw bin,singles,3,190,275,30.9,below,135,false,none,in_band,Raise list or stop buying this SKU — margin is under category floor.
+PSA10-MODERN-RB,PSA 10 modern football random,graded,11,85,99,14.1,below,990,false,watch,in_band,Move to the front counter or a $5/10/20 bin. Cut list 15%. Stop reordering.
+CZ-ETB-DEAD,Crown Zenith ETB (leftover),sealed,14,44,59,25.4,on,999,false,liquidate,over,Auction / group break / staff sale at cost. Do not 'wait for the next set'. That is how rooms fill.
+SLV-TOPE-100,Ultra Pro toploaders 25ct,accessories,40,2.1,5.99,64.9,above,40,false,none,no_secondary,Hold and restock on trigger.

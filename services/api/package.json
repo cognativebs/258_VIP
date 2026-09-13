@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",
+    "@vip/dealer-kit": "0.1.0",
     "@vip/decision-engine": "0.1.0",
     "@vip/ebay-sell": "0.1.0",
     "@vip/evidence": "0.1.0",

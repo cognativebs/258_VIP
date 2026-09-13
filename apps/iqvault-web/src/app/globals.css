@@ -778,3 +778,199 @@ button.hunt-card {
     font-size: 1.15rem;
   }
 }
+
+/* --- Dealer kit --- */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.tool-card h3 {
+  margin-top: 0;
+}
+
+.tool-price {
+  font-family: var(--mono);
+  color: var(--gold);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.tool-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.tool-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tool-form input,
+.tool-form select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.tool-btn {
+  display: inline-block;
+  background: var(--gold);
+  color: #0a0e17;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  margin: 4px 4px 0 0;
+}
+
+.tool-btn.ghost {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+}
+
+.flip-result {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.flip-score {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.pc-hit {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.print-shell {
+  background: #f4f1ea;
+  color: #111;
+  min-height: 100vh;
+}
+
+.print-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 28px;
+  font-family: Georgia, serif;
+  color: #111;
+}
+
+.print-page h1 {
+  margin: 0 0 8px;
+}
+
+.print-kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.print-bands {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.print-box {
+  flex: 1;
+  border: 2px solid #111;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.print-box.buy {
+  background: #d1fae5;
+}
+.print-box.hold {
+  background: #fef3c7;
+}
+.print-box.pass {
+  background: #fee2e2;
+}
+
+.print-page table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.print-page th,
+.print-page td {
+  border: 1px solid #333;
+  padding: 6px;
+}
+
+.print-foot {
+  margin-top: 18px;
+  font-size: 12px;
+  color: #333;
+}
+
+.field-kit {
+  max-width: 390px;
+  margin: 0 auto;
+  padding: 18px 16px 48px;
+  min-height: 100vh;
+  background: #0a0e17;
+  color: #e8edf5;
+}
+
+.field-kit h1 {
+  color: var(--gold);
+  margin: 0 0 8px;
+}
+
+.field-step {
+  background: #111827;
+  border: 1px solid #2a3548;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+
+.field-step span {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.field-step.trap {
+  background: #3b1111;
+  border-color: #7f1d1d;
+}
+
+@media print {
+  .top,
+  .nav,
+  .tool-btn {
+    display: none !important;
+  }
+  .print-shell,
+  .print-page,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

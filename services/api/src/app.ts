@@ -6,6 +6,7 @@ import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
+import { registerDealerKitRoutes } from "./routes/dealerKit.js";
 import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
   BINDER_WRITE_RULE,
@@ -418,6 +419,7 @@ export function createApp(deps: AppDeps = {}) {
       return { holdings, binders: binder.available ? binder.binders : [] };
     },
   });
+  registerDealerKitRoutes(app);
 
   const ebaySellService =
     deps.ebaySellService ??
