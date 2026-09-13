@@ -247,7 +247,7 @@ Formerly “Parked.” Safe to pick up via Build Spec when wanted; still high-co
 - AI glasses / wearable interface
 - PSA → CGC/TAG crossover ML
 - Full POS & event management
-- Marketplace listing automation *(closed-loop Sell APIs + queue/lots shipped 2026-09-05; SKU/sold path persist + listing-state sync 2026-09-06; live Sandbox publish still needs seller OAuth + policies)*
+- Marketplace listing automation *(closed-loop Sell APIs + queue/lots shipped 2026-09-05; SKU/sold path persist + listing-state sync 2026-09-06; leaf-category fix verified against a real #25005 failure and republished live on Sandbox 2026-09-10 — offer 11591136010, listing 110590626616, comic category 259104. Sports/Pokémon/MTG leaves are still unverified against a real Sandbox tree; Production needs its own OAuth + policy IDs and has not been attempted)*
 - Custom / unsupervised model training
 - Every collectible category at once
 - Final legal names, domains, trademarks — names now chosen (Crucible · Forge · Temper, see [`docs/branding/naming-decision.md`](branding/naming-decision.md)); clearance + store-face name still open
