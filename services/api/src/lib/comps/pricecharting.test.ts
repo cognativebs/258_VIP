@@ -6,6 +6,7 @@ import { ebaySoldAdapter } from "./ebaySold.js";
 
 afterEach(() => {
   delete process.env.PRICECHARTING_API_TOKEN;
+  delete process.env.PRICECHARTING_TOKEN;
   delete process.env.VIP_PRICECHARTING_GAP_MS;
 });
 
@@ -31,6 +32,12 @@ describe("pricechartingAdapter", () => {
 
   it("replaces eBay Browse for comics when a token is set", () => {
     process.env.PRICECHARTING_API_TOKEN = "tok";
+    expect(pricechartingAdapter.matches(comic)).toBe(true);
+    expect(ebaySoldAdapter.matches(comic)).toBe(false);
+  });
+
+  it("accepts PRICECHARTING_TOKEN as an alias", () => {
+    process.env.PRICECHARTING_TOKEN = "tok";
     expect(pricechartingAdapter.matches(comic)).toBe(true);
     expect(ebaySoldAdapter.matches(comic)).toBe(false);
   });
