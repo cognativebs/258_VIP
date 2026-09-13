@@ -296,4 +296,89 @@ describe("eBay sell service", () => {
       }
     }
   });
+
+  it("creates the Production Inventory API location from EBAY_LOCATION_* env vars", async () => {
+    const keys = [
+      "EBAY_APP_ID",
+      "EBAY_CERT_ID",
+      "EBAY_REDIRECT_URI",
+      "EBAY_ENV",
+      "EBAY_MERCHANT_LOCATION_KEY",
+      "EBAY_LOCATION_LINE1",
+      "EBAY_LOCATION_CITY",
+      "EBAY_LOCATION_STATE",
+      "EBAY_LOCATION_POSTAL",
+      "EBAY_LOCATION_COUNTRY",
+    ] as const;
+    const prior = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.EBAY_APP_ID = "app";
+    process.env.EBAY_CERT_ID = "cert";
+    process.env.EBAY_REDIRECT_URI = "https://example.test/ru";
+    process.env.EBAY_ENV = "production";
+    process.env.EBAY_MERCHANT_LOCATION_KEY = "home";
+    process.env.EBAY_LOCATION_LINE1 = "1 Vault Way";
+    process.env.EBAY_LOCATION_CITY = "Austin";
+    process.env.EBAY_LOCATION_STATE = "TX";
+    process.env.EBAY_LOCATION_POSTAL = "78701";
+    process.env.EBAY_LOCATION_COUNTRY = "US";
+    try {
+      const store = createMemoryEbaySellStore();
+      await store.saveToken({
+        accessToken: "live-access",
+        refreshToken: "refresh-1",
+        expiresAt: new Date(Date.now() + 3_600_000),
+        scopes: [],
+      });
+      const calls: { method: string; url: string; body: unknown }[] = [];
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        calls.push({
+          method: init?.method ?? "GET",
+          url,
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        });
+        return new Response(null, { status: 204 });
+      };
+      const service = createEbaySellService({ store, fetchImpl });
+      const result = await service.createLocation();
+      expect(result).toEqual({ ok: true, merchantLocationKey: "home", status: 204, errorMessage: null });
+      const created = calls.find((c) => c.url.includes("/sell/inventory/v1/location/home"));
+      expect(created?.method).toBe("POST");
+      expect(created?.body).toMatchObject({
+        locationTypes: ["WAREHOUSE"],
+        location: {
+          address: {
+            addressLine1: "1 Vault Way",
+            city: "Austin",
+            stateOrProvince: "TX",
+            postalCode: "78701",
+            country: "US",
+          },
+        },
+      });
+    } finally {
+      for (const k of keys) {
+        if (prior[k] == null) delete process.env[k];
+        else process.env[k] = prior[k];
+      }
+    }
+  });
+
+  it("refuses to create a location without EBAY_MERCHANT_LOCATION_KEY", async () => {
+    const keys = ["EBAY_APP_ID", "EBAY_CERT_ID", "EBAY_REDIRECT_URI", "EBAY_MERCHANT_LOCATION_KEY"] as const;
+    const prior = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.EBAY_APP_ID = "app";
+    process.env.EBAY_CERT_ID = "cert";
+    process.env.EBAY_REDIRECT_URI = "https://example.test/ru";
+    delete process.env.EBAY_MERCHANT_LOCATION_KEY;
+    try {
+      const service = createEbaySellService({ store: createMemoryEbaySellStore() });
+      await expect(service.createLocation()).rejects.toThrow(/EBAY_MERCHANT_LOCATION_KEY/);
+    } finally {
+      for (const k of keys) {
+        if (prior[k] == null) delete process.env[k];
+        else process.env[k] = prior[k];
+      }
+    }
+  });
 });
