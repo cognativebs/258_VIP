@@ -88,6 +88,66 @@ describe("comps adapters", () => {
     expect(adapters[0]?.adapterId).toBe("fixture");
   });
 
+  it("keeps only Browse titles that name this comic, never as sold", async () => {
+    process.env.EBAY_OAUTH_TOKEN = "test-token";
+    const prev = globalThis.fetch;
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      seen.push(String(input));
+      return new Response(
+        JSON.stringify({
+          itemSummaries: [
+            {
+              itemId: "keep",
+              title: "Action Comics #900 C Cover NM",
+              price: { value: "12.00" },
+              itemCreationDate: "2026-09-01T00:00:00.000Z",
+            },
+            {
+              itemId: "lot",
+              title: "Action Comics lot of 10",
+              price: { value: "40.00" },
+              itemCreationDate: "2026-09-01T00:00:00.000Z",
+            },
+            {
+              itemId: "other",
+              title: "Detective Comics #900",
+              price: { value: "8.00" },
+              itemCreationDate: "2026-09-01T00:00:00.000Z",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    try {
+      const book = mapInventoryRow(
+        {
+          Series: "Action Comics, Vol. 1",
+          "Issue Full": "900C",
+          Publisher: "DC Comics",
+          "CLZ Hash": "ac-900c",
+          Quantity: 1,
+        },
+        0,
+      );
+      const result = await ebaySoldAdapter.fetchComps(book);
+      const requested = decodeURIComponent((seen[0] ?? "").replace(/\+/g, " "));
+      expect(requested).toContain("category_ids=63");
+      expect(requested).toContain("q=Action Comics #900");
+      expect(requested).not.toMatch(/DC Comics/);
+      expect(result.sales).toHaveLength(1);
+      expect(result.sales[0]?.price).toBe(12);
+      expect(result.sales[0]?.title).toMatch(/Action Comics #900/);
+      expect(result.sales[0]?.provenance.verificationStatus).toBe("unverified");
+      expect(result.sales[0]?.provenance.notes ?? "").toMatch(/unverified ask/);
+      expect(result.sales[0]?.provenance.notes ?? "").toMatch(/not a sold ledger/);
+      expect(result.sales[0]?.provenance.ruleOrModelVersion).toBe("ebay-sold@0.2.0");
+    } finally {
+      globalThis.fetch = prev;
+    }
+  });
+
   it("injected adapter results flow through without fabrication", async () => {
     const adapter = fixtureCompsAdapter([
       {
