@@ -67,13 +67,13 @@ export function holdingToNeedBinderItem(h: ApiHolding): NeedBinderHuntItem {
 export function needBinderHuntMetrics(holdings: ApiHolding[]) {
   const owned = holdings.filter(isOwnedBinderHolding).length;
   const missing = holdings.filter(isNeedBinderHolding).length;
-  const total = owned + missing || 1;
+  const total = owned + missing;
   return {
     owned,
     wanted: 0,
     missing,
     total,
-    completionPct: Math.round((owned / total) * 1000) / 10,
+    completionPct: total ? Math.round((owned / total) * 1000) / 10 : 0,
   };
 }
 

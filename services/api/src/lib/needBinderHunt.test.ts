@@ -87,6 +87,7 @@ describe("need binder hunt", () => {
       total: 3,
       completionPct: 66.7,
     });
-    expect(needBinderHuntMetrics([]).total).toBe(1);
+    expect(needBinderHuntMetrics([]).total).toBe(0);
+    expect(needBinderHuntMetrics([]).completionPct).toBe(0);
   });
 });
