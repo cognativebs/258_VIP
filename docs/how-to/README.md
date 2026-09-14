@@ -15,6 +15,7 @@ stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 | eBay comps (Analysis market evidence) | [10-ebay-comps.md](10-ebay-comps.md) |
 | eBay Production deletion URL (Cloudflare Worker) | [11-ebay-marketplace-deletion.md](11-ebay-marketplace-deletion.md) |
 | eBay closed-loop selling engine | [12-ebay-sell-engine.md](12-ebay-sell-engine.md) |
+| Dealer kit (Flip Score / grading / comps / store) | [13-dealer-kit.md](13-dealer-kit.md) |
 | Claude MA from WSL2 (placement, billing, no repo mount) | [09-claude-ma-wsl.md](09-claude-ma-wsl.md) |
 | Card price history (TCGplayer, daily) | [08-card-price-history.md](08-card-price-history.md) |
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |
@@ -68,6 +69,7 @@ Orchestr8 Ask needs at least one key in `orchestr8/.env` (see `.env.example`).
 | — Sports (stub) | http://127.0.0.1:3000/collections/sports | catalog only until ingest |
 | — Scan intake (Ricoh fi-8170) | http://127.0.0.1:3000/scan | needs `VIP_SCAN_INBOX` |
 | — eBay selling loop | http://127.0.0.1:3000/ebay | Sell OAuth + policies; see [12](12-ebay-sell-engine.md) |
+| — Dealer kit | http://127.0.0.1:3000/tools | Flip Score, grading, comps, store |
 | Binder Vault (TCG binders) | http://127.0.0.1:3010 | `npm run binder` (Launch starts this; `-NoBinder` skips) |
 | VIP API | http://127.0.0.1:8787 | `npm run api` |
 | Comics API | http://127.0.0.1:5200 | `npm run comics` / `python api/comics_server.py` (needs Postgres) |

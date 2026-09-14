@@ -1,0 +1,322 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#111827" ss:Pattern="Solid"/><Font ss:Color="#D4A853"/></Style>
+    <Style ss:ID="Input"><Interior ss:Color="#FFF3CD" ss:Pattern="Solid"/></Style>
+    <Style ss:ID="Out"><Font ss:Bold="1"/></Style>
+  </Styles>
+  <Worksheet ss:Name="Calculator">
+    <Table>
+      <Row><Cell><Data ss:Type="String">Break-Even Grading Calculator</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Fees as of 2026-09-13 · confirm at checkout · dealer-kit@0.1.0</Data></Cell></Row>
+      <Row></Row>
+      <Row>
+        <Cell><Data ss:Type="String">Raw cost</Data></Cell>
+        <Cell ss:StyleID="Input"><Data ss:Type="Number">100</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">Grading fee (from Fees tab)</Data></Cell>
+        <Cell ss:StyleID="Input"><Data ss:Type="Number">59.99</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">Shipping</Data></Cell>
+        <Cell ss:StyleID="Input"><Data ss:Type="Number">15</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">Insurance</Data></Cell>
+        <Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">Selling fee %</Data></Cell>
+        <Cell ss:StyleID="Input"><Data ss:Type="Number">0.13</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">All-in before sale</Data></Cell>
+        <Cell ss:StyleID="Out" ss:Formula="=R[-5]C+R[-4]C+R[-3]C+R[-2]C"><Data ss:Type="Number">174.99</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="String">Min sale to break even (any grade)</Data></Cell>
+        <Cell ss:StyleID="Out" ss:Formula="=R[-1]C/(1-R[-3]C)"><Data ss:Type="Number">201.14</Data></Cell>
+      </Row>
+      <Row></Row>
+      <Row><Cell><Data ss:Type="String">Optional market value</Data></Cell><Cell><Data ss:Type="String">Expected net vs all-in</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Grade 7</Data></Cell><Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell><Cell ss:Formula="=IF(RC[-1]=0,&quot;&quot;,RC[-1]*(1-R8C2)-R9C2)"><Data ss:Type="String"></Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Grade 8</Data></Cell><Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell><Cell ss:Formula="=IF(RC[-1]=0,&quot;&quot;,RC[-1]*(1-R8C2)-R9C2)"><Data ss:Type="String"></Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Grade 9</Data></Cell><Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell><Cell ss:Formula="=IF(RC[-1]=0,&quot;&quot;,RC[-1]*(1-R8C2)-R9C2)"><Data ss:Type="String"></Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Grade 9.5</Data></Cell><Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell><Cell ss:Formula="=IF(RC[-1]=0,&quot;&quot;,RC[-1]*(1-R8C2)-R9C2)"><Data ss:Type="String"></Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">Grade 10</Data></Cell><Cell ss:StyleID="Input"><Data ss:Type="Number">0</Data></Cell><Cell ss:Formula="=IF(RC[-1]=0,&quot;&quot;,RC[-1]*(1-R8C2)-R9C2)"><Data ss:Type="String"></Data></Cell></Row>
+    </Table>
+  </Worksheet>
+  <Worksheet ss:Name="Fees">
+    <Table>
+      <Row ss:StyleID="Header">
+        <Cell><Data ss:Type="String">id</Data></Cell>
+        <Cell><Data ss:Type="String">grader</Data></Cell>
+        <Cell><Data ss:Type="String">category</Data></Cell>
+        <Cell><Data ss:Type="String">name</Data></Cell>
+        <Cell><Data ss:Type="String">lane</Data></Cell>
+        <Cell><Data ss:Type="String">fee</Data></Cell>
+        <Cell><Data ss:Type="String">turnaround_bd</Data></Cell>
+        <Cell><Data ss:Type="String">max_insured</Data></Cell>
+        <Cell><Data ss:Type="String">min_qty</Data></Cell>
+        <Cell><Data ss:Type="String">status</Data></Cell>
+        <Cell><Data ss:Type="String">notes</Data></Cell>
+      </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-value-bulk</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Value Bulk</Data></Cell>
+      <Cell><Data ss:Type="String">bulk</Data></Cell>
+      <Cell><Data ss:Type="Number">24.99</Data></Cell>
+      <Cell><Data ss:Type="Number">100</Data></Cell>
+      <Cell><Data ss:Type="Number">500</Data></Cell>
+      <Cell><Data ss:Type="Number">20</Data></Cell>
+      <Cell><Data ss:Type="String">paused</Data></Cell>
+      <Cell><Data ss:Type="String">Collectors Club; paused as of Sept 2026. Kept so the dropdown still models bulk.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-value</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Value</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">32.99</Data></Cell>
+      <Cell><Data ss:Type="Number">80</Data></Cell>
+      <Cell><Data ss:Type="Number">500</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">paused</Data></Cell>
+      <Cell><Data ss:Type="String">Paused Sept 2026. Do not assume you can submit at this fee.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-standard</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Standard</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">59.99</Data></Cell>
+      <Cell><Data ss:Type="Number">95</Data></Cell>
+      <Cell><Data ss:Type="Number">1000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Opens 2026-09-14. $1,000 MIV cap — the usual trap on 'cheap' tiers.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-priority</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Priority (ex Regular)</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">79.99</Data></Cell>
+      <Cell><Data ss:Type="Number">75</Data></Cell>
+      <Cell><Data ss:Type="Number">1500</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Renamed from Regular. Confirm live at checkout.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-express</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Express</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">199</Data></Cell>
+      <Cell><Data ss:Type="Number">25</Data></Cell>
+      <Cell><Data ss:Type="Number">2500</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Raised from $149 on 2026-09-09.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">psa-cards-premier</Data></Cell>
+      <Cell><Data ss:Type="String">PSA</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Premier (ex Walk-Through)</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">599</Data></Cell>
+      <Cell><Data ss:Type="Number">8</Data></Cell>
+      <Cell><Data ss:Type="Number">10000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Only for cards that already clear four-figure raw.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-cards-bulk</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Bulk</Data></Cell>
+      <Cell><Data ss:Type="String">bulk</Data></Cell>
+      <Cell><Data ss:Type="Number">17</Data></Cell>
+      <Cell><Data ss:Type="Number">150</Data></Cell>
+      <Cell><Data ss:Type="Number">500</Data></Cell>
+      <Cell><Data ss:Type="Number">25</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Mar 2026 update ($15 → $17). Effective min submission $425.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-cards-economy</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Economy</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">20</Data></Cell>
+      <Cell><Data ss:Type="Number">90</Data></Cell>
+      <Cell><Data ss:Type="Number">1000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Mar 2026 ($18 → $20).</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-cards-standard</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Standard</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">55</Data></Cell>
+      <Cell><Data ss:Type="Number">10</Data></Cell>
+      <Cell><Data ss:Type="Number">3000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Best mid-value speed/cost mix on the 2026 card schedule.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-cards-express</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Express</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">100</Data></Cell>
+      <Cell><Data ss:Type="Number">5</Data></Cell>
+      <Cell><Data ss:Type="Number">10000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Jan 2026 fee card.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-comics-modern-bulk</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">comics</Data></Cell>
+      <Cell><Data ss:Type="String">Modern Bulk</Data></Cell>
+      <Cell><Data ss:Type="String">bulk</Data></Cell>
+      <Cell><Data ss:Type="Number">27</Data></Cell>
+      <Cell><Data ss:Type="Number">60</Data></Cell>
+      <Cell><Data ss:Type="Number">400</Data></Cell>
+      <Cell><Data ss:Type="Number">25</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Jan 6 2026. Modern-era books only.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-comics-modern</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">comics</Data></Cell>
+      <Cell><Data ss:Type="String">Modern</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">30</Data></Cell>
+      <Cell><Data ss:Type="Number">30</Data></Cell>
+      <Cell><Data ss:Type="Number">400</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Jan 6 2026 ($27-era bulk vs $30 single).</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-comics-vintage</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">comics</Data></Cell>
+      <Cell><Data ss:Type="String">Vintage</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">45</Data></Cell>
+      <Cell><Data ss:Type="Number">30</Data></Cell>
+      <Cell><Data ss:Type="Number">400</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Jan 6 2026.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">cgc-comics-high-value</Data></Cell>
+      <Cell><Data ss:Type="String">CGC</Data></Cell>
+      <Cell><Data ss:Type="String">comics</Data></Cell>
+      <Cell><Data ss:Type="String">High Value</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">105</Data></Cell>
+      <Cell><Data ss:Type="Number">15</Data></Cell>
+      <Cell><Data ss:Type="Number">10000</Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Jan 6 2026. Use when FMV already clears four figures.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">bgs-cards-base</Data></Cell>
+      <Cell><Data ss:Type="String">BGS</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Base (no subgrades)</Data></Cell>
+      <Cell><Data ss:Type="String">bulk</Data></Cell>
+      <Cell><Data ss:Type="Number">14.95</Data></Cell>
+      <Cell><Data ss:Type="Number">75</Data></Cell>
+      <Cell><Data ss:Type="String"></Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">paused</Data></Cell>
+      <Cell><Data ss:Type="String">Public mid-2026 list; multiple sources mark Base/Standard paused. $3 upcharge if it 10s.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">bgs-cards-standard</Data></Cell>
+      <Cell><Data ss:Type="String">BGS</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Standard (subgrades)</Data></Cell>
+      <Cell><Data ss:Type="String">value</Data></Cell>
+      <Cell><Data ss:Type="Number">34.95</Data></Cell>
+      <Cell><Data ss:Type="Number">45</Data></Cell>
+      <Cell><Data ss:Type="String"></Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">paused</Data></Cell>
+      <Cell><Data ss:Type="String">Paused on several 2026 snapshots. Confirm before modeling as live.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">bgs-cards-express</Data></Cell>
+      <Cell><Data ss:Type="String">BGS</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Express</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">79.95</Data></Cell>
+      <Cell><Data ss:Type="Number">15</Data></Cell>
+      <Cell><Data ss:Type="String"></Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Includes subgrades. Often the only live BGS lane.</Data></Cell>
+    </Row>
+    <Row>
+      <Cell><Data ss:Type="String">bgs-cards-priority</Data></Cell>
+      <Cell><Data ss:Type="String">BGS</Data></Cell>
+      <Cell><Data ss:Type="String">cards</Data></Cell>
+      <Cell><Data ss:Type="String">Priority</Data></Cell>
+      <Cell><Data ss:Type="String">express</Data></Cell>
+      <Cell><Data ss:Type="Number">124.95</Data></Cell>
+      <Cell><Data ss:Type="Number">5</Data></Cell>
+      <Cell><Data ss:Type="String"></Data></Cell>
+      <Cell><Data ss:Type="Number">1</Data></Cell>
+      <Cell><Data ss:Type="String">active</Data></Cell>
+      <Cell><Data ss:Type="String">Includes subgrades.</Data></Cell>
+    </Row>
+    </Table>
+  </Worksheet>
+  <Worksheet ss:Name="Pop red flags">
+    <Table>
+      <Row ss:StyleID="Header">
+        <Cell><Data ss:Type="String">id</Data></Cell>
+        <Cell><Data ss:Type="String">title</Data></Cell>
+        <Cell><Data ss:Type="String">when</Data></Cell>
+        <Cell><Data ss:Type="String">why</Data></Cell>
+      </Row>
+      <Row><Cell><Data ss:Type="String">high-pop</Data></Cell><Cell><Data ss:Type="String">High pop</Data></Cell><Cell><Data ss:Type="String">2,500+ at the grade you need (10k+ is automatic no).</Data></Cell><Cell><Data ss:Type="String">Buyers will wait for a nicer copy at the same number.</Data></Cell></Row><Row><Cell><Data ss:Type="String">thin-spread</Data></Cell><Cell><Data ss:Type="String">Thin 10 / 9 spread</Data></Cell><Cell><Data ss:Type="String">PSA/CGC 10 sells &lt;35% above the 9.</Data></Cell><Cell><Data ss:Type="String">The most common outcome (a 9) does not pay the ticket.</Data></Cell></Row><Row><Cell><Data ss:Type="String">modern-print</Data></Cell><Cell><Data ss:Type="String">Still-printing modern</Data></Cell><Cell><Data ss:Type="String">Set is &lt;4 years old and census is already climbing.</Data></Cell><Cell><Data ss:Type="String">You are racing the print run. Sell raw or wait for a crash.</Data></Cell></Row><Row><Cell><Data ss:Type="String">no-demand</Data></Cell><Cell><Data ss:Type="String">Low demand</Data></Cell><Cell><Data ss:Type="String">&lt;12 confirmed sales / year.</Data></Cell><Cell><Data ss:Type="String">A pretty slab that does not sell is inventory, not profit.</Data></Cell></Row>
+    </Table>
+  </Worksheet>
+  <Worksheet ss:Name="Lanes">
+    <Table>
+      <Row><Cell><Data ss:Type="String">Dropdown presets</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">bulk</Data></Cell><Cell><Data ss:Type="String">Value Bulk / CGC Bulk / BGS Base — cheapest, slowest, often paused or min-qty.</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">value</Data></Cell><Cell><Data ss:Type="String">PSA Standard/Priority, CGC Economy/Standard — default hobby lane.</Data></Cell></Row>
+      <Row><Cell><Data ss:Type="String">express</Data></Cell><Cell><Data ss:Type="String">PSA Express/Premier, CGC Express, BGS Express/Priority — only when the card already clears the fee 3×.</Data></Cell></Row>
+    </Table>
+  </Worksheet>
+</Workbook>

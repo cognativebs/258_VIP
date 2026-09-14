@@ -1,0 +1,19 @@
+id,grader,category,name,lane,fee_usd,turnaround_bd,max_insured,min_qty,status,notes,as_of
+psa-cards-value-bulk,PSA,cards,Value Bulk,bulk,24.99,100,500,20,paused,Collectors Club; paused as of Sept 2026. Kept so the dropdown still models bulk.,2026-09-13
+psa-cards-value,PSA,cards,Value,value,32.99,80,500,1,paused,Paused Sept 2026. Do not assume you can submit at this fee.,2026-09-13
+psa-cards-standard,PSA,cards,Standard,value,59.99,95,1000,1,active,"Opens 2026-09-14. $1,000 MIV cap — the usual trap on 'cheap' tiers.",2026-09-13
+psa-cards-priority,PSA,cards,Priority (ex Regular),value,79.99,75,1500,1,active,Renamed from Regular. Confirm live at checkout.,2026-09-13
+psa-cards-express,PSA,cards,Express,express,199,25,2500,1,active,Raised from $149 on 2026-09-09.,2026-09-13
+psa-cards-premier,PSA,cards,Premier (ex Walk-Through),express,599,8,10000,1,active,Only for cards that already clear four-figure raw.,2026-09-13
+cgc-cards-bulk,CGC,cards,Bulk,bulk,17,150,500,25,active,Mar 2026 update ($15 → $17). Effective min submission $425.,2026-09-13
+cgc-cards-economy,CGC,cards,Economy,value,20,90,1000,1,active,Mar 2026 ($18 → $20).,2026-09-13
+cgc-cards-standard,CGC,cards,Standard,value,55,10,3000,1,active,Best mid-value speed/cost mix on the 2026 card schedule.,2026-09-13
+cgc-cards-express,CGC,cards,Express,express,100,5,10000,1,active,Jan 2026 fee card.,2026-09-13
+cgc-comics-modern-bulk,CGC,comics,Modern Bulk,bulk,27,60,400,25,active,Jan 6 2026. Modern-era books only.,2026-09-13
+cgc-comics-modern,CGC,comics,Modern,value,30,30,400,1,active,Jan 6 2026 ($27-era bulk vs $30 single).,2026-09-13
+cgc-comics-vintage,CGC,comics,Vintage,value,45,30,400,1,active,Jan 6 2026.,2026-09-13
+cgc-comics-high-value,CGC,comics,High Value,express,105,15,10000,1,active,Jan 6 2026. Use when FMV already clears four figures.,2026-09-13
+bgs-cards-base,BGS,cards,Base (no subgrades),bulk,14.95,75,,1,paused,Public mid-2026 list; multiple sources mark Base/Standard paused. $3 upcharge if it 10s.,2026-09-13
+bgs-cards-standard,BGS,cards,Standard (subgrades),value,34.95,45,,1,paused,Paused on several 2026 snapshots. Confirm before modeling as live.,2026-09-13
+bgs-cards-express,BGS,cards,Express,express,79.95,15,,1,active,Includes subgrades. Often the only live BGS lane.,2026-09-13
+bgs-cards-priority,BGS,cards,Priority,express,124.95,5,,1,active,Includes subgrades.,2026-09-13
