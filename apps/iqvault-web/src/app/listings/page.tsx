@@ -74,7 +74,7 @@ export default function ListingsPage() {
       <p className="page-sub">
         Legacy Browse-range drafts only. <code>submitReady</code> stays false until a human
         Submit. Personal Collection is blocked unless an override note is captured. LIVE
-        ranges are Browse listings · unverified — not sold comps.
+        ranges are PriceCharting guide · unverified — not sold comps.
       </p>
       <div className="panel" style={{ marginBottom: 16 }}>
         <strong>Closed-loop selling is on /ebay.</strong>

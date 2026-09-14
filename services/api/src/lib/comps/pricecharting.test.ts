@@ -24,13 +24,13 @@ const comic = mapInventoryRow(
 describe("pricechartingAdapter", () => {
   it("stays idle without a token and does not match", async () => {
     expect(pricechartingAdapter.matches(comic)).toBe(false);
-    expect(ebaySoldAdapter.matches(comic)).toBe(true);
+    expect(ebaySoldAdapter.matches(comic)).toBe(false);
     const result = await pricechartingAdapter.fetchComps(comic);
     expect(result.sales).toEqual([]);
     expect(result.emptyReason).toMatch(/PRICECHARTING_API_TOKEN/);
   });
 
-  it("replaces eBay Browse for comics when a token is set", () => {
+  it("matches comics when a token is set; eBay asks stay off", () => {
     process.env.PRICECHARTING_API_TOKEN = "tok";
     expect(pricechartingAdapter.matches(comic)).toBe(true);
     expect(ebaySoldAdapter.matches(comic)).toBe(false);

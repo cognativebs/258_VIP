@@ -15,7 +15,7 @@ import { getDb } from "../db/client.js";
 import type { ApiHolding } from "./holdings.js";
 import { loadLiveRangeMap } from "./liveRange.js";
 
-const MIN_LISTINGS_FOR_INVESTMENT = 3;
+const MIN_LISTINGS_FOR_INVESTMENT = 1;
 
 export function decideListingDraft(input: {
   holding: ApiHolding;
@@ -62,7 +62,7 @@ export function decideListingDraft(input: {
     if (!enoughListings && !input.body.rangeOverrideNote) {
       return base(input, bucket, title, ask, {
         status: "blocked_insufficient_range",
-        emptyReason: `Need ${MIN_LISTINGS_FOR_INVESTMENT}+ Browse listings (have ${input.listingCount}) or a range override note. LIVE is unverified asks, not sold.`,
+        emptyReason: `Need a PriceCharting guide quote (have ${input.listingCount}) or a range override note. LIVE is unverified, not sold.`,
       });
     }
     if (ask != null && !inRange && !input.body.rangeOverrideNote) {

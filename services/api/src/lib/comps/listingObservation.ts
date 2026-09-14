@@ -58,7 +58,7 @@ export function observationsFromAdapterResult(input: {
 }): ListingObservation[] {
   const { assetId, holdingId, holdingSourceRowId, adapter, observedAt, rawSnapshotId } = input;
   const listings = adapter.sales.filter((s) => Number.isFinite(s.price) && s.price > 0);
-  const guide = adapter.adapterId === "pricecharting";
+  const guide = adapter.adapterId === "pricecharting" || adapter.adapterId === "none";
   if (!listings.length) {
     return [
       ListingObservationSchema.parse({

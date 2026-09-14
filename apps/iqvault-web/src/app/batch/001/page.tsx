@@ -141,7 +141,7 @@ export default function Batch001Page() {
         25 messy Dealer Inventory sports cards through ingest → identify → bucket →
         LIVE → disposition → eBay-ready. Inspect every row. Record only
         money-affecting failures and elapsed human seconds. Comics (10) wait.
-        LIVE is Browse listings · unverified — never sold.
+        LIVE is PriceCharting guide · unverified — never sold.
       </p>
       {error ? <div className="error">{error}</div> : null}
       <div className="panel" style={{ marginBottom: 16 }}>

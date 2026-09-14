@@ -161,7 +161,7 @@ export function buildAnalyticsContext(args: {
         "Sell/Lot = exit when liquidity is high and timing favors moving inventory",
         "Pillar review = General Inventory books that need reassignment",
         "Grade = raw keys/variants worth slab investment",
-        "LIVE is eBay Browse listings · unverified — never treat VALUE as a sold fact",
+        "LIVE is PriceCharting guide · unverified — never treat VALUE as a sold fact",
       ],
     },
     signals: args.signals

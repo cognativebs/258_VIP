@@ -157,7 +157,7 @@ export function scanMeta() {
       "HIGH / MEDIUM / LOW / CONFLICT review route",
       "physical reimport (hash) vs same card type",
       "draft inventory candidate (confirm → Dealer · Sell)",
-      "LIVE range (Browse listings · unverified)",
+      "LIVE range (PriceCharting guide · unverified)",
       "eBay listing draft (submitReady false)",
     ],
     deferred: [

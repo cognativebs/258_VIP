@@ -114,7 +114,7 @@ export function softwareFlagsFor(
   }
   if (!liveLabel || liveLabel === "not fetched") {
     flags.add("pricing");
-    notes.push("LIVE not fetched — no Browse listings · unverified range");
+    notes.push("LIVE not fetched — no PriceCharting guide · unverified range");
   }
   if (dispositionAction === "Hold" && expected.parallel) {
     flags.add("disposition");

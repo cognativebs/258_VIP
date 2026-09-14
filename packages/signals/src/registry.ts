@@ -44,8 +44,8 @@ export const DEFAULT_SOURCES: SourceRegistryEntry[] = [
     categoryCoverage: ["pokemon", "sports", "comic", "tcg"],
     accessMethod: "api",
     terms:
-      "buy.browse OAuth; store raw Browse JSON snapshots; asks are inferred · not sold. Swap to sold aggregator behind MarketCompsAdapter when available.",
-    active: true,
+      "Retired as a valuation source (2026-09-14). eBay asks are not used for LIVE or comps.",
+    active: false,
   }),
   SourceRegistryEntrySchema.parse({
     id: "ebay-sold",
@@ -55,8 +55,8 @@ export const DEFAULT_SOURCES: SourceRegistryEntry[] = [
     latencyHours: 1,
     categoryCoverage: ["comic"],
     accessMethod: "api",
-    terms: "Requires EBAY_OAUTH_TOKEN. Sold-ledger preferred; Browse summaries marked unverified until confirmed. Never invent comps when idle.",
-    active: true,
+    terms: "Insights solds are gated. Do not substitute Browse asks. Inactive until a sold-only adapter exists.",
+    active: false,
   }),
   SourceRegistryEntrySchema.parse({
     id: "tcgplayer-market",

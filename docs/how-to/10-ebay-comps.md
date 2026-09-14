@@ -1,26 +1,18 @@
-# eBay comps for Collection Analysis
+# Comics comps for Collection Analysis
 
-Comics market evidence on Analysis uses the VIP `ebay-sold` adapter. Without
-credentials it stays **idle** and the critic correctly vetoes Sell/Lot.
+eBay **asks are not a valuation source**. LIVE and Analysis do not call
+Browse. Comics use PriceCharting guide quotes (unverified, not solds).
+eBay keys remain for **selling** (Inventory / offers), not for pricing.
 
-This is **not** a sold ledger. eBay Marketplace Insights (completed/sold) is
-gated. Browse search returns **active listing observations**, marked
-`unverified`. Still better than catalog `Current Price` as if it were a comp.
+Do **not** put eBay or PriceCharting keys in `orchestr8/.env` (LLM keys only).
 
-Comics Browse queries are `Series #Issue` inside category 63 (no publisher,
-volume suffix stripped). Returned titles must name that series and issue;
-lots, omnibuses, and TPBs are dropped. LIVE uses only the latest walk for
-each holding so older mismatched asks cannot keep widening the range.
-
-Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
-
-## PriceCharting instead of eBay Browse (comics)
+## PriceCharting (comics LIVE)
 
 When `PRICECHARTING_API_TOKEN` (or alias `PRICECHARTING_TOKEN`) is set in
 `services/api/.env`, comics comps use PriceCharting's official Prices API
-(`/api/products` then `/api/product`). eBay Browse is skipped for comics.
-Quotes are the current **ungraded/loose guide** (pennies → USD), labeled
-unverified. They are **not** written to `vault_market.sale`.
+(`/api/products` then `/api/product`). Quotes are the current **ungraded/loose
+guide** (pennies → USD), labeled unverified. They are **not** written to
+`vault_market.sale`.
 
 Nightly snapshot history and the vendor product map are [plan 0004](../plans/0004-pricecharting-core-wiring.md)
 / [ADR 0011](../adr/0011-pricecharting-wiring-on-live-vip.md). LIVE quotes
@@ -101,22 +93,10 @@ Expect `ebayComps.configured = True` and `ebayComps.mode = client_credentials`.
 Invoke-RestMethod http://127.0.0.1:8787/api/recommendations?limit=1 | ConvertTo-Json -Depth 6
 ```
 
-Expect `compsSource` not `none` **or** an `emptyReason` about no matched items
-(credentials worked; that title is thin). `EBAY_APP_ID` / idle means the `.env`
-was not loaded — confirm the file is `services\api\.env` and VIP was restarted.
-
-Then Analysis → wait for the **comps** pill (and **eBay** / **liquidation** pills).
-`0/12` can still happen if Browse returns no items for those titles. Challenge
-**must veto** Sell/Lot while `liquidation` is `blocked`. That is the product.
-
-**Challenge Council condition:** re-run adapters with valid tokens, then require
-`matchedSales >= 3` (`liquidationGate.eligibleHoldingIds`). Click **Re-run comps**
-or **Run** (Run always re-fetches). Do not liquidate until `liquidation` is
-`conditional` and the title is in `eligibleHoldingIds`.
-
-Walking the **whole** comics vault is a batched job, not an Analysis uncap —
+Expect comics comps from PriceCharting when `PRICECHARTING_API_TOKEN` is set.
+eBay App ID does **not** feed LIVE. Walking the vault is a batched job —
 see [plan 0003](../plans/0003-comics-comps-vault-ingest.md). Collection Tab
-VALUE stays the CLZ snapshot. Browse asks land in `vault_market.listing_observation`,
+VALUE stays the CLZ snapshot. Guide quotes land in `vault_market.listing_observation`,
 never in `vault_market.sale` and never over CLZ dollars.
 
 ## 5. Vault walk (Marvel / DC, then all)
@@ -129,6 +109,12 @@ cd D:\Projects\Business_Ideas\258_Labs\258_VIP
 npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12
 ```
 
+To replace leftover eBay ask rows, force a refresh:
+
+```powershell
+npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12 --stale-hours=0
+```
+
 Expect a report with `processed` / `wrote` / `unmatched`. Resume the rest:
 
 ```powershell
@@ -138,5 +124,5 @@ npm run job:comics-comps -- --publishers=Marvel,DC --resume
 Full comics vault (every publisher): `--publishers=all`. Ctrl+C pauses; `--resume`
 continues. Dry-run (`--dry-run`) fetches nothing into Postgres.
 
-A future LIVE column is range + listing count + recency · unverified, beside
-VALUE, never instead of it.
+LIVE is range + guide-quote count + recency · unverified, beside VALUE, never
+instead of it.

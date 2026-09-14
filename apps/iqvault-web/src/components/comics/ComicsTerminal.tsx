@@ -742,7 +742,7 @@ export function ComicsTerminal({
                   <div>{formatCell("Current Price", selected["Current Price"])}</div>
                 </div>
                 <div>
-                  <span className="bb-dim">LIVE (Browse listings · unverified)</span>
+                  <span className="bb-dim">LIVE (PriceCharting guide · unverified)</span>
                   <div>{formatCell("Live Range", selected["Live Range"])}</div>
                 </div>
                 <div>

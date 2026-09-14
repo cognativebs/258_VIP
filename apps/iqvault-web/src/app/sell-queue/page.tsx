@@ -19,7 +19,7 @@ export default async function SellQueuePage() {
       <p className="page-sub">
         Dealer + Investment items with High/Medium sell priority. Personal Collection is
         excluded from routine sale. LIVE ranges (when cached) stay labeled unverified
-        Browse listings — VALUE is still the CLZ snapshot.
+        PriceCharting guide — VALUE is still the CLZ snapshot.
       </p>
       {error ? <div className="error">{error}</div> : null}
       <div className="table-wrap">

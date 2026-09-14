@@ -298,7 +298,11 @@ export async function runComicsCompsWalk(
         wrote = await opts.store.insertObservations(observations);
       }
 
-      const unmatched = observations.every((o) => o.observationKind === "browse_empty") ? 1 : 0;
+      const unmatched = observations.every(
+        (o) => o.observationKind === "browse_empty" || o.observationKind === "guide_empty",
+      )
+        ? 1
+        : 0;
       cursor = {
         ...cursor,
         processed: cursor.processed + 1,

@@ -1,5 +1,4 @@
 import type { ApiHolding } from "../holdings.js";
-import { ebaySoldAdapter } from "./ebaySold.js";
 import { pricechartingAdapter } from "./pricecharting.js";
 import { tcgplayerMarketAdapter } from "./tcgplayerMarket.js";
 import type { CompSale, CompsAdapter, CompsAdapterResult } from "./types.js";
@@ -19,7 +18,6 @@ export type EngineSaleComp = {
 
 const DEFAULT_ADAPTERS: CompsAdapter[] = [
   pricechartingAdapter,
-  ebaySoldAdapter,
   tcgplayerMarketAdapter,
 ];
 

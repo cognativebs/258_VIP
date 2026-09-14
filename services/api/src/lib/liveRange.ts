@@ -1,7 +1,6 @@
 /**
- * Read cached Browse listing observations as a LIVE range chip.
- * Only the latest walk for each holding counts — leftover lots and
- * mismatched titles from older queries must not keep widening the range.
+ * Read cached PriceCharting guide observations as a LIVE range chip.
+ * Only the latest walk for each holding counts.
  * Never writes vault_market.sale or current_price_snapshot.
  */
 import { sql } from "drizzle-orm";
@@ -9,7 +8,7 @@ import { liveRangeChip, type LiveRangeChip } from "@vip/core-model";
 import { getDb } from "../db/client.js";
 
 export const LIVE_RANGE_COPY =
-  "eBay Browse listings · unverified — not a sold ledger. VALUE stays the CLZ catalog snapshot.";
+  "PriceCharting guide · unverified — not a sold ledger. VALUE stays the CLZ catalog snapshot.";
 
 export type LiveRangeRow = {
   holding_source_row_id: string;

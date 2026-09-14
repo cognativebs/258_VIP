@@ -67,7 +67,7 @@ describe("decideListingDraft", () => {
     expect(draft.listingPayload.submitReady).toBe(false);
   });
 
-  it("blocks investment vault without enough live listings", () => {
+  it("blocks investment vault without a PriceCharting guide quote", () => {
     const draft = decideListingDraft({
       holding: holding({
         pillar: "Investment Portfolio",
@@ -75,7 +75,7 @@ describe("decideListingDraft", () => {
         recommendationLabel: "Investment Hold / Review",
       }),
       body: sellBody,
-      listingCount: 1,
+      listingCount: 0,
       liveLow: 10,
       liveHigh: 12,
       hasEbayCreds: true,

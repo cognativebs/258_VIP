@@ -75,8 +75,8 @@ export function SportsTerminal() {
         Identification parses year / brand / player / number from the scan file name or OCR
         and stays inferred · unverified until you confirm. Fixture catalog still matches
         Jordan 1986 Topps and Wembanyama Prizm. CardSight is idle without{" "}
-        <code>CARDSIGHT_API_KEY</code>. Pricing uses eBay Browse listings · unverified when
-        credentials exist — never a fabricated point price.
+        <code>CARDSIGHT_API_KEY</code>. Pricing does not use eBay asks. LIVE stays
+        empty until a guide source is wired — never a fabricated point price.
       </p>
       <p>
         Buckets: Personal {byBucket.personal_collection} · Invest {byBucket.investment_vault} ·

@@ -12,7 +12,7 @@ export const COMPS_HOLDING_CAP = 12;
 
 /**
  * Market comps for a holding. Live path uses swappable adapters
- * (PriceCharting guide, eBay Browse listings, TCGplayer market).
+ * (PriceCharting guide, TCGplayer market). eBay asks are not a valuation source.
  * Empty adapter results mean "insufficient market evidence" — never fabricated sales.
  *
  * Rule 4: never invent comps. Four synthetic sales at CLZ × 0.9/1.0/1.1/0.95
