@@ -9,6 +9,8 @@ export type HuntItem = {
   priority: string;
   buyUnder: number | null;
   market: number | null;
+  imageUrl?: string | null;
+  notes?: string | null;
 };
 
 export type Hunt = {
@@ -133,18 +135,31 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
 
         {section ? (
           <div className="hunt-gallery" style={{ marginTop: 16 }}>
-            {section.items.map((item) => (
-              <div key={item.id} className="hunt-tile">
-                <div className="hunt-art" aria-hidden />
-                <div className="hunt-meta">
-                  <div className="name">{item.name}</div>
-                  <div className={`status-${item.status}`} style={{ fontSize: 12, marginTop: 4 }}>
-                    {item.status.toUpperCase()}
-                    {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
+            {section.items.length === 0 ? (
+              <p className="muted">No still-needed pockets in this section.</p>
+            ) : (
+              section.items.map((item) => (
+                <div key={item.id} className="hunt-tile">
+                  {item.imageUrl ? (
+                    <img className="hunt-art" src={item.imageUrl} alt="" />
+                  ) : (
+                    <div className="hunt-art" aria-hidden />
+                  )}
+                  <div className="hunt-meta">
+                    <div className="name">{item.name}</div>
+                    <div className={`status-${item.status}`} style={{ fontSize: 12, marginTop: 4 }}>
+                      {item.status.toUpperCase()}
+                      {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
+                    </div>
+                    {item.notes ? (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                        {item.notes}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         ) : null}
       </div>

@@ -90,6 +90,10 @@ import {
   loadBatch001,
   runBatch001Sports,
 } from "./lib/batchPipeline.js";
+import {
+  NEED_BINDER_HUNT_ID,
+  needBinderHuntPayload,
+} from "./lib/needBinderHunt.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
@@ -503,14 +507,25 @@ export function createApp(deps: AppDeps = {}) {
     });
   });
 
-  app.get("/api/hunts", (_req, res) => {
+  app.get("/api/hunts", async (_req, res) => {
+    const { holdings } = await buildInventory(deps);
+    const needBinder = needBinderHuntPayload(holdings);
     res.json({
-      hunts: HUNTS.map((h) => ({ ...h, metrics: huntCompletion(h) })),
+      hunts: [
+        needBinder,
+        ...HUNTS.map((h) => ({ ...h, metrics: huntCompletion(h) })),
+      ],
     });
   });
 
-  app.get("/api/hunts/:id", (req, res) => {
-    const hunt = HUNTS.find((h) => h.id === req.params.id || h.slug === req.params.id);
+  app.get("/api/hunts/:id", async (req, res) => {
+    const id = String(req.params.id);
+    if (id === NEED_BINDER_HUNT_ID) {
+      const { holdings } = await buildInventory(deps);
+      res.json({ hunt: needBinderHuntPayload(holdings) });
+      return;
+    }
+    const hunt = HUNTS.find((h) => h.id === id || h.slug === id);
     if (!hunt) {
       res.status(404).json({ error: "Hunt not found" });
       return;

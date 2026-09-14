@@ -1,7 +1,7 @@
 import type { ComicRow, ComicsMeta } from "./comicTypes";
 import { apiGet, type Holding, type InventoryResponse } from "./api";
 import { holdingToComicRow, holdingToPokemonRow, metaFromHoldings } from "./holdingToComic";
-import { splitTcgHoldings } from "./collections";
+import { pokemonCollectionHoldings, splitTcgHoldings } from "./collections";
 
 /** Accept camelCase or snake_case inventory JSON for TCG display fields. */
 function normalizeTcgHolding(h: Holding): Holding {
@@ -136,11 +136,7 @@ export async function loadPokemonTerminalData(): Promise<{
 }> {
   const data = await apiGet<InventoryResponse>("/api/inventory");
   const split = splitTcgHoldings((data.holdings ?? []).map(normalizeTcgHolding));
-  const rows =
-    split.owned.length > 0
-      ? [...split.owned, ...split.need]
-      : [...split.seeds, ...split.need];
-  const inventory = rows.map(holdingToPokemonRow);
+  const inventory = pokemonCollectionHoldings(split).map(holdingToPokemonRow);
   const meta = metaFromHoldings(inventory);
   meta.source = data.tcgSource ? `vip-api · ${data.tcgSource}` : "vip-api";
   return {

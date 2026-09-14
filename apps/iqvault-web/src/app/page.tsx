@@ -230,8 +230,8 @@ export default async function PortfolioPage() {
 
             {tcgNeed.length > 0 ? (
               <p className="muted" style={{ fontSize: 13, marginBottom: 24 }}>
-                {tcgNeed.length} still-needed Binder pockets are in VIP inventory (not listed
-                above). Open Binder with <strong>Highlight Missing</strong> to hunt them.
+                {tcgNeed.length} still-needed Binder pockets live on{" "}
+                <a href="/hunts">Hunts</a> as <strong>Pokémon Need Binder</strong>.
               </p>
             ) : null}
           </section>
