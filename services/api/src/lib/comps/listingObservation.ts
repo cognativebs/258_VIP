@@ -9,6 +9,8 @@ import {
   ListingObservationSchema,
   type ListingObservation,
 } from "@vip/core-model";
+
+export type { ListingObservation };
 import { markInferred } from "@vip/evidence";
 import { getDb } from "../../db/client.js";
 import type { CompSale, CompsAdapterResult } from "./types.js";

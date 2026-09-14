@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "comics-comps": "tsx src/comicsCompsWalkCli.ts",
+    "comics-guide-snapshot": "tsx src/comicsGuideSnapshotCli.ts",
     "ebay-listing-sync": "tsx src/ebaySellJobsCli.ts listing-sync",
     "ebay-order-sync": "tsx src/ebaySellJobsCli.ts order-sync",
     "ebay-traffic-sync": "tsx src/ebaySellJobsCli.ts traffic-sync",

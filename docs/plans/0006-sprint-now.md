@@ -6,7 +6,7 @@ Owner board 2026-09-13. This is the only active queue. Everything else waits.
 
 | Item | Status | Honest gap |
 |---|---|---|
-| Comic pricing trustworthy | Partial | LIVE is PriceCharting only — eBay asks are off. VALUE is still CLZ. Quotes are unverified, not solds. Re-walk after pull so chips are guide quotes, not leftover Browse rows. |
+| Comic pricing trustworthy | Partial | LIVE is PriceCharting only. Full-vault morning snapshot (03:00 CDT) writes `guide_price_observation` history. VALUE is still CLZ. Quotes are unverified, not solds. |
 | Sports-card identification usable | Not usable | Ricoh sports holdings exist. Identity is still review-heavy. Sell path treats holdings as comics (`categoryKind` hardcoded). |
 | Pricing usable | Comics partial / sports no | Sports have no live comps path. Comics LIVE is a range, not a fact. |
 | eBay injection usable | Comics-only, listing parked | Production preflight can pass. Mapper is comic-only. Owner has not listed. |

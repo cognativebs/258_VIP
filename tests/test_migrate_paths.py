@@ -19,6 +19,7 @@ def test_all_sql_migrations_live_in_infra():
     assert "20260702_02_tcg.sql" in names
     assert "20260809_01_binder_postgres.sql" in names
     assert "20260913_02_pricecharting_source_registry.sql" in names
+    assert "20260914_01_guide_price_observation.sql" in names
     assert names == sorted(names)
     reserved = tuple(f"{n}_" for n in range(25, 35))
     colliding = [n for n in names if n.startswith(reserved)]

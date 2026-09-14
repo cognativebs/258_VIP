@@ -23,6 +23,7 @@
     "job:clz-sync": "npm run clz-sync -w @vip/jobs",
     "job:price-history": "npm run price-history -w @vip/jobs",
     "job:comics-comps": "npm run comics-comps -w @vip/api --",
+    "job:comics-guide-snapshot": "npm run comics-guide-snapshot -w @vip/api --",
     "job:ebay-listing-sync": "npm run ebay-listing-sync -w @vip/api",
     "job:ebay-order-sync": "npm run ebay-order-sync -w @vip/api",
     "job:ebay-traffic-sync": "npm run ebay-traffic-sync -w @vip/api",

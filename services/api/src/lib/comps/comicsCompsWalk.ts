@@ -18,6 +18,7 @@ import {
   LISTING_OBSERVATION_RULE,
   LISTING_OBSERVATION_SOURCE,
   observationsFromAdapterResult,
+  type ListingObservation,
   type ListingObservationStore,
 } from "./listingObservation.js";
 
@@ -51,6 +52,15 @@ export type ComicsCompsWalkOptions = {
   rateLimitMs?: number;
   shouldStop?: () => boolean;
   triggeredBy?: string;
+  /** When set, replaces listing_observation stale-hours skip. */
+  isFresh?: (holdingSourceRowId: string, now: Date) => Promise<boolean>;
+  afterPersist?: (input: {
+    assetId: string;
+    holdingId: string;
+    holdingSourceRowId: string;
+    observations: ListingObservation[];
+    observedAt: Date;
+  }) => Promise<void>;
 };
 
 export type ComicsCompsWalkResult = {
@@ -237,8 +247,13 @@ export async function runComicsCompsWalk(
         break;
       }
 
-      const latest = await opts.store.latestObservedAt(row.holding.id);
-      if (latest && nowFn().getTime() - latest.getTime() < staleMs) {
+      const alreadyFresh = opts.isFresh
+        ? await opts.isFresh(row.holding.id, nowFn())
+        : await (async () => {
+            const latest = await opts.store.latestObservedAt(row.holding.id);
+            return Boolean(latest && nowFn().getTime() - latest.getTime() < staleMs);
+          })();
+      if (alreadyFresh) {
         cursor = {
           ...cursor,
           skippedFresh: cursor.skippedFresh + 1,
@@ -276,7 +291,7 @@ export async function runComicsCompsWalk(
       let rawSnapshotId: string | null = null;
       if (!opts.dryRun && browse?.rawJson) {
         rawSnapshotId = await opts.store.insertSnapshot({
-          source: LISTING_OBSERVATION_SOURCE,
+          source: browse.adapterId === "pricecharting" ? "pricecharting" : LISTING_OBSERVATION_SOURCE,
           contentType: "application/json",
           payload: browse.rawJson,
           recordCount: browse.sales.length,
@@ -296,6 +311,13 @@ export async function runComicsCompsWalk(
       let wrote = 0;
       if (!opts.dryRun) {
         wrote = await opts.store.insertObservations(observations);
+        await opts.afterPersist?.({
+          assetId: row.assetId,
+          holdingId: row.holdingUuid,
+          holdingSourceRowId: row.holding.id,
+          observations,
+          observedAt,
+        });
       }
 
       const unmatched = observations.every(

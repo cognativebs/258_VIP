@@ -110,6 +110,53 @@ export const ListingObservationSchema = BaseRecordSchema.extend({
 });
 export type ListingObservation = z.infer<typeof ListingObservationSchema>;
 
+/** Loose/ungraded PriceCharting guide. Never NULL; not a silent NM. */
+export const GUIDE_CONDITION_LOOSE = "raw_ungraded" as const;
+export const GUIDE_SNAPSHOT_RULE = "pricecharting-guide-snapshot@0.1.0";
+
+export const GuidePriceObservationSchema = BaseRecordSchema.extend({
+  assetId: UuidSchema,
+  holdingId: UuidSchema.nullable(),
+  holdingSourceRowId: z.string().min(1),
+  pricedUnitId: UuidSchema.nullable(),
+  conditionKey: z.string().min(1),
+  snapshotOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  observedAt: z.coerce.date(),
+  observationKind: z.enum(["guide_quote", "guide_empty"]),
+  source: z.literal("pricecharting"),
+  evidenceClass: z.literal("vendor_derived"),
+  guidePrice: z.number().positive().nullable(),
+  currency: z.string().length(3).default("USD"),
+  rawSnapshotId: UuidSchema.nullable().optional(),
+  providerIds: z.record(z.string()).default({}),
+}).superRefine((row, ctx) => {
+  if (row.observationKind === "guide_quote" && row.guidePrice == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "guide_quote requires a positive guidePrice",
+      path: ["guidePrice"],
+    });
+  }
+  if (row.observationKind === "guide_empty" && row.guidePrice != null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "guide_empty must not carry a guidePrice",
+      path: ["guidePrice"],
+    });
+  }
+});
+export type GuidePriceObservation = z.infer<typeof GuidePriceObservationSchema>;
+
+/** Calendar day in America/Chicago (CDT/CST). One snapshot row per holding per this date. */
+export function chicagoSnapshotOn(at: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
 export const ComicsCompsWalkCursorSchema = z.object({
   job: z.literal("comics-comps-walk"),
   lastHoldingSourceRowId: z.string().nullable(),

@@ -52,6 +52,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **Comics LIVE query accuracy** (2026-09-13): Browse `Series #Issue` in category 63, title-match the book, drop lots/omnibus/TPB; LIVE chip uses only the latest walk. Still unverified asks — never `vault_market.sale`.
 - [x] **PriceCharting comics comps** (2026-09-13): official `/api/products` + `/api/product` when `PRICECHARTING_API_TOKEN` is set. Guide quotes stay unverified; never `vault_market.sale`.
 - [x] **eBay asks off for valuation** (2026-09-14): `ebaySoldAdapter` never matches; comics-comps walk and ebay-browse-comps job do not pull Browse asks. Sell engine unchanged.
+- [x] **Comics daily guide snapshot** (2026-09-14): `vault_market.guide_price_observation` + `npm run job:comics-guide-snapshot` (full vault). Windows task 03:00 via `scripts/schedule_comics_guide_snapshot.ps1`.
 - [x] **PriceCharting wiring picks** (2026-09-13): ADR 0011 + plans 0004/0005 filed. Phase A registry (`evidence_class`, `data_source`, `vendor_product_map`) on live UUID `priced_unit`. Digital Tools parked until Core A–C.
 - [ ] **PriceCharting Core B–F** (plan 0004): nightly snapshots, derived series, emitters, prediction resolve, Orchestr8 tools. Not `listing_observation`.
 - [ ] **PriceCharting Digital Tools** (plan 0005): `services/edge/` after Core A–C. GradeMath / Flip Score first if anything ships.

@@ -126,3 +126,29 @@ continues. Dry-run (`--dry-run`) fetches nothing into Postgres.
 
 LIVE is range + guide-quote count + recency · unverified, beside VALUE, never
 instead of it.
+
+## 6. Whole vault + morning SQL history (03:00 CDT)
+
+This walks **every** CLZ comic, updates LIVE, and writes one row per book per
+Chicago day into `vault_market.guide_price_observation`. That table is the
+history. It is not a sold ledger and it does not overwrite VALUE.
+
+First run (hours — PriceCharting is 1 call/second, two calls per book):
+
+```powershell
+cd D:\Projects\Business_Ideas\258_Labs\258_VIP
+python scripts\migrate_db.py
+npm run job:comics-guide-snapshot
+```
+
+Ctrl+C pauses. Continue with `--resume`. Same Chicago day skips books already
+snapshotted.
+
+Register the 03:00 daily task (PC clock must be Central Time for CDT):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\schedule_comics_guide_snapshot.ps1
+```
+
+Rows: `(holding, raw_ungraded, pricecharting, snapshot_on)`. Re-running the
+same morning upserts that day. Query history with `snapshot_on` + `guide_price`.
