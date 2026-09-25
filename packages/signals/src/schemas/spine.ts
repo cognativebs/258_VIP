@@ -157,29 +157,46 @@ export const SpineSignalTypeSchema = z
   .strict();
 export type SpineSignalType = z.infer<typeof SpineSignalTypeSchema>;
 
+/**
+ * Priority is computed at read time from the current weight set (ADR 0013 G-5,
+ * option C). weighted_product_v1:
+ *   base_confidence^a * base_impact^b * (1 - noise_probability)^c
+ * Exponents are data, never code constants. 1/1/1 is the unverified v0 product.
+ */
+export const WeightedProductExponentsSchema = z
+  .object({
+    base_confidence: z.number().nonnegative(),
+    base_impact: z.number().nonnegative(),
+    one_minus_noise: z.number().nonnegative(),
+  })
+  .strict();
+export type WeightedProductExponents = z.infer<typeof WeightedProductExponentsSchema>;
+
 export const ScoreWeightSetSchema = z
   .object({
     name: z.string().min(1),
     version: z.string().min(1),
     weightsJson: z
       .object({
-        status: z.literal("coefficients_withheld"),
-        reason: z.string().min(1),
+        formula: z.literal("weighted_product_v1"),
+        exponents: WeightedProductExponentsSchema,
         stored_inputs: z.array(
           z.enum(["base_confidence", "base_impact", "noise_probability"]),
         ),
         excluded_inputs: z.array(z.string()),
-        generated_expression: z.string().min(1),
-        generated_expression_status: z.string().min(1),
+        notes: z.string().min(1),
       })
       .strict(),
     verified: z.boolean(),
+    isCurrent: z.boolean(),
   })
   .strict();
 export type ScoreWeightSet = z.infer<typeof ScoreWeightSetSchema>;
 
 /**
- * Exactly three stored scores. priorityScore is derived.
+ * Exactly three stored scores. Priority is not stored: it is computed at read
+ * time from the current weight set (vault_signals.signal_priority).
+ * scoreWeightSetId records the set that was current when the row was written.
  * .strict() rejects relevance, novelty, magnitude, actionability, source_quality.
  */
 export const SpineSignalSchema = z
@@ -196,7 +213,6 @@ export const SpineSignalSchema = z
     baseConfidence: z.number().min(0).max(1),
     baseImpact: z.number().min(0).max(1),
     noiseProbability: z.number().min(0).max(1),
-    priorityScore: z.number().min(0).max(1),
     scoreWeightSetId: z.string().uuid(),
     createdByVersion: z.string().min(1),
     provenance: SpineProvenanceSchema,
@@ -253,6 +269,8 @@ export const PredictionSchema = z
     status: z.string().min(1),
     sourceSignalId: z.string().uuid().nullable(),
     sourceThesisRef: z.string().min(1).nullable(),
+    /** Weight set current when the prediction was written. Filled by the DB when omitted. */
+    scoreWeightSetId: z.string().uuid().nullable(),
     provenance: SpineProvenanceSchema,
   })
   .strict()

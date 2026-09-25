@@ -3,6 +3,11 @@
  * No network. No vault_market.
  */
 
+import {
+  WeightedProductExponentsSchema,
+  type WeightedProductExponents,
+} from "./schemas/spine.js";
+
 const TRACKING_QUERY_PARAMS = new Set([
   "utm_source",
   "utm_medium",
@@ -117,13 +122,19 @@ export function signalInfluence(
   return priorityScore * 0.5 ** (elapsed / halfLifeHours);
 }
 
-/** Structural stand-in. Not Section 5. No coefficients. */
+/**
+ * Mirrors vault_signals.signal_priority (weighted_product_v1). Exponents come
+ * from the current score_weight_set row, never from a constant here.
+ */
 export function priorityFromScores(
   baseConfidence: number,
   baseImpact: number,
   noiseProbability: number,
+  exponents: WeightedProductExponents,
 ): number {
-  return round6(baseConfidence * baseImpact * (1 - noiseProbability));
+  const { base_confidence: a, base_impact: b, one_minus_noise: c } =
+    WeightedProductExponentsSchema.parse(exponents);
+  return round6(baseConfidence ** a * baseImpact ** b * (1 - noiseProbability) ** c);
 }
 
 function round6(value: number): number {

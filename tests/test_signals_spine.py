@@ -117,14 +117,14 @@ def test_spine_schema_guards(conn):
 
     cur.execute(
         """
-        SELECT is_generated
+        SELECT count(*)
           FROM information_schema.columns
          WHERE table_schema = 'vault_signals'
            AND table_name = 'signal'
            AND column_name = 'priority_score'
         """
     )
-    assert cur.fetchone()[0] == "ALWAYS"
+    assert cur.fetchone()[0] == 0, "priority is read-time (G-5 option C); no stored column"
 
     cur.execute(
         """
@@ -138,14 +138,17 @@ def test_spine_schema_guards(conn):
 
     cur.execute(
         """
-        SELECT verified, weights_json->>'status'
+        SELECT name, version, verified, weights_json->>'formula'
           FROM vault_signals.score_weight_set
-         WHERE name = 'spine-structural-stand-in' AND version = '0.0.0'
+         WHERE is_current
         """
     )
-    verified, status = cur.fetchone()
+    current = cur.fetchall()
+    assert len(current) == 1
+    name, version, verified, formula = current[0]
+    assert (name, version) == ("spine-v0-product", "0.1.0")
     assert verified is False
-    assert status == "coefficients_withheld"
+    assert formula == "weighted_product_v1"
 
     cur.execute(
         "SELECT pg_get_functiondef('vault_signals.signal_influence(uuid, timestamptz)'::regprocedure)"
@@ -155,6 +158,14 @@ def test_spine_schema_guards(conn):
     assert "priced_unit" not in influence
     assert "v_guide_price_baseline" not in influence
     assert "default_half_life_hours" in influence
+    assert "signal_priority" in influence
+
+    cur.execute(
+        "SELECT pg_get_functiondef('vault_signals.signal_priority(uuid, uuid)'::regprocedure)"
+    )
+    priority_fn = cur.fetchone()[0]
+    assert "is_current" in priority_fn
+    assert "attention_observation" not in priority_fn
 
     cur.execute(
         """
@@ -335,8 +346,7 @@ def test_lineage_decay_firewall_and_prediction_clock(conn):
     license_type = cur.fetchone()[0]
     cur.execute(
         """
-        SELECT id FROM vault_signals.score_weight_set
-         WHERE name = 'spine-structural-stand-in' AND version = '0.0.0'
+        SELECT id FROM vault_signals.score_weight_set WHERE is_current
         """
     )
     weight_id = cur.fetchone()[0]
@@ -356,12 +366,11 @@ def test_lineage_decay_firewall_and_prediction_clock(conn):
               %s, %s,
               'fixture', %s, 0.400, 'scores are inferred · unverified'
             )
-            RETURNING priority_score
             """,
             (signal_id, type_id, seen, press_event, weight_id, RULE, RULE),
         )
-        priority = cur.fetchone()[0]
-        assert float(priority) == pytest.approx(0.3)
+        cur.execute("SELECT vault_signals.signal_priority(%s)", (signal_id,))
+        assert float(cur.fetchone()[0]) == pytest.approx(0.3)
         return signal_id
 
     injury_id = insert_signal(injury_type)
@@ -379,6 +388,46 @@ def test_lineage_decay_firewall_and_prediction_clock(conn):
     license_influence = float(cur.fetchone()[0])
     assert license_influence > 0.3 * 0.99
     assert license_influence <= 0.3
+
+    # A different weight set re-ranks at read time; the signal row is not rewritten.
+    cur.execute(
+        """
+        INSERT INTO vault_signals.score_weight_set (name, version, weights_json, verified)
+        VALUES ('fixture-reweight', '9.9.9',
+                '{"formula": "weighted_product_v1",
+                  "exponents": {"base_confidence": 2, "base_impact": 1, "one_minus_noise": 1}}',
+                false)
+        RETURNING id
+        """
+    )
+    reweight_id = cur.fetchone()[0]
+    cur.execute("SELECT vault_signals.signal_priority(%s, %s)", (injury_id, reweight_id))
+    assert float(cur.fetchone()[0]) == pytest.approx(0.24)
+    cur.execute("SELECT vault_signals.signal_priority(%s)", (injury_id,))
+    assert float(cur.fetchone()[0]) == pytest.approx(0.3)
+
+    cur.execute(
+        """
+        INSERT INTO vault_signals.score_weight_set (name, version, weights_json, verified)
+        VALUES ('fixture-bogus', '9.9.9', '{"formula": "section_5_guess"}', false)
+        RETURNING id
+        """
+    )
+    bogus_id = cur.fetchone()[0]
+    cur.execute("SAVEPOINT bogus_formula")
+    with pytest.raises(psycopg2.Error, match="unsupported formula"):
+        cur.execute("SELECT vault_signals.signal_priority(%s, %s)", (injury_id, bogus_id))
+    cur.execute("ROLLBACK TO SAVEPOINT bogus_formula")
+    cur.execute("SAVEPOINT bogus_current")
+    with pytest.raises(psycopg2.Error, match="score_weight_set_current_is_evaluable"):
+        cur.execute(
+            """
+            UPDATE vault_signals.score_weight_set SET is_current = false WHERE is_current;
+            UPDATE vault_signals.score_weight_set SET is_current = true WHERE id = %s;
+            """,
+            (bogus_id,),
+        )
+    cur.execute("ROLLBACK TO SAVEPOINT bogus_current")
 
     cur.execute("SAVEPOINT valuation_join")
     with pytest.raises(psycopg2.Error, match="valuation firewall"):
@@ -418,11 +467,12 @@ def test_lineage_decay_firewall_and_prediction_clock(conn):
           10, 40, 'mentions', 0.450, 90, %s, %s,
           'fixture', %s, 0.450, 'crude prediction · unverified'
         )
-        RETURNING id
+        RETURNING id, score_weight_set_id
         """,
         (created, created + timedelta(days=90), injury_id, RULE),
     )
-    prediction_id = cur.fetchone()[0]
+    prediction_id, prediction_weight_id = cur.fetchone()
+    assert prediction_weight_id == weight_id
     cur.execute(
         """
         SELECT due_at

@@ -1,8 +1,8 @@
 -- SIGNALS v1 spine P3 — signal object and exactly three stored scores.
--- priority_score is GENERATED. It is not an independently authored number.
+-- Priority is not stored. It is computed at read time from the current
+-- score_weight_set row by vault_signals.signal_priority (20260924_01, ADR 0013 G-5).
 -- Half-lives and weight coefficients are unverified estimates.
--- Section 5 coefficients were not in the repo; they are withheld (see ADR 0013).
--- Attention is a separate table and is not an input to priority_score.
+-- Attention is a separate table and is not an input to priority.
 -- No priced_unit. No vault_market writes.
 
 BEGIN;
@@ -37,25 +37,7 @@ CREATE TABLE IF NOT EXISTS vault_signals.score_weight_set (
 );
 
 COMMENT ON TABLE vault_signals.score_weight_set IS
-  'Versioned scoring weights. verified defaults false. Application code must not hardcode a weight. The seeded row withholds Section 5 coefficients because that note was not in the repository.';
-
--- Structural stand-in so priority_score can be a generated column.
--- A generated column cannot read score_weight_set (the expression must be immutable).
--- This product is not the architecture note's Section 5 formula. Coefficients withheld.
-CREATE OR REPLACE FUNCTION vault_signals.priority_from_scores(
-  p_confidence numeric,
-  p_impact numeric,
-  p_noise numeric
-) RETURNS numeric
-LANGUAGE sql
-IMMUTABLE
-PARALLEL SAFE
-AS $$
-  SELECT round(p_confidence * p_impact * (1 - p_noise), 6);
-$$;
-
-COMMENT ON FUNCTION vault_signals.priority_from_scores(numeric, numeric, numeric) IS
-  'Structural stand-in for priority_score: base_confidence * base_impact * (1 - noise_probability). Not Section 5. No coefficients. score_weight_set.verified is false.';
+  'Versioned scoring weights. verified defaults false. Application code must not hardcode a weight. Seeded in 20260924_01.';
 
 CREATE TABLE IF NOT EXISTS vault_signals.signal (
     id                    UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
@@ -73,11 +55,6 @@ CREATE TABLE IF NOT EXISTS vault_signals.signal (
                           CHECK (base_impact >= 0 AND base_impact <= 1),
     noise_probability     NUMERIC(4,3) NOT NULL
                           CHECK (noise_probability >= 0 AND noise_probability <= 1),
-    priority_score        NUMERIC(12,6) GENERATED ALWAYS AS (
-                            vault_signals.priority_from_scores(
-                              base_confidence, base_impact, noise_probability
-                            )
-                          ) STORED,
     score_weight_set_id   UUID NOT NULL REFERENCES vault_signals.score_weight_set (id) ON DELETE RESTRICT,
     created_by_version    TEXT NOT NULL,
     prov_source           TEXT NOT NULL,
@@ -96,10 +73,7 @@ CREATE INDEX IF NOT EXISTS signal_type_idx
   ON vault_signals.signal (signal_type_id, first_seen_at DESC);
 
 COMMENT ON TABLE vault_signals.signal IS
-  'Exactly three stored scores: base_confidence, base_impact, noise_probability. priority_score is generated from those three. relevance, novelty, magnitude, actionability, and source_quality are deliberately absent. Attention is not a column here.';
-
-COMMENT ON COLUMN vault_signals.signal.priority_score IS
-  'Generated. Not stored independently. Structural product pending Section 5 coefficients (ADR 0013, HS-6).';
+  'Exactly three stored scores: base_confidence, base_impact, noise_probability. Priority is computed at read time by signal_priority from the current weight set; it is never a column. score_weight_set_id records the set current at write time. relevance, novelty, magnitude, actionability, and source_quality are deliberately absent. Attention is not a column here.';
 
 CREATE TABLE IF NOT EXISTS vault_signals.signal_entity (
     id            UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
@@ -136,7 +110,7 @@ CREATE INDEX IF NOT EXISTS attention_signal_observed_idx
   ON vault_signals.attention_observation (signal_id, observed_at DESC);
 
 COMMENT ON TABLE vault_signals.attention_observation IS
-  'Mention volume over a window. Separate from confidence by design. A claim can be low-confidence and high-attention. This table is not an input to priority_score or signal_influence.';
+  'Mention volume over a window. Separate from confidence by design. A claim can be low-confidence and high-attention. This table is not an input to signal_priority or signal_influence.';
 
 INSERT INTO vault_signals.signal_type
   (code, display_name, default_half_life_hours, description, half_life_verified)
@@ -160,23 +134,5 @@ VALUES
   ('SUPPLY_CHANGE', 'Supply change', 720,
    'Starting guess · unverified. Not a measured half-life.', false)
 ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO vault_signals.score_weight_set (name, version, weights_json, verified)
-VALUES (
-  'spine-structural-stand-in',
-  '0.0.0',
-  jsonb_build_object(
-    'status', 'coefficients_withheld',
-    'reason', 'Architecture note Section 5 was not in the repository at build time. No coefficients were invented.',
-    'stored_inputs', jsonb_build_array('base_confidence', 'base_impact', 'noise_probability'),
-    'excluded_inputs', jsonb_build_array(
-      'relevance', 'novelty', 'magnitude', 'actionability', 'source_quality', 'attention'
-    ),
-    'generated_expression', 'base_confidence * base_impact * (1 - noise_probability)',
-    'generated_expression_status', 'structural stand-in so priority_score can be GENERATED. Not Section 5. verified=false.'
-  ),
-  false
-)
-ON CONFLICT (name, version) DO NOTHING;
 
 COMMIT;

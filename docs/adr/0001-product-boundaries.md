@@ -1,4 +1,4 @@
-# ADR 0001 — Product Boundaries (VIP · IQVault · VaultOS · Orchastr8)
+# ADR 0001 — Product Boundaries (VIP · IQVault · VaultOS · Orchestr8)
 
 **Status:** Accepted  
 **Date:** 2026-07-20  
@@ -9,21 +9,21 @@
 
 The repo already contains working proofs: SQL catalog spine
 (`infra/db/migrations/20260701`–`20260708`), CLZ ingest, IQVault React app,
-VaultOS demo, Comics API, bridge POC, and Orchastr8 agent runtime.
+VaultOS demo, Comics API, bridge POC, and Orchestr8 agent runtime.
 Without hard boundaries, those proofs drift into forked backends and synonym soup.
 This ADR freezes what each product owns so any feature can be routed in under five minutes.
 
 ## Decision
 
 Build **one shared intelligence core (VIP)**. IQVault and VaultOS are faces.
-Orchastr8 is the contracted agent layer that *uses* the core — it does not own truth.
+Orchestr8 is the contracted agent layer that *uses* the core — it does not own truth.
 
 ### VIP — Vault Intelligence Platform (shared core)
 
 | | |
 |---|---|
 | **Owns** | Canonical data model, evidence/provenance, immutable raw snapshots, ingest adapters, decision engine, signals/prediction ledger, shared API + jobs, typed package contracts |
-| **Consumes** | External market/source feeds via adapters; Orchastr8 outputs only after contract validation |
+| **Consumes** | External market/source feeds via adapters; Orchestr8 outputs only after contract validation |
 | **Never touches** | Collector-only UX chrome; store POS UI; hardware glasses; brand/legal naming |
 
 **Maps from today:** `infra/db/migrations/` (catalog spine + dated files), `clz_comic_parser.py` / `load_comics.py` (logic to migrate into packages), `api/comics_server.py` (narrow path → future `services/api`).
@@ -33,7 +33,7 @@ Orchastr8 is the contracted agent layer that *uses* the core — it does not own
 | | |
 |---|---|
 | **Owns** | Collector UX: inventory/portfolio, hunts, sell queue, theses UI, show-mode client, personal constraints (budget, goals, risk) |
-| **Consumes** | VIP API + decision-engine recommendations; Orchastr8 for research/council flows behind contracts |
+| **Consumes** | VIP API + decision-engine recommendations; Orchestr8 for research/council flows behind contracts |
 | **Never touches** | Direct DB writes; store margin/POS logic; forking decision rules for “collector-only” math |
 
 **Maps from today:** `apps/iqvault-web` on `:3000` (live collector face). The Vite tree `iqvault/` is an archived proof, not a runnable product.
@@ -48,7 +48,7 @@ Orchastr8 is the contracted agent layer that *uses* the core — it does not own
 
 **Maps from today:** `demo/` (scan/offer/review prototype), `demo/src/lib/offerEngine.js` (heuristics to replace, not fork).
 
-### Orchastr8 — agent layer
+### Orchestr8 — agent layer
 
 | | |
 |---|---|
@@ -78,18 +78,18 @@ Orchastr8 is the contracted agent layer that *uses* the core — it does not own
 | Max buy offer + expected margin | **VaultOS** UI + **VIP** engine w/ store constraints | Same engine, different utility |
 | Scan → recommend on phone | **IQVault** mobile client → **VIP** API | Thin client |
 | Imaging station / defect notes | **VIP** media model + **VaultOS** capture UX | Measurement system, not booth |
-| Critic / Pricing / Sell Advisor agents | **Orchastr8** contracts calling VIP tools | Agents advise; VIP persists |
+| Critic / Pricing / Sell Advisor agents | **Orchestr8** contracts calling VIP tools | Agents advise; VIP persists |
 | Full POS / marketplace automation / glasses / crossover ML | **Parked** | See `docs/backlog.md` |
 
 ## Boundary quiz (Phase 0 gate)
 
-Pick any ten features; each must land in exactly one of: VIP / IQVault / VaultOS / Orchastr8 / Parked, with no overlap, in under five minutes using the table above.
+Pick any ten features; each must land in exactly one of: VIP / IQVault / VaultOS / Orchestr8 / Parked, with no overlap, in under five minutes using the table above.
 
 ## Consequences
 
 - No new business logic in `iqvault/` or `demo/` that does not call shared packages/API.
 - Recommendation taxonomies converge on VIP actions; legacy labels (`Museum Candidate`, `Sell Duplicate`, demo `avoid`) become reason codes or UI gloss — not competing enums.
-- Orchastr8 confidence stays process/answer confidence; market confidence lives on evidence records.
+- Orchestr8 confidence stays process/answer confidence; market confidence lives on evidence records.
 - Monorepo target (`packages/`, `apps/`, `services/`, `infra/`) is the physical expression of F-01; migration is incremental, not a big-bang rewrite.
 
 ## Related

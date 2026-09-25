@@ -24,7 +24,7 @@ export const QuarantineStatusSchema = z.enum([
   "rejected",
 ]);
 
-/** Persisted intelligence event — not the Orchastr8 Signal Hunter agent role. */
+/** Persisted intelligence event — not the Orchestr8 Signal Hunter agent role. */
 export const SignalSchema = BaseRecordSchema.extend({
   signalType: SignalTypeSchema,
   body: z.string().min(1),

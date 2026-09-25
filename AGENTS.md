@@ -45,6 +45,8 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
 - Postgres 16 + pgvector (`pgvector/pgvector:pg16`). Extensions install into `public`,
   never into a `vault_*` schema.
 - Binder TCG layout is `vault_tcg` (ADR 0007) and is live. Treat it as occupied.
+- SIGNALS placement (ADR 0013 G-4): registries and configuration go in `vault_core`
+  (e.g. `signals_news_source`); pipeline data goes in `vault_signals`.
 
 ## Data guarantees (apply to every schema)
 - Market price is ALWAYS a time-series observation, never a point-in-time scalar column.

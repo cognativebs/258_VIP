@@ -91,10 +91,11 @@ describe("signals spine scores", () => {
     expect(fn).not.toContain("LICENSE_CHANGE");
   });
 
-  it("withholds Section 5 coefficients and keeps the weight row unverified", () => {
+  it("seeds one current weight set that is unverified and not Section 5", () => {
     const parsed = ScoreWeightSetSchema.parse(SCORE_WEIGHT_SEED);
     expect(parsed.verified).toBe(false);
-    expect(parsed.weightsJson.status).toBe("coefficients_withheld");
+    expect(parsed.isCurrent).toBe(true);
+    expect(parsed.weightsJson.formula).toBe("weighted_product_v1");
     expect(parsed.weightsJson.stored_inputs).toEqual([
       "base_confidence",
       "base_impact",
@@ -102,8 +103,17 @@ describe("signals spine scores", () => {
     ]);
   });
 
-  it("generates priority from the three scores only", () => {
-    expect(priorityFromScores(0.8, 0.5, 0.25)).toBe(0.3);
+  it("computes priority from the three scores and the weight set, never a stored column", () => {
+    const v0 = SCORE_WEIGHT_SEED.weightsJson.exponents;
+    expect(priorityFromScores(0.8, 0.5, 0.25, v0)).toBe(0.3);
+    expect(
+      priorityFromScores(0.8, 0.5, 0.25, { base_confidence: 2, base_impact: 1, one_minus_noise: 1 }),
+    ).toBe(0.24);
+    expect(() =>
+      priorityFromScores(0.8, 0.5, 0.25, { base_confidence: -1, base_impact: 1, one_minus_noise: 1 }),
+    ).toThrow();
+    const fn = readFileSync(new URL("./spine.ts", import.meta.url), "utf8");
+    expect(fn).not.toMatch(/one_minus_noise:\s*\d/);
     const parsed = SpineSignalSchema.safeParse({
       id: "8d0d6b2e-0e3a-4a1c-9c1a-6e5f0b1a2c3d",
       signalTypeCode: "PLAYER_INJURY",
@@ -117,7 +127,6 @@ describe("signals spine scores", () => {
       baseConfidence: 0.8,
       baseImpact: 0.5,
       noiseProbability: 0.25,
-      priorityScore: 0.3,
       scoreWeightSetId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       createdByVersion: "signals-spine@0.1.0",
       provenance: {
@@ -138,7 +147,7 @@ describe("signals spine scores", () => {
       .defaultHalfLifeHours;
     const licenseHalf = SIGNAL_TYPE_SEED.find((row) => row.code === "LICENSE_CHANGE")!
       .defaultHalfLifeHours;
-    const base = priorityFromScores(0.8, 0.5, 0.25);
+    const base = priorityFromScores(0.8, 0.5, 0.25, SCORE_WEIGHT_SEED.weightsJson.exponents);
     expect(signalInfluence(base, injuryHalf, injuryHalf)).toBeCloseTo(base / 2, 6);
     const agedLicense = signalInfluence(base, 48, licenseHalf);
     expect(agedLicense).toBeGreaterThan(base * 0.99);

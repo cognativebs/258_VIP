@@ -42,13 +42,13 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
 ];
 
 export const SCORE_WEIGHT_SEED = {
-  name: "spine-structural-stand-in",
-  version: "0.0.0",
+  name: "spine-v0-product",
+  version: "0.1.0",
   verified: false as const,
+  isCurrent: true,
   weightsJson: {
-    status: "coefficients_withheld" as const,
-    reason:
-      "Architecture note Section 5 was not in the repository at build time. No coefficients were invented.",
+    formula: "weighted_product_v1" as const,
+    exponents: { base_confidence: 1, base_impact: 1, one_minus_noise: 1 },
     stored_inputs: ["base_confidence", "base_impact", "noise_probability"] as const,
     excluded_inputs: [
       "relevance",
@@ -58,9 +58,8 @@ export const SCORE_WEIGHT_SEED = {
       "source_quality",
       "attention",
     ],
-    generated_expression: "base_confidence * base_impact * (1 - noise_probability)",
-    generated_expression_status:
-      "structural stand-in so priority_score can be GENERATED. Not Section 5. verified=false.",
+    notes:
+      "v0 exponents 1/1/1 · unverified. Not Section 5. Replace with a new row calibrated from resolved predictions (ADR 0013 G-5).",
   },
 };
 

@@ -1,6 +1,6 @@
--- SIGNALS v1 spine P4 — read-time decay and the valuation firewall.
--- Decay is computed when read. No current-value column is stored.
--- Half-life comes from signal_type, not from a code constant.
+-- SIGNALS v1 spine P4 — the valuation firewall.
+-- Read-time decay (signal_influence) is defined in 20260924_01 on top of
+-- read-time priority (signal_priority). No current-value column is stored.
 -- The firewall reads may_raise_valuation_ceiling and rejects the join.
 -- No writes to vault_market. No read of v_guide_price_baseline.
 
@@ -9,30 +9,6 @@ BEGIN;
 SET search_path TO vault_signals, vault_core, public;
 
 CREATE SCHEMA IF NOT EXISTS vault_signals;
-
-CREATE OR REPLACE FUNCTION vault_signals.signal_influence(
-  p_signal_id uuid,
-  p_at timestamptz
-) RETURNS numeric
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT round(
-    s.priority_score * power(
-      0.5::numeric,
-      GREATEST(EXTRACT(EPOCH FROM (p_at - s.first_seen_at))::numeric, 0)
-        / 3600.0
-        / st.default_half_life_hours
-    ),
-    6
-  )
-    FROM vault_signals.signal s
-    JOIN vault_signals.signal_type st ON st.id = s.signal_type_id
-   WHERE s.id = p_signal_id;
-$$;
-
-COMMENT ON FUNCTION vault_signals.signal_influence(uuid, timestamptz) IS
-  'Read-time decay (G-2). priority_score * 0.5 ^ (hours_elapsed / half_life_hours). Half-life is signal_type.default_half_life_hours. Does not read attention_observation. Does not store a current value.';
 
 -- Reads may_raise_valuation_ceiling. That column was unchecked by any reader before this function.
 CREATE OR REPLACE FUNCTION vault_signals.assert_not_valuation_evidence(p_signal_id uuid)
