@@ -186,4 +186,8 @@ export type Signal = {
   noveltyScore?: number | null;
   quarantineStatus: string;
   title?: string;
+  sourceId?: string;
+  /** Credit the source's terms require, e.g. "Provided by ESPN". Show it with the link. */
+  attribution?: string;
+  sport?: string;
 };

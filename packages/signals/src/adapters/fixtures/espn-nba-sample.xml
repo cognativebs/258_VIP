@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. ESPN-shaped RSS 2.0. Players and teams are fictional. Not live data. -->
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[www.espn.com - NBA]]></title>
+    <link>https://www.espn.com/nba/</link>
+    <description><![CDATA[Latest NBA news from www.espn.com]]></description>
+    <item>
+      <title><![CDATA[Fixture Guard Gamma out 6-8 weeks after ankle surgery]]></title>
+      <description><![CDATA[The guard underwent surgery Tuesday and is expected to return after the All-Star break.]]></description>
+      <link>https://www.espn.com/nba/story/_/id/90000011/fixture-guard-gamma-ankle-surgery</link>
+      <guid isPermaLink="false">90000011</guid>
+      <pubDate>Wed, 23 Sep 2026 16:15:00 EST</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Top story shared across feeds]]></title>
+      <description><![CDATA[This item appears in both the NFL and NBA fixtures to exercise cross-feed dedupe.]]></description>
+      <link>https://www.espn.com/espn/story/_/id/90000099/shared-top-story</link>
+      <guid isPermaLink="false">90000099</guid>
+      <pubDate>Tue, 22 Sep 2026 09:00:00 EST</pubDate>
+    </item>
+  </channel>
+</rss>

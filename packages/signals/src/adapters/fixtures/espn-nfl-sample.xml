@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. ESPN-shaped RSS 2.0. Players and teams are fictional. Not live data. -->
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[www.espn.com - NFL]]></title>
+    <link>https://www.espn.com/nfl/</link>
+    <description><![CDATA[Latest NFL news from www.espn.com]]></description>
+    <item>
+      <title><![CDATA[Fixture QB Alpha ruled out Sunday with knee injury]]></title>
+      <description><![CDATA[The Fixture City quarterback will miss Week 4 after an MRI on Monday, the team said.]]></description>
+      <link>https://www.espn.com/nfl/story/_/id/90000001/fixture-qb-alpha-ruled-out?utm_source=rss&amp;utm_medium=feed</link>
+      <guid isPermaLink="false">90000001</guid>
+      <pubDate>Wed, 23 Sep 2026 14:02:11 EST</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Fixture WR Beta signs extension through 2030]]></title>
+      <description><![CDATA[The receiver agreed to a four-year extension, according to sources.]]></description>
+      <link>https://www.espn.com/nfl/story/_/id/90000002/fixture-wr-beta-extension</link>
+      <guid isPermaLink="false">90000002</guid>
+      <pubDate>Wed, 23 Sep 2026 11:40:00 EST</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Top story shared across feeds]]></title>
+      <description><![CDATA[This item appears in both the NFL and NBA fixtures to exercise cross-feed dedupe.]]></description>
+      <link>https://www.espn.com/espn/story/_/id/90000099/shared-top-story</link>
+      <guid isPermaLink="false">90000099</guid>
+      <pubDate>Tue, 22 Sep 2026 09:00:00 EST</pubDate>
+    </item>
+    <item>
+      <title></title>
+      <description><![CDATA[Malformed item with no title and no guid; must be quarantined, not dropped.]]></description>
+    </item>
+  </channel>
+</rss>

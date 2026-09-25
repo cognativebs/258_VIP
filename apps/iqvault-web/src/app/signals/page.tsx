@@ -90,7 +90,19 @@ export default async function SignalsPage() {
                 {s.signalDate}
               </span>
             </div>
+            {s.title ? <strong>{s.title}</strong> : null}
             <p style={{ marginBottom: 0 }}>{s.body}</p>
+            {s.attribution ? (
+              <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+                {s.sourceUrl ? (
+                  <a href={s.sourceUrl} target="_blank" rel="noreferrer">
+                    {s.attribution}
+                  </a>
+                ) : (
+                  s.attribution
+                )}
+              </p>
+            ) : null}
           </article>
         ))}
       </div>
