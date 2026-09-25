@@ -12,6 +12,12 @@ export {
 
 export { AppendOnlyStageStore } from "./store.js";
 export { SourceRegistry, DEFAULT_SOURCES } from "./registry.js";
+export {
+  SIGNALS_NEWS_SOURCE_RULE,
+  SignalsNewsSourceSchema,
+  newsAdapterMayRun,
+  type SignalsNewsSource,
+} from "./news-source.js";
 export { dedupeKey, noveltyScore, textSimilarity, normalizeText } from "./dedupe.js";
 export { runSignalPipeline, type IngestEvent, type PipelineResult } from "./pipeline.js";
 export { PredictionLedger, brierScore } from "./prediction-ledger.js";
@@ -80,3 +86,54 @@ export {
   isSourceActive,
   setSourceActive,
 } from "./registry/source-persistence.js";
+
+export {
+  SPINE_RULE_VERSION,
+  SpineProvenanceSchema,
+  IngestRunSchema,
+  RawDocumentSchema,
+  DocumentSnapshotSchema,
+  EvidenceRoleSchema,
+  OriginRelationSchema,
+  SpineEventSchema,
+  EventEvidenceSchema,
+  OriginLinkSchema,
+  SpineSignalTypeCodeSchema,
+  SpineSignalTypeSchema,
+  ScoreWeightSetSchema,
+  SpineSignalSchema,
+  SignalEntitySchema,
+  AttentionObservationSchema,
+  PREDICTION_MEASUREMENT_HORIZONS_DAYS,
+  PredictionSchema,
+  PredictionMeasurementSchema,
+  ValuationCitationSchema,
+  type SpineProvenance,
+  type IngestRun,
+  type RawDocument,
+  type DocumentSnapshot,
+  type EvidenceRole,
+  type OriginRelation,
+  type SpineEvent,
+  type EventEvidence,
+  type OriginLink,
+  type SpineSignalTypeCode,
+  type SpineSignalType,
+  type ScoreWeightSet,
+  type SpineSignal,
+  type SignalEntity,
+  type AttentionObservation,
+  type Prediction,
+  type PredictionMeasurement,
+  type ValuationCitation,
+} from "./schemas/spine.js";
+
+export {
+  normalizeSignalUrl,
+  independentSourceCount,
+  signalInfluence,
+  priorityFromScores,
+  assertMayEnterValuation,
+  ValuationFirewallError,
+  type SignalUrlMode,
+} from "./spine.js";

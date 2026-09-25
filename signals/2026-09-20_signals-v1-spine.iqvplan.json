@@ -1,0 +1,261 @@
+{
+  "plan_id": "signals-v1-spine",
+  "version": "1.0",
+  "created": "2026-09-20",
+  "owner": "Greg Williamson",
+  "repo": "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP",
+  "branch": "cursor/signals-v1-spine",
+  "branch_base": "main",
+  "migration_prefix": "20260920_",
+
+  "objective": "Build the SIGNALS evidence spine: raw evidence -> event -> signal, with source lineage, three scores, per-type decay, attention momentum, and prediction rows. No adapters. No network. No writes to vault_market. No Phase 2 scoring.",
+
+  "source_documents": [
+    "SIGNALS handover (2026-09-13)",
+    "SIGNALS v1 Architecture note (2026-09-20) - TARGET STATE, not the backlog",
+    "ADR 0012 (Path B)",
+    "vault_core.signals_news_source draft (20260920_06)"
+  ],
+
+  "prime_directive": "The 2026-09-20 architecture note describes the 18-month target. This plan implements ONLY the spine. Where the note and this plan disagree, this plan wins. Do not build anything in the PARKED list because the note describes it.",
+
+  "hard_stops": [
+    {
+      "id": "HS-1",
+      "trigger": "Any schema element implies a priced_unit join or a UnitRef pair.",
+      "action": "STOP. Report the contradiction. ADR 0012 Path B: join on asset_id, condition_key lives on the observation, vault_market.priced_unit stays empty. Do not resolve this yourself."
+    },
+    {
+      "id": "HS-2",
+      "trigger": "Any step requires a write to vault_market, or a read that would create a dependency on v_guide_price_baseline.",
+      "action": "STOP. Report. That baseline is currently 0 rows and is gated on the PriceCharting Phase B decision."
+    },
+    {
+      "id": "HS-3",
+      "trigger": "Any step would merge, replace, or generalize vault_core.signals_news_source into a shared sources table.",
+      "action": "STOP. Report. The separation between news sources and market data sources is deliberate and load-bearing. Section 19 of the architecture note is WRONG on this point and is overridden."
+    },
+    {
+      "id": "HS-4",
+      "trigger": "A migration filename collides with an existing file on any branch.",
+      "action": "STOP. Report both filenames. Do not renumber silently."
+    },
+    {
+      "id": "HS-5",
+      "trigger": "Any step would set adapter_enabled=true or is_active=true on any source row, or make an outbound network call.",
+      "action": "STOP. This entire plan is offline. Fixtures only."
+    },
+    {
+      "id": "HS-6",
+      "trigger": "A design decision is needed that is not covered by the GATES list below.",
+      "action": "STOP. Report the decision, the options, and your recommendation. Do not pick one and continue."
+    }
+  ],
+
+  "gates": [
+    {
+      "id": "G-1",
+      "name": "Embedding model and vector dimension",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "DO NOT create any pgvector column or embedding table in this plan. Semantic retrieval is deferred to a later migration. Leave a documented seam only: a comment in the DDL naming where the embedding table will attach (raw_document.id).",
+      "why_not_blocking": "pgvector bakes dimension into the column and cannot be backfilled, so the only safe move is to not create the column yet. Nothing in the spine needs it."
+    },
+    {
+      "id": "G-2",
+      "name": "Decay applied at read time or write time",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "Default to READ TIME. Store the signal's base score and its first_seen timestamp; compute decayed influence in a function. Half-lives live in a data table, not in code.",
+      "why_not_blocking": "Read-time is consistent with the existing non-negotiable that market price is never a stored current value. If Greg reverses this, the change is a materialized column plus a job, not a schema rewrite."
+    },
+    {
+      "id": "G-3",
+      "name": "Orchestr8 vs Orchastr8 spelling",
+      "status": "RESOLVED by adoption",
+      "blocking": false,
+      "resolution": "Use Orchestr8 (no second 'a'). The 2026-09-20 architecture note uses it consistently throughout. Apply to all new identifiers. Do NOT rename existing Orchastr8 identifiers in this pass - log them to docs/adr/orchestr8-naming.md for a separate cleanup."
+    },
+    {
+      "id": "G-4",
+      "name": "Schema placement: vault_core vs vault_signals",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "Put ALL NEW pipeline tables in a new schema vault_signals. Leave vault_core.signals_news_source exactly where Greg put it. Do not move it.",
+      "why_not_blocking": "Moving one table later is cheap. Moving ten is not. Note the inconsistency in the ADR for Greg to settle."
+    },
+    {
+      "id": "G-5",
+      "name": "Scoring weights",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "Weights go in a versioned config table (vault_signals.score_weight_set), seeded from the architecture note's Section 5 numbers with verified=false. Never hardcode a weight in application code.",
+      "why_not_blocking": "Seeded weights are explicitly unverified estimates, same treatment as authority_seed. They are replaceable data."
+    },
+    {
+      "id": "G-6",
+      "name": "Comics price authority (GoCollect vs CovrPrice)",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "Out of scope for this plan. Do not add a row, a stub, or an adapter. Note the gap in the ADR."
+    },
+    {
+      "id": "G-7",
+      "name": "ESPN commercial-use terms, Daily MTG feed existence, LBMA licensing",
+      "status": "OPEN - Greg",
+      "blocking": false,
+      "resolution": "Those source rows stay blocked in vault_core.signals_news_source. This plan does not touch them."
+    }
+  ],
+
+  "phases": [
+    {
+      "id": "P0",
+      "tag": "NOW",
+      "name": "Reconcile before building",
+      "autonomous": true,
+      "ends_with": "REPORT, then continue to P1 unless a hard stop fired",
+      "tasks": [
+        "Grep the SIGNALS handover DDL and the 20260920_06 draft for 'priced_unit', 'UnitRef', 'condition_key'. Report every occurrence with file and line. HS-1 applies.",
+        "List every migration filename on main and on cursor/pricecharting-core-wiring-f536. Confirm no 20260920_ collision. HS-4 applies.",
+        "Confirm vault_core.signals_news_source exists with adapter_enabled=false and is_active=false on all 14 rows. Report the count.",
+        "Locate whatever enforces may_raise_valuation_ceiling. If NOTHING reads that column, say so plainly - it is currently decorative. Add enforcement in P4.",
+        "Confirm v_guide_price_baseline row count. Expected 0. Report actual."
+      ]
+    },
+    {
+      "id": "P1",
+      "tag": "NOW",
+      "name": "Raw evidence vault",
+      "autonomous": true,
+      "migration": "20260920_10_signals_raw_evidence.sql",
+      "tables": {
+        "vault_signals.raw_document": "One row per fetched artifact. Columns: id, source_id (FK vault_core.signals_news_source), fetched_at, source_url, url_canonical, content_hash, http_status, raw_payload_ref (object-storage key, NOT the blob), extraction_status, ingest_run_id. UNIQUE on (source_id, content_hash).",
+        "vault_signals.document_snapshot": "Immutable byte-level record. id, raw_document_id, stored_at, storage_backend, storage_key, byte_size, media_type. NO UPDATE trigger - enforce immutability with a rule or trigger that raises on UPDATE/DELETE.",
+        "vault_signals.ingest_run": "id, source_id, started_at, finished_at, status, documents_fetched, documents_new, error_text. Every fetch belongs to a run."
+      },
+      "notes": [
+        "raw_payload_ref points at object storage. Do not store article bodies in Postgres.",
+        "url_canonical must have tracking params stripped. Newsletter links carry per-subscriber tracking that will poison dedup.",
+        "Never store a recipient email address anywhere in this schema."
+      ]
+    },
+    {
+      "id": "P2",
+      "tag": "NOW",
+      "name": "Event layer and source lineage",
+      "autonomous": true,
+      "migration": "20260920_11_signals_event_lineage.sql",
+      "tables": {
+        "vault_signals.event": "A real-world occurrence. id, event_key, title, occurred_at, first_seen_at, event_type, primary_origin_document_id (nullable), status.",
+        "vault_signals.event_evidence": "Join. event_id, raw_document_id, role (PRIMARY | DERIVATIVE | DISCUSSION | UNKNOWN), independence_group, detected_at.",
+        "vault_signals.origin_link": "Directed lineage edge. from_document_id, to_document_id, relation (QUOTES | SYNDICATES | LINKS_TO | REWRITES), detected_by, confidence."
+      },
+      "acceptance": [
+        "Given 5 fixture documents all derived from one press release, event_evidence yields independent_source_count = 1, not 5.",
+        "Given 2 genuinely independent reports plus 3 derivatives, independent_source_count = 2."
+      ],
+      "notes": [
+        "This is the highest-value structure in the plan. Retrofitting event-level dedup onto a flat signal table later is a painful migration.",
+        "independence_group is how corroboration is counted. Downstream reactions still get stored - they feed attention, not corroboration."
+      ]
+    },
+    {
+      "id": "P3",
+      "tag": "NOW",
+      "name": "Signal object and three scores",
+      "autonomous": true,
+      "migration": "20260920_12_signals_signal_scoring.sql",
+      "tables": {
+        "vault_signals.signal": "id, signal_type_id, domain, title, summary, direction, first_seen_at, last_updated_at, event_id, base_confidence, base_impact, noise_probability, priority_score (GENERATED from the three), score_weight_set_id, created_by_version.",
+        "vault_signals.signal_type": "code, display_name, default_half_life_hours, description. Seed: PLAYER_INJURY 48, RESTOCK 336, AUCTION_RESULT 720, SET_RELEASE 2880, REPRINT 2160, LICENSE_CHANGE 8760, HOF_ANNOUNCEMENT 4320, MACRO_TREND 4320, SUPPLY_CHANGE 720.",
+        "vault_signals.score_weight_set": "id, name, version, weights_json, verified (default false), created_at. Seed one row from the architecture note Section 5, verified=false.",
+        "vault_signals.signal_entity": "signal_id, entity_ref, entity_kind, relevance. entity_ref is a TEXT placeholder in this phase - the entity layer is LATER.",
+        "vault_signals.attention_observation": "signal_id or entity_ref, observed_at, source_id, mention_volume, volume_delta, window_hours. SEPARATE from confidence by design."
+      },
+      "hard_rules": [
+        "EXACTLY THREE stored scores: base_confidence, base_impact, noise_probability. priority_score is GENERATED, not stored independently.",
+        "Do NOT add relevance, novelty, magnitude, actionability, or source_quality as signal columns. The architecture note lists ten; ten is false precision. Add a fourth only when a consumer exists.",
+        "Attention momentum is NOT a confidence input. A claim can be low-confidence and high-attention simultaneously, and that combination is itself a valid signal."
+      ]
+    },
+    {
+      "id": "P4",
+      "tag": "NOW",
+      "name": "Decay and valuation firewall",
+      "autonomous": true,
+      "migration": "20260920_13_signals_decay_firewall.sql",
+      "objects": {
+        "vault_signals.signal_influence(signal_id, at_timestamp)": "FUNCTION. Returns decayed influence = priority_score * 0.5 ^ (hours_elapsed / half_life_hours). Read-time per G-2. Never stores a current value.",
+        "valuation firewall": "Enforce may_raise_valuation_ceiling. Add a CHECK or trigger so no signal-derived row can be referenced by a valuation path. If enforcement must live in application code, write the test that proves it and say so explicitly in the report."
+      },
+      "acceptance": [
+        "A PLAYER_INJURY signal at t+48h returns half its base influence.",
+        "A LICENSE_CHANGE signal at t+48h returns approximately its full base influence.",
+        "An attempted valuation join against a news-derived row fails loudly, in a test."
+      ]
+    },
+    {
+      "id": "P5",
+      "tag": "NOW",
+      "name": "Prediction rows - START THE CLOCK",
+      "autonomous": true,
+      "migration": "20260920_14_signals_predictions.sql",
+      "tables": {
+        "vault_signals.prediction": "id, created_at, created_by, subject_ref, subject_kind, claim_text, expected_low, expected_high, expected_unit, downside_case, confidence, horizon_days, expires_at, status, source_signal_id (nullable), source_thesis_ref (nullable TEXT).",
+        "vault_signals.prediction_measurement": "prediction_id, due_at, measured_at, observed_value, direction_correct, magnitude_error, timing_error, notes. Seed due_at rows at +7, +30, +90, +180, +365 days on insert."
+      },
+      "notes": [
+        "This is deliberately pulled forward from step 10 of the architecture note's build order.",
+        "Prediction measurement is TIME-gated, not effort-gated. Nothing built later shortens the clock. A prediction not recorded this month cannot be scored next spring.",
+        "Crude and real beats elegant and empty. Do not gold-plate this table."
+      ]
+    },
+    {
+      "id": "P6",
+      "tag": "NOW",
+      "name": "Contracts, tests, docs",
+      "autonomous": true,
+      "tasks": [
+        "Extend @vip/signals with Zod schemas for every new table. Follow the existing SignalsNewsSourceSchema pattern.",
+        "Fixture set: >=12 documents covering one press release with 4 derivatives, 2 independent reports, 1 newsletter with tracking params, 1 exact duplicate, 2 unrelated.",
+        "Tests for every acceptance criterion in P2, P3, P4.",
+        "docs/adr/0013-signals-v1-spine.md recording: the three-score decision, read-time decay, the vault_core/vault_signals split (G-4), the Orchestr8 spelling adoption, and every open gate.",
+        "Update AGENTS.md constraints block with HS-1 through HS-6."
+      ]
+    },
+    {
+      "id": "P7",
+      "tag": "NEXT - do not build in this pass",
+      "name": "Deferred",
+      "items": [
+        "Entity layer and entity_alias resolution (needs catalog stable)",
+        "IQVault holdings linkage (needs Phase B gate)",
+        "Thesis engine: supports/contradicts/versioning",
+        "Orchestr8 context packet builder and the signals.* tool surface",
+        "Embedding table and semantic retrieval (G-1)",
+        "Adapters for GDELT, FRED, SEC EDGAR, ComicsBeat",
+        "Gmail newsletter poller"
+      ]
+    }
+  ],
+
+  "parked": [
+    {"item": "Notion bidirectional bridge", "reason": "Most enjoyable item on the list, which is exactly why it jumps the queue if unguarded. The architecture note itself puts it last."},
+    {"item": "Neo4j or any graph database", "reason": "Postgres relationship tables are sufficient. The note agrees."},
+    {"item": "NewsAPI paid tier ($449/mo)", "reason": "Adapter seam only. Never a dependency."},
+    {"item": "Dashboard beyond NOW and Portfolio Impact", "reason": "Six of the eight proposed views are enthusiasm."},
+    {"item": "Community/social ingestion (Reddit, YouTube, forums)", "reason": "Highest noise. Needs the lineage layer proven first."},
+    {"item": "Entity intelligence pages, narrative monitor, source health UI, prediction lab UI", "reason": "Presentation layer on data that does not exist yet."}
+  ],
+
+  "definition_of_done": [
+    "Migrations 20260920_10 through 20260920_14 apply cleanly, each transaction-wrapped, on a fresh database.",
+    "All reference tables seeded before dependent layers.",
+    "Zero rows anywhere with adapter_enabled=true or is_active=true.",
+    "Zero writes to vault_market. Zero outbound network calls.",
+    "Every acceptance test passes against fixtures.",
+    "ADR 0013 written, listing all open gates.",
+    "A single REPORT summarizing: P0 findings, what was built, every gate left open, and anything you would have done differently but did not because this plan said not to."
+  ]
+}
