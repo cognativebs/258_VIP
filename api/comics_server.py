@@ -22,6 +22,7 @@ from clz_sync import (  # noqa: E402
     run_sync,
 )
 from comics_db import fetch_inventory, update_holding  # noqa: E402
+from unknown_exit import create_unknown_exit, unknown_exit_payload  # noqa: E402
 
 PORT = int(os.environ.get("COMICS_API_PORT", "5200"))
 DEFAULT_DSN = "dbname=iqvault user=postgres password=vault host=localhost"
@@ -110,6 +111,17 @@ class ComicsHandler(BaseHTTPRequestHandler):
                 json_response(self, 500, {"ok": False, "error": str(e)})
             return
 
+        if path == "/api/comics/unknown-exit":
+            try:
+                conn = psycopg2.connect(DSN)
+                psycopg2.extras.register_default_jsonb(conn)
+                payload = unknown_exit_payload(conn)
+                conn.close()
+                json_response(self, 200, {"ok": True, **payload})
+            except Exception as e:
+                json_response(self, 503, {"ok": False, "error": str(e)})
+            return
+
         if path not in ("/api/comics/meta", "/api/comics/inventory"):
             json_response(self, 404, {"error": "Not found"})
             return
@@ -133,6 +145,9 @@ class ComicsHandler(BaseHTTPRequestHandler):
         if path == "/api/comics/inbox":
             self._handle_inbox_drop()
             return
+        if path == "/api/comics/unknown-exit":
+            self._handle_unknown_exit()
+            return
         if path.startswith("/api/comics/holding/"):
             self._handle_holding_patch(path)
             return
@@ -144,6 +159,19 @@ class ComicsHandler(BaseHTTPRequestHandler):
             self._handle_holding_patch(path)
             return
         json_response(self, 404, {"error": "Not found"})
+
+    def _handle_unknown_exit(self) -> None:
+        try:
+            body = read_json(self)
+            conn = psycopg2.connect(DSN)
+            psycopg2.extras.register_default_jsonb(conn)
+            payload = create_unknown_exit(conn, body)
+            conn.close()
+            json_response(self, 200, {"ok": True, **payload})
+        except ValueError as e:
+            json_response(self, 400, {"ok": False, "error": str(e)})
+        except Exception as e:
+            json_response(self, 500, {"ok": False, "error": str(e)})
 
     def _handle_inbox_drop(self) -> None:
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -207,6 +235,8 @@ def main() -> None:
     print(f"  GET   /api/comics/inventory")
     print(f"  GET   /api/comics/inbox")
     print(f"  POST  /api/comics/inbox")
+    print(f"  GET   /api/comics/unknown-exit")
+    print(f"  POST  /api/comics/unknown-exit")
     print(f"  POST  /api/comics/holding/{{id}}")
     print(f"  DSN: {DSN.split('password=')[0]}password=***")
     server.serve_forever()

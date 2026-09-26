@@ -234,6 +234,11 @@ These are rule violations and wrong-data paths, not missing features.
       [plan 0003](plans/0003-comics-comps-vault-ingest.md).
 - [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
+- [x] **Unrecorded bulk giveaway.** July 2026 CLZ snapshot still lists ~2,700
+      rows after an unrecorded ~1,000-book school-custodian gift. Collection-level
+      `unknown_exit` records the fact as inferred · unverified (how-to 14). Does
+      **not** DELETE or `dropped_at` titles we cannot name. Physical remaining is
+      a range on General Inventory (~$3,640 of ~$24k), not a point value.
 
 ---
 

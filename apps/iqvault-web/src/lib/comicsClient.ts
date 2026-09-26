@@ -1,4 +1,4 @@
-import type { ComicRow, ComicsMeta } from "./comicTypes";
+import type { ComicRow, ComicsMeta, UnknownExitPayload } from "./comicTypes";
 import { apiGet, type Holding, type InventoryResponse } from "./api";
 import { holdingToComicRow, holdingToPokemonRow, metaFromHoldings } from "./holdingToComic";
 import { splitTcgHoldings } from "./collections";
@@ -118,6 +118,8 @@ export async function loadComicsTerminalData(): Promise<{
     meta.snapshotLabel = `${data.comicsSnapshot.label} · sha ${data.comicsSnapshot.shortHash} · age ${data.comicsSnapshot.ageDays}d`;
     meta.source = "vip-api-postgres";
   }
+  const unknownExit = await fetchUnknownExit();
+  if (unknownExit) meta.unknownExit = unknownExit;
   return {
     meta,
     inventory,
@@ -229,6 +231,71 @@ export async function uploadComicsInboxFile(file: File): Promise<InboxDropResult
     return { ok: false, error: data.error || `Upload failed (${res.status})` };
   }
   return { ...data, ok: true };
+}
+
+async function unknownExitViaComicsApi(): Promise<UnknownExitPayload | null> {
+  const prefix = comicsPrefix();
+  try {
+    const res = await fetch(`${prefix}/api/comics/unknown-exit`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(COMICS_PROBE_MS),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as UnknownExitPayload;
+  } catch {
+    return null;
+  }
+}
+
+async function unknownExitViaVipApi(): Promise<UnknownExitPayload | null> {
+  try {
+    const res = await fetch(`${vipPrefix()}/api/comics/unknown-exit`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(COMICS_PROBE_MS),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as UnknownExitPayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchUnknownExit(): Promise<UnknownExitPayload | null> {
+  return (await unknownExitViaComicsApi()) ?? (await unknownExitViaVipApi());
+}
+
+export async function recordUnknownExit(body: {
+  estimatedQty: number;
+  titlesRecorded: false;
+  acknowledgeUnknownTitles: true;
+  recipientNote?: string;
+  scope?: string;
+}): Promise<UnknownExitPayload & { ok?: boolean; error?: string }> {
+  const payload = JSON.stringify(body);
+  const comicsRes = await fetch(`${comicsPrefix()}/api/comics/unknown-exit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    signal: AbortSignal.timeout(COMICS_MUTATION_TIMEOUT_MS),
+  }).catch(() => null);
+  if (comicsRes?.ok) {
+    return (await comicsRes.json()) as UnknownExitPayload;
+  }
+  const vipRes = await fetch(`${vipPrefix()}/api/comics/unknown-exit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    cache: "no-store",
+    signal: AbortSignal.timeout(COMICS_MUTATION_TIMEOUT_MS),
+  });
+  const data = (await vipRes.json().catch(() => ({}))) as UnknownExitPayload & {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!vipRes.ok) {
+    return { event: null, impact: null, ok: false, error: data.error || `Save failed (${vipRes.status})` };
+  }
+  return data;
 }
 
 export async function waitForComicsInboxDrain(

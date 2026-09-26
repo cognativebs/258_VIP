@@ -4,6 +4,7 @@ export * from "./catalog.js";
 export * from "./inventory.js";
 export * from "./inventory-bucket.js";
 export * from "./inventory-transaction.js";
+export * from "./unknown-exit.js";
 export * from "./listing-queue.js";
 export * from "./live-range.js";
 export * from "./market.js";

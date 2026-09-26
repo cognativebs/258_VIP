@@ -65,6 +65,14 @@ curl http://127.0.0.1:5200/api/comics/meta
 
 `holdings` / `recordCount` should match the export. `snapshotLabel` should be the ingest day, not the original July 2026 load.
 
+## Unrecorded gifts (titles unknown)
+
+A new XML only marks books dropped if they are **already gone from Comic
+Collector**. If you gifted bulk and never recorded titles, CLZ still lists them
+— drop that export and nothing leaves the grid. Record a collection-level
+unknown exit instead ([how-to 14](14-comics-unknown-exit.md)). That path never
+DELETE's holdings and never invents a title list.
+
 ## Out of scope
 
 No CLZ Cloud login, no `*.cmc` database reads, no UI automation of the Export dialog. Prices stay CLZ catalog snapshots with provenance — not live comps.
