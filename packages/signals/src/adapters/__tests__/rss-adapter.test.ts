@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,21 @@ describe("RssAdapter", () => {
       expect(s.provenance.modelVersion).toBe("signals@rss-v1");
       expect(s.provenance.verificationStatus).toBe("inferred");
     }
+  });
+
+  it("does not write a byte-identical snapshot twice, and never overwrites one", () => {
+    const a = adapter();
+    const xml = readFileSync(FIXTURE, "utf8");
+    const first = a.writeSnapshot("fixture://pokemon-news-sample", xml, new Date("2026-09-27T01:00:00Z"));
+    const written = statSync(first.snapshotPath).mtimeMs;
+    const again = a.writeSnapshot("fixture://pokemon-news-sample", xml, new Date("2026-09-27T02:00:00Z"));
+    expect(again.snapshotPath).toBe(first.snapshotPath);
+    expect(again.fetchedAt).toBe("2026-09-27T02:00:00.000Z");
+    expect(statSync(again.snapshotPath).mtimeMs).toBe(written);
+    const changed = a.writeSnapshot("fixture://pokemon-news-sample", `${xml}
+<!-- rebuilt -->`);
+    expect(changed.snapshotPath).not.toBe(first.snapshotPath);
+    expect(readdirSync(dirname(first.snapshotPath))).toHaveLength(2);
   });
 
   it("AT-02: replay from snapshot file without HTTP", () => {
