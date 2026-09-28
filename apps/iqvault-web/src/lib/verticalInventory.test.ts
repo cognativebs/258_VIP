@@ -79,6 +79,7 @@ test("collection tabs keep explicit hrefs and honest status", () => {
   assert.equal(comic?.href, "/collections/comics");
   assert.equal(pokemon?.href, "/collections/pokemon");
   assert.equal(pokemon?.status, "live");
+  assert.equal(pokemon?.workspaces?.includes("NEED"), false);
   // MTG has a schema but no holdings loader — it must not claim to be live.
   assert.equal(mtg?.status, "planned");
   assert.equal(getCollectionTab("nope"), null);

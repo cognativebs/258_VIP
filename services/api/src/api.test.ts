@@ -367,11 +367,15 @@ describe("VIP API", () => {
     }, unavailableComics());
   });
 
-  it("hunts include Absolute Batman + Pokémon seeds", async () => {
+  it("hunts include Need Binder plus Absolute Batman + Pokémon seeds", async () => {
     await withServer(async (base) => {
       const res = await fetch(`${base}/api/hunts`);
-      const body = (await res.json()) as { hunts: { id: string }[] };
+      const body = (await res.json()) as {
+        hunts: { id: string; name: string }[];
+      };
       const ids = body.hunts.map((h) => h.id);
+      expect(ids[0]).toBe("pokemon-need-binder");
+      expect(body.hunts[0]?.name).toBe("Pokémon Need Binder");
       expect(ids).toContain("absolute-batman");
       expect(ids).toContain("pokemon-30th");
     });

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { apiGet, type InventoryResponse } from "@/lib/api";
-import { COLLECTIONS, isComicHolding, splitTcgHoldings } from "@/lib/collections";
+import {
+  COLLECTIONS,
+  isComicHolding,
+  pokemonCollectionHoldings,
+  splitTcgHoldings,
+} from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +22,7 @@ export default async function CollectionsPage() {
   const holdings = data?.holdings ?? [];
   const comicsCount = data?.comicsCount ?? holdings.filter(isComicHolding).length;
   const pokemon = splitTcgHoldings(holdings);
-  const pokemonCount = (pokemon.owned.length || pokemon.seeds.length) + pokemon.need.length;
+  const pokemonCount = pokemonCollectionHoldings(pokemon).length;
 
   const counts: Record<string, number> = {
     comics: comicsCount,

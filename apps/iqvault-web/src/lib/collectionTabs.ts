@@ -62,7 +62,7 @@ export const COLLECTION_TABS: CollectionTab[] = collectionTabSchema.array().pars
     status: "live",
     schema: "vault_pokemon",
     unit: "cards",
-    workspaces: ["ALL", "OWNED", "NEED", "SINGLES", "SEALED", "GRADE", "LIQ MOVE", "MUSEUM", "SELL"],
+    workspaces: ["ALL", "OWNED", "SINGLES", "SEALED", "GRADE", "LIQ MOVE", "MUSEUM", "SELL"],
   },
   {
     id: "mtg",

@@ -211,6 +211,11 @@ export function ComicsTerminal({
           title: "Open Binder Vault in a new window",
         },
         {
+          href: "/hunts",
+          label: "Need Binder",
+          title: "Still-needed Binder pockets are on the Hunts tab",
+        },
+        {
           href: CLZ_CLOUD_URL,
           label: "CLZ Cloud",
           title: "Open CLZ Cloud in a new window",
@@ -580,7 +585,7 @@ export function ComicsTerminal({
                   <tr>
                     <td colSpan={columns.length} className="bb-empty-row">
                       {isPokemon
-                        ? "No cards match. Place cards in Binder, then Push to VIP."
+                        ? "No owned cards match. Need Binder pockets are on Hunts."
                         : "No books match these filters."}
                     </td>
                   </tr>

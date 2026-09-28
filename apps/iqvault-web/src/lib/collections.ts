@@ -29,7 +29,7 @@ export const COLLECTIONS: CollectionDef[] = [
     id: "pokemon",
     label: "Pokémon",
     href: "/collections/pokemon",
-    blurb: "Pokémon TCG — Binder pockets (owned / need); card name in the grid, art in Inspector.",
+    blurb: "Pokémon TCG — owned Binder pockets; card name in the grid, art in Inspector. Need Binder is on Hunts.",
   },
   {
     id: "sports",
@@ -79,4 +79,9 @@ export function splitTcgHoldings(holdings: Holding[]): TcgSplit {
     ownedValue: sum(owned.length ? owned : seeds),
     needValue: sum(need),
   };
+}
+
+/** Holdings the Pokémon Collections terminal may show. Need Binder is a hunt. */
+export function pokemonCollectionHoldings(split: TcgSplit): Holding[] {
+  return split.owned.length > 0 ? split.owned : split.seeds;
 }
