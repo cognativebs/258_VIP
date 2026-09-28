@@ -103,15 +103,24 @@ export class RssAdapter {
     return this.writeSnapshot(url, rawXml, now);
   }
 
-  /** Write / re-write an immutable snapshot from known XML (tests + offline fixture). */
+  /**
+   * Write an immutable snapshot from known XML (live fetch, tests, offline fixture).
+   * Content-addressed: the file name carries the sha256 of the bytes, so a
+   * byte-identical fetch reuses the existing file instead of writing a
+   * duplicate. An existing file is never overwritten. fetchedAt records this fetch.
+   */
   writeSnapshot(url: string, rawXml: string, now = new Date()): RawRssSnapshot {
     mkdirSync(this.config.snapshotDir, { recursive: true });
-    const stamp = now.toISOString().replace(/[:.]/g, "-");
+    const contentHash = createHash("sha256").update(rawXml, "utf8").digest("hex");
     const snapshotPath = join(
       this.config.snapshotDir,
-      `${this.config.sourceId}-${stamp}.xml`,
+      `${this.config.sourceId}-${contentHash.slice(0, 32)}.xml`,
     );
-    writeFileSync(snapshotPath, rawXml, "utf8");
+    try {
+      writeFileSync(snapshotPath, rawXml, { encoding: "utf8", flag: "wx" });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+    }
     return RawRssSnapshotSchema.parse({
       url,
       fetchedAt: now.toISOString(),
