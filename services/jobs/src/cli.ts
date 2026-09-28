@@ -3,8 +3,15 @@ import {
   runEbayBrowseCompsJob,
 } from "./ebay-browse-comps.js";
 import { formatClzSyncReport, runClzSyncJobAsync } from "./clz-sync.js";
+import { Pool } from "pg";
+import {
+  formatEspnSportsReport,
+  runEspnSportsJob,
+  setEspnSourceEnabled,
+} from "./espn-sports.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import {
+  dsnFromEnv,
   formatPriceHistoryReport,
   parseArgs as parsePriceHistoryArgs,
   runPriceHistoryJob,
@@ -17,6 +24,29 @@ async function main() {
   if (cmd === "pokemon-drops") {
     const { delta } = await runPokemonDropsJobAsync({ triggeredBy: "cli" });
     console.log(formatDeltaReport(delta));
+    return;
+  }
+
+  if (cmd === "espn-sports") {
+    const args = process.argv.slice(3);
+    const sub = args.find((a) => !a.startsWith("--"));
+    if (sub === "enable-source" || sub === "disable-source") {
+      if (!args.includes("--confirm-operator")) {
+        console.error(`${sub} changes vault_core.signals_news_source (HS-5). Re-run with --confirm-operator.`);
+        process.exit(1);
+      }
+      const pool = new Pool({ connectionString: dsnFromEnv() });
+      try {
+        await setEspnSourceEnabled(pool, sub === "enable-source");
+        console.log(`espn_rss ${sub === "enable-source" ? "enabled" : "disabled"} by operator.`);
+      } finally {
+        await pool.end();
+      }
+      return;
+    }
+    const report = await runEspnSportsJob({ live: args.includes("--live") });
+    console.log(formatEspnSportsReport(report));
+    if (report.status === "failed") process.exit(1);
     return;
   }
 
@@ -61,6 +91,16 @@ async function main() {
           },
         },
         {
+          name: "espn-sports",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Blocked until an operator enables espn_rss; the report says so.
+            void runEspnSportsJob({ live: true }).then((report) => {
+              console.log(formatEspnSportsReport(report));
+            });
+          },
+        },
+        {
           name: "clz-sync",
           everyMs: 6 * 60 * 60 * 1000,
           run: () => {
@@ -82,7 +122,7 @@ async function main() {
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokemon-drops hourly, clz-sync every 6h, price-history daily). Ctrl+C to stop.",
+      "Scheduler started (pokemon-drops hourly, espn-sports hourly, clz-sync every 6h, price-history daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();
