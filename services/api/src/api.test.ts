@@ -381,6 +381,46 @@ describe("VIP API", () => {
     });
   });
 
+  it("hunts still list the seed hunts when vault_hunt is unreachable, and say why", async () => {
+    const downDb = {
+      query: async () => {
+        throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
+      },
+    };
+    await withServer(
+      async (base) => {
+        const res = await fetch(`${base}/api/hunts`);
+        const body = (await res.json()) as { hunts: { id: string }[]; definedHuntsError: string | null };
+        expect(body.hunts.map((h) => h.id)).toEqual(
+          expect.arrayContaining(["pokemon-need-binder", "absolute-batman", "pokemon-30th"]),
+        );
+        expect(body.definedHuntsError).toContain("ECONNREFUSED");
+      },
+      fixtureComics(),
+      { huntDb: downDb },
+    );
+  });
+
+  it("hunt item PATCH rejects an unknown status before touching the database", async () => {
+    const neverDb = {
+      query: async () => {
+        throw new Error("database must not be called for an invalid patch");
+      },
+    };
+    await withServer(
+      async (base) => {
+        const res = await fetch(`${base}/api/hunts/marvel-midnight-universe-launch/items/x`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: "preorder" }),
+        });
+        expect(res.status).toBe(400);
+      },
+      fixtureComics(),
+      { huntDb: neverDb },
+    );
+  });
+
   it("inventory includes TCG holdings with externalIds (Binder and/or seeds)", async () => {
     process.env.VIP_INCLUDE_POKEMON_SEEDS = "1";
     await withServer(async (base) => {

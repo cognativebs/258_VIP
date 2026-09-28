@@ -2,15 +2,41 @@
 
 import { useMemo, useState } from "react";
 
+/** TARGET → WATCHING → BUY → ORDERED → OWNED, PASS; owned/wanted/missing on older hunts. */
+export type HuntItemStatus =
+  | "target"
+  | "watching"
+  | "buy"
+  | "ordered"
+  | "owned"
+  | "pass"
+  | "wanted"
+  | "missing";
+
 export type HuntItem = {
   id: string;
   name: string;
-  status: "owned" | "wanted" | "missing";
+  status: HuntItemStatus;
   priority: string;
   buyUnder: number | null;
   market: number | null;
   imageUrl?: string | null;
   notes?: string | null;
+  details?: { reason?: string };
+};
+
+export type HuntSet = {
+  id: string;
+  name: string;
+  status: string;
+  priority: string;
+  progress: {
+    owned: number;
+    total: number;
+    completionPct: number;
+    totalPaid: number;
+    missing: string[];
+  };
 };
 
 export type Hunt = {
@@ -25,7 +51,11 @@ export type Hunt = {
     completionPct: number;
   };
   sections: { id: string; name: string; items: HuntItem[] }[];
+  sets?: HuntSet[];
 };
+
+const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const stillWanted = (i: HuntItem) => i.status !== "owned" && i.status !== "pass";
 
 function CompletionRing({ pct, size = 56 }: { pct: number; size?: number }) {
   const cls = pct >= 50 ? "high" : pct >= 20 ? "mid" : "low";
@@ -58,15 +88,15 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
       hunt.sections.find((s) => s.id === sectionId) ?? hunt.sections[0] ?? null;
     const remaining = hunt.sections
       .flatMap((s) => s.items)
-      .filter((i) => i.status !== "owned")
+      .filter(stillWanted)
       .reduce((sum, i) => sum + (i.buyUnder ?? i.market ?? 0), 0);
     const buyTargets = hunt.sections
       .flatMap((s) => s.items)
-      .filter((i) => i.status !== "owned")
+      .filter(stillWanted)
       .sort((a, b) => {
-        const pa = a.priority || "Z";
-        const pb = b.priority || "Z";
-        if (pa !== pb) return pa.localeCompare(pb);
+        const pa = PRIORITY_RANK[a.priority] ?? 9;
+        const pb = PRIORITY_RANK[b.priority] ?? 9;
+        if (pa !== pb) return pa - pb;
         return (a.buyUnder ?? 9999) - (b.buyUnder ?? 9999);
       })
       .slice(0, 6);
@@ -120,6 +150,26 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
           </div>
         ) : null}
 
+        {hunt.sets?.length ? (
+          <div className="panel" style={{ marginBottom: 22 }}>
+            <h3>Sets</h3>
+            <ul className="hunt-preview-list">
+              {hunt.sets.map((set) => (
+                <li key={set.id}>
+                  <strong>{set.name}</strong> · {set.status.toUpperCase()} · {set.progress.owned}/
+                  {set.progress.total} ({set.progress.completionPct}%)
+                  {set.progress.totalPaid > 0 ? ` · paid ${money(set.progress.totalPaid)}` : ""}
+                  {set.progress.missing.length ? (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      Missing: {set.progress.missing.join(" · ")}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="hunt-section-tabs">
           {hunt.sections.map((s) => (
             <button
@@ -151,9 +201,9 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
                       {item.status.toUpperCase()}
                       {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
                     </div>
-                    {item.notes ? (
+                    {item.notes ?? item.details?.reason ? (
                       <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                        {item.notes}
+                        {item.notes ?? item.details?.reason}
                       </div>
                     ) : null}
                   </div>

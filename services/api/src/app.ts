@@ -96,6 +96,14 @@ import {
   needBinderHuntPayload,
 } from "./lib/needBinderHunt.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
+import { HuntItemPatchSchema, HuntSetPatchSchema } from "@vip/core-model";
+import { getPool } from "./db/client.js";
+import {
+  listDefinedHunts,
+  updateHuntItem,
+  updateHuntSet,
+  type Queryable,
+} from "./lib/huntStore.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -164,6 +172,8 @@ export type AppDeps = {
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
   /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
   ebaySellService?: ReturnType<typeof createEbaySellService>;
+  /** Injectable vault_hunt connection so API tests control which definition hunts exist. */
+  huntDb?: Queryable;
 };
 
 type InventoryBundle = {
@@ -509,14 +519,26 @@ export function createApp(deps: AppDeps = {}) {
     });
   });
 
+  const huntDb = (): Queryable => deps.huntDb ?? getPool();
+
   app.get("/api/hunts", async (_req, res) => {
     const { holdings } = await buildInventory(deps);
     const needBinder = needBinderHuntPayload(holdings);
+    let defined: Awaited<ReturnType<typeof listDefinedHunts>> = [];
+    let definedHuntsError: string | null = null;
+    try {
+      defined = await listDefinedHunts(huntDb());
+    } catch (e) {
+      // Seed hunts still render; say why the database hunts are missing.
+      definedHuntsError = e instanceof Error ? e.message : "vault_hunt unavailable";
+    }
     res.json({
       hunts: [
         needBinder,
+        ...defined,
         ...HUNTS.map((h) => ({ ...h, metrics: huntCompletion(h) })),
       ],
+      definedHuntsError,
     });
   });
 
@@ -528,11 +550,51 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     const hunt = HUNTS.find((h) => h.id === id || h.slug === id);
-    if (!hunt) {
-      res.status(404).json({ error: "Hunt not found" });
+    if (hunt) {
+      res.json({ hunt: { ...hunt, metrics: huntCompletion(hunt) } });
       return;
     }
-    res.json({ hunt: { ...hunt, metrics: huntCompletion(hunt) } });
+    try {
+      const [defined] = await listDefinedHunts(huntDb(), id);
+      if (defined) {
+        res.json({ hunt: defined });
+        return;
+      }
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_hunt unavailable" });
+      return;
+    }
+    res.status(404).json({ error: "Hunt not found" });
+  });
+
+  app.patch("/api/hunts/:id/items/:itemId", async (req, res) => {
+    const parsed = HuntItemPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid patch", issues: parsed.error.issues });
+      return;
+    }
+    const ok = await updateHuntItem(huntDb(), String(req.params.id), String(req.params.itemId), parsed.data);
+    if (!ok) {
+      res.status(404).json({ error: "Hunt item not found" });
+      return;
+    }
+    const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
+    res.json({ hunt });
+  });
+
+  app.patch("/api/hunts/:id/sets/:setId", async (req, res) => {
+    const parsed = HuntSetPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid patch", issues: parsed.error.issues });
+      return;
+    }
+    const ok = await updateHuntSet(huntDb(), String(req.params.id), String(req.params.setId), parsed.data);
+    if (!ok) {
+      res.status(404).json({ error: "Hunt set not found" });
+      return;
+    }
+    const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
+    res.json({ hunt });
   });
 
   app.get("/api/recommendations", async (req, res) => {

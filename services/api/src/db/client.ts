@@ -52,6 +52,12 @@ export function getDb(): Db {
   return db;
 }
 
+/** The pool behind getDb(), for modules that speak plain SQL with parameters. */
+export function getPool(): Pool {
+  getDb();
+  return pool!;
+}
+
 export async function closeDb(): Promise<void> {
   await pool?.end();
   pool = null;
