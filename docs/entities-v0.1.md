@@ -12,7 +12,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 
 | Entity | Purpose | Key fields | Identifier |
 |---|---|---|---|
-| **Tool** | Product surface (IQVault, VaultOS, Orchastr8) | `code`, `displayName` | `tool.code` (stable string) |
+| **Tool** | Product surface (IQVault, VaultOS, Orchestr8) | `code`, `displayName` | `tool.code` (stable string) |
 | **ToolUser** | User account within a tool | `toolId`, `handle`, auth refs | UUID |
 | **AccountLink** | Links the same human across tools | `fromUserId`, `toUserId`, status | UUID |
 | **Tenant** *(new name; not yet in SQL)* | Ownership boundary for inventory & decisions | `type` (`personal` \| `store`), display name | UUID |
@@ -71,7 +71,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 | **Signal** | Normalized, durable market/news/supply event | `signalType`, body, `sourceUrl`, dates, novelty, quarantine status | UUID |
 | **HuntSignal** | Signal scoped to a CollectionHunt (current SQL) | `huntId`, type, body, url, date | UUID |
 
-*Vocabulary lock:* **Signal** = persisted intelligence event. Orchastr8 “Signal Hunter” is an **agent role**, not an entity name.
+*Vocabulary lock:* **Signal** = persisted intelligence event. Orchestr8 “Signal Hunter” is an **agent role**, not an entity name.
 
 ---
 
@@ -82,7 +82,7 @@ Every persisted record will eventually extend a **BaseRecord**: `id`, `createdAt
 | **Thesis** | Stated belief about an asset/set/theme | claim, horizon, linked assets, status | UUID |
 | **Prediction** | Scorable forecast | probability, evidence refs, action, `expiresAt`, outcome, calibration notes | UUID |
 
-*Today:* mostly Orchastr8 / Pokémon run docs — not yet first-class SQL. Names freeze now; tables in Phase 4.
+*Today:* mostly Orchestr8 / Pokémon run docs — not yet first-class SQL. Names freeze now; tables in Phase 4.
 
 ---
 

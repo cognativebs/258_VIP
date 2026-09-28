@@ -45,15 +45,32 @@ Preserve these terms from the current SQL/parser proofs unless an ADR says other
 - Postgres 16 + pgvector (`pgvector/pgvector:pg16`). Extensions install into `public`,
   never into a `vault_*` schema.
 - Binder TCG layout is `vault_tcg` (ADR 0007) and is live. Treat it as occupied.
+- SIGNALS placement (ADR 0013 G-4): registries and configuration go in `vault_core`
+  (e.g. `signals_news_source`); pipeline data goes in `vault_signals`.
 
 ## Data guarantees (apply to every schema)
 - Market price is ALWAYS a time-series observation, never a point-in-time scalar column.
 - `needs_review` is a permanent workflow state. Never auto-clear it.
 - Confirmed identities are never silently overwritten. Raw scans/captures are immutable.
 - `(priced_unit_id, condition_key)` is a pair and is never split. NULL never means
-  "any" — an explicit `'any'` value exists for that.
+  "any" — an explicit `'any'` value exists for that. ADR 0012: this pair rule
+  applies to observations and a future UnitRef. Today's empty
+  `vault_market.priced_unit` (asset+grade) is untouched pending TCG D1/D2.
+  PriceCharting / comics market writes join on `asset_id`; condition lives on
+  the observation.
 - Provider IDs live in a `provider_ids` jsonb column. Never a primary or foreign key.
 - The TCGplayer public API is closed to new developers. Do not write code assuming it.
+
+## SIGNALS spine hard stops (ADR 0013)
+
+These stop a thread. Report the finding and continue only with work that does not depend on it.
+
+1. **HS-1.** No schema element may imply a `priced_unit` join or a UnitRef pair. ADR 0012 Path B: market writes join on `asset_id`; `condition_key` lives on the observation; `vault_market.priced_unit` stays empty.
+2. **HS-2.** No write to `vault_market`, and no read that creates a dependency on `v_guide_price_baseline`.
+3. **HS-3.** Do not merge, replace, or generalize `vault_core.signals_news_source` into a shared sources table. News sources and market data sources stay separate so `may_raise_valuation_ceiling` means something.
+4. **HS-4.** Do not renumber a migration silently when a filename collides. Stop and report both names.
+5. **HS-5.** Do not set `adapter_enabled=true` or `is_active=true` on a source row, and do not make an outbound network call, from the spine. Fixtures only until an operator enables a source.
+6. **HS-6.** If a design decision is not covered by ADR 0013's gates, stop and report the options. Do not pick one and continue.
 
 ## Process
 - STOP and report before any destructive operation (DROP, TRUNCATE, destructive ALTER,

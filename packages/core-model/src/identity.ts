@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { BaseRecordSchema, UuidSchema } from "./base.js";
 
-export const ToolCodeSchema = z.enum(["iqvault", "vaultos", "orchastr8"]);
+export const ToolCodeSchema = z.enum(["iqvault", "vaultos", "orchestr8"]);
 export type ToolCode = z.infer<typeof ToolCodeSchema>;
 
 export const ToolSchema = BaseRecordSchema.extend({
