@@ -39,6 +39,12 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
   { code: "HOF_ANNOUNCEMENT", displayName: "Hall of fame announcement", defaultHalfLifeHours: 4320, description: GUESS, halfLifeVerified: false },
   { code: "MACRO_TREND", displayName: "Macro trend", defaultHalfLifeHours: 4320, description: GUESS, halfLifeVerified: false },
   { code: "SUPPLY_CHANGE", displayName: "Supply change", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "PLAYER_DEATH", displayName: "Player death", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
+  { code: "MILESTONE", displayName: "Milestone", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "TRANSACTION", displayName: "Transaction", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
+  { code: "AWARD_RACE", displayName: "Award race", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "DISCIPLINE", displayName: "Discipline", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "RETIREMENT", displayName: "Retirement", defaultHalfLifeHours: 2160, description: GUESS, halfLifeVerified: false },
 ];
 
 export const SCORE_WEIGHT_SEED = {

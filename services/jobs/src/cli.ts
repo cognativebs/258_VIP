@@ -11,6 +11,11 @@ import {
 } from "./espn-sports.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import {
+  classifyPendingEspnDocuments,
+  formatSportsClassifierReport,
+  openAiClassifier,
+} from "./sports-classifier.js";
+import {
   dsnFromEnv,
   formatPriceHistoryReport,
   parseArgs as parsePriceHistoryArgs,
@@ -40,6 +45,35 @@ async function main() {
         await setEspnSourceEnabled(pool, sub === "enable-source");
         console.log(`espn_rss ${sub === "enable-source" ? "enabled" : "disabled"} by operator.`);
       } finally {
+        await pool.end();
+      }
+      return;
+    }
+    if (sub === "classify") {
+      // The LLM is opt-in: it sends headline text to OpenAI. Without --llm the keyword rules decide.
+      let llm = null;
+      if (args.includes("--llm")) {
+        const apiKey = process.env.OPENAI_API_KEY?.trim();
+        if (!apiKey) {
+          console.error("--llm needs OPENAI_API_KEY.");
+          process.exit(1);
+        }
+        llm = openAiClassifier({ apiKey, model: process.env.VIP_SIGNALS_CLASSIFIER_MODEL?.trim() || undefined });
+      }
+      const dryRun = args.includes("--dry-run");
+      const pool = new Pool({ connectionString: dsnFromEnv() });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const report = await classifyPendingEspnDocuments(client, { llm });
+        await client.query(dryRun ? "ROLLBACK" : "COMMIT");
+        console.log(formatSportsClassifierReport(report));
+        if (dryRun) console.log("dry run: rolled back, nothing written.");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
         await pool.end();
       }
       return;

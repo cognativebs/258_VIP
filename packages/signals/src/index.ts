@@ -139,3 +139,27 @@ export {
   ValuationFirewallError,
   type SignalUrlMode,
 } from "./spine.js";
+
+export {
+  SPORTS_HEADLINE_CLASSIFIER,
+  ClassifierRuleSetSchema,
+  LlmClassificationSchema,
+  InjurySeveritySchema,
+  SignalDirectionSchema,
+  SubjectKindSchema,
+  compileRuleSet,
+  noiseMatch,
+  injurySeverity,
+  decideByRules,
+  decideByLlm,
+  scoreDecision,
+  llmMessages,
+  type ClassifierRuleSet,
+  type CompiledRuleSet,
+  type LlmClassification,
+  type Headline,
+  type HeadlineDecision,
+  type SignalDecision,
+  type InjurySeverity,
+} from "./classifier/sports-headline.js";
+export { SPORTS_HEADLINE_RULES_SEED } from "./classifier/sports-headline-seed.js";
