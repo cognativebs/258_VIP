@@ -98,8 +98,13 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
 - [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
   - [ ] Operator: confirm each feed URL + terms (PokeBeach feed, Alpha Investments channel ID, whether PSA/TAG publish a feed; no scraping), then enable per source
-- [ ] **Headlines (US, World)**: GDELT (row exists, disabled); two lanes by geography; needs its own classifier
-- [ ] **Markets & business news**: finance newsletters via Gmail labels (rows exist; Gmail connector not yet authorized) + SEC EDGAR
+- [x] **Headlines (US, World)**: GDELT lanes `us` / `world` on fixtures; `macro-headline` classifier; `daily-headlines` list (US 60 / world 40, starting shares · unverified)
+- [x] **Markets & business news (GDELT lane)**: GDELT `business` lane (collectibles companies, marketplaces, markets); `daily-markets` list
+  - [ ] Operator: `npm run news-source -- enable gdelt_doc_v2 --confirm-operator`, then a first live run to confirm the `sourcecountry` filters split US / world as intended
+  - [ ] SEC EDGAR filings lane (row exists): needs a contact email for the SEC User-Agent and a confirmed company list
+  - [ ] Finance newsletters lane (rows exist): needs Gmail access for the job (Google OAuth, read-only label), or a forwarded-email inbox folder
+- [x] `news-source list | enable <key> [--endpoint] --confirm-operator | disable` operator command; collectibles-news and macro-news run hourly in the scheduler (blocked until enabled)
+- [ ] Re-classify command (a document once `extracted` is not re-read when rules or the LLM choice change)
 - [ ] **Retail drops (Pokémon Center, Target) and Whatnot**: no public feed and scraping is forbidden; news reports (PokeBeach) + operator manual entries, both labeled by source
 - [ ] **Market data (separate track, outside the SIGNALS spine)**: stock indices from FRED; gold/silver wait for a licensed free source (FRED no longer carries LBMA metals); eBay asks exist, sold access restricted; TCGplayer API closed (no adapter); PSA/TAG population reports
 

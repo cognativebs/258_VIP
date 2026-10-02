@@ -47,6 +47,11 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
   { code: "RETIREMENT", displayName: "Retirement", defaultHalfLifeHours: 2160, description: GUESS, halfLifeVerified: false },
   { code: "MEDIA_ADAPTATION", displayName: "Media adaptation", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
   { code: "GRADING_SERVICE_CHANGE", displayName: "Grading service change", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "TRADE_POLICY", displayName: "Trade policy", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "SHIPPING_CHANGE", displayName: "Shipping change", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "REGULATION", displayName: "Regulation", defaultHalfLifeHours: 2160, description: GUESS, halfLifeVerified: false },
+  { code: "COMPANY_EVENT", displayName: "Company event", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
+  { code: "MARKET_MOVE", displayName: "Market move", defaultHalfLifeHours: 72, description: GUESS, halfLifeVerified: false },
 ];
 
 export const SCORE_WEIGHT_SEED = {

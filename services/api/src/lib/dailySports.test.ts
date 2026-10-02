@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
-import { DAILY_COLLECTIBLES_PROFILE_SEED, DAILY_SPORTS_PROFILE_SEED } from "@vip/signals";
+import { DAILY_COLLECTIBLES_PROFILE_SEED, DAILY_HEADLINES_PROFILE_SEED, DAILY_SPORTS_PROFILE_SEED } from "@vip/signals";
 import { normalizeDsn } from "../db/client.js";
-import { DailyProfileNotFoundError, buildDaily, buildDailySports, type Queryable } from "./dailySports.js";
+import { DailyProfileNotFoundError, buildDaily, buildDailySports, laneFor, type Queryable } from "./dailySports.js";
 
 const DSN = process.env.IQVAULT_TEST_DSN;
 const AT = new Date("2026-10-01T12:00:00.000Z");
@@ -118,6 +118,36 @@ describe("buildDaily (collectibles)", () => {
 
   it("rejects a profile name that is not a daily list", async () => {
     await expect(buildDaily({ query: async () => ({ rows: [] }) }, "x; drop", AT)).rejects.toThrow();
+  });
+});
+
+describe("lanes and credit", () => {
+  it("takes the lane from the snapshot path, falling back to the ESPN feed URL, then the source", () => {
+    expect(laneFor("espn_rss", "jobs/.state/snapshots/espn/nfl/espn_rss-abc.xml", null)).toBe("nfl");
+    expect(laneFor("espn_rss", null, "https://www.espn.com/espn/rss/mlb/news")).toBe("mlb");
+    expect(laneFor("gdelt_doc_v2", "jobs/.state/snapshots/gdelt_doc_v2/world/gdelt_doc_v2-abc.json", null)).toBe("world");
+    expect(laneFor("comicsbeat_rss", "jobs/.state/snapshots/comicsbeat_rss/comicsbeat_rss-abc.xml", null)).toBe("comicsbeat_rss");
+  });
+
+  it("credits a GDELT article to its outlet", async () => {
+    const db: Queryable = {
+      query: async (text) =>
+        text.includes("signals_curation_profile")
+          ? { rows: [{ version: "0.1.0", verified: false, domain: "macro", profile_json: DAILY_HEADLINES_PROFILE_SEED }] }
+          : {
+              rows: [
+                row("g-1", "x", 0.1, "mixed", {
+                  source_id: "gdelt_doc_v2",
+                  feed_url: "https://api.gdeltproject.org/api/v2/doc/doc?query=x",
+                  storage_key: "jobs/.state/snapshots/gdelt_doc_v2/us/gdelt_doc_v2-abc.json",
+                  source_item_url: "https://www.fixture-daily.example/tariffs",
+                  source_name: "GDELT DOC 2.0",
+                }),
+              ],
+            },
+    };
+    const out = await buildDaily(db, "daily-headlines", AT);
+    expect(out.items.map((i) => [i.group, i.attribution])).toEqual([["us", "fixture-daily.example via GDELT"]]);
   });
 });
 

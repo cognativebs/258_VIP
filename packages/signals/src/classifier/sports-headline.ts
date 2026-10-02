@@ -45,7 +45,7 @@ export const ClassifierRuleSetSchema = z
     schema: z.literal("vip_signals_classifier_rules_v1"),
     classifier: z.string().regex(/^[a-z][a-z0-9-]*$/),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
-    domain: z.enum(["sports_cards", "collectibles"]),
+    domain: z.enum(["sports_cards", "collectibles", "macro"]),
     /** How the LLM is briefed, and which subjects may become signals. Absent = sports (players only). */
     llm: z
       .object({ brief: z.string().min(1), subjectKinds: z.array(SubjectKindSchema).min(1) })

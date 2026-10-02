@@ -22,6 +22,8 @@
     "job:pokemon-drops": "npm run pokemon-drops -w @vip/jobs",
     "job:espn-sports": "npm run espn-sports -w @vip/jobs --",
     "job:collectibles-news": "npm run collectibles-news -w @vip/jobs --",
+    "job:macro-news": "npm run macro-news -w @vip/jobs --",
+    "news-source": "npm run news-source -w @vip/jobs --",
     "job:clz-sync": "npm run clz-sync -w @vip/jobs",
     "job:price-history": "npm run price-history -w @vip/jobs",
     "job:comics-comps": "npm run comics-comps -w @vip/api --",

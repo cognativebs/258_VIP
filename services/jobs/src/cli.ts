@@ -10,6 +10,8 @@ import {
   setEspnSourceEnabled,
 } from "./espn-sports.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
+import { formatMacroNewsReport, GDELT_SOURCE_KEY, runMacroNewsJob } from "./macro-news.js";
+import { disableNewsSource, enableNewsSource, listNewsSources } from "./news-source-admin.js";
 import {
   COLLECTIBLES_SOURCE_KEYS,
   formatCollectiblesNewsReport,
@@ -100,6 +102,59 @@ async function main() {
     return;
   }
 
+  if (cmd === "macro-news") {
+    const args = process.argv.slice(3);
+    if (args.find((a) => !a.startsWith("--")) === "classify") {
+      await runClassify(args, (db, llm) =>
+        classifyPendingDocuments(db, {
+          sourceKeys: [GDELT_SOURCE_KEY],
+          ruleSetName: "macro-headline",
+          job: "macro-classifier",
+          llm,
+        }),
+      );
+      return;
+    }
+    const report = await runMacroNewsJob({ live: args.includes("--live") });
+    console.log(formatMacroNewsReport(report));
+    if (report.status === "failed") process.exit(1);
+    return;
+  }
+
+  if (cmd === "news-source") {
+    // news-source list | enable <key> [--endpoint https://...] --confirm-operator | disable <key> --confirm-operator
+    const args = process.argv.slice(3);
+    const [sub, key] = args.filter((a) => !a.startsWith("--") && !/^https?:/.test(a));
+    const pool = new Pool({ connectionString: dsnFromEnv() });
+    try {
+      if (sub === "list" || !sub) {
+        for (const s of await listNewsSources(pool)) {
+          console.log(`${s.enabled ? "ON " : "off"} ${s.sourceKey.padEnd(26)} ${s.endpoint ?? "(no endpoint)"}${s.blockedReason ? ` — ${s.blockedReason}` : ""}`);
+        }
+        return;
+      }
+      if ((sub === "enable" || sub === "disable") && key) {
+        if (!args.includes("--confirm-operator")) {
+          console.error(`${sub} changes vault_core.signals_news_source (HS-5). Confirm the source's terms, then re-run with --confirm-operator.`);
+          process.exit(1);
+        }
+        if (sub === "disable") {
+          await disableNewsSource(pool, key);
+          console.log(`${key} disabled by operator.`);
+          return;
+        }
+        const i = args.indexOf("--endpoint");
+        const s = await enableNewsSource(pool, { sourceKey: key, endpoint: i >= 0 ? args[i + 1] : undefined });
+        console.log(`${s.sourceKey} enabled by operator · ${s.endpoint}`);
+        return;
+      }
+      console.error("usage: news-source list | enable <key> [--endpoint https://...] --confirm-operator | disable <key> --confirm-operator");
+      process.exit(1);
+    } finally {
+      await pool.end();
+    }
+  }
+
   if (cmd === "collectibles-news") {
     const args = process.argv.slice(3);
     if (args.find((a) => !a.startsWith("--")) === "classify") {
@@ -170,6 +225,26 @@ async function main() {
           },
         },
         {
+          name: "collectibles-news",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Each source stays blocked until an operator enables it; the report says so.
+            void runCollectiblesNewsJob({ live: true })
+              .then((report) => console.log(formatCollectiblesNewsReport(report)))
+              .catch((e) => console.error(`collectibles-news failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
+          name: "macro-news",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Blocked until an operator enables gdelt_doc_v2; the report says so.
+            void runMacroNewsJob({ live: true })
+              .then((report) => console.log(formatMacroNewsReport(report)))
+              .catch((e) => console.error(`macro-news failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "clz-sync",
           everyMs: 6 * 60 * 60 * 1000,
           run: () => {
@@ -191,7 +266,7 @@ async function main() {
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokemon-drops hourly, espn-sports hourly, clz-sync every 6h, price-history daily). Ctrl+C to stop.",
+      "Scheduler started (pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();

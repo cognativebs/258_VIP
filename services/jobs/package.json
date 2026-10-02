@@ -8,6 +8,8 @@
     "pokemon-drops": "tsx src/cli.ts pokemon-drops",
     "espn-sports": "tsx src/cli.ts espn-sports",
     "collectibles-news": "tsx src/cli.ts collectibles-news",
+    "macro-news": "tsx src/cli.ts macro-news",
+    "news-source": "tsx src/cli.ts news-source",
     "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
     "clz-sync": "tsx src/cli.ts clz-sync",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -179,3 +179,14 @@ export {
 export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
 export { COLLECTIBLES_HEADLINE_RULES_SEED } from "./classifier/collectibles-headline-seed.js";
 export { DAILY_COLLECTIBLES_PROFILE_SEED } from "./curation/daily-collectibles-seed.js";
+export { MACRO_HEADLINE_RULES_SEED } from "./classifier/macro-headline-seed.js";
+export { DAILY_HEADLINES_PROFILE_SEED, DAILY_MARKETS_PROFILE_SEED } from "./curation/daily-macro-seed.js";
+export {
+  GDELT_DOC_ADAPTER_VERSION,
+  GdeltDocAdapter,
+  GdeltLaneQuerySchema,
+  gdeltRequestUrl,
+  resetGdeltRateLimitForTests,
+  type GdeltLaneQuery,
+  type GdeltItem,
+} from "./adapters/gdelt-doc-adapter.js";

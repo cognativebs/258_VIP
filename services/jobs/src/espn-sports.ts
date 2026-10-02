@@ -298,7 +298,11 @@ export async function persistFeedSnapshots(
         inserted.rows[0].id,
         `jobs/.state/${storageKey}`,
         snapshot.byteLength,
-        /<feed[\s>]/.test(snapshot.rawXml) && !/<rss[\s>]/.test(snapshot.rawXml) ? "application/atom+xml" : "application/rss+xml",
+        snapshot.rawXml.trimStart().startsWith("{")
+          ? "application/json"
+          : /<feed[\s>]/.test(snapshot.rawXml) && !/<rss[\s>]/.test(snapshot.rawXml)
+            ? "application/atom+xml"
+            : "application/rss+xml",
       ],
     );
   }

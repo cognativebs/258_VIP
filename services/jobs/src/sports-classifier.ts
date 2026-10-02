@@ -14,6 +14,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  GdeltDocAdapter,
   LlmClassificationSchema,
   RssAdapter,
   compileRuleSet,
@@ -119,17 +120,26 @@ export function snapshotPathFor(storageKey: string, stateDir: string): string {
   return join(stateDir, storageKey.replace(/^jobs\/\.state\//, ""));
 }
 
-const laneFromKey = (storageKey: string) => /snapshots\/espn\/([a-z]+)\//.exec(storageKey)?.[1] ?? null;
+/** snapshots/<source dir>/<lane>/<file>: ESPN sports, GDELT query lanes. */
+const laneFromKey = (storageKey: string) => /snapshots\/[^/]+\/([a-z0-9_]+)\/[^/]+$/.exec(storageKey)?.[1] ?? null;
 
-function parseFile(path: string, sourceKey: string, url: string, fetchedAt: Date, stateDir: string) {
-  const rawXml = readFileSync(path, "utf8");
-  return new RssAdapter({ feedUrl: "", sourceId: sourceKey, rateLimitMs: 0, snapshotDir: stateDir }).parseSnapshot({
-    url,
-    fetchedAt: fetchedAt.toISOString(),
-    rawXml,
-    snapshotPath: path,
-    byteLength: Buffer.byteLength(rawXml, "utf8"),
-  });
+type FeedItem = {
+  guid: string;
+  title: string;
+  body: string;
+  sourceUrl: string | null;
+  quarantineStatus: string;
+  /** The publishing outlet when the source aggregates many (GDELT). */
+  outlet?: string | null;
+};
+
+function parseFile(path: string, sourceKey: string, url: string, fetchedAt: Date, stateDir: string): FeedItem[] {
+  const raw = readFileSync(path, "utf8");
+  const snapshot = { url, fetchedAt: fetchedAt.toISOString(), rawXml: raw, snapshotPath: path, byteLength: Buffer.byteLength(raw, "utf8") };
+  if (sourceKey === "gdelt_doc_v2") {
+    return new GdeltDocAdapter({ sourceId: sourceKey, snapshotDir: stateDir, rateLimitMs: 0 }).parseSnapshot(snapshot);
+  }
+  return new RssAdapter({ feedUrl: "", sourceId: sourceKey, rateLimitMs: 0, snapshotDir: stateDir }).parseSnapshot(snapshot);
 }
 
 export async function classifyPendingDocuments(
@@ -248,8 +258,9 @@ export async function classifyPendingDocuments(
       const typeId = ctx.signalTypeIds.get(decision.signalType);
       if (!typeId) throw new Error(`signal_type ${decision.signalType} missing`);
       const ruleVersion = `${ctx.ruleSetVersion}+${modelTag}`;
+      const attribution = item.outlet ? `${item.outlet} via ${source.attribution}` : source.attribution;
       const notes = [
-        source.attribution,
+        attribution,
         lane,
         source.provMethod === "opinion" ? "creator opinion" : null,
         decision.severity ? `severity ${decision.severity}` : null,
@@ -278,7 +289,8 @@ export async function classifyPendingDocuments(
         `INSERT INTO vault_signals.event_evidence
            (event_id, raw_document_id, role, independence_group, detected_at, item_ref, source_item_url)
          VALUES ($1, $2, 'PRIMARY', $3, $4, $5, $6)`,
-        [eventId, doc.id, source.independenceGroup, fetchedAt, item.guid, item.sourceUrl],
+        // An aggregator's outlets are independent of each other; corroboration counts outlets.
+        [eventId, doc.id, item.outlet ?? source.independenceGroup, fetchedAt, item.guid, item.sourceUrl],
       );
       const signal = await db.query(
         `INSERT INTO vault_signals.signal (

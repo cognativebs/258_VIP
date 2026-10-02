@@ -18,7 +18,7 @@ export const DailySportsProfileSchema = z
     schema: z.literal("vip_signals_curation_v1"),
     name: z.string().regex(/^[a-z][a-z0-9-]*$/),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
-    domain: z.enum(["sports_cards", "collectibles"]),
+    domain: z.enum(["sports_cards", "collectibles", "macro"]),
     slots: z.number().int().positive().max(200),
     windowHours: z.number().int().positive().max(24 * 14),
     groups: z

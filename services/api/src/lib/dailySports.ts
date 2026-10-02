@@ -41,9 +41,26 @@ const ESPN_ATTRIBUTION = "Provided by ESPN";
 
 export class DailyProfileNotFoundError extends Error {}
 
-/** ESPN items sit in a sport lane (nfl, mlb, ...); every other source is its own lane. */
-function laneFor(sourceKey: string, feedUrl: string | null): string {
+/**
+ * A snapshot stored under snapshots/<source dir>/<lane>/ sits in that lane (ESPN
+ * sports, GDELT query lanes); otherwise the source is its own lane.
+ */
+export function laneFor(sourceKey: string, storageKey: string | null, feedUrl: string | null): string {
+  const lane = /snapshots\/[^/]+\/([a-z0-9_]+)\/[^/]+$/.exec(storageKey ?? "")?.[1];
+  if (lane) return lane;
   return sourceKey === "espn_rss" ? (sportFromFeedUrl(feedUrl) ?? "unknown") : sourceKey;
+}
+
+function attributionFor(sourceKey: string, sourceName: string | null, itemUrl: string | null): string {
+  if (sourceKey === "espn_rss") return ESPN_ATTRIBUTION;
+  if (sourceKey === "gdelt_doc_v2" && itemUrl) {
+    try {
+      return `${new URL(itemUrl).hostname.replace(/^www\./, "")} via GDELT`;
+    } catch {
+      return "via GDELT";
+    }
+  }
+  return sourceName ?? sourceKey;
 }
 
 export async function buildDaily(db: Queryable, name: string, at: Date = new Date()) {
@@ -64,6 +81,8 @@ export async function buildDaily(db: Queryable, name: string, at: Date = new Dat
             t.code, t.display_name,
             vault_signals.signal_influence(s.id, $1)::float AS influence,
             d.source_id, d.source_url AS feed_url, ee.source_item_url, src.display_name AS source_name,
+            (SELECT ds.storage_key FROM vault_signals.document_snapshot ds
+              WHERE ds.raw_document_id = d.id ORDER BY ds.storage_key LIMIT 1) AS storage_key,
             (SELECT se.entity_ref || '|' || se.entity_kind FROM vault_signals.signal_entity se
               WHERE se.signal_id = s.id AND se.entity_kind LIKE '%\\_name\\_text'
               ORDER BY se.entity_ref LIMIT 1) AS subject
@@ -83,7 +102,7 @@ export async function buildDaily(db: Queryable, name: string, at: Date = new Dat
     const [subject, kind] = typeof r.subject === "string" ? (r.subject.split("|") as [string, string]) : [null, null];
     return {
       signalId: r.id,
-      lane: laneFor(r.source_id, r.feed_url),
+      lane: laneFor(r.source_id, r.storage_key, r.feed_url),
       direction: r.direction,
       influence: Number(r.influence ?? 0),
       sourceKey: r.source_id,
@@ -94,7 +113,7 @@ export async function buildDaily(db: Queryable, name: string, at: Date = new Dat
       subject,
       player: kind === "player_name_text" ? subject : null,
       sourceUrl: r.source_item_url,
-      attribution: r.source_id === "espn_rss" ? ESPN_ATTRIBUTION : (r.source_name ?? r.source_id),
+      attribution: attributionFor(r.source_id, r.source_name, r.source_item_url),
       firstSeenAt: new Date(r.first_seen_at).toISOString(),
       baseConfidence: r.base_confidence,
       baseImpact: r.base_impact,

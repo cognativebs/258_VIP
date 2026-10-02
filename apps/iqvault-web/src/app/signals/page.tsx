@@ -38,6 +38,8 @@ type DailyList = {
 const DAILY_LISTS = [
   { name: "daily-sports", title: "Daily Sports SIGNAL" },
   { name: "daily-collectibles", title: "Daily Collectibles SIGNAL" },
+  { name: "daily-headlines", title: "Daily Headlines SIGNAL (US · World)" },
+  { name: "daily-markets", title: "Daily Markets & Business SIGNAL" },
 ] as const;
 
 const FRAMING_LABEL = { sell_window: "Sell window", exit_watch: "Exit · watch" } as const;
