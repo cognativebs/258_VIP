@@ -45,6 +45,8 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
   { code: "AWARD_RACE", displayName: "Award race", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
   { code: "DISCIPLINE", displayName: "Discipline", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
   { code: "RETIREMENT", displayName: "Retirement", defaultHalfLifeHours: 2160, description: GUESS, halfLifeVerified: false },
+  { code: "MEDIA_ADAPTATION", displayName: "Media adaptation", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "GRADING_SERVICE_CHANGE", displayName: "Grading service change", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
 ];
 
 export const SCORE_WEIGHT_SEED = {

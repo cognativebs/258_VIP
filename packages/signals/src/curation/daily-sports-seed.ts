@@ -14,10 +14,10 @@ export const DAILY_SPORTS_PROFILE_SEED: DailySportsProfile = {
   slots: 20,
   windowHours: 24,
   groups: [
-    { key: "football", label: "Football (NFL + college)", share: 0.8, sports: ["nfl", "ncf"], stance: "collect" },
-    { key: "soccer", label: "Soccer", share: 0.1, sports: ["soccer"], stance: "collect" },
-    { key: "basketball", label: "Basketball (NBA)", share: 0.05, sports: ["nba"], stance: "exit" },
-    { key: "baseball", label: "Baseball (MLB)", share: 0.05, sports: ["mlb"], stance: "exit" },
+    { key: "football", label: "Football (NFL + college)", share: 0.8, lanes: ["nfl", "ncf"], stance: "collect" },
+    { key: "soccer", label: "Soccer", share: 0.1, lanes: ["soccer"], stance: "collect" },
+    { key: "basketball", label: "Basketball (NBA)", share: 0.05, lanes: ["nba"], stance: "exit" },
+    { key: "baseball", label: "Baseball (MLB)", share: 0.05, lanes: ["mlb"], stance: "exit" },
   ],
   backfillOrder: ["football", "soccer"],
   notes:

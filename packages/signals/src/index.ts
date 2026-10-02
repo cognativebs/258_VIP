@@ -161,6 +161,7 @@ export {
   type HeadlineDecision,
   type SignalDecision,
   type InjurySeverity,
+  type SubjectKind,
 } from "./classifier/sports-headline.js";
 export { SPORTS_HEADLINE_RULES_SEED } from "./classifier/sports-headline-seed.js";
 export { SPORTS_HEADLINE_RULES_V0_2_0 } from "./classifier/sports-headline-seed.js";
@@ -176,3 +177,5 @@ export {
   type CuratedItem,
 } from "./curation/daily-sports.js";
 export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
+export { COLLECTIBLES_HEADLINE_RULES_SEED } from "./classifier/collectibles-headline-seed.js";
+export { DAILY_COLLECTIBLES_PROFILE_SEED } from "./curation/daily-collectibles-seed.js";

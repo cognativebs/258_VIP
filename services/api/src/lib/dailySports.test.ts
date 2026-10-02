@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
-import { DAILY_SPORTS_PROFILE_SEED } from "@vip/signals";
+import { DAILY_COLLECTIBLES_PROFILE_SEED, DAILY_SPORTS_PROFILE_SEED } from "@vip/signals";
 import { normalizeDsn } from "../db/client.js";
-import { buildDailySports, type Queryable } from "./dailySports.js";
+import { DailyProfileNotFoundError, buildDaily, buildDailySports, type Queryable } from "./dailySports.js";
 
 const DSN = process.env.IQVAULT_TEST_DSN;
 const AT = new Date("2026-10-01T12:00:00.000Z");
@@ -24,7 +24,9 @@ function row(id: string, sport: string, influence: number, direction: string, ex
     source_id: "espn_rss",
     feed_url: `https://www.espn.com/espn/rss/${sport}/news`,
     source_item_url: `https://www.espn.com/${sport}/story/_/id/${id}?utm_source=rss`,
-    player: null,
+    source_name: "ESPN",
+    prov_method: "inferred",
+    subject: null,
     ...extra,
   };
 }
@@ -36,7 +38,7 @@ function stubDb(rows: unknown[]): Queryable & { calls: { text: string; params?: 
     query: async (text, params) => {
       calls.push({ text, params });
       if (text.includes("signals_curation_profile")) {
-        return { rows: [{ version: "0.1.0", verified: false, profile_json: DAILY_SPORTS_PROFILE_SEED }] };
+        return { rows: [{ version: "0.1.0", verified: false, domain: "sports_cards", profile_json: DAILY_SPORTS_PROFILE_SEED }] };
       }
       return { rows };
     },
@@ -46,14 +48,15 @@ function stubDb(rows: unknown[]): Queryable & { calls: { text: string; params?: 
 describe("buildDailySports", () => {
   it("applies the current profile, credits and links ESPN, and frames exit sports", async () => {
     const db = stubDb([
-      row("nfl-1", "nfl", 0.05, "down", { player: "Fixture QB" }),
+      row("nfl-1", "nfl", 0.05, "down", { subject: "Fixture QB|player_name_text" }),
       row("ncf-1", "ncf", 0.04, "down"),
       row("nba-1", "nba", 0.2, "up"),
       row("mlb-1", "mlb", 0.1, "down"),
       row("nhl-1", "nhl", 0.9, "down"),
     ]);
     const out = await buildDailySports(db, AT);
-    expect(db.calls[1]!.params).toEqual([AT.toISOString(), 24]);
+    expect(db.calls[0]!.params).toEqual(["daily-sports"]);
+    expect(db.calls[1]!.params).toEqual([AT.toISOString(), 24, "sports_cards"]);
     expect(out.profile).toMatchObject({ name: "daily-sports", version: "0.1.0", slots: 20, verified: false });
     expect(out.outsideProfile).toBe(1);
     expect(out.items.map((i) => [i.signalId, i.group, i.framing])).toEqual([
@@ -67,6 +70,7 @@ describe("buildDailySports", () => {
       attribution: "Provided by ESPN",
       sourceUrl: "https://www.espn.com/nfl/story/_/id/nfl-1?utm_source=rss",
       player: "Fixture QB",
+      subject: "Fixture QB",
       verification: "unverified",
     });
     expect(out.provenance.notes).toMatch(/not a Sell recommendation/);
@@ -74,7 +78,46 @@ describe("buildDailySports", () => {
 
   it("says so when no profile is current", async () => {
     const db: Queryable = { query: async () => ({ rows: [] }) };
-    await expect(buildDailySports(db, AT)).rejects.toThrow(/no current daily-sports/);
+    await expect(buildDailySports(db, AT)).rejects.toBeInstanceOf(DailyProfileNotFoundError);
+  });
+});
+
+describe("buildDaily (collectibles)", () => {
+  it("uses source keys as lanes, credits each source by name, and passes the opinion method through", async () => {
+    const db: Queryable = {
+      query: async (text) => {
+        if (text.includes("signals_curation_profile")) {
+          return { rows: [{ version: "0.1.0", verified: false, domain: "collectibles", profile_json: DAILY_COLLECTIBLES_PROFILE_SEED }] };
+        }
+        return {
+          rows: [
+            row("cb-1", "x", 0.2, "up", { source_id: "comicsbeat_rss", feed_url: "https://www.comicsbeat.com/feed/", source_name: "The Beat (comics)" }),
+            row("yt-1", "x", 0.05, "down", {
+              source_id: "alpha_investments_youtube",
+              feed_url: null,
+              source_name: "Alpha Investments (YouTube)",
+              prov_method: "opinion",
+              subject: "Fixture Storm|product_name_text",
+            }),
+          ],
+        };
+      },
+    };
+    const out = await buildDaily(db, "daily-collectibles", AT);
+    expect(out.groups.map((g) => [g.key, g.allocated])).toEqual([
+      ["comics", 8],
+      ["pokemon", 7],
+      ["grading", 3],
+      ["creator", 2],
+    ]);
+    expect(out.items.map((i) => [i.group, i.attribution, i.method, i.subject, i.player])).toEqual([
+      ["comics", "The Beat (comics)", "inferred", null, null],
+      ["creator", "Alpha Investments (YouTube)", "opinion", "Fixture Storm", null],
+    ]);
+  });
+
+  it("rejects a profile name that is not a daily list", async () => {
+    await expect(buildDaily({ query: async () => ({ rows: [] }) }, "x; drop", AT)).rejects.toThrow();
   });
 });
 

@@ -11,10 +11,51 @@ import {
 } from "./espn-sports.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import {
+  COLLECTIBLES_SOURCE_KEYS,
+  formatCollectiblesNewsReport,
+  runCollectiblesNewsJob,
+} from "./collectibles-news.js";
+import {
+  classifyPendingDocuments,
   classifyPendingEspnDocuments,
   formatSportsClassifierReport,
   openAiClassifier,
+  type HeadlineClassifierReport,
+  type LlmClassifier,
+  type Queryable,
 } from "./sports-classifier.js";
+
+/** Shared by every news job's `classify` subcommand. The LLM is opt-in: it sends headline text to OpenAI. */
+async function runClassify(
+  args: string[],
+  classify: (db: Queryable, llm: LlmClassifier | null) => Promise<HeadlineClassifierReport>,
+) {
+  let llm: LlmClassifier | null = null;
+  if (args.includes("--llm")) {
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      console.error("--llm needs OPENAI_API_KEY.");
+      process.exit(1);
+    }
+    llm = openAiClassifier({ apiKey, model: process.env.VIP_SIGNALS_CLASSIFIER_MODEL?.trim() || undefined });
+  }
+  const dryRun = args.includes("--dry-run");
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const report = await classify(client, llm);
+    await client.query(dryRun ? "ROLLBACK" : "COMMIT");
+    console.log(formatSportsClassifierReport(report));
+    if (dryRun) console.log("dry run: rolled back, nothing written.");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
 import {
   dsnFromEnv,
   formatPriceHistoryReport,
@@ -50,36 +91,30 @@ async function main() {
       return;
     }
     if (sub === "classify") {
-      // The LLM is opt-in: it sends headline text to OpenAI. Without --llm the keyword rules decide.
-      let llm = null;
-      if (args.includes("--llm")) {
-        const apiKey = process.env.OPENAI_API_KEY?.trim();
-        if (!apiKey) {
-          console.error("--llm needs OPENAI_API_KEY.");
-          process.exit(1);
-        }
-        llm = openAiClassifier({ apiKey, model: process.env.VIP_SIGNALS_CLASSIFIER_MODEL?.trim() || undefined });
-      }
-      const dryRun = args.includes("--dry-run");
-      const pool = new Pool({ connectionString: dsnFromEnv() });
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const report = await classifyPendingEspnDocuments(client, { llm });
-        await client.query(dryRun ? "ROLLBACK" : "COMMIT");
-        console.log(formatSportsClassifierReport(report));
-        if (dryRun) console.log("dry run: rolled back, nothing written.");
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-        await pool.end();
-      }
+      await runClassify(args, (db, llm) => classifyPendingEspnDocuments(db, { llm }));
       return;
     }
     const report = await runEspnSportsJob({ live: args.includes("--live") });
     console.log(formatEspnSportsReport(report));
+    if (report.status === "failed") process.exit(1);
+    return;
+  }
+
+  if (cmd === "collectibles-news") {
+    const args = process.argv.slice(3);
+    if (args.find((a) => !a.startsWith("--")) === "classify") {
+      await runClassify(args, (db, llm) =>
+        classifyPendingDocuments(db, {
+          sourceKeys: [...COLLECTIBLES_SOURCE_KEYS],
+          ruleSetName: "collectibles-headline",
+          job: "collectibles-classifier",
+          llm,
+        }),
+      );
+      return;
+    }
+    const report = await runCollectiblesNewsJob({ live: args.includes("--live") });
+    console.log(formatCollectiblesNewsReport(report));
     if (report.status === "failed") process.exit(1);
     return;
   }

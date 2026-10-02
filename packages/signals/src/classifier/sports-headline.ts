@@ -25,12 +25,32 @@ export type InjurySeverity = z.infer<typeof InjurySeveritySchema>;
 
 export const SignalDirectionSchema = z.enum(["up", "down", "mixed"]);
 
+export const SubjectKindSchema = z.enum([
+  "player",
+  "coach",
+  "executive",
+  "team",
+  "league",
+  "product",
+  "character",
+  "creator",
+  "company",
+  "other",
+  "unknown",
+]);
+export type SubjectKind = z.infer<typeof SubjectKindSchema>;
+
 export const ClassifierRuleSetSchema = z
   .object({
     schema: z.literal("vip_signals_classifier_rules_v1"),
-    classifier: z.literal(SPORTS_HEADLINE_CLASSIFIER),
+    classifier: z.string().regex(/^[a-z][a-z0-9-]*$/),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
-    domain: z.literal("sports_cards"),
+    domain: z.enum(["sports_cards", "collectibles"]),
+    /** How the LLM is briefed, and which subjects may become signals. Absent = sports (players only). */
+    llm: z
+      .object({ brief: z.string().min(1), subjectKinds: z.array(SubjectKindSchema).min(1) })
+      .strict()
+      .optional(),
     scoring: z
       .object({
         /** Multiplies confidence when the headline is hedged ("sources", "expected to"). */
@@ -79,8 +99,6 @@ export const ClassifierRuleSetSchema = z
   });
 export type ClassifierRuleSet = z.infer<typeof ClassifierRuleSetSchema>;
 
-export const SubjectKindSchema = z.enum(["player", "coach", "executive", "team", "league", "other", "unknown"]);
-
 /** What the LLM must return. Anything else is discarded, and the rules decide. */
 export const LlmClassificationSchema = z
   .object({
@@ -101,6 +119,7 @@ export type SignalDecision = {
   outcome: "signal";
   method: "rules" | "llm";
   signalType: SpineSignalTypeCode;
+  subjectKind: SubjectKind | null;
   subjectName: string | null;
   severity: InjurySeverity | null;
   hedged: boolean;
@@ -167,6 +186,7 @@ export function decideByRules(headline: Headline, c: CompiledRuleSet): HeadlineD
       method: "rules",
       signalType: rule.type,
       // Keyword rules cannot tell a player from a coach or extract a name.
+      subjectKind: null,
       subjectName: null,
       severity: rule.type === "PLAYER_INJURY" ? injurySeverity(headline, c) : null,
       hedged: firstMatch(c.hedge, fullText(headline)) != null,
@@ -177,13 +197,17 @@ export function decideByRules(headline: Headline, c: CompiledRuleSet): HeadlineD
   return { outcome: "no_signal", method: "rules", reason: "no rule matched" };
 }
 
-/** The LLM decides type and subject; only players become signals. Noise is filtered before any call. */
+/**
+ * The LLM decides type and subject; only the rule set's subject kinds become
+ * signals (players, for sports). Noise is filtered before any call.
+ */
 export function decideByLlm(headline: Headline, c: CompiledRuleSet, llm: LlmClassification): HeadlineDecision {
   const noise = noiseMatch(headline, c);
   if (noise) return { outcome: "noise", matched: noise };
   if (llm.signalType === "NONE") return { outcome: "no_signal", method: "llm", reason: llm.rationale || "NONE" };
-  if (llm.subjectKind !== "player") {
-    return { outcome: "no_signal", method: "llm", reason: `subject is ${llm.subjectKind}, not a player` };
+  const allowed = c.ruleSet.llm?.subjectKinds ?? ["player"];
+  if (!allowed.includes(llm.subjectKind)) {
+    return { outcome: "no_signal", method: "llm", reason: `subject is ${llm.subjectKind}, not ${allowed.join("/")}` };
   }
   if (!c.ruleSet.types[llm.signalType]) {
     return { outcome: "no_signal", method: "llm", reason: `${llm.signalType} has no scoring entry` };
@@ -192,6 +216,7 @@ export function decideByLlm(headline: Headline, c: CompiledRuleSet, llm: LlmClas
     outcome: "signal",
     method: "llm",
     signalType: llm.signalType,
+    subjectKind: llm.subjectKind,
     subjectName: llm.subjectName,
     severity: llm.signalType === "PLAYER_INJURY" ? (llm.severity ?? "unknown") : null,
     hedged: llm.hedged,
@@ -218,14 +243,20 @@ export function scoreDecision(d: SignalDecision, ruleSet: ClassifierRuleSet, con
   };
 }
 
+const SPORTS_BRIEF = [
+  "You classify one sports news headline for a sports-card collector.",
+  "A signal is a concrete event about one athlete; otherwise signalType is NONE.",
+  "Coaches, executives, owners, analysts and family members are not players.",
+].join("\n");
+
 export function llmMessages(headline: Headline, ruleSet: ClassifierRuleSet) {
   const types = Object.keys(ruleSet.types).join(", ");
   return {
     system: [
-      "You classify one sports news headline for a sports-card collector.",
-      `signalType is one of: ${types}, or NONE when the headline is not a concrete event about one athlete.`,
-      "subjectKind says who the event is about. Coaches, executives, owners, analysts and family members are not players.",
-      "subjectName is the athlete's name exactly as written, or null.",
+      ruleSet.llm?.brief ?? SPORTS_BRIEF,
+      `signalType is one of: ${types}, or NONE.`,
+      `subjectKind is one of: ${SubjectKindSchema.options.join(", ")}.`,
+      "subjectName is the subject's name exactly as written, or null.",
       "severity is only for PLAYER_INJURY: day, weeks, season or unknown; otherwise null.",
       "hedged is true when the claim is reported or expected rather than confirmed.",
       "confidence is how sure you are of signalType, 0 to 1. Do not guess facts that are not in the text.",

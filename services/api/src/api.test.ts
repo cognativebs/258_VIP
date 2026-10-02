@@ -393,6 +393,7 @@ describe("VIP API", () => {
         const res = await fetch(`${base}/api/signals/daily-sports`);
         expect(res.status).toBe(503);
         expect(((await res.json()) as { error: string }).error).toContain("ECONNREFUSED");
+        expect((await fetch(`${base}/api/signals/daily/bad;name`)).status).toBe(400);
       },
       fixtureComics(),
       { signalsDb: downDb },

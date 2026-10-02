@@ -26,15 +26,15 @@ describe("daily-sports profile", () => {
       ["basketball", 0.05, "exit"],
       ["baseball", 0.05, "exit"],
     ]);
-    expect(p.groups.flatMap((g) => g.sports)).not.toContain("nhl");
-    expect(p.groups.flatMap((g) => g.sports)).not.toContain("ncb");
+    expect(p.groups.flatMap((g) => g.lanes)).not.toContain("nhl");
+    expect(p.groups.flatMap((g) => g.lanes)).not.toContain("ncb");
     expect(embedded("profile")).toEqual(DAILY_SPORTS_PROFILE_SEED);
   });
 
   it("rejects shares that do not sum to 1, a sport in two groups, and an unknown backfill group", () => {
     const bad = structuredClone(DAILY_SPORTS_PROFILE_SEED) as any;
     bad.groups[0].share = 0.7;
-    bad.groups[1].sports.push("nfl");
+    bad.groups[1].lanes.push("nfl");
     bad.backfillOrder.push("hockey");
     const r = DailySportsProfileSchema.safeParse(bad);
     const messages = r.success ? [] : r.error.issues.map((i) => i.message);
@@ -62,9 +62,9 @@ describe("daily-sports profile", () => {
 });
 
 describe("curateDailySports", () => {
-  const c = (id: string, sport: string, influence: number, direction = "down"): CurationCandidate => ({
+  const c = (id: string, lane: string, influence: number, direction = "down"): CurationCandidate => ({
     signalId: id,
-    sport,
+    lane,
     influence,
     direction,
   });

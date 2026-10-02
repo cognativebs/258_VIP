@@ -1,7 +1,7 @@
 /**
- * Daily Sports SIGNAL curation (pure). The profile's shares decide how many
- * slots each sport group gets; within a group, signals rank by decayed
- * influence. Shares never touch a signal's stored scores or its priority.
+ * Daily SIGNAL curation (pure). The profile's shares decide how many slots
+ * each group gets; within a group, signals rank by decayed influence. A lane
+ * is what a candidate belongs to: an ESPN feed's sport, or a source key. Shares never touch a signal's stored scores or its priority.
  * Groups with stance "exit" are sports the collector is selling out of: their
  * up-direction signals are framed as sell windows. That is framing, not a
  * Sell recommendation — nothing here is linked to holdings yet.
@@ -16,9 +16,9 @@ export type CurationStance = z.infer<typeof CurationStanceSchema>;
 export const DailySportsProfileSchema = z
   .object({
     schema: z.literal("vip_signals_curation_v1"),
-    name: z.literal("daily-sports"),
+    name: z.string().regex(/^[a-z][a-z0-9-]*$/),
     version: z.string().regex(/^\d+\.\d+\.\d+$/),
-    domain: z.literal("sports_cards"),
+    domain: z.enum(["sports_cards", "collectibles"]),
     slots: z.number().int().positive().max(200),
     windowHours: z.number().int().positive().max(24 * 14),
     groups: z
@@ -28,8 +28,8 @@ export const DailySportsProfileSchema = z
             key: KeySchema,
             label: z.string().min(1),
             share: z.number().gt(0).max(1),
-            /** ESPN feed sport keys (the path segment in /espn/rss/<sport>/news). */
-            sports: z.array(KeySchema).min(1),
+            /** Lanes: ESPN feed sports (the path segment in /espn/rss/<sport>/news) or source keys. */
+            lanes: z.array(KeySchema).min(1),
             stance: CurationStanceSchema,
           })
           .strict(),
@@ -46,11 +46,11 @@ export const DailySportsProfileSchema = z
       ctx.addIssue({ code: "custom", path: ["groups"], message: `shares sum to ${total}, not 1` });
     }
     const keys = new Set(p.groups.map((g) => g.key));
-    const sports = new Set<string>();
+    const lanes = new Set<string>();
     p.groups.forEach((g, i) =>
-      g.sports.forEach((s) => {
-        if (sports.has(s)) ctx.addIssue({ code: "custom", path: ["groups", i, "sports"], message: `${s} is in two groups` });
-        sports.add(s);
+      g.lanes.forEach((s) => {
+        if (lanes.has(s)) ctx.addIssue({ code: "custom", path: ["groups", i, "lanes"], message: `${s} is in two groups` });
+        lanes.add(s);
       }),
     );
     p.backfillOrder.forEach((k, i) => {
@@ -61,7 +61,7 @@ export type DailySportsProfile = z.infer<typeof DailySportsProfileSchema>;
 
 export type CurationCandidate = {
   signalId: string;
-  sport: string;
+  lane: string;
   direction: string;
   /** signal_influence at the curation time: read-time priority after decay. */
   influence: number;
@@ -98,12 +98,12 @@ export function curateDailySports<C extends CurationCandidate>(candidates: Reado
   const profile = DailySportsProfileSchema.parse(rawProfile);
   const allocation = allocateSlots(profile);
   const groupOf = new Map<string, DailySportsProfile["groups"][number]>();
-  for (const g of profile.groups) for (const s of g.sports) groupOf.set(s, g);
+  for (const g of profile.groups) for (const s of g.lanes) groupOf.set(s, g);
 
   const byGroup = new Map<string, C[]>(profile.groups.map((g) => [g.key, []]));
   let outsideProfile = 0;
   for (const c of candidates) {
-    const g = groupOf.get(c.sport);
+    const g = groupOf.get(c.lane);
     if (!g) {
       outsideProfile += 1;
       continue;

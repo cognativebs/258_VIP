@@ -326,7 +326,7 @@ SELECT
       "key": "football",
       "label": "Football (NFL + college)",
       "share": 0.8,
-      "sports": [
+      "lanes": [
         "nfl",
         "ncf"
       ],
@@ -336,7 +336,7 @@ SELECT
       "key": "soccer",
       "label": "Soccer",
       "share": 0.1,
-      "sports": [
+      "lanes": [
         "soccer"
       ],
       "stance": "collect"
@@ -345,7 +345,7 @@ SELECT
       "key": "basketball",
       "label": "Basketball (NBA)",
       "share": 0.05,
-      "sports": [
+      "lanes": [
         "nba"
       ],
       "stance": "exit"
@@ -354,7 +354,7 @@ SELECT
       "key": "baseball",
       "label": "Baseball (MLB)",
       "share": 0.05,
-      "sports": [
+      "lanes": [
         "mlb"
       ],
       "stance": "exit"

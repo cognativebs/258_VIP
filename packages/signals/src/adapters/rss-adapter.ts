@@ -62,7 +62,27 @@ function extractItems(xml: string): RssItem[] {
       pubDate: tagContent(block, "pubDate"),
     });
   }
+  if (items.length > 0) return items;
+  // Atom (YouTube channel feeds): <entry> with <id>, <published>, <link rel="alternate" href>.
+  const entryRe = /<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/gi;
+  while ((m = entryRe.exec(xml))) {
+    const block = m[1] ?? "";
+    items.push({
+      title: tagContent(block, "title") ?? "",
+      description: tagContent(block, "media:description") ?? tagContent(block, "summary") ?? "",
+      link: atomLink(block),
+      guid: tagContent(block, "id"),
+      pubDate: tagContent(block, "published") ?? tagContent(block, "updated"),
+    });
+  }
   return items;
+}
+
+function atomLink(block: string): string | null {
+  const links = [...block.matchAll(/<link\b([^>]*?)\/?>/gi)].map((l) => l[1] ?? "");
+  const pick = links.find((attrs) => /\brel=["']alternate["']/i.test(attrs)) ?? links.find((attrs) => !/\brel=/i.test(attrs));
+  const href = pick ? /\bhref=["']([^"']+)["']/i.exec(pick)?.[1] : undefined;
+  return href ? decodeXml(href) : null;
 }
 
 function stableId(sourceId: string, guid: string): string {

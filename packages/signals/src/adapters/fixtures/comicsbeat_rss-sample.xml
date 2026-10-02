@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. RSS 2.0 shaped like a comics trade-press feed. Titles and characters are fictional. Not live data. -->
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[The Beat (fixture)]]></title>
+    <link>https://www.comicsbeat.com/</link>
+    <description><![CDATA[Fixture comics news]]></description>
+    <item>
+      <title><![CDATA[Fixture Knight gets live-action TV series order]]></title>
+      <description><![CDATA[A streaming service has ordered a live-action series based on the Fixture Knight comics.]]></description>
+      <link>https://www.comicsbeat.com/fixture-knight-tv-series-order/</link>
+      <guid isPermaLink="false">cb-90000101</guid>
+      <pubDate>Wed, 30 Sep 2026 14:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Fixture Comics announces second printing of Fixture Night #1]]></title>
+      <description><![CDATA[The publisher will go back to press after the first print sold out.]]></description>
+      <link>https://www.comicsbeat.com/fixture-night-1-second-printing/</link>
+      <guid isPermaLink="false">cb-90000102</guid>
+      <pubDate>Wed, 30 Sep 2026 12:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Review: Fixture Knight #12 is a quiet triumph]]></title>
+      <description><![CDATA[Our weekly review.]]></description>
+      <link>https://www.comicsbeat.com/review-fixture-knight-12/</link>
+      <guid isPermaLink="false">cb-90000103</guid>
+      <pubDate>Wed, 30 Sep 2026 10:00:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>
