@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { getPool } from "./db/client.js";
+import { buildDailySports, DailySportsQuerySchema, type Queryable as DailySportsQueryable } from "./lib/dailySports.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
@@ -155,6 +157,8 @@ function includePokemonSeeds(): boolean {
 }
 
 export type AppDeps = {
+  /** Injectable vault_signals connection so tests control the daily sports list. */
+  signalsDb?: DailySportsQueryable;
   loadComics?: () => Promise<ComicsPayload>;
   updateComicHolding?: (
     sourceRowId: string,
@@ -600,6 +604,20 @@ export function createApp(deps: AppDeps = {}) {
       output: signalsOutputFromFeed(),
     }),
   );
+
+  app.get("/api/signals/daily-sports", async (req, res) => {
+    const parsed = DailySportsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "at must be an ISO timestamp", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      const at = parsed.data.at ? new Date(parsed.data.at) : new Date();
+      res.json(await buildDailySports(deps.signalsDb ?? getPool(), at));
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_signals unavailable" });
+    }
+  });
 
   app.get("/api/signals/context", (_req, res) => {
     res.json(compactSignalsContext());

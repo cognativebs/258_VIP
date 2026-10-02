@@ -157,3 +157,43 @@ export const SPORTS_HEADLINE_RULES_SEED: ClassifierRuleSet = {
   notes:
     "Seed 0.1.0 · unverified. Impacts, hedge factor, single-source noise and rules confidence are starting guesses (operator-approved 2026-09-27), not measurements. Injury with unknown severity takes the smallest injury impact. Replace with a new version calibrated from resolved predictions.",
 };
+
+const v010 = SPORTS_HEADLINE_RULES_SEED;
+
+/**
+ * sports-headline@0.2.0 (2026-10-01): soccer terms for the added ESPN soccer
+ * feed. Migration 20261001_02 embeds this object and makes it current; 0.1.0
+ * stays for provenance. Scores are unchanged from 0.1.0 · unverified.
+ */
+export const SPORTS_HEADLINE_RULES_V0_2_0: ClassifierRuleSet = {
+  ...v010,
+  version: "0.2.0",
+  noisePatterns: [...v010.noisePatterns, "\\brumou?rs?\\b", "\\bgossip\\b", "\\bplayer ratings\\b"],
+  rules: v010.rules.map((rule) => {
+    switch (rule.type) {
+      case "PLAYER_INJURY":
+        return { ...rule, patterns: [...rule.patterns, "\\bhamstring\\b", "\\bACL\\b"] };
+      case "DISCIPLINE":
+        return { ...rule, patterns: [...rule.patterns, "\\bred card\\b", "\\bsent off\\b"] };
+      case "MILESTONE":
+        // "joins <club>" is a transfer in soccer; a milestone club needs a number ("40 HR-40 SB club").
+        return {
+          ...rule,
+          patterns: rule.patterns.map((p) =>
+            p === "\\bjoins?\\b.*\\bclub\\b" ? "\\bjoins?\\b.*\\d.*\\bclub\\b" : p,
+          ),
+        };
+      case "TRANSACTION":
+        return {
+          ...rule,
+          patterns: [...rule.patterns, "\\btransfer\\b", "\\bon loan\\b", "\\bloan move\\b", "(£|€)[\\d.]+m\\b"],
+        };
+      case "AWARD_RACE":
+        return { ...rule, patterns: [...rule.patterns, "\\bBallon d'Or\\b", "\\bGolden Boot\\b"] };
+      default:
+        return rule;
+    }
+  }),
+  notes:
+    "0.2.0 · unverified. Adds soccer terms (transfers, loans, red cards, hamstring/ACL, Ballon d'Or) and soccer rumour noise; a milestone 'club' now needs a number. Scores unchanged from 0.1.0, still starting guesses.",
+};

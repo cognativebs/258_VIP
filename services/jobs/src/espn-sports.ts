@@ -42,14 +42,17 @@ export const EspnFeedSchema = z
   .strict();
 export type EspnFeed = z.infer<typeof EspnFeedSchema>;
 
-/** Per-sport feeds listed on the ESPN.com News Feeds FAQ. Override with VIP_ESPN_RSS_FEEDS. */
+/**
+ * The sports in the operator's daily-sports curation (2026-10-01): football (NFL,
+ * college), soccer, NBA, MLB. Hockey and college basketball are not fetched.
+ * Override with VIP_ESPN_RSS_FEEDS.
+ */
 export const DEFAULT_ESPN_FEEDS: EspnFeed[] = [
   { sport: "nfl", url: "https://www.espn.com/espn/rss/nfl/news" },
+  { sport: "ncf", url: "https://www.espn.com/espn/rss/ncf/news" },
+  { sport: "soccer", url: "https://www.espn.com/espn/rss/soccer/news" },
   { sport: "nba", url: "https://www.espn.com/espn/rss/nba/news" },
   { sport: "mlb", url: "https://www.espn.com/espn/rss/mlb/news" },
-  { sport: "nhl", url: "https://www.espn.com/espn/rss/nhl/news" },
-  { sport: "ncf", url: "https://www.espn.com/espn/rss/ncf/news" },
-  { sport: "ncb", url: "https://www.espn.com/espn/rss/ncb/news" },
 ];
 
 /** VIP_ESPN_RSS_FEEDS="nfl=https://...,nba=https://..." */

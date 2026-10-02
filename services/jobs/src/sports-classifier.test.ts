@@ -60,11 +60,11 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
       const report = await classifyPendingEspnDocuments(db);
       expect(report).toMatchObject({
         method: "rules",
-        ruleSet: "sports-headline@0.1.0",
-        documents: { processed: 2, missingSnapshot: [] },
-        // The story shared by both feeds is classified once.
-        items: { signals: 3, noSignal: 1, alreadyClassified: 1 },
-        byType: { PLAYER_INJURY: 2, TRANSACTION: 1 },
+        ruleSet: "sports-headline@0.2.0",
+        documents: { processed: 3, missingSnapshot: [] },
+        // The story shared by both feeds is classified once; the rumours item is noise.
+        items: { signals: 4, noSignal: 1, noise: 1, alreadyClassified: 1 },
+        byType: { PLAYER_INJURY: 2, TRANSACTION: 2 },
       });
 
       const rows = await db.query(
@@ -83,6 +83,7 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
         ["90000001", "PLAYER_INJURY"],
         ["90000002", "TRANSACTION"],
         ["90000011", "PLAYER_INJURY"],
+        ["90000021", "TRANSACTION"],
       ]);
       const gamma = rows.rows.find((r) => r.item_ref === "90000011")!;
       // "out 6-8 weeks": weeks impact. The summary's "expected to return" hedges it: 0.55 × 0.8 × 0.6.
@@ -92,12 +93,19 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
         impact: 0.3,
         noise: 0.3,
         prov_verification: "unverified",
-        prov_rule_version: "sports-headline@0.1.0+rules",
+        prov_rule_version: "sports-headline@0.2.0+rules",
         event_key: "espn_rss:90000011",
         role: "PRIMARY",
         independence_group: "espn",
       });
       expect(gamma.priority).toBeCloseTo(0.264 * 0.3 * 0.7, 6);
+      const link = await db.query(
+        `SELECT source_item_url FROM vault_signals.event_evidence WHERE item_ref = '90000001'`,
+      );
+      // Exactly as the feed gave it, tracking parameters included (ESPN terms).
+      expect(link.rows[0].source_item_url).toBe(
+        "https://www.espn.com/nfl/story/_/id/90000001/fixture-qb-alpha-ruled-out?utm_source=rss&utm_medium=feed",
+      );
 
       const again = await classifyPendingEspnDocuments(db);
       expect(again.documents.processed).toBe(0);
@@ -106,7 +114,7 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
           WHERE source_id = 'espn_rss' AND extraction_status = 'extracted'`,
       );
       const reprocess = await classifyPendingEspnDocuments(db);
-      expect(reprocess.items).toMatchObject({ signals: 0, noSignal: 1, alreadyClassified: 4 });
+      expect(reprocess.items).toMatchObject({ signals: 0, noSignal: 1, alreadyClassified: 5 });
 
       const marketAfter = await db.query(`SELECT count(*)::int AS n FROM vault_market.sale`);
       expect(marketAfter.rows[0].n).toBe(marketBefore.rows[0].n);
@@ -132,8 +140,8 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
       expect(report).toMatchObject({
         method: "llm",
         model: "stub",
-        llm: { calls: 4, failures: 1 },
-        items: { signals: 2, noSignal: 2 },
+        llm: { calls: 5, failures: 1 },
+        items: { signals: 2, noSignal: 3, noise: 1 },
       });
       const rows = await db.query(
         `SELECT ee.item_ref, s.prov_rule_version, s.base_confidence::float AS conf, se.entity_ref, se.entity_kind
@@ -144,8 +152,8 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
           ORDER BY ee.item_ref`,
       );
       expect(rows.rows).toEqual([
-        { item_ref: "90000001", prov_rule_version: "sports-headline@0.1.0+rules", conf: 0.33, entity_ref: null, entity_kind: null },
-        { item_ref: "90000002", prov_rule_version: "sports-headline@0.1.0+llm:stub", conf: 0.495, entity_ref: "Fixture WR Beta", entity_kind: "player_name_text" },
+        { item_ref: "90000001", prov_rule_version: "sports-headline@0.2.0+rules", conf: 0.33, entity_ref: null, entity_kind: null },
+        { item_ref: "90000002", prov_rule_version: "sports-headline@0.2.0+llm:stub", conf: 0.495, entity_ref: "Fixture WR Beta", entity_kind: "player_name_text" },
       ]);
     });
   });
@@ -154,11 +162,11 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
     await inTransaction(async (db) => {
       const report = await classifyPendingEspnDocuments(db, { stateDir: "/nonexistent-state-dir" });
       expect(report.documents).toMatchObject({ processed: 0 });
-      expect(report.documents.missingSnapshot).toHaveLength(2);
+      expect(report.documents.missingSnapshot).toHaveLength(3);
       const pending = await db.query(
         `SELECT count(*)::int AS n FROM vault_signals.raw_document WHERE source_id = 'espn_rss' AND extraction_status = 'pending'`,
       );
-      expect(pending.rows[0].n).toBe(2);
+      expect(pending.rows[0].n).toBe(3);
     });
   });
 });

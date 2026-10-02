@@ -237,9 +237,10 @@ export async function classifyPendingEspnDocuments(
       }
       const eventId: string = event.rows[0].id;
       await db.query(
-        `INSERT INTO vault_signals.event_evidence (event_id, raw_document_id, role, independence_group, detected_at, item_ref)
-         VALUES ($1, $2, 'PRIMARY', $3, $4, $5)`,
-        [eventId, doc.id, INDEPENDENCE_GROUP, fetchedAt, item.guid],
+        `INSERT INTO vault_signals.event_evidence
+           (event_id, raw_document_id, role, independence_group, detected_at, item_ref, source_item_url)
+         VALUES ($1, $2, 'PRIMARY', $3, $4, $5, $6)`,
+        [eventId, doc.id, INDEPENDENCE_GROUP, fetchedAt, item.guid, item.sourceUrl],
       );
       const signal = await db.query(
         `INSERT INTO vault_signals.signal (

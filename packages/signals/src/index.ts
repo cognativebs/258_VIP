@@ -163,3 +163,16 @@ export {
   type InjurySeverity,
 } from "./classifier/sports-headline.js";
 export { SPORTS_HEADLINE_RULES_SEED } from "./classifier/sports-headline-seed.js";
+export { SPORTS_HEADLINE_RULES_V0_2_0 } from "./classifier/sports-headline-seed.js";
+export {
+  DailySportsProfileSchema,
+  CurationStanceSchema,
+  sportFromFeedUrl,
+  allocateSlots,
+  curateDailySports,
+  type DailySportsProfile,
+  type CurationStance,
+  type CurationCandidate,
+  type CuratedItem,
+} from "./curation/daily-sports.js";
+export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
