@@ -91,6 +91,18 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
 
+#### SIGNALS source groups *(operator request 2026-10-01; grouping chosen by Claude, decisions by Greg)*
+
+News sources (`vault_core.signals_news_source`; never set a price) are kept apart from market-data sources (ADR 0013 HS-3).
+
+- [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
+- [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
+  - [ ] Operator: confirm each feed URL + terms (PokeBeach feed, Alpha Investments channel ID, whether PSA/TAG publish a feed; no scraping), then enable per source
+- [ ] **Headlines (US, World)**: GDELT (row exists, disabled); two lanes by geography; needs its own classifier
+- [ ] **Markets & business news**: finance newsletters via Gmail labels (rows exist; Gmail connector not yet authorized) + SEC EDGAR
+- [ ] **Retail drops (Pokémon Center, Target) and Whatnot**: no public feed and scraping is forbidden; news reports (PokeBeach) + operator manual entries, both labeled by source
+- [ ] **Market data (separate track, outside the SIGNALS spine)**: stock indices from FRED; gold/silver wait for a licensed free source (FRED no longer carries LBMA metals); eBay asks exist, sold access restricted; TCGplayer API closed (no adapter); PSA/TAG population reports
+
 ### E. Binder Vault ↔ VIP / IQVault (partial wire done)
 
 - [x] Nav link from IQVault web → Binder (`NEXT_PUBLIC_BINDER_URL`)
