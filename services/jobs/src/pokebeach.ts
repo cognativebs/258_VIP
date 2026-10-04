@@ -20,9 +20,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  HOMEPAGE_TIME_SOURCE,
   MemberWeightsSchema,
   POKEBEACH_PARSER_VERSION,
   articleContentHash,
+  pacificDisplayTimeToUtc,
   newsAdapterMayRun,
   parseArticlePage,
   parseDiscoveryFeedUrls,
@@ -30,6 +32,7 @@ import {
   parseHomepage,
   titleKey,
   type ArticlePage,
+  type HomepageArticle,
   type MemberWeights,
 } from "@vip/signals";
 import { STATE_DIR } from "./espn-sports.js";
@@ -226,7 +229,14 @@ export type UpsertResult = "created" | "revised" | "seen";
 export async function upsertArticle(
   db: Queryable,
   article: ArticlePage,
-  opts: { via: string; rawDocumentId: string | null; now: Date },
+  opts: {
+    via: string;
+    rawDocumentId: string | null;
+    now: Date;
+    /** Defaults to the article page's own time; homepage-only items name the inferred source. */
+    timeSource?: string;
+    status?: "confirmed" | "discovered";
+  },
 ): Promise<UpsertResult> {
   const hash = articleContentHash(article);
   const excerpt = article.description ? article.description.slice(0, 600) : null;
@@ -243,9 +253,25 @@ export async function upsertArticle(
          source_id, item_kind, external_id, canonical_url, title, author_name, author_ref,
          published_at, published_at_source, modified_at, excerpt, content_hash, status,
          first_seen_at, last_seen_at, discovered_via, parser_version
-       ) VALUES ($1, 'article', $2, $3, $4, $5, $6, $7, 'article:published_time', $8, $9, $10, 'confirmed', $11, $11, ARRAY[$12], $13)
+       ) VALUES ($1, 'article', $2, $3, $4, $5, $6, $7, $14, $8, $9, $10, $15, $11, $11, ARRAY[$12], $13)
        RETURNING id`,
-      [OFFICIAL, article.postId, article.canonicalUrl, article.title, article.author, article.authorSlug, article.publishedAt, article.modifiedAt, excerpt, hash, opts.now, opts.via, POKEBEACH_PARSER_VERSION],
+      [
+        OFFICIAL,
+        article.postId,
+        article.canonicalUrl,
+        article.title,
+        article.author,
+        article.authorSlug,
+        article.publishedAt,
+        article.modifiedAt,
+        excerpt,
+        hash,
+        opts.now,
+        opts.via,
+        POKEBEACH_PARSER_VERSION,
+        opts.timeSource ?? "article:published_time",
+        opts.status ?? "confirmed",
+      ],
     );
     await db.query(
       `INSERT INTO vault_signals.source_item_revision
@@ -281,6 +307,28 @@ export async function upsertArticle(
   }
   return revised ? "revised" : "seen";
 }
+
+/**
+ * Homepage-only mode: what the front page itself shows. The publish time is the
+ * displayed Pacific wall-clock time, converted to UTC and labeled inferred.
+ */
+export function articleFromHomepage(a: HomepageArticle): ArticlePage | null {
+  const publishedAt = pacificDisplayTimeToUtc(a.displayedTime);
+  if (!publishedAt) return null;
+  return {
+    postId: a.postId,
+    canonicalUrl: a.canonicalUrl,
+    title: a.title,
+    author: a.author,
+    authorSlug: a.authorSlug,
+    publishedAt,
+    modifiedAt: null,
+    description: null,
+  };
+}
+
+/** Article pages are off unless VIP_POKEBEACH_ARTICLE_PAGES=on (PokéBeach refused them on 2026-10-03). */
+export const articlePagesEnabled = (env: NodeJS.ProcessEnv = process.env) => env.VIP_POKEBEACH_ARTICLE_PAGES === "on";
 
 /** A sighting of a known article (homepage, discovery feed): last seen and route only. */
 async function touchArticle(db: Queryable, canonicalUrl: string, postId: string | null, via: string, now: Date): Promise<boolean> {
@@ -336,6 +384,8 @@ export type OfficialReport = {
   seen: number;
   articleErrors: { url: string; reason: string }[];
   threadsLinked: number;
+  /** Discovery feed articles the homepage never listed (not created in homepage-only mode). */
+  notOnHomepage: number;
   /** Set by the first 401/403: no further article page is requested in this run. */
   accessBlocked: boolean;
   skipped: number;
@@ -355,6 +405,7 @@ function emptyReport(mode: OfficialReport["mode"]): OfficialReport {
     seen: 0,
     articleErrors: [],
     threadsLinked: 0,
+    notOnHomepage: 0,
     accessBlocked: false,
     skipped: 0,
   };
@@ -423,7 +474,12 @@ const finish = (r: OfficialReport): OfficialReport => {
  * Official poll: the homepage (conditional GET), then each article not seen
  * before. Known articles are only touched.
  */
-export async function runPokebeachOfficial(db: Queryable, client: ClientOptions = {}, opts: { maxPages?: number; olderThan?: Date } = {}): Promise<OfficialReport> {
+export async function runPokebeachOfficial(
+  db: Queryable,
+  client: ClientOptions = {},
+  opts: { maxPages?: number; olderThan?: Date; articlePages?: boolean } = {},
+): Promise<OfficialReport> {
+  const articlePages = opts.articlePages ?? articlePagesEnabled();
   const report = emptyReport(opts.olderThan ? "backfill" : "official");
   const gate = await sourceGate(db, OFFICIAL);
   if (!gate.mayRun) return { ...report, status: "blocked", reason: gate.reason };
@@ -445,7 +501,7 @@ export async function runPokebeachOfficial(db: Queryable, client: ClientOptions 
         break;
       }
       report.pagesFetched += 1;
-      await recordRawDocument(db, runId, OFFICIAL, url, got.body, { kind: "home", ext: "html", mediaType: "text/html", httpStatus: got.status, fetchedAt: now });
+      const homeRawId = await recordRawDocument(db, runId, OFFICIAL, url, got.body, { kind: "home", ext: "html", mediaType: "text/html", httpStatus: got.status, fetchedAt: now });
       const parsed = parseHomepage(got.body);
       if (!parsed.ok) {
         await setParserState(db, OFFICIAL, url, "degraded", parsed.reason);
@@ -457,6 +513,24 @@ export async function runPokebeachOfficial(db: Queryable, client: ClientOptions 
       report.articlesListed += parsed.value.articles.length;
       let oldestOnPage: Date | null = null;
       for (const a of parsed.value.articles) {
+        if (!articlePages) {
+          const fromHome = articleFromHomepage(a);
+          if (!fromHome) {
+            report.articleErrors.push({ url: a.canonicalUrl, reason: `PARSER_DEGRADED: homepage time "${a.displayedTime}" did not parse` });
+            continue;
+          }
+          const result = await upsertArticle(db, fromHome, {
+            via: "homepage",
+            rawDocumentId: homeRawId,
+            now,
+            timeSource: HOMEPAGE_TIME_SOURCE,
+            status: "discovered",
+          });
+          report[result] += 1;
+          const t = new Date(fromHome.publishedAt);
+          if (!oldestOnPage || t < oldestOnPage) oldestOnPage = t;
+          continue;
+        }
         if (await touchArticle(db, a.canonicalUrl, a.postId, "homepage", now)) {
           report.seen += 1;
         } else {
@@ -483,6 +557,11 @@ export async function runPokebeachReconcile(db: Queryable, client: ClientOptions
   const report = emptyReport("reconcile");
   const gate = await sourceGate(db, OFFICIAL);
   if (!gate.mayRun) return { ...report, status: "blocked", reason: gate.reason };
+  if (!articlePagesEnabled()) {
+    // Homepage-only: nothing to re-read per article; re-list the front page.
+    const listing = await runPokebeachOfficial(db, client, { maxPages: 1, articlePages: false });
+    return { ...listing, mode: "reconcile" };
+  }
   const now = (client.now ?? (() => new Date()))();
   const runId = await startRun(db, OFFICIAL);
   const recent = await db.query(
@@ -534,7 +613,8 @@ export async function runPokebeachDiscovery(db: Queryable, client: ClientOptions
       await finishRun(db, feedRun, "succeeded", 1, 0, null);
       for (const url of parseDiscoveryFeedUrls(got.body)) {
         if (await touchArticle(db, url, null, "community_feed", now)) report.seen += 1;
-        else await ingestArticle(db, runId, url, "community_feed", report, client);
+        else if (articlePagesEnabled()) await ingestArticle(db, runId, url, "community_feed", report, client);
+        else report.notOnHomepage += 1;
       }
     } else if (got.kind !== "not_modified") {
       reasons.push(`${FRONTPAGE_FEED}: ${got.kind === "backoff" ? `backing off until ${got.until}` : got.message}`);
@@ -678,6 +758,7 @@ export function formatPokebeachReport(r: OfficialReport): string {
     `VIP Job — pokebeach ${r.mode} · status: ${r.status}${r.reason ? ` — ${r.reason}` : ""}`,
     `pages fetched ${r.pagesFetched} · listed ${r.articlesListed} · new ${r.created} · revised ${r.revised} · seen ${r.seen}` +
       (r.skipped ? ` · skipped ${r.skipped} (blocked or backing off)` : "") +
+      (r.notOnHomepage ? ` · ${r.notOnHomepage} in the community feed but not on the homepage (not created without article pages)` : "") +
       (r.threadsLinked ? ` · threads linked ${r.threadsLinked}` : ""),
     ...r.articleErrors.map((e) => `  ${e.url}: ${e.reason}`),
   ].join("\n");
