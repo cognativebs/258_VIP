@@ -1,7 +1,8 @@
 /**
- * Collectibles news → SIGNALS raw evidence: comics (ComicsBeat), Pokémon/TCG
- * (PokeBeach), grading announcements (PSA, TAG) and creator commentary
- * (Alpha Investments on YouTube, an Atom feed).
+ * Collectibles news → SIGNALS raw evidence: comics (ComicsBeat), grading
+ * announcements (PSA, TAG) and creator commentary (Alpha Investments on
+ * YouTube, an Atom feed). PokéBeach has its own connector (pokebeach.ts); its
+ * forum RSS is a discovery feed and is not read here.
  *
  * Fixtures by default (dry run, nothing written). --live fetches a source only
  * when its signals_news_source row passes newsAdapterMayRun AND has an
@@ -19,7 +20,6 @@ import { dsnFromEnv } from "./price-history.js";
 export const COLLECTIBLES_NEWS_JOB_VERSION = "collectibles-news@0.1.0";
 export const COLLECTIBLES_SOURCE_KEYS = [
   "comicsbeat_rss",
-  "pokebeach_rss",
   "psa_news",
   "tag_news",
   "alpha_investments_youtube",

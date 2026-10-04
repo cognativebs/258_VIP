@@ -23,3 +23,18 @@ export const DAILY_COLLECTIBLES_PROFILE_SEED: DailySportsProfile = {
   notes:
     "Starting shares 2026-10-01 (comics 40, Pokémon 35, grading 15, creator commentary 10) · unverified. Shares choose slots only; they never change a signal's scores. Creator commentary is opinion and is never backfilled into.",
 };
+
+/**
+ * daily-collectibles@0.2.0 (2026-10-03): the Pokémon lane reads official
+ * PokéBeach news (pokebeach_official, the homepage connector). The forum RSS
+ * (pokebeach_rss) is discovery only and never fills a lane.
+ */
+export const DAILY_COLLECTIBLES_PROFILE_V0_2_0: DailySportsProfile = {
+  ...DAILY_COLLECTIBLES_PROFILE_SEED,
+  version: "0.2.0",
+  groups: DAILY_COLLECTIBLES_PROFILE_SEED.groups.map((g) =>
+    g.key === "pokemon" ? { ...g, lanes: ["pokebeach_official"] } : g,
+  ),
+  notes:
+    "0.2.0 (2026-10-03): Pokémon lane = official PokéBeach news (homepage connector); the forum RSS is discovery only. Shares unchanged from 0.1.0 · unverified.",
+};

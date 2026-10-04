@@ -97,7 +97,17 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 
 - [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
 - [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
-  - [ ] Operator: confirm each feed URL + terms (PokeBeach feed, Alpha Investments channel ID, whether PSA/TAG publish a feed; no scraping), then enable per source
+  - [ ] Operator: confirm each feed URL + terms (Alpha Investments channel ID, whether PSA/TAG publish a feed; no scraping), then enable per source
+- **PokéBeach hybrid connector** *(operator build spec 2026-10-03; mapped onto ADR 0013: three stored scores, read-time priority, no 0–100 strength column)*
+  - [x] 1. Official homepage ingestion (`pokebeach official`, every 30 min + jitter; identity and UTC time from each article page; polite fetching, conditional GET, backoff; parser-degraded ingests nothing)
+  - [x] 2. Canonical dedupe (`source_item` per canonical URL + WordPress post id; `source_item_revision` history; daily 48h `reconcile`; `backfill --days 90`; community feed + forum RSS are discovery only)
+  - [x] 3. Tracked-member configuration (8 members, per-specialty weights in `signals_source_author`; `pokebeach members set|check`)
+  - [ ] Operator: confirm PokéBeach terms, enable `pokebeach_official` (+ discovery feeds), run backfill; supply member profile URLs and run the access check
+  - [ ] 4. Public member activity ingestion: only if the access check passes (forum pages answered 403 to an automated fetch on 2026-10-03; never bypass)
+  - [ ] 5. Pokémon entity extraction (sets, cards, products, Pokémon; text placeholders until the entity layer, P7)
+  - [ ] 6. Clustering onto spine events (independence = distinct authors/threads/outlets)
+  - [ ] 7. Source weighting (member specialty weights + prediction-ledger calibration)
+  - [ ] 8. Community Pulse UI · 9. Signals synthesis (strength bands from read-time priority; High Conviction never from community alone) · 10. Orchestr8 handoff (SIGNALS proposes, Orchestr8 decides)
 - [x] **Headlines (US, World)**: GDELT lanes `us` / `world` on fixtures; `macro-headline` classifier; `daily-headlines` list (US 60 / world 40, starting shares · unverified)
 - [x] **Markets & business news (GDELT lane)**: GDELT `business` lane (collectibles companies, marketplaces, markets); `daily-markets` list
   - [ ] Operator: `npm run news-source -- enable gdelt_doc_v2 --confirm-operator`, then a first live run to confirm the `sourcecountry` filters split US / world as intended

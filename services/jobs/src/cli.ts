@@ -13,6 +13,39 @@ import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import { formatMacroNewsReport, GDELT_SOURCE_KEY, runMacroNewsJob } from "./macro-news.js";
 import { disableNewsSource, enableNewsSource, listNewsSources } from "./news-source-admin.js";
 import {
+  checkMemberAccess,
+  formatPokebeachReport,
+  listTrackedMembers,
+  pokebeachFixtureReport,
+  runPokebeachBackfill,
+  runPokebeachDiscovery,
+  runPokebeachOfficial,
+  runPokebeachReconcile,
+  updateTrackedMember,
+  type OfficialReport,
+  type Queryable as PokebeachQueryable,
+} from "./pokebeach.js";
+
+/** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
+async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const out = await fn(client);
+    await client.query("COMMIT");
+    return out;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+const jitter = (maxMs: number) => new Promise((r) => setTimeout(r, Math.random() * maxMs));
+import {
   COLLECTIBLES_SOURCE_KEYS,
   formatCollectiblesNewsReport,
   runCollectiblesNewsJob,
@@ -119,6 +152,78 @@ async function main() {
     console.log(formatMacroNewsReport(report));
     if (report.status === "failed") process.exit(1);
     return;
+  }
+
+  if (cmd === "pokebeach") {
+    // pokebeach official | discover | reconcile | backfill [--days N] | fixtures
+    //           members [list] | members set "<handle>" [--profile-url URL] [--weight key=0.8 ...] [--tracked on|off] --confirm-operator
+    //           members check --confirm-operator
+    const args = process.argv.slice(3);
+    const sub = args[0];
+    const flag = (name: string) => {
+      const i = args.indexOf(name);
+      return i >= 0 ? args[i + 1] : undefined;
+    };
+    const print = (r: OfficialReport) => {
+      console.log(formatPokebeachReport(r));
+      if (r.status === "failed") process.exitCode = 1;
+    };
+    if (sub === "fixtures") {
+      console.log(JSON.stringify(pokebeachFixtureReport(), null, 2));
+      return;
+    }
+    if (sub === "official") return print(await inPokebeachTransaction((db) => runPokebeachOfficial(db)));
+    if (sub === "discover") return print(await inPokebeachTransaction((db) => runPokebeachDiscovery(db)));
+    if (sub === "reconcile") return print(await inPokebeachTransaction((db) => runPokebeachReconcile(db)));
+    if (sub === "backfill") {
+      const days = Number(flag("--days") ?? 90);
+      return print(await inPokebeachTransaction((db) => runPokebeachBackfill(db, {}, { days })));
+    }
+    if (sub === "members") {
+      const action = args[1] && !args[1].startsWith("--") ? args[1] : "list";
+      if (action === "list") {
+        for (const m of await inPokebeachTransaction((db) => listTrackedMembers(db))) {
+          const w = m.weights;
+          console.log(
+            `${m.tracked ? "tracked" : "off    "} ${m.handle.padEnd(22)} news ${w.news} · sealed ${w.sealed} · collecting ${w.collecting} · competitive ${w.competitive} · market ${w.market} (${m.weightsFrom}) · ${m.profileUrl ?? "(no profile URL)"}`,
+          );
+        }
+        return;
+      }
+      if (!args.includes("--confirm-operator")) {
+        console.error(`members ${action} changes member configuration or makes requests to PokéBeach. Re-run with --confirm-operator.`);
+        process.exit(1);
+      }
+      if (action === "set" && args[2]) {
+        const weights: Record<string, number> = {};
+        args.forEach((a, i) => {
+          if (a === "--weight") {
+            const [k, v] = String(args[i + 1]).split("=");
+            weights[k!] = Number(v);
+          }
+        });
+        const tracked = flag("--tracked");
+        const m = await inPokebeachTransaction((db) =>
+          updateTrackedMember(db, args[2]!, {
+            profileUrl: flag("--profile-url"),
+            tracked: tracked === undefined ? undefined : tracked === "on",
+            weights: Object.keys(weights).length ? weights : undefined,
+          }),
+        );
+        console.log(`${m.handle}: ${m.tracked ? "tracked" : "off"} · ${JSON.stringify(m.weights)} · ${m.profileUrl ?? "(no profile URL)"}`);
+        return;
+      }
+      if (action === "check") {
+        const results = await inPokebeachTransaction((db) => checkMemberAccess(db));
+        for (const r of results) console.log(`${r.result.padEnd(15)} ${r.handle.padEnd(22)} ${r.status ?? ""} ${r.url ?? ""}`);
+        if (results.some((r) => r.result === "blocked")) {
+          console.log("At least one member page is blocked. Member tracking stays off; nothing will try to get around it.");
+        }
+        return;
+      }
+    }
+    console.error("usage: pokebeach official | discover | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
+    process.exit(1);
   }
 
   if (cmd === "news-source") {
@@ -245,6 +350,27 @@ async function main() {
           },
         },
         {
+          name: "pokebeach",
+          everyMs: 30 * 60 * 1000,
+          run: () => {
+            // Blocked until an operator enables pokebeach_official; jittered so polls never land on the same second.
+            void jitter(5 * 60 * 1000)
+              .then(() => inPokebeachTransaction(async (db) => [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)]))
+              .then((reports) => reports.forEach((r) => console.log(formatPokebeachReport(r))))
+              .catch((e) => console.error(`pokebeach failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
+          name: "pokebeach-reconcile",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void jitter(10 * 60 * 1000)
+              .then(() => inPokebeachTransaction((db) => runPokebeachReconcile(db)))
+              .then((r) => console.log(formatPokebeachReport(r)))
+              .catch((e) => console.error(`pokebeach-reconcile failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "clz-sync",
           everyMs: 6 * 60 * 60 * 1000,
           run: () => {
@@ -266,7 +392,7 @@ async function main() {
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();

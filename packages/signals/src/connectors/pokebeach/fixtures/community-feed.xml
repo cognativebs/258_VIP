@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture shaped like the community front-page feed. Its pubDate labels Pacific time as GMT; parsers ignore it. -->
+<rss version="2.0"><channel><title>PokeBeach front page (fixture)</title>
+<item><title>Fixture Storm Elite Trainer Box Revealed!</title><link>https://www.pokebeach.com/2026/10/fixture-storm-elite-trainer-box-revealed</link><guid>https://www.pokebeach.com/2026/10/fixture-storm-elite-trainer-box-revealed</guid><pubDate>Fri, 02 Oct 2026 11:14:00 GMT</pubDate></item>
+<item><title>Fixture Missed Article</title><link>https://www.pokebeach.com/2026/09/fixture-missed-article/</link><guid>x</guid><pubDate>Wed, 30 Sep 2026 09:00:00 GMT</pubDate></item>
+<item><title>Not an article</title><link>https://www.pokebeach.com/forums/threads/off-topic.1/</link><guid>y</guid></item>
+</channel></rss>
