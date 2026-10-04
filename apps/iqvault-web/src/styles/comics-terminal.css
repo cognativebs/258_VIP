@@ -2385,4 +2385,90 @@
   max-width: 360px;
 }
 
+.bb-unknown-exit {
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--bb-border);
+  background: #14110a;
+}
+
+.bb-unknown-exit.is-recorded {
+  background: #0f1410;
+}
+
+.bb-unknown-exit-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: baseline;
+  font-size: var(--bb-fs-sm);
+}
+
+.bb-unknown-exit-head strong {
+  color: var(--bb-amber);
+  letter-spacing: 0.04em;
+}
+
+.bb-unknown-exit.is-recorded .bb-unknown-exit-head strong {
+  color: var(--bb-green);
+}
+
+.bb-unknown-exit-head span {
+  color: var(--bb-dim);
+}
+
+.bb-unknown-exit-head em {
+  font-style: normal;
+  color: var(--bb-text);
+  font-family: var(--bb-mono);
+}
+
+.bb-unknown-exit-action {
+  margin: 8px 0 0;
+  color: var(--bb-text);
+  font-size: var(--bb-fs-sm);
+}
+
+.bb-unknown-exit-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  max-width: 720px;
+}
+
+.bb-unknown-exit-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--bb-dim);
+  font-size: var(--bb-fs-xs);
+}
+
+.bb-unknown-exit-form input[type="number"],
+.bb-unknown-exit-form textarea {
+  background: #050505;
+  border: 1px solid var(--bb-border);
+  color: var(--bb-text);
+  padding: 6px 8px;
+  font-family: var(--bb-sans);
+  font-size: var(--bb-fs-sm);
+}
+
+.bb-unknown-exit-ack {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  color: var(--bb-text) !important;
+  font-size: var(--bb-fs-sm) !important;
+}
+
+.bb-unknown-exit-hint,
+.bb-unknown-exit-error {
+  margin: 0;
+  font-size: var(--bb-fs-xs);
+  color: var(--bb-dim);
+}
+
+.bb-unknown-exit-error {
+  color: var(--bb-red);
+}
+
 

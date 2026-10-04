@@ -42,15 +42,70 @@ export type ComicRow = {
   [key: string]: unknown;
 };
 
+export type UnknownExitRecommendation = {
+  action: string;
+  appliesTo: string;
+  reasonCodes: string[];
+  confidence: number;
+  notes: string;
+};
+
+export type UnknownExitImpact = {
+  catalogHoldings: number;
+  catalogValue: number;
+  scopeName: string;
+  scopeHoldings: number;
+  scopeValue: number;
+  estimatedQty: number;
+  giftedShare: number;
+  unaccountedValueHigh: number;
+  physicalHoldingsLow: number;
+  physicalHoldingsHigh: number;
+  physicalValueLow: number;
+  physicalValueHigh: number;
+  holdingsTouched: boolean;
+  titlesInvented: boolean;
+  verificationStatus: string;
+  method: string;
+  ruleOrModelVersion: string;
+  recommendations: UnknownExitRecommendation[];
+};
+
+export type UnknownExitEvent = {
+  id: string;
+  estimatedQty: number;
+  titlesRecorded: boolean;
+  holdingsTouched: boolean;
+  recipientNote?: string | null;
+  status: string;
+  occurredAt?: string;
+};
+
+export type UnknownExitPayload = {
+  event: UnknownExitEvent | null;
+  impact: UnknownExitImpact | null;
+  catalog?: {
+    catalogHoldings: number;
+    catalogValue: number;
+    scopeName: string;
+    scopeHoldings: number;
+    scopeValue: number;
+  };
+};
+
 export type ComicsMeta = {
   recordCount?: number;
   totalValue?: number;
   museumCandidates?: number;
-  pillars?: { name: string; count: number }[];
+  pillars?: { name: string; count: number; value?: number }[];
   locations?: string[];
   source?: string;
   /** Identity of the immutable CLZ import behind these rows, when known. */
   snapshotLabel?: string;
+  unknownExit?: UnknownExitPayload;
+  physicalValueLow?: number;
+  physicalValueHigh?: number;
+  physicalValueLabel?: string;
 };
 
 export type ComicFilters = {
