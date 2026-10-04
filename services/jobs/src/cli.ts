@@ -26,6 +26,7 @@ import {
   type Queryable as PokebeachQueryable,
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
+import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -156,7 +157,7 @@ async function main() {
   }
 
   if (cmd === "pokebeach") {
-    // pokebeach official | discover | reconcile | backfill [--days N] | fixtures
+    // pokebeach official | discover | extract | cluster | reconcile | backfill [--days N] | fixtures
     //           members [list] | members set "<handle>" [--profile-url URL] [--weight key=0.8 ...] [--tracked on|off] --confirm-operator
     //           members check --confirm-operator
     const args = process.argv.slice(3);
@@ -177,6 +178,10 @@ async function main() {
     if (sub === "discover") return print(await inPokebeachTransaction((db) => runPokebeachDiscovery(db)));
     if (sub === "extract") {
       console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
+      return;
+    }
+    if (sub === "cluster") {
+      console.log(formatClusterReport(await inPokebeachTransaction((db) => clusterPokebeachItems(db))));
       return;
     }
     if (sub === "reconcile") return print(await inPokebeachTransaction((db) => runPokebeachReconcile(db)));
@@ -227,7 +232,7 @@ async function main() {
         return;
       }
     }
-    console.error("usage: pokebeach official | discover | extract | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
+    console.error("usage: pokebeach official | discover | extract | cluster | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
     process.exit(1);
   }
 
@@ -363,12 +368,14 @@ async function main() {
               .then(() =>
                 inPokebeachTransaction(async (db) => {
                   const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
-                  return { reports, entities: await extractSourceItemEntities(db) };
+                  const entities = await extractSourceItemEntities(db);
+                  return { reports, entities, clusters: await clusterPokebeachItems(db) };
                 }),
               )
-              .then(({ reports, entities }) => {
+              .then(({ reports, entities, clusters }) => {
                 reports.forEach((r) => console.log(formatPokebeachReport(r)));
                 console.log(formatEntityReport(entities));
+                console.log(formatClusterReport(clusters));
               })
               .catch((e) => console.error(`pokebeach failed: ${e instanceof Error ? e.message : e}`));
           },

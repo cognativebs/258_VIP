@@ -87,7 +87,7 @@ def test_spine_schema_guards(conn):
         """
     )
     enabled, active, ceiling, total = cur.fetchone()
-    assert (enabled, active, ceiling, total) == (0, 0, 0, 14)
+    assert (enabled, active, ceiling, total) == (0, 0, 0, 21)
 
     cur.execute(
         """
@@ -133,7 +133,7 @@ def test_spine_schema_guards(conn):
         """
     )
     all_unverified, type_count = cur.fetchone()
-    assert type_count == 9
+    assert type_count == 22
     assert all_unverified is True
 
     cur.execute(
