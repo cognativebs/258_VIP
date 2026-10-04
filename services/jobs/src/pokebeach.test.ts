@@ -231,6 +231,21 @@ describe.skipIf(!DSN)("pokebeach connector (IQVAULT_TEST_DSN, rolled back)", () 
     });
   });
 
+  it("stops requesting article pages at the first 403 and reports the run as blocked", async () => {
+    await inTransaction(async (db) => {
+      await enable(db, "pokebeach_official");
+      const site = fakeSite({
+        [HOME]: { status: 200, body: fixture("homepage.html") },
+        [STORM]: { status: 403 },
+        [DECK]: { status: 200, body: fixture("article.html") },
+      });
+      const r = await runPokebeachOfficial(db, client(site.impl));
+      expect(r).toMatchObject({ status: "blocked", accessBlocked: true, created: 0, skipped: 1 });
+      expect(r.reason).toMatch(/refused an article page/);
+      expect(site.calls.map((c) => c.url)).toEqual([HOME, STORM]);
+    });
+  });
+
   it("members: configuration only; the access check reports a block and stores nothing from the page", async () => {
     await inTransaction(async (db) => {
       const members = await listTrackedMembers(db);

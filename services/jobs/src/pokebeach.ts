@@ -336,6 +336,9 @@ export type OfficialReport = {
   seen: number;
   articleErrors: { url: string; reason: string }[];
   threadsLinked: number;
+  /** Set by the first 401/403: no further article page is requested in this run. */
+  accessBlocked: boolean;
+  skipped: number;
 };
 
 function emptyReport(mode: OfficialReport["mode"]): OfficialReport {
@@ -352,6 +355,8 @@ function emptyReport(mode: OfficialReport["mode"]): OfficialReport {
     seen: 0,
     articleErrors: [],
     threadsLinked: 0,
+    accessBlocked: false,
+    skipped: 0,
   };
 }
 
@@ -365,14 +370,24 @@ async function ingestArticle(
   client: ClientOptions,
   conditional = false,
 ): Promise<void> {
+  if (report.accessBlocked) {
+    report.skipped += 1;
+    return;
+  }
   const now = (client.now ?? (() => new Date()))();
   const got = await politeGet(db, OFFICIAL, url, { ...client, conditional });
   if (got.kind === "not_modified") {
     report.seen += 1;
     return;
   }
+  if (got.kind === "backoff") {
+    report.skipped += 1;
+    return;
+  }
   if (got.kind !== "ok") {
-    report.articleErrors.push({ url, reason: got.kind === "backoff" ? `backing off until ${got.until}` : got.message });
+    // A refusal is access control: stop asking for article pages for the rest of this run.
+    if (got.status === 401 || got.status === 403) report.accessBlocked = true;
+    report.articleErrors.push({ url, reason: got.message });
     return;
   }
   report.pagesFetched += 1;
@@ -395,7 +410,12 @@ async function ingestArticle(
 }
 
 const finish = (r: OfficialReport): OfficialReport => {
-  if (r.status === "succeeded" && r.articleErrors.length) r.status = "partial";
+  if (r.accessBlocked) {
+    r.status = "blocked";
+    r.reason = "PokéBeach refused an article page (HTTP 401/403); no further article pages were requested this run, and nothing tries to get around it";
+  } else if (r.status === "succeeded" && (r.articleErrors.length || r.skipped)) {
+    r.status = "partial";
+  }
   return r;
 };
 
@@ -421,6 +441,7 @@ export async function runPokebeachOfficial(db: Queryable, client: ClientOptions 
       if (got.kind !== "ok") {
         report.status = page === 0 ? "failed" : "partial";
         report.reason = got.kind === "backoff" ? `backing off until ${got.until}` : got.message;
+        if (got.kind === "error" && (got.status === 401 || got.status === 403)) report.accessBlocked = true;
         break;
       }
       report.pagesFetched += 1;
@@ -656,6 +677,7 @@ export function formatPokebeachReport(r: OfficialReport): string {
   return [
     `VIP Job — pokebeach ${r.mode} · status: ${r.status}${r.reason ? ` — ${r.reason}` : ""}`,
     `pages fetched ${r.pagesFetched} · listed ${r.articlesListed} · new ${r.created} · revised ${r.revised} · seen ${r.seen}` +
+      (r.skipped ? ` · skipped ${r.skipped} (blocked or backing off)` : "") +
       (r.threadsLinked ? ` · threads linked ${r.threadsLinked}` : ""),
     ...r.articleErrors.map((e) => `  ${e.url}: ${e.reason}`),
   ].join("\n");
