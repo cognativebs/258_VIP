@@ -218,3 +218,16 @@ export {
   type MemberWeights,
   type TrackedMember,
 } from "./connectors/pokebeach/members-seed.js";
+export {
+  POKEMON_ENTITY_EXTRACTOR_VERSION,
+  EntityKindSchema,
+  EntityMatchMethodSchema,
+  EntityMentionSchema,
+  entityKey,
+  extractPokemonEntities,
+  quotedSetCandidates,
+  type EntityKind,
+  type EntityMatchMethod,
+  type EntityMention,
+  type PokemonCatalog,
+} from "./entities/pokemon-entities.js";

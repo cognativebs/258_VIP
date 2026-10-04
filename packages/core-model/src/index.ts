@@ -17,3 +17,4 @@ export * from "./media.js";
 export * from "./audit.js";
 export * from "./batch-run.js";
 export * from "./card-scan.js";
+export * from "./pokemon-species.js";

@@ -104,7 +104,8 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
   - [x] 3. Tracked-member configuration (8 members, per-specialty weights in `signals_source_author`; `pokebeach members set|check`)
   - [ ] Operator: confirm PokéBeach terms, enable `pokebeach_official` (+ discovery feeds), run backfill; supply member profile URLs and run the access check
   - [ ] 4. Public member activity ingestion: only if the access check passes (forum pages answered 403 to an automated fetch on 2026-10-03; never bypass)
-  - [ ] 5. Pokémon entity extraction (sets, cards, products, Pokémon; text placeholders until the entity layer, P7)
+  - [x] 5. Pokémon entity extraction (`pokebeach extract`, also after each scheduled poll): species → national Dex, sets → `vault_pokemon.set` / Binder names, cards by suffix/Mega, products by pattern; quoted set names learned without an identity; text placeholders until the entity layer (P7)
+  - Homepage-only mode since 2026-10-03 (article pages answered 403): titles only, inferred Pacific times; `VIP_POKEBEACH_ARTICLE_PAGES=on` restores article pages
   - [ ] 6. Clustering onto spine events (independence = distinct authors/threads/outlets)
   - [ ] 7. Source weighting (member specialty weights + prediction-ledger calibration)
   - [ ] 8. Community Pulse UI · 9. Signals synthesis (strength bands from read-time priority; High Conviction never from community alone) · 10. Orchestr8 handoff (SIGNALS proposes, Orchestr8 decides)
