@@ -41,6 +41,25 @@ describe("macro-news job", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("stops the run at the first 429 instead of asking again", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response("Please limit requests to one every 5 seconds", { status: 429, statusText: "Too Many Requests" }),
+    );
+    const pool = {
+      query: async () => ({
+        rows: [{ endpoint: "https://api.gdeltproject.org/api/v2/doc/doc", adapter_enabled: true, is_active: true, verify_before_first_run: false, blocked_reason: null }],
+      }),
+    } as unknown as Pool;
+    const report = await runMacroNewsJob({ live: true, now: NOW, pool });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(report.status).toBe("failed");
+    expect(report.lanes.map((l) => l.error)).toEqual([
+      expect.stringMatching(/429/),
+      expect.stringMatching(/^skipped: GDELT asked to slow down/),
+      expect.stringMatching(/^skipped: GDELT asked to slow down/),
+    ]);
+  });
+
   it("accepts lane overrides from VIP_GDELT_LANES and rejects bad ones", () => {
     expect(lanesFromEnv({ VIP_GDELT_LANES: '[{"lane":"us","query":"(tariff) sourcecountry:US"}]' })).toHaveLength(1);
     expect(() => lanesFromEnv({ VIP_GDELT_LANES: '[{"lane":"US!","query":"x"}]' })).toThrow();
