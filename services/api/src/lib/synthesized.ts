@@ -4,7 +4,9 @@
  * signal lists its evidence: each article with its outlet, time and link.
  */
 import { z } from "zod";
-import { SynthesisProfileSchema, bandFor } from "@vip/signals";
+import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal } from "@vip/signals";
+import type { Hunt } from "../seeds/hunts.js";
+import { exposureFor, huntTexts, loadBinderSlots } from "./signalExposure.js";
 
 export type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
@@ -18,7 +20,10 @@ export const SynthesizedQuerySchema = z
 const PROFILE = "pokemon-synthesis";
 const BAND_ORDER = ["high_conviction", "strong", "emerging", "watch", "noise"];
 
-export async function buildSynthesized(db: Queryable, opts: { at?: Date; includeNoise?: boolean } = {}) {
+export async function buildSynthesized(
+  db: Queryable,
+  opts: { at?: Date; includeNoise?: boolean; hunts?: ReadonlyArray<Hunt> } = {},
+) {
   const at = opts.at ?? new Date();
   const prof = await db.query(
     `SELECT version, profile_json FROM vault_core.signals_synthesis_profile WHERE name = $1 AND is_current`,
@@ -51,10 +56,31 @@ export async function buildSynthesized(db: Queryable, opts: { at?: Date; include
     [sigs.rows.map((r) => r.event_id)],
   );
 
+  // Exposure is read now, so a proposal changes the moment the Binder or a hunt does.
+  const binder = await loadBinderSlots(db).catch(() => []);
+  const hunts = huntTexts(opts.hunts ?? []);
+
   const signals = sigs.rows
     .map((r) => {
       const independent = Number(r.independent);
+      const band = bandFor(Number(r.priority), independent, profile);
+      const exposure = exposureFor(r.entity, binder, hunts);
+      const input = {
+        title: r.title,
+        theme: r.code,
+        band,
+        direction: r.direction,
+        independentSourceCount: independent,
+        method: r.method,
+        baseConfidence: r.conf,
+        exposure,
+        marketConfirmed: false,
+      };
+      const proposal = proposeForSignal(input);
       return {
+        exposure,
+        proposal,
+        orchestr8Question: orchestr8Question(input, proposal),
         signalId: r.id,
         title: r.title,
         theme: r.code,
@@ -62,7 +88,7 @@ export async function buildSynthesized(db: Queryable, opts: { at?: Date; include
         entity: r.entity,
         direction: r.direction,
         method: r.method,
-        band: bandFor(Number(r.priority), independent, profile),
+        band,
         priority: Number(r.priority),
         influence: Number(r.influence),
         scores: { baseConfidence: r.conf, baseImpact: r.impact, noiseProbability: r.noise },

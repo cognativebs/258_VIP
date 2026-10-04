@@ -253,3 +253,16 @@ export {
   type Band,
 } from "./synthesis/synthesis.js";
 export { POKEMON_SYNTHESIS_PROFILE_SEED } from "./synthesis/synthesis-seed.js";
+export {
+  PROPOSAL_VERSION,
+  ProposalActionSchema,
+  ProposalTagSchema,
+  SignalProposalSchema,
+  proposeForSignal,
+  orchestr8Question,
+  type ProposalAction,
+  type ProposalTag,
+  type SignalExposure,
+  type ProposalInput,
+  type SignalProposal,
+} from "./synthesis/proposal.js";

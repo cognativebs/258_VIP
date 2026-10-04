@@ -231,5 +231,6 @@ describe("analysis comps context", () => {
     assert.equal(ctx.signals?.active[0]?.id, "sig-1");
     assert.equal(ctx.signals?.provenance.verificationStatus, "unverified");
     assert.match(ctx.signals?.provenance.notes ?? "", /not a market fact/);
+    assert.equal(ctx.signals?.synthesized, null);
   });
 });

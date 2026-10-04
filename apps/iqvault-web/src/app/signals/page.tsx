@@ -56,7 +56,25 @@ type Synthesized = {
     method: string;
     direction: string;
     evidence: { title: string | null; outlet: string; url: string | null; at: string | null; timeSource: string | null }[];
+    exposure: { owned: number; wishlist: number; hunts: string[] };
+    proposal: {
+      action: string;
+      tags: string[];
+      reasons: string[];
+      trigger: string | null;
+      withheld: { action: string; reason: string }[];
+    };
+    orchestr8Question: string;
   }[];
+};
+
+/** Orchestr8 console; its Analysis tab reads ?question= and waits for the operator to press Run. */
+const ORCHESTR8_CONSOLE_URL = process.env.NEXT_PUBLIC_ORCHESTR8_CONSOLE_URL ?? "http://localhost:3001";
+const TAG_LABEL: Record<string, string> = {
+  research: "research",
+  binder_target: "binder target",
+  hunt_target: "hunt target",
+  sealed_target: "sealed target",
 };
 
 const BAND_LABEL = { noise: "Noise", watch: "Watch", emerging: "Emerging", strong: "Strong", high_conviction: "High Conviction" } as const;
@@ -77,6 +95,31 @@ function PokemonSignals({ data, error }: { data: Synthesized | null; error: stri
             <span className={`badge ${s.band === "strong" || s.band === "high_conviction" ? "badge-ok" : "badge-info"}`}>{BAND_LABEL[s.band]}</span>{" "}
             <span className="badge badge-info">{s.themeName}</span>{" "}
             {s.method === "opinion" ? <span className="badge badge-warn">opinion</span> : null} <strong>{s.title}</strong>
+            <p style={{ margin: "6px 0 4px" }}>
+              <span className="badge badge-ok">Proposed: {s.proposal.action}</span>{" "}
+              {s.proposal.tags.map((t) => (
+                <span key={t} className="badge badge-info">
+                  {TAG_LABEL[t] ?? t}
+                </span>
+              ))}{" "}
+              <span className="muted" style={{ fontSize: 12 }}>
+                {s.proposal.reasons.join(" · ")}
+                {s.proposal.trigger ? ` · Trigger: ${s.proposal.trigger}` : ""}
+              </span>
+            </p>
+            {s.proposal.withheld.length ? (
+              <p className="muted" style={{ fontSize: 12, margin: "0 0 4px" }}>
+                Withheld: {s.proposal.withheld.map((w) => `${w.action} (${w.reason})`).join("; ")}
+              </p>
+            ) : null}
+            {s.band === "strong" || s.band === "high_conviction" ? (
+              <p style={{ fontSize: 12, margin: "0 0 4px" }}>
+                <a href={`${ORCHESTR8_CONSOLE_URL}/?question=${encodeURIComponent(s.orchestr8Question)}`} target="_blank" rel="noreferrer">
+                  Evaluate in Orchestr8 →
+                </a>{" "}
+                <span className="muted">SIGNALS proposes; Orchestr8 decides.</span>
+              </p>
+            ) : null}
             <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
               {s.independentSourceCount} independent source{s.independentSourceCount === 1 ? "" : "s"} · priority {s.priority.toFixed(3)} ·
               influence {s.influence.toFixed(3)} · {s.direction}

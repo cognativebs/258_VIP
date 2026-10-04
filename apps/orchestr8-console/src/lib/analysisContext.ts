@@ -164,6 +164,8 @@ export function buildAnalysisContext(
     quarantinedCount?: number;
     feedKind?: string;
     provenance?: { notes?: string; verificationStatus?: string };
+    /** Synthesized SIGNALS with their proposals and your exposure (VIP /api/signals/context). */
+    synthesized?: unknown;
   } | null,
 ) {
   const filtered = applySlice(bundle.rows, slice);
@@ -259,6 +261,8 @@ export function buildAnalysisContext(
               signals.provenance?.notes ??
               "News is inferred · unverified RSS; not a market fact; do not invent comps from headlines.",
           },
+          // SIGNALS proposes, Orchestr8 decides: proposals carry withheld Buy/Sell/Grade until market evidence exists.
+          synthesized: signals.synthesized ?? null,
         }
       : undefined,
   };

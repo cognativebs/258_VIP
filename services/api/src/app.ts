@@ -639,6 +639,7 @@ export function createApp(deps: AppDeps = {}) {
         await buildSynthesized(deps.signalsDb ?? getPool(), {
           at: parsed.data.at ? new Date(parsed.data.at) : undefined,
           includeNoise: parsed.data.includeNoise === "true",
+          hunts: HUNTS,
         }),
       );
     } catch (e) {
@@ -667,8 +668,28 @@ export function createApp(deps: AppDeps = {}) {
   app.get("/api/signals/daily-sports", (req, res) => serveDaily("daily-sports", req, res));
   app.get("/api/signals/daily/:name", (req, res) => serveDaily(String(req.params.name), req, res));
 
-  app.get("/api/signals/context", (_req, res) => {
-    res.json(compactSignalsContext());
+  app.get("/api/signals/context", async (_req, res) => {
+    // Orchestr8's councils read this. Synthesized signals join with their proposals and exposure;
+    // if the spine is unreachable the feed context still goes out, and says so.
+    let synthesized: unknown = null;
+    try {
+      const s = await buildSynthesized(deps.signalsDb ?? getPool(), { hunts: HUNTS });
+      synthesized = {
+        notes: s.provenance.notes,
+        signals: s.signals.slice(0, 10).map((x) => ({
+          title: x.title,
+          theme: x.theme,
+          band: x.band,
+          independentSourceCount: x.independentSourceCount,
+          proposal: x.proposal,
+          exposure: { owned: x.exposure.owned, wishlist: x.exposure.wishlist, hunts: x.exposure.hunts },
+          evidence: x.evidence.map((e) => ({ title: e.title, outlet: e.outlet, url: e.url, at: e.at })),
+        })),
+      };
+    } catch (e) {
+      synthesized = { error: e instanceof Error ? e.message : "vault_signals unavailable", signals: [] };
+    }
+    res.json({ ...compactSignalsContext(), synthesized });
   });
 
   app.get("/api/signals/output", (_req, res) => {

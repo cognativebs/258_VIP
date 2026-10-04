@@ -27,6 +27,7 @@ function stub(signals: unknown[]): Queryable {
     query: async (text) => {
       if (text.includes("signals_synthesis_profile")) return { rows: [{ version: "0.1.0", profile_json: POKEMON_SYNTHESIS_PROFILE_SEED }] };
       if (text.includes("FROM vault_signals.signal s")) return { rows: signals };
+      if (text.includes("vault_tcg.binder_slot")) return { rows: [] };
       return {
         rows: [
           { event_id: "e-a", independence_group: "pokebeach.com", source_item_url: "https://www.pokebeach.com/x", title: "Article", author_name: "Writer", source_id: "pokebeach_official", at: "2026-10-04T08:00:00.000Z", published_at_source: "homepage_display_time:America/Los_Angeles (inferred)" },
@@ -47,6 +48,10 @@ describe("buildSynthesized", () => {
     expect(out.signals.find((s) => s.signalId === "a")!.evidence).toEqual([
       expect.objectContaining({ outlet: "pokebeach.com", url: "https://www.pokebeach.com/x", timeSource: expect.stringMatching(/inferred/) }),
     ]);
+    // No exposure: an Emerging signal is Watch, a Strong one too; Buy is withheld without market data.
+    expect(out.signals.map((s) => s.proposal.action)).toEqual(["Watch", "Watch", "Watch"]);
+    expect(out.signals[0]!.proposal.withheld.map((w) => w.action)).toContain("Buy");
+    expect(out.signals[0]!.orchestr8Question).toMatch(/Decide Buy \/ Hold/);
     const all = await buildSynthesized(stub([sig("d", 0.01, 1)]), { at: AT, includeNoise: true });
     expect(all.signals.map((s) => s.band)).toEqual(["noise"]);
   });
