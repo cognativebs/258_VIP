@@ -26,6 +26,7 @@ import {
   type Queryable as PokebeachQueryable,
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
+import { formatIndexReport, indexFeedItems } from "./source-items.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -153,6 +154,22 @@ async function main() {
     console.log(formatMacroNewsReport(report));
     if (report.status === "failed") process.exit(1);
     return;
+  }
+
+  if (cmd === "items") {
+    // items index [--days N] | items extract — feed snapshots → source items → Pokémon entities
+    const args = process.argv.slice(3);
+    const i = args.indexOf("--days");
+    if (args[0] === "index") {
+      console.log(formatIndexReport(await inPokebeachTransaction((db) => indexFeedItems(db, { days: i >= 0 ? Number(args[i + 1]) : 7 }))));
+      return;
+    }
+    if (args[0] === "extract") {
+      console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
+      return;
+    }
+    console.error("usage: items index [--days N] | items extract");
+    process.exit(1);
   }
 
   if (cmd === "pokebeach") {
@@ -374,6 +391,20 @@ async function main() {
           },
         },
         {
+          name: "items",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Index the outlets' stored snapshots as items, then read entities, so clusters span sources.
+            void jitter(10 * 60 * 1000)
+              .then(() => inPokebeachTransaction(async (db) => ({ index: await indexFeedItems(db), entities: await extractSourceItemEntities(db) })))
+              .then(({ index, entities }) => {
+                console.log(formatIndexReport(index));
+                console.log(formatEntityReport(entities));
+              })
+              .catch((e) => console.error(`items failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "pokebeach-reconcile",
           everyMs: 24 * 60 * 60 * 1000,
           run: () => {
@@ -405,7 +436,7 @@ async function main() {
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news and items hourly; clz-sync every 6h; price-history and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();

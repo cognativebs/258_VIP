@@ -89,6 +89,12 @@ function stableId(sourceId: string, guid: string): string {
   return createHash("sha256").update(`${sourceId}:${guid}`).digest("hex").slice(0, 24);
 }
 
+function toIsoTime(pubDate: string | null): string | null {
+  if (!pubDate) return null;
+  const d = new Date(pubDate);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function toIsoDate(pubDate: string | null, fallback: Date): string {
   if (pubDate) {
     const d = new Date(pubDate);
@@ -169,6 +175,7 @@ export class RssAdapter {
             body: item.description || "Malformed RSS item — quarantined",
             sourceUrl: item.link,
             signalDate: toIsoDate(item.pubDate, fetchedAt),
+            publishedAt: toIsoTime(item.pubDate),
             signalType: "news",
             quarantineStatus: "quarantined",
             provenance: {
@@ -194,6 +201,7 @@ export class RssAdapter {
           body,
           sourceUrl: item.link,
           signalDate: toIsoDate(item.pubDate, fetchedAt),
+          publishedAt: toIsoTime(item.pubDate),
           signalType: "news",
           quarantineStatus: "active",
           provenance: {

@@ -37,6 +37,8 @@ export const NormalizedSignalFromRssSchema = z.object({
   body: z.string().min(1),
   sourceUrl: z.string().nullable(),
   signalDate: z.string().min(1),
+  /** Full publish time from pubDate / Atom published, when the feed gives a parseable one. */
+  publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
   signalType: z.literal("news"),
   quarantineStatus: z.enum(["active", "quarantined", "rejected"]),
   provenance: SignalProvenanceSchema,

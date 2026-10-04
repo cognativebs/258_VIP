@@ -36,6 +36,7 @@ import {
   type MemberWeights,
 } from "@vip/signals";
 import { STATE_DIR } from "./espn-sports.js";
+import { upsertSourceItem, type UpsertResult } from "./source-items.js";
 
 export const POKEBEACH_JOB_VERSION = "pokebeach@0.1.0";
 export const OFFICIAL = "pokebeach_official";
@@ -219,7 +220,7 @@ async function finishRun(db: Queryable, id: string, status: "succeeded" | "parti
 // ---------------------------------------------------------------------------
 // Item identity and revisions
 
-export type UpsertResult = "created" | "revised" | "seen";
+export type { UpsertResult };
 
 /**
  * One item per canonical URL (and WordPress post id). A changed title, author,
@@ -238,74 +239,29 @@ export async function upsertArticle(
     status?: "confirmed" | "discovered";
   },
 ): Promise<UpsertResult> {
-  const hash = articleContentHash(article);
-  const excerpt = article.description ? article.description.slice(0, 600) : null;
-  const found = await db.query(
-    `SELECT id, content_hash, canonical_url FROM vault_signals.source_item
-      WHERE source_id = $1 AND (canonical_url = $2 OR (item_kind = 'article' AND external_id = $3))
-      ORDER BY (external_id = $3) DESC LIMIT 1`,
-    [OFFICIAL, article.canonicalUrl, article.postId],
+  return upsertSourceItem(
+    db,
+    OFFICIAL,
+    {
+      externalId: article.postId,
+      canonicalUrl: article.canonicalUrl,
+      title: article.title,
+      author: article.author,
+      authorSlug: article.authorSlug,
+      publishedAt: article.publishedAt,
+      modifiedAt: article.modifiedAt,
+      description: article.description,
+    },
+    {
+      via: opts.via,
+      rawDocumentId: opts.rawDocumentId,
+      now: opts.now,
+      timeSource: opts.timeSource ?? "article:published_time",
+      status: opts.status ?? "confirmed",
+      parserVersion: POKEBEACH_PARSER_VERSION,
+      hash: articleContentHash(article),
+    },
   );
-  const item = found.rows[0];
-  if (!item) {
-    const ins = await db.query(
-      `INSERT INTO vault_signals.source_item (
-         source_id, item_kind, external_id, canonical_url, title, author_name, author_ref,
-         published_at, published_at_source, modified_at, excerpt, content_hash, status,
-         first_seen_at, last_seen_at, discovered_via, parser_version
-       ) VALUES ($1, 'article', $2, $3, $4, $5, $6, $7, $14, $8, $9, $10, $15, $11, $11, ARRAY[$12], $13)
-       RETURNING id`,
-      [
-        OFFICIAL,
-        article.postId,
-        article.canonicalUrl,
-        article.title,
-        article.author,
-        article.authorSlug,
-        article.publishedAt,
-        article.modifiedAt,
-        excerpt,
-        hash,
-        opts.now,
-        opts.via,
-        POKEBEACH_PARSER_VERSION,
-        opts.timeSource ?? "article:published_time",
-        opts.status ?? "confirmed",
-      ],
-    );
-    await db.query(
-      `INSERT INTO vault_signals.source_item_revision
-         (source_item_id, observed_at, raw_document_id, content_hash, title, author_name, published_at, excerpt, change_kind)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'initial')`,
-      [ins.rows[0].id, opts.now, opts.rawDocumentId, hash, article.title, article.author, article.publishedAt, excerpt],
-    );
-    return "created";
-  }
-  const revised = item.content_hash !== hash;
-  await db.query(
-    `UPDATE vault_signals.source_item
-        SET last_seen_at = greatest(last_seen_at, $2),
-            discovered_via = CASE WHEN $3 = ANY(discovered_via) THEN discovered_via ELSE array_append(discovered_via, $3) END,
-            modified_at = coalesce($4, modified_at),
-            canonical_url = $5,
-            title = CASE WHEN $6 THEN $7 ELSE title END,
-            author_name = CASE WHEN $6 THEN $8 ELSE author_name END,
-            published_at = CASE WHEN $6 THEN $9::timestamptz ELSE published_at END,
-            excerpt = CASE WHEN $6 THEN $10 ELSE excerpt END,
-            content_hash = $11,
-            revision_count = revision_count + CASE WHEN $6 THEN 1 ELSE 0 END
-      WHERE id = $1`,
-    [item.id, opts.now, opts.via, article.modifiedAt, article.canonicalUrl, revised, article.title, article.author, article.publishedAt, excerpt, hash],
-  );
-  if (revised) {
-    await db.query(
-      `INSERT INTO vault_signals.source_item_revision
-         (source_item_id, observed_at, raw_document_id, content_hash, title, author_name, published_at, excerpt, change_kind)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'material')`,
-      [item.id, opts.now, opts.rawDocumentId, hash, article.title, article.author, article.publishedAt, excerpt],
-    );
-  }
-  return revised ? "revised" : "seen";
 }
 
 /**

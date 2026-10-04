@@ -106,7 +106,8 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
   - [ ] 4. Public member activity ingestion: only if the access check passes (forum pages answered 403 to an automated fetch on 2026-10-03; never bypass)
   - [x] 5. Pokémon entity extraction (`pokebeach extract`, also after each scheduled poll): species → national Dex, sets → `vault_pokemon.set` / Binder names, cards by suffix/Mega, products by pattern; quoted set names learned without an identity; text placeholders until the entity layer (P7)
   - Homepage-only mode since 2026-10-03 (article pages answered 403): titles only, inferred Pacific times; `VIP_POKEBEACH_ARTICLE_PAGES=on` restores article pages
-  - [ ] 6. Clustering onto spine events (independence = distinct authors/threads/outlets)
+  - [x] 6. Clustering, computed at read time (`GET /api/signals/clusters`): entity + theme in a rolling 72h window; independent_source_count = distinct outlets by host (all PokéBeach routes = one newsroom; a YouTube channel is its own voice). ComicsBeat, Alpha Investments and the GDELT business lane are indexed as items (`items index`, hourly) so clusters can span outlets
+  - [ ] Pokémon-specific themes (card reveal, preorder, pull rates, distribution) in a new collectibles rule-set version: card-reveal articles currently cluster as UNCLASSIFIED
   - [ ] 7. Source weighting (member specialty weights + prediction-ledger calibration)
   - [ ] 8. Community Pulse UI · 9. Signals synthesis (strength bands from read-time priority; High Conviction never from community alone) · 10. Orchestr8 handoff (SIGNALS proposes, Orchestr8 decides)
 - [x] **Headlines (US, World)**: GDELT lanes `us` / `world` on fixtures; `macro-headline` classifier; `daily-headlines` list (US 60 / world 40, starting shares · unverified)

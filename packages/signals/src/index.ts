@@ -231,3 +231,14 @@ export {
   type EntityMention,
   type PokemonCatalog,
 } from "./entities/pokemon-entities.js";
+export {
+  CLUSTERING_VERSION,
+  NO_THEME,
+  DEFAULT_EXCLUDED_ENTITY_KEYS,
+  ItemClusterSchema,
+  clusterItems,
+  independenceGroup,
+  type ClusterInputItem,
+  type ClusterOptions,
+  type ItemCluster,
+} from "./clustering/item-clusters.js";
