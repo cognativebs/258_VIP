@@ -44,6 +44,68 @@ const DAILY_LISTS = [
 
 const FRAMING_LABEL = { sell_window: "Sell window", exit_watch: "Exit · watch" } as const;
 
+type Synthesized = {
+  signals: {
+    signalId: string;
+    title: string;
+    themeName: string;
+    band: "noise" | "watch" | "emerging" | "strong" | "high_conviction";
+    priority: number;
+    influence: number;
+    independentSourceCount: number;
+    method: string;
+    direction: string;
+    evidence: { title: string | null; outlet: string; url: string | null; at: string | null; timeSource: string | null }[];
+  }[];
+};
+
+const BAND_LABEL = { noise: "Noise", watch: "Watch", emerging: "Emerging", strong: "Strong", high_conviction: "High Conviction" } as const;
+
+function PokemonSignals({ data, error }: { data: Synthesized | null; error: string | null }) {
+  return (
+    <section className="panel" style={{ marginBottom: 20 }}>
+      <h2 style={{ marginTop: 0 }}>Pokémon SIGNALS</h2>
+      <p className="muted">
+        Synthesized from official PokéBeach news and other outlets. Bands come from read-time priority; High Conviction needs
+        two independent sources. Inferred · unverified. A signal proposes; it never sets a price or a buy.
+      </p>
+      {error ? <div className="error">{error}</div> : null}
+      {data && data.signals.length === 0 ? <p className="muted">Nothing above Noise right now.</p> : null}
+      <div className="stack">
+        {(data?.signals ?? []).map((s) => (
+          <article key={s.signalId}>
+            <span className={`badge ${s.band === "strong" || s.band === "high_conviction" ? "badge-ok" : "badge-info"}`}>{BAND_LABEL[s.band]}</span>{" "}
+            <span className="badge badge-info">{s.themeName}</span>{" "}
+            {s.method === "opinion" ? <span className="badge badge-warn">opinion</span> : null} <strong>{s.title}</strong>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+              {s.independentSourceCount} independent source{s.independentSourceCount === 1 ? "" : "s"} · priority {s.priority.toFixed(3)} ·
+              influence {s.influence.toFixed(3)} · {s.direction}
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+              {s.evidence.map((e, i) => (
+                <li key={`${s.signalId}-${i}`}>
+                  {e.url ? (
+                    <a href={e.url} target="_blank" rel="noreferrer">
+                      {e.title ?? e.url}
+                    </a>
+                  ) : (
+                    (e.title ?? "(article)")
+                  )}{" "}
+                  <span className="muted">
+                    · {e.outlet}
+                    {e.at ? ` · ${e.at.slice(0, 16).replace("T", " ")} UTC` : ""}
+                    {e.timeSource?.includes("inferred") ? " (time inferred)" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DailySection({ title, list, error }: { title: string; list: DailyList | null; error: string | null }) {
   return (
     <section className="panel" style={{ marginBottom: 20 }}>
@@ -102,6 +164,13 @@ export default async function SignalsPage() {
   let outputs: SignalOutput[] = [];
   let source: string | null = null;
   let feedKind: "job_feed" | "seed" | "unknown" = "unknown";
+  let synthesized: Synthesized | null = null;
+  let synthesizedError: string | null = null;
+  try {
+    synthesized = await apiGet<Synthesized>("/api/signals/synthesized");
+  } catch (e) {
+    synthesizedError = e instanceof Error ? e.message : "Failed to load Pokémon signals";
+  }
   const dailies = await Promise.all(
     DAILY_LISTS.map(async ({ name, title }) => {
       try {
@@ -144,6 +213,8 @@ export default async function SignalsPage() {
         ) : null}
       </p>
       {error ? <div className="error">{error}</div> : null}
+
+      <PokemonSignals data={synthesized} error={synthesizedError} />
 
       {dailies.map((d) => (
         <DailySection key={d.title} title={d.title} list={d.list} error={d.error} />

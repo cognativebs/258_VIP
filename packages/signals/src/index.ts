@@ -242,3 +242,14 @@ export {
   type ClusterOptions,
   type ItemCluster,
 } from "./clustering/item-clusters.js";
+export {
+  SYNTHESIS_VERSION,
+  SynthesisProfileSchema,
+  bandFor,
+  planSynthesis,
+  type SynthesisProfile,
+  type SynthesisItem,
+  type SynthesisCandidate,
+  type Band,
+} from "./synthesis/synthesis.js";
+export { POKEMON_SYNTHESIS_PROFILE_SEED } from "./synthesis/synthesis-seed.js";

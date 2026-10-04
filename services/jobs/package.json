@@ -11,6 +11,7 @@
     "macro-news": "tsx src/cli.ts macro-news",
     "pokebeach": "tsx src/cli.ts pokebeach",
     "items": "tsx src/cli.ts items",
+    "synthesize": "tsx src/cli.ts synthesize",
     "news-source": "tsx src/cli.ts news-source",
     "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
     "clz-sync": "tsx src/cli.ts clz-sync",

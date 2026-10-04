@@ -27,6 +27,7 @@ import {
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
 import { formatIndexReport, indexFeedItems } from "./source-items.js";
+import { formatSynthesisReport, synthesizeSignals } from "./synthesis.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -153,6 +154,16 @@ async function main() {
     const report = await runMacroNewsJob({ live: args.includes("--live") });
     console.log(formatMacroNewsReport(report));
     if (report.status === "failed") process.exit(1);
+    return;
+  }
+
+  if (cmd === "synthesize") {
+    // synthesize [--dry-run] — clusters and official articles → spine events + signals
+    // synthesize [--dry-run] [--window-hours N] — N overrides the profile window once, for a backfill
+    const dryRun = process.argv.includes("--dry-run");
+    const w = process.argv.indexOf("--window-hours");
+    const windowHours = w >= 0 ? Number(process.argv[w + 1]) : undefined;
+    console.log(formatSynthesisReport(await inPokebeachTransaction((db) => synthesizeSignals(db, { dryRun, windowHours }))));
     return;
   }
 
@@ -380,12 +391,13 @@ async function main() {
               .then(() =>
                 inPokebeachTransaction(async (db) => {
                   const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
-                  return { reports, entities: await extractSourceItemEntities(db) };
+                  return { reports, entities: await extractSourceItemEntities(db), synthesis: await synthesizeSignals(db) };
                 }),
               )
-              .then(({ reports, entities }) => {
+              .then(({ reports, entities, synthesis }) => {
                 reports.forEach((r) => console.log(formatPokebeachReport(r)));
                 console.log(formatEntityReport(entities));
+                console.log(formatSynthesisReport(synthesis));
               })
               .catch((e) => console.error(`pokebeach failed: ${e instanceof Error ? e.message : e}`));
           },
@@ -396,10 +408,17 @@ async function main() {
           run: () => {
             // Index the outlets' stored snapshots as items, then read entities, so clusters span sources.
             void jitter(10 * 60 * 1000)
-              .then(() => inPokebeachTransaction(async (db) => ({ index: await indexFeedItems(db), entities: await extractSourceItemEntities(db) })))
-              .then(({ index, entities }) => {
+              .then(() =>
+                inPokebeachTransaction(async (db) => ({
+                  index: await indexFeedItems(db),
+                  entities: await extractSourceItemEntities(db),
+                  synthesis: await synthesizeSignals(db),
+                })),
+              )
+              .then(({ index, entities, synthesis }) => {
                 console.log(formatIndexReport(index));
                 console.log(formatEntityReport(entities));
+                console.log(formatSynthesisReport(synthesis));
               })
               .catch((e) => console.error(`items failed: ${e instanceof Error ? e.message : e}`));
           },
