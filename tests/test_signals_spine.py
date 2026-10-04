@@ -87,7 +87,10 @@ def test_spine_schema_guards(conn):
         """
     )
     enabled, active, ceiling, total = cur.fetchone()
-    assert (enabled, active, ceiling, total) == (0, 0, 0, 14)
+    # Every seeded source ships disabled (HS-5). 14 from 20260920_06, plus pokebeach_rss, psa_news,
+    # tag_news, alpha_investments_youtube (20261001_03) and pokebeach_official,
+    # pokebeach_frontpage_feed, pokebeach_members (20261003_01).
+    assert (enabled, active, ceiling, total) == (0, 0, 0, 21)
 
     cur.execute(
         """
@@ -133,7 +136,8 @@ def test_spine_schema_guards(conn):
         """
     )
     all_unverified, type_count = cur.fetchone()
-    assert type_count == 9
+    # 9 from 20260920_12, + 6 sports (20261001_01), + 2 collectibles (20261001_03), + 5 macro (20261001_04).
+    assert type_count == 22
     assert all_unverified is True
 
     cur.execute(
