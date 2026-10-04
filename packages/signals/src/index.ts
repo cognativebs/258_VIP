@@ -177,7 +177,7 @@ export {
   type CuratedItem,
 } from "./curation/daily-sports.js";
 export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
-export { COLLECTIBLES_HEADLINE_RULES_SEED } from "./classifier/collectibles-headline-seed.js";
+export { COLLECTIBLES_HEADLINE_RULES_SEED, COLLECTIBLES_HEADLINE_RULES_V0_2_0 } from "./classifier/collectibles-headline-seed.js";
 export { DAILY_COLLECTIBLES_PROFILE_SEED } from "./curation/daily-collectibles-seed.js";
 export { MACRO_HEADLINE_RULES_SEED } from "./classifier/macro-headline-seed.js";
 export { DAILY_HEADLINES_PROFILE_SEED, DAILY_MARKETS_PROFILE_SEED } from "./curation/daily-macro-seed.js";

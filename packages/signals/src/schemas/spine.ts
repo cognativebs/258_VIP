@@ -158,6 +158,12 @@ export const SpineSignalTypeCodeSchema = z.enum([
   "REGULATION",
   "COMPANY_EVENT",
   "MARKET_MOVE",
+  "CARD_REVEAL",
+  "PRODUCT_REVEAL",
+  "PREORDER",
+  "PULL_RATE",
+  "PROMOTION",
+  "COMPETITIVE",
 ]);
 export type SpineSignalTypeCode = z.infer<typeof SpineSignalTypeCodeSchema>;
 

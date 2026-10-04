@@ -72,7 +72,7 @@ describe.skipIf(!DSN)("collectibles classification (IQVAULT_TEST_DSN, rolled bac
         ruleSetName: "collectibles-headline",
       });
       expect(report).toMatchObject({
-        ruleSet: "collectibles-headline@0.1.0",
+        ruleSet: "collectibles-headline@0.2.0",
         documents: { processed: 3, missingSnapshot: [] },
         items: { seen: 6, signals: 4, noise: 1, noSignal: 1 },
         byType: { MEDIA_ADAPTATION: 1, REPRINT: 2, GRADING_SERVICE_CHANGE: 1 },

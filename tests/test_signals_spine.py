@@ -136,8 +136,9 @@ def test_spine_schema_guards(conn):
         """
     )
     all_unverified, type_count = cur.fetchone()
-    # 9 from 20260920_12, + 6 sports (20261001_01), + 2 collectibles (20261001_03), + 5 macro (20261001_04).
-    assert type_count == 22
+    # 9 from 20260920_12, + 6 sports (20261001_01), + 2 collectibles (20261001_03), + 5 macro (20261001_04),
+    # + 6 Pokemon themes (20261004_01).
+    assert type_count == 28
     assert all_unverified is True
 
     cur.execute(

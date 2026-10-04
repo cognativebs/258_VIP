@@ -52,6 +52,12 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
   { code: "REGULATION", displayName: "Regulation", defaultHalfLifeHours: 2160, description: GUESS, halfLifeVerified: false },
   { code: "COMPANY_EVENT", displayName: "Company event", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
   { code: "MARKET_MOVE", displayName: "Market move", defaultHalfLifeHours: 72, description: GUESS, halfLifeVerified: false },
+  { code: "CARD_REVEAL", displayName: "Card reveal", defaultHalfLifeHours: 168, description: GUESS, halfLifeVerified: false },
+  { code: "PRODUCT_REVEAL", displayName: "Product reveal", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "PREORDER", displayName: "Preorder", defaultHalfLifeHours: 168, description: GUESS, halfLifeVerified: false },
+  { code: "PULL_RATE", displayName: "Pull rate", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
+  { code: "PROMOTION", displayName: "Promotion", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
+  { code: "COMPETITIVE", displayName: "Competitive", defaultHalfLifeHours: 168, description: GUESS, halfLifeVerified: false },
 ];
 
 export const SCORE_WEIGHT_SEED = {

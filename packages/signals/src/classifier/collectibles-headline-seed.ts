@@ -131,3 +131,88 @@ export const COLLECTIBLES_HEADLINE_RULES_SEED: ClassifierRuleSet = {
   notes:
     "Seed 0.1.0 · unverified (2026-10-01). Impacts, hedge factor, single-source noise and rules confidence are starting guesses, not measurements. Reprints and restocks read down for existing copies; media adaptations and record sales read up. Replace with a version calibrated from resolved predictions.",
 };
+
+const v010 = COLLECTIBLES_HEADLINE_RULES_SEED;
+const v010Rule = (type: string) => v010.rules.find((r) => r.type === type)!;
+
+/**
+ * collectibles-headline@0.2.0 (2026-10-04): Pokémon TCG themes from the
+ * operator's PokéBeach spec — card reveals, product reveals, preorders, pull
+ * rates, promotions, competitive play. Preorders leave RESTOCK and get their
+ * own theme. Rumour and leak language stays a hedge, not a theme. Migration
+ * 20261004_01 embeds this object and makes it current; 0.1.0 stays for
+ * provenance. New impacts are starting guesses · unverified.
+ */
+export const COLLECTIBLES_HEADLINE_RULES_V0_2_0: ClassifierRuleSet = {
+  ...v010,
+  version: "0.2.0",
+  rules: [
+    v010Rule("GRADING_SERVICE_CHANGE"),
+    v010Rule("REPRINT"),
+    {
+      type: "PULL_RATE",
+      patterns: ["\\bpull rates?\\b", "\\bodds of pulling\\b"],
+      excludePatterns: [],
+    },
+    {
+      type: "PREORDER",
+      patterns: ["\\bpre-?orders?\\b"],
+      excludePatterns: [],
+    },
+    {
+      ...v010Rule("RESTOCK"),
+      patterns: v010Rule("RESTOCK").patterns.filter((p) => !p.includes("pre-?orders?")),
+    },
+    v010Rule("SUPPLY_CHANGE"),
+    {
+      type: "PROMOTION",
+      patterns: ["\\bpromotion\\b", "\\bmcdonald'?s\\b", "\\bhappy meal\\b"],
+      excludePatterns: [],
+    },
+    {
+      type: "COMPETITIVE",
+      patterns: [
+        "\\b(regionals?|internationals?|nationals|worlds|world championships?|tournaments?|top cut)\\b",
+        "\\bbest play\\b",
+        "\\bdeck ?lists?\\b",
+        "\\bmeta\\b",
+      ],
+      excludePatterns: [],
+    },
+    {
+      type: "CARD_REVEAL",
+      patterns: ["\\bcard images?\\b", "\\bcards? revealed\\b", "\\brevealed\\b.*\\bcards?\\b", "\\bcards?\\b.*\\brevealed\\b"],
+      excludePatterns: [],
+    },
+    {
+      type: "PRODUCT_REVEAL",
+      patterns: [
+        "\\b(elite trainer box(es)?|etbs?|booster box(es)?|booster bundles?|collections?|tins?|binders?|blisters?|accessor(y|ies)|playmats?|sleeves)\\b.*\\b(revealed|announced|unveiled|to release|releasing|released)\\b",
+        "\\b(revealed|announced|unveiled)\\b.*\\b(elite trainer box(es)?|etbs?|booster box(es)?|booster bundles?|collections?|tins?|binders?)\\b",
+      ],
+      excludePatterns: [],
+    },
+    v010Rule("MEDIA_ADAPTATION"),
+    {
+      ...v010Rule("SET_RELEASE"),
+      patterns: [
+        ...v010Rule("SET_RELEASE").patterns,
+        "\\b(to release|releasing|launch(es|ing)?)\\b.*\\bsets?\\b",
+        "\\bsets?\\b.*\\b(to release|releasing|launch(es|ing)?)\\b",
+      ],
+    },
+    v010Rule("AUCTION_RESULT"),
+    v010Rule("LICENSE_CHANGE"),
+  ],
+  types: {
+    ...v010.types,
+    CARD_REVEAL: { direction: "up", impact: { unknown: 0.25 } },
+    PRODUCT_REVEAL: { direction: "mixed", impact: { unknown: 0.3 } },
+    PREORDER: { direction: "mixed", impact: { unknown: 0.3 } },
+    PULL_RATE: { direction: "mixed", impact: { unknown: 0.4 } },
+    PROMOTION: { direction: "mixed", impact: { unknown: 0.2 } },
+    COMPETITIVE: { direction: "mixed", impact: { unknown: 0.1 } },
+  },
+  notes:
+    "0.2.0 · unverified (2026-10-04). Adds Pokémon TCG themes (card reveal, product reveal, preorder, pull rate, promotion, competitive); preorders are no longer restocks. Competitive news carries little collector impact. All numbers are starting guesses, not measurements.",
+};
