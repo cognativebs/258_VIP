@@ -1,0 +1,5 @@
+{"articles": [
+  {"url": "https://fixture-markets.example/hasbro-earnings", "url_mobile": "", "title": "Hasbro earnings beat as trading card revenue jumps", "seendate": "20260930T210000Z", "socialimage": "", "domain": "fixture-markets.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "https://fixture-markets.example/gold-record", "url_mobile": "", "title": "Gold hits record as investors seek safety", "seendate": "20260930T200000Z", "socialimage": "", "domain": "fixture-markets.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "https://fixture-markets.example/stocks-to-buy", "url_mobile": "", "title": "5 best stocks to buy this week", "seendate": "20260930T190000Z", "socialimage": "", "domain": "fixture-markets.example", "language": "English", "sourcecountry": "United States"}
+]}

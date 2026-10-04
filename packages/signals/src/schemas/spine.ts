@@ -108,6 +108,8 @@ export const EventEvidenceSchema = z
     role: EvidenceRoleSchema,
     independenceGroup: z.string().min(1).nullable(),
     detectedAt: z.coerce.date(),
+    /** The item inside a multi-item document (an RSS guid). NULL when the document is the evidence. */
+    itemRef: z.string().min(1).max(1024).nullable().default(null),
   })
   .strict()
   .refine((row) => row.role !== "PRIMARY" || row.independenceGroup != null, {
@@ -143,6 +145,19 @@ export const SpineSignalTypeCodeSchema = z.enum([
   "HOF_ANNOUNCEMENT",
   "MACRO_TREND",
   "SUPPLY_CHANGE",
+  "PLAYER_DEATH",
+  "MILESTONE",
+  "TRANSACTION",
+  "AWARD_RACE",
+  "DISCIPLINE",
+  "RETIREMENT",
+  "MEDIA_ADAPTATION",
+  "GRADING_SERVICE_CHANGE",
+  "TRADE_POLICY",
+  "SHIPPING_CHANGE",
+  "REGULATION",
+  "COMPANY_EVENT",
+  "MARKET_MOVE",
 ]);
 export type SpineSignalTypeCode = z.infer<typeof SpineSignalTypeCodeSchema>;
 

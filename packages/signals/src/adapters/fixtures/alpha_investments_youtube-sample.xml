@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. Atom shaped like a YouTube channel feed. Video IDs and titles are fictional. Not live data. -->
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+  <title>Alpha Investments (fixture)</title>
+  <entry>
+    <id>yt:video:FIXTURE0001</id>
+    <yt:videoId>FIXTURE0001</yt:videoId>
+    <title>Is the Fixture Storm reprint going to crash sealed prices?</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=FIXTURE0001"/>
+    <published>2026-09-30T18:00:00+00:00</published>
+    <media:group>
+      <media:description>My take on the reprint wave and what I am doing with my sealed collection.</media:description>
+    </media:group>
+  </entry>
+  <entry>
+    <id>yt:video:FIXTURE0002</id>
+    <yt:videoId>FIXTURE0002</yt:videoId>
+    <title>My top 10 sealed products to hold</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=FIXTURE0002"/>
+    <published>2026-09-29T18:00:00+00:00</published>
+    <media:group>
+      <media:description>Ranking the sealed products I would hold.</media:description>
+    </media:group>
+  </entry>
+</feed>

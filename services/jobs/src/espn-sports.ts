@@ -42,14 +42,17 @@ export const EspnFeedSchema = z
   .strict();
 export type EspnFeed = z.infer<typeof EspnFeedSchema>;
 
-/** Per-sport feeds listed on the ESPN.com News Feeds FAQ. Override with VIP_ESPN_RSS_FEEDS. */
+/**
+ * The sports in the operator's daily-sports curation (2026-10-01): football (NFL,
+ * college), soccer, NBA, MLB. Hockey and college basketball are not fetched.
+ * Override with VIP_ESPN_RSS_FEEDS.
+ */
 export const DEFAULT_ESPN_FEEDS: EspnFeed[] = [
   { sport: "nfl", url: "https://www.espn.com/espn/rss/nfl/news" },
+  { sport: "ncf", url: "https://www.espn.com/espn/rss/ncf/news" },
+  { sport: "soccer", url: "https://www.espn.com/espn/rss/soccer/news" },
   { sport: "nba", url: "https://www.espn.com/espn/rss/nba/news" },
   { sport: "mlb", url: "https://www.espn.com/espn/rss/mlb/news" },
-  { sport: "nhl", url: "https://www.espn.com/espn/rss/nhl/news" },
-  { sport: "ncf", url: "https://www.espn.com/espn/rss/ncf/news" },
-  { sport: "ncb", url: "https://www.espn.com/espn/rss/ncb/news" },
 ];
 
 /** VIP_ESPN_RSS_FEEDS="nfl=https://...,nba=https://..." */
@@ -238,19 +241,34 @@ export async function loadEspnSourceGate(db: Queryable): Promise<{ mayRun: boole
  * snapshot. Unchanged feeds dedupe on (source_id, content_hash). Stores a
  * storage key, never the XML. The caller owns the transaction.
  */
-export async function persistEspnSnapshots(
+export function persistEspnSnapshots(
   db: Queryable,
   snapshots: FeedSnapshot[],
+  opts: { status: "succeeded" | "partial"; errorText?: string | null; stateDir?: string },
+): Promise<NonNullable<EspnSportsReport["spine"]>> {
+  return persistFeedSnapshots(
+    db,
+    ESPN_SOURCE_KEY,
+    snapshots.map(({ feed, snapshot, live }) => ({ url: feed.url, snapshot, live })),
+    opts,
+  );
+}
+
+/** Same as persistEspnSnapshots for any news source: one ingest_run, dedupe on (source, content hash). */
+export async function persistFeedSnapshots(
+  db: Queryable,
+  sourceKey: string,
+  snapshots: { url: string; snapshot: RawRssSnapshot; live: boolean }[],
   opts: { status: "succeeded" | "partial"; errorText?: string | null; stateDir?: string },
 ): Promise<NonNullable<EspnSportsReport["spine"]>> {
   const stateDir = opts.stateDir ?? STATE_DIR;
   const run = await db.query(
     `INSERT INTO vault_signals.ingest_run (source_id, status) VALUES ($1, 'running') RETURNING id`,
-    [ESPN_SOURCE_KEY],
+    [sourceKey],
   );
   const ingestRunId: string = run.rows[0].id;
   let documentsNew = 0;
-  for (const { feed, snapshot, live } of snapshots) {
+  for (const { url, snapshot, live } of snapshots) {
     const contentHash = createHash("sha256").update(snapshot.rawXml, "utf8").digest("hex");
     const storageKey = relative(stateDir, snapshot.snapshotPath).split("\\").join("/");
     const inserted = await db.query(
@@ -261,9 +279,9 @@ export async function persistEspnSnapshots(
        ON CONFLICT (source_id, content_hash) DO NOTHING
        RETURNING id`,
       [
-        ESPN_SOURCE_KEY,
+        sourceKey,
         snapshot.fetchedAt,
-        feed.url,
+        url,
         contentHash,
         live ? 200 : null,
         `local_fs:jobs/.state/${storageKey}`,
@@ -275,8 +293,17 @@ export async function persistEspnSnapshots(
     await db.query(
       `INSERT INTO vault_signals.document_snapshot (
          raw_document_id, storage_backend, storage_key, byte_size, media_type
-       ) VALUES ($1, 'local_fs', $2, $3, 'application/rss+xml')`,
-      [inserted.rows[0].id, `jobs/.state/${storageKey}`, snapshot.byteLength],
+       ) VALUES ($1, 'local_fs', $2, $3, $4)`,
+      [
+        inserted.rows[0].id,
+        `jobs/.state/${storageKey}`,
+        snapshot.byteLength,
+        snapshot.rawXml.trimStart().startsWith("{")
+          ? "application/json"
+          : /<feed[\s>]/.test(snapshot.rawXml) && !/<rss[\s>]/.test(snapshot.rawXml)
+            ? "application/atom+xml"
+            : "application/rss+xml",
+      ],
     );
   }
   await db.query(

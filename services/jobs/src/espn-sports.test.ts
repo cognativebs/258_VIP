@@ -29,7 +29,7 @@ afterEach(() => {
 
 describe("espn-sports feeds", () => {
   it("defaults to the six ESPN FAQ feeds and accepts an override", () => {
-    expect(feedsFromEnv({}).map((f) => f.sport)).toEqual(["nfl", "nba", "mlb", "nhl", "ncf", "ncb"]);
+    expect(feedsFromEnv({}).map((f) => f.sport)).toEqual(["nfl", "ncf", "soccer", "nba", "mlb"]);
     expect(
       feedsFromEnv({ VIP_ESPN_RSS_FEEDS: "nfl=https://www.espn.com/espn/rss/nfl/news" }),
     ).toEqual([{ sport: "nfl", url: "https://www.espn.com/espn/rss/nfl/news" }]);
@@ -57,7 +57,7 @@ describe("espn-sports signals (fixtures)", () => {
   it("keeps one copy of a story that appears in two feeds and quarantines malformed items", () => {
     const signals = buildEspnFeedSignals(fixtureSnapshots(NOW));
     expect(signals.filter((s) => s.title === "Top story shared across feeds")).toHaveLength(1);
-    expect(signals.filter((s) => s.quarantineStatus === "active")).toHaveLength(4);
+    expect(signals.filter((s) => s.quarantineStatus === "active")).toHaveLength(6);
     const quarantined = signals.filter((s) => s.quarantineStatus === "quarantined");
     expect(quarantined).toHaveLength(1);
     expect(quarantined[0]!.sport).toBe("nfl");
@@ -65,8 +65,8 @@ describe("espn-sports signals (fixtures)", () => {
 
   it("writes an immutable raw snapshot per feed in its own directory", () => {
     const snaps = fixtureSnapshots(NOW);
-    expect(snaps.map((s) => s.feed.sport)).toEqual(["nfl", "nba"]);
-    const [nfl, nba] = snaps;
+    expect(snaps.map((s) => s.feed.sport)).toEqual(["nfl", "soccer", "nba"]);
+    const [nfl, , nba] = snaps;
     expect(nfl!.snapshot.snapshotPath).not.toBe(nba!.snapshot.snapshotPath);
     expect(readFileSync(nfl!.snapshot.snapshotPath, "utf8")).toBe(nfl!.snapshot.rawXml);
   });
@@ -85,7 +85,7 @@ describe("espn-sports job", () => {
     expect(report.status).toBe("dry_run");
     expect(report.feedFile).toBeNull();
     expect(report.spine).toBeNull();
-    expect(report.signals).toEqual({ active: 4, quarantined: 1 });
+    expect(report.signals).toEqual({ active: 6, quarantined: 1 });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -118,9 +118,9 @@ describe.skipIf(!DSN)("espn-sports spine writes (IQVAULT_TEST_DSN, rolled back)"
       await client.query("BEGIN");
       const snaps = fixtureSnapshots(NOW);
       const first = await persistEspnSnapshots(client, snaps, { status: "succeeded" });
-      expect(first).toMatchObject({ documentsFetched: 2, documentsNew: 2 });
+      expect(first).toMatchObject({ documentsFetched: 3, documentsNew: 3 });
       const second = await persistEspnSnapshots(client, snaps, { status: "succeeded" });
-      expect(second).toMatchObject({ documentsFetched: 2, documentsNew: 0 });
+      expect(second).toMatchObject({ documentsFetched: 3, documentsNew: 0 });
 
       const docs = await client.query(
         `SELECT d.raw_payload_ref, s.storage_backend, s.media_type
@@ -129,9 +129,9 @@ describe.skipIf(!DSN)("espn-sports spine writes (IQVAULT_TEST_DSN, rolled back)"
           WHERE d.ingest_run_id = $1`,
         [first.ingestRunId],
       );
-      expect(docs.rows).toHaveLength(2);
+      expect(docs.rows).toHaveLength(3);
       for (const row of docs.rows) {
-        expect(row.raw_payload_ref).toMatch(/^local_fs:jobs\/\.state\/snapshots\/espn\/(nfl|nba)\//);
+        expect(row.raw_payload_ref).toMatch(/^local_fs:jobs\/\.state\/snapshots\/espn\/(nfl|soccer|nba)\//);
         expect(row.raw_payload_ref).not.toContain("<rss");
         expect(row.storage_backend).toBe("local_fs");
         expect(row.media_type).toBe("application/rss+xml");
@@ -140,7 +140,7 @@ describe.skipIf(!DSN)("espn-sports spine writes (IQVAULT_TEST_DSN, rolled back)"
         `SELECT status, documents_fetched, documents_new FROM vault_signals.ingest_run WHERE id = $1`,
         [first.ingestRunId],
       );
-      expect(run.rows[0]).toEqual({ status: "succeeded", documents_fetched: 2, documents_new: 2 });
+      expect(run.rows[0]).toEqual({ status: "succeeded", documents_fetched: 3, documents_new: 3 });
     } finally {
       await client.query("ROLLBACK");
       client.release();

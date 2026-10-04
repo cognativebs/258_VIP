@@ -1,0 +1,7 @@
+{"articles": [
+  {"url": "https://fixture-daily.example/2026/09/30/tariffs-trading-cards", "url_mobile": "", "title": "New tariffs on imported printed goods take effect next month", "seendate": "20260930T150000Z", "socialimage": "", "domain": "fixture-daily.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "https://fixture-post.example/usps-rate-increase", "url_mobile": "", "title": "USPS proposes January postage rate increase for Ground Advantage", "seendate": "20260930T120000Z", "socialimage": "", "domain": "fixture-post.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "https://fixture-daily.example/2026/09/30/tariffs-trading-cards", "url_mobile": "", "title": "New tariffs on imported printed goods take effect next month", "seendate": "20260930T150500Z", "socialimage": "", "domain": "fixture-daily.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "https://fixture-times.example/city-council-vote", "url_mobile": "", "title": "City council approves new park budget", "seendate": "20260930T100000Z", "socialimage": "", "domain": "fixture-times.example", "language": "English", "sourcecountry": "United States"},
+  {"url": "", "title": "", "seendate": "20260930T090000Z", "domain": "broken.example", "language": "English", "sourcecountry": "United States"}
+]}

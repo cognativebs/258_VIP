@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. ESPN-shaped RSS 2.0. Players and clubs are fictional. Not live data. -->
+<rss version="2.0">
+  <channel>
+    <title><![CDATA[www.espn.com - Soccer]]></title>
+    <link>https://www.espn.com/soccer/</link>
+    <description><![CDATA[Latest Soccer news from www.espn.com]]></description>
+    <item>
+      <title><![CDATA[Fixture Striker Delta joins Fixture FC on permanent transfer]]></title>
+      <description><![CDATA[The forward signed a four-year contract with the club on Wednesday.]]></description>
+      <link>https://www.espn.com/soccer/story/_/id/90000021/fixture-striker-delta-transfer</link>
+      <guid isPermaLink="false">90000021</guid>
+      <pubDate>Wed, 23 Sep 2026 11:00:00 EST</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Transfer rumours: Fixture FC linked with midfielders]]></title>
+      <description><![CDATA[The latest gossip from around the leagues.]]></description>
+      <link>https://www.espn.com/soccer/story/_/id/90000022/transfer-rumours</link>
+      <guid isPermaLink="false">90000022</guid>
+      <pubDate>Wed, 23 Sep 2026 08:00:00 EST</pubDate>
+    </item>
+  </channel>
+</rss>

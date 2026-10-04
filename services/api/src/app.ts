@@ -1,4 +1,12 @@
 import { readFileSync } from "node:fs";
+import { getPool } from "./db/client.js";
+import {
+  buildDaily,
+  DailyProfileNameSchema,
+  DailyProfileNotFoundError,
+  DailySportsQuerySchema,
+  type Queryable as DailySportsQueryable,
+} from "./lib/dailySports.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
@@ -155,6 +163,8 @@ function includePokemonSeeds(): boolean {
 }
 
 export type AppDeps = {
+  /** Injectable vault_signals connection so tests control the daily sports list. */
+  signalsDb?: DailySportsQueryable;
   loadComics?: () => Promise<ComicsPayload>;
   updateComicHolding?: (
     sourceRowId: string,
@@ -600,6 +610,24 @@ export function createApp(deps: AppDeps = {}) {
       output: signalsOutputFromFeed(),
     }),
   );
+
+  const serveDaily = async (name: string, req: express.Request, res: express.Response) => {
+    const parsed = DailySportsQuerySchema.safeParse(req.query);
+    if (!parsed.success || !DailyProfileNameSchema.safeParse(name).success) {
+      res.status(400).json({ error: "expected /api/signals/daily/<daily-name>?at=<ISO timestamp>" });
+      return;
+    }
+    try {
+      const at = parsed.data.at ? new Date(parsed.data.at) : new Date();
+      res.json(await buildDaily(deps.signalsDb ?? getPool(), name, at));
+    } catch (e) {
+      res
+        .status(e instanceof DailyProfileNotFoundError ? 404 : 503)
+        .json({ error: e instanceof Error ? e.message : "vault_signals unavailable" });
+    }
+  };
+  app.get("/api/signals/daily-sports", (req, res) => serveDaily("daily-sports", req, res));
+  app.get("/api/signals/daily/:name", (req, res) => serveDaily(String(req.params.name), req, res));
 
   app.get("/api/signals/context", (_req, res) => {
     res.json(compactSignalsContext());

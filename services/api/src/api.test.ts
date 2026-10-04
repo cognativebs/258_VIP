@@ -381,6 +381,25 @@ describe("VIP API", () => {
     });
   });
 
+  it("daily sports rejects a malformed at, and reports an unavailable database as 503", async () => {
+    const downDb = {
+      query: async () => {
+        throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
+      },
+    };
+    await withServer(
+      async (base) => {
+        expect((await fetch(`${base}/api/signals/daily-sports?at=yesterday`)).status).toBe(400);
+        const res = await fetch(`${base}/api/signals/daily-sports`);
+        expect(res.status).toBe(503);
+        expect(((await res.json()) as { error: string }).error).toContain("ECONNREFUSED");
+        expect((await fetch(`${base}/api/signals/daily/bad;name`)).status).toBe(400);
+      },
+      fixtureComics(),
+      { signalsDb: downDb },
+    );
+  });
+
   it("inventory includes TCG holdings with externalIds (Binder and/or seeds)", async () => {
     process.env.VIP_INCLUDE_POKEMON_SEEDS = "1";
     await withServer(async (base) => {

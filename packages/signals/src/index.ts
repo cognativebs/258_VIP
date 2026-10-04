@@ -139,3 +139,80 @@ export {
   ValuationFirewallError,
   type SignalUrlMode,
 } from "./spine.js";
+
+export {
+  SPORTS_HEADLINE_CLASSIFIER,
+  ClassifierRuleSetSchema,
+  LlmClassificationSchema,
+  InjurySeveritySchema,
+  SignalDirectionSchema,
+  SubjectKindSchema,
+  compileRuleSet,
+  noiseMatch,
+  injurySeverity,
+  decideByRules,
+  decideByLlm,
+  scoreDecision,
+  llmMessages,
+  type ClassifierRuleSet,
+  type CompiledRuleSet,
+  type LlmClassification,
+  type Headline,
+  type HeadlineDecision,
+  type SignalDecision,
+  type InjurySeverity,
+  type SubjectKind,
+} from "./classifier/sports-headline.js";
+export { SPORTS_HEADLINE_RULES_SEED } from "./classifier/sports-headline-seed.js";
+export { SPORTS_HEADLINE_RULES_V0_2_0 } from "./classifier/sports-headline-seed.js";
+export {
+  DailySportsProfileSchema,
+  CurationStanceSchema,
+  sportFromFeedUrl,
+  allocateSlots,
+  curateDailySports,
+  type DailySportsProfile,
+  type CurationStance,
+  type CurationCandidate,
+  type CuratedItem,
+} from "./curation/daily-sports.js";
+export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
+export { COLLECTIBLES_HEADLINE_RULES_SEED } from "./classifier/collectibles-headline-seed.js";
+export { DAILY_COLLECTIBLES_PROFILE_SEED } from "./curation/daily-collectibles-seed.js";
+export { MACRO_HEADLINE_RULES_SEED } from "./classifier/macro-headline-seed.js";
+export { DAILY_HEADLINES_PROFILE_SEED, DAILY_MARKETS_PROFILE_SEED } from "./curation/daily-macro-seed.js";
+export {
+  GDELT_DOC_ADAPTER_VERSION,
+  GdeltDocAdapter,
+  GdeltLaneQuerySchema,
+  gdeltRequestUrl,
+  resetGdeltRateLimitForTests,
+  type GdeltLaneQuery,
+  type GdeltItem,
+} from "./adapters/gdelt-doc-adapter.js";
+export { DAILY_COLLECTIBLES_PROFILE_V0_2_0 } from "./curation/daily-collectibles-seed.js";
+export {
+  POKEBEACH_PARSER_VERSION,
+  POKEBEACH_ORIGIN,
+  decodeHtml,
+  canonicalArticleUrl,
+  parseHomepage,
+  parseArticlePage,
+  articleContentHash,
+  parseDiscoveryFeedUrls,
+  parseForumThreads,
+  titleKey,
+  HomepageArticleSchema,
+  ArticlePageSchema,
+  type HomepageArticle,
+  type ArticlePage,
+  type ParseResult,
+  type ForumThread,
+} from "./connectors/pokebeach/parser.js";
+export {
+  POKEBEACH_TRACKED_MEMBERS_SEED,
+  MemberWeightsSchema,
+  TrackedMemberSchema,
+  type MemberWeights,
+  type TrackedMember,
+} from "./connectors/pokebeach/members-seed.js";
