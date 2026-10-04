@@ -3,7 +3,7 @@
  * collector NNN/NNN from noisy Ricoh text so TCGdex has a real query.
  * Mapped pokedex → name is inferred · unverified.
  */
-import { SPECIES_BY_DEX } from "./pokemonSpecies.js";
+import { SPECIES_BY_DEX } from "@vip/core-model";
 import { ATTACK_NAME_HINTS, TRAINER_ITEM_TITLES } from "./pokemonTitles.js";
 
 export type PokemonOcrExtract = {

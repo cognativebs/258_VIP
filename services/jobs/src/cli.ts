@@ -25,6 +25,7 @@ import {
   type OfficialReport,
   type Queryable as PokebeachQueryable,
 } from "./pokebeach.js";
+import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -174,6 +175,10 @@ async function main() {
     }
     if (sub === "official") return print(await inPokebeachTransaction((db) => runPokebeachOfficial(db)));
     if (sub === "discover") return print(await inPokebeachTransaction((db) => runPokebeachDiscovery(db)));
+    if (sub === "extract") {
+      console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
+      return;
+    }
     if (sub === "reconcile") return print(await inPokebeachTransaction((db) => runPokebeachReconcile(db)));
     if (sub === "backfill") {
       const days = Number(flag("--days") ?? 90);
@@ -222,7 +227,7 @@ async function main() {
         return;
       }
     }
-    console.error("usage: pokebeach official | discover | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
+    console.error("usage: pokebeach official | discover | extract | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
     process.exit(1);
   }
 
@@ -355,8 +360,16 @@ async function main() {
           run: () => {
             // Blocked until an operator enables pokebeach_official; jittered so polls never land on the same second.
             void jitter(5 * 60 * 1000)
-              .then(() => inPokebeachTransaction(async (db) => [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)]))
-              .then((reports) => reports.forEach((r) => console.log(formatPokebeachReport(r))))
+              .then(() =>
+                inPokebeachTransaction(async (db) => {
+                  const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
+                  return { reports, entities: await extractSourceItemEntities(db) };
+                }),
+              )
+              .then(({ reports, entities }) => {
+                reports.forEach((r) => console.log(formatPokebeachReport(r)));
+                console.log(formatEntityReport(entities));
+              })
               .catch((e) => console.error(`pokebeach failed: ${e instanceof Error ? e.message : e}`));
           },
         },

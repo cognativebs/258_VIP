@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   POKEBEACH_FIXTURE_DIR,
   checkMemberAccess,
@@ -94,7 +94,14 @@ const enable = (db: PoolClient, key: string, endpoint?: string) =>
     [key, endpoint ?? null],
   );
 
-describe.skipIf(!DSN)("pokebeach connector (IQVAULT_TEST_DSN, rolled back)", () => {
+describe.skipIf(!DSN)("pokebeach connector, article-page mode (IQVAULT_TEST_DSN, rolled back)", () => {
+  beforeEach(() => {
+    process.env.VIP_POKEBEACH_ARTICLE_PAGES = "on";
+  });
+  afterEach(() => {
+    delete process.env.VIP_POKEBEACH_ARTICLE_PAGES;
+  });
+
   it("is blocked, with no request, until an operator enables pokebeach_official", async () => {
     await inTransaction(async (db) => {
       const site = fakeSite({});
@@ -231,6 +238,21 @@ describe.skipIf(!DSN)("pokebeach connector (IQVAULT_TEST_DSN, rolled back)", () 
     });
   });
 
+  it("stops requesting article pages at the first 403 and reports the run as blocked", async () => {
+    await inTransaction(async (db) => {
+      await enable(db, "pokebeach_official");
+      const site = fakeSite({
+        [HOME]: { status: 200, body: fixture("homepage.html") },
+        [STORM]: { status: 403 },
+        [DECK]: { status: 200, body: fixture("article.html") },
+      });
+      const r = await runPokebeachOfficial(db, client(site.impl));
+      expect(r).toMatchObject({ status: "blocked", accessBlocked: true, created: 0, skipped: 1 });
+      expect(r.reason).toMatch(/refused an article page/);
+      expect(site.calls.map((c) => c.url)).toEqual([HOME, STORM]);
+    });
+  });
+
   it("members: configuration only; the access check reports a block and stores nothing from the page", async () => {
     await inTransaction(async (db) => {
       const members = await listTrackedMembers(db);
@@ -251,6 +273,57 @@ describe.skipIf(!DSN)("pokebeach connector (IQVAULT_TEST_DSN, rolled back)", () 
       expect(site.calls).toHaveLength(1);
       const stored = await db.query(`SELECT count(*)::int AS n FROM vault_signals.source_item WHERE source_id = 'pokebeach_members'`);
       expect(stored.rows[0].n).toBe(0);
+    });
+  });
+});
+
+describe.skipIf(!DSN)("pokebeach connector, homepage-only mode (the default; IQVAULT_TEST_DSN, rolled back)", () => {
+  it("stores what the homepage shows, with the Pacific display time as an inferred UTC time, and requests no article page", async () => {
+    await inTransaction(async (db) => {
+      await enable(db, "pokebeach_official");
+      let home = fixture("homepage.html");
+      const site = fakeSite({ [HOME]: () => ({ status: 200, body: home }) });
+      const first = await runPokebeachOfficial(db, client(site.impl));
+      expect(first).toMatchObject({ status: "succeeded", articlesListed: 2, created: 2 });
+      expect(site.calls.map((c) => c.url)).toEqual([HOME]);
+      const items = await db.query(
+        `SELECT external_id, status, published_at, published_at_source, excerpt
+           FROM vault_signals.source_item WHERE source_id = 'pokebeach_official' ORDER BY external_id`,
+      );
+      expect(items.rows.map((r) => [r.external_id, r.status, new Date(r.published_at).toISOString(), r.published_at_source, r.excerpt])).toEqual([
+        ["900001", "discovered", "2026-10-02T18:14:00.000Z", "homepage_display_time:America/Los_Angeles (inferred)", null],
+        ["900002", "discovered", "2026-10-01T17:00:00.000Z", "homepage_display_time:America/Los_Angeles (inferred)", null],
+      ]);
+
+      home = home.replace("1,204 Comments", "1,388 Comments");
+      expect(await runPokebeachOfficial(db, client(site.impl))).toMatchObject({ created: 0, revised: 0, seen: 2 });
+      home = home.replace("Fixture Deck Strategy &#8211; Week 1", "Fixture Deck Strategy &#8211; Week 1 (Updated)");
+      expect(await runPokebeachOfficial(db, client(site.impl))).toMatchObject({ revised: 1, seen: 1 });
+    });
+  });
+
+  it("discovery counts community-feed articles the homepage never listed, without fetching them", async () => {
+    await inTransaction(async (db) => {
+      await enable(db, "pokebeach_official");
+      await enable(db, "pokebeach_frontpage_feed");
+      const site = fakeSite({
+        [HOME]: { status: 200, body: fixture("homepage.html") },
+        [COMMUNITY]: { status: 200, body: fixture("community-feed.xml") },
+      });
+      await runPokebeachOfficial(db, client(site.impl));
+      const d = await runPokebeachDiscovery(db, client(site.impl));
+      expect(d).toMatchObject({ created: 0, seen: 1, notOnHomepage: 1 });
+      expect(site.calls.map((c) => c.url)).toEqual([HOME, COMMUNITY]);
+    });
+  });
+
+  it("reconcile re-lists the front page only", async () => {
+    await inTransaction(async (db) => {
+      await enable(db, "pokebeach_official");
+      const site = fakeSite({ [HOME]: { status: 200, body: fixture("homepage.html") } });
+      const r = await runPokebeachReconcile(db, client(site.impl));
+      expect(r).toMatchObject({ mode: "reconcile", created: 2 });
+      expect(site.calls.map((c) => c.url)).toEqual([HOME]);
     });
   });
 });

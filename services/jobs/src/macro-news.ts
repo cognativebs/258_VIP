@@ -59,7 +59,8 @@ function adapterFor(lane: string): GdeltDocAdapter {
   return new GdeltDocAdapter({
     sourceId: GDELT_SOURCE_KEY,
     snapshotDir: join(STATE_DIR, "snapshots", GDELT_SOURCE_KEY, lane),
-    rateLimitMs: Number(process.env.VIP_GDELT_RATE_LIMIT_MS ?? 5000),
+    // GDELT asks for at most one request every 5 seconds; keep a margin.
+    rateLimitMs: Number(process.env.VIP_GDELT_RATE_LIMIT_MS ?? 10000),
   });
 }
 
@@ -123,7 +124,12 @@ export async function runMacroNewsJob(opts: { live?: boolean; now?: Date; pool?:
       return report;
     }
     let fetched = 0;
+    let throttled = false;
     for (const q of lanes) {
+      if (throttled) {
+        report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: "skipped: GDELT asked to slow down (429); the next run retries" });
+        continue;
+      }
       const url = gdeltRequestUrl(row.endpoint, q);
       try {
         const snapshot = await adapterFor(q.lane).fetchAndSnapshot(url, now);
@@ -142,7 +148,10 @@ export async function runMacroNewsJob(opts: { live?: boolean; now?: Date; pool?:
           client.release();
         }
       } catch (e) {
-        report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: e instanceof Error ? e.message : String(e) });
+        const message = e instanceof Error ? e.message : String(e);
+        // A 429 means stop for this run rather than keep asking.
+        if (/\b429\b/.test(message)) throttled = true;
+        report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: message });
       }
     }
     report.status = fetched === 0 ? "failed" : fetched < lanes.length ? "partial" : "succeeded";

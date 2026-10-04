@@ -157,6 +157,39 @@ export function articleContentHash(a: Pick<ArticlePage, "title" | "author" | "pu
     .digest("hex");
 }
 
+export const HOMEPAGE_TIME_SOURCE = "homepage_display_time:America/Los_Angeles (inferred)";
+
+const MONTHS: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+function laOffsetMinutes(at: Date): number {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", timeZoneName: "longOffset" })
+    .formatToParts(at)
+    .find((p) => p.type === "timeZoneName")?.value;
+  const m = /GMT([+-])(\d{2}):?(\d{2})?/.exec(name ?? "");
+  if (!m) return 0;
+  return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0));
+}
+
+/**
+ * "Oct 2, 2026 at 10:00 AM" as shown on the homepage is PokéBeach's own
+ * Pacific wall-clock time (checked against article:published_time on
+ * 2026-10-03). Returns UTC ISO to the minute, or null when it does not parse.
+ * Inferred: stored with HOMEPAGE_TIME_SOURCE, never as an article-page time.
+ */
+export function pacificDisplayTimeToUtc(display: string | null): string | null {
+  const m = /^([A-Za-z]{3})[a-z]*\s+(\d{1,2}),\s*(\d{4})\s+at\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((display ?? "").trim());
+  if (!m) return null;
+  const month = MONTHS[m[1]!.toLowerCase()];
+  if (month === undefined) return null;
+  let hour = Number(m[4]) % 12;
+  if (m[6]!.toUpperCase() === "PM") hour += 12;
+  const wall = Date.UTC(Number(m[3]), month, Number(m[2]), hour, Number(m[5]));
+  // Two passes so a time near a DST switch takes the offset in force at that instant.
+  let utc = wall - laOffsetMinutes(new Date(wall)) * 60_000;
+  utc = wall - laOffsetMinutes(new Date(utc)) * 60_000;
+  return new Date(utc).toISOString();
+}
+
 /** Community front-page feed: discovery only. Its dates are not trusted and not returned. */
 export function parseDiscoveryFeedUrls(xml: string): string[] {
   const out = new Set<string>();

@@ -7,6 +7,7 @@ import {
   parseArticlePage,
   parseDiscoveryFeedUrls,
   parseForumThreads,
+  pacificDisplayTimeToUtc,
   parseHomepage,
   titleKey,
 } from "./parser.js";
@@ -133,5 +134,18 @@ describe("tracked members seed", () => {
     expect(MIGRATION).not.toMatch(/adapter_enabled\s*=\s*true|is_active\s*=\s*true/i);
     expect(MIGRATION).not.toMatch(/\b(signal_strength|sentiment|\w*relevance)\s+(NUMERIC|INTEGER|REAL|DOUBLE)/i);
     expect(MIGRATION).not.toMatch(/INSERT INTO vault_market/i);
+  });
+});
+
+describe("homepage display time (Pacific wall clock)", () => {
+  it("matches the article page's UTC time to the minute and follows daylight saving", () => {
+    // Checked live 2026-10-03: shown "Oct 1, 2026 at 11:14 AM", article:published_time 2026-10-01T18:14:10+00:00.
+    expect(pacificDisplayTimeToUtc("Oct 1, 2026 at 11:14 AM")).toBe("2026-10-01T18:14:00.000Z");
+    expect(pacificDisplayTimeToUtc("Jan 15, 2026 at 9:05 PM")).toBe("2026-01-16T05:05:00.000Z");
+    expect(pacificDisplayTimeToUtc("Mar 8, 2026 at 3:00 AM")).toBe("2026-03-08T10:00:00.000Z");
+    expect(pacificDisplayTimeToUtc("Dec 31, 2026 at 12:00 AM")).toBe("2026-12-31T08:00:00.000Z");
+    expect(pacificDisplayTimeToUtc("Oct 2, 2026 at 12:30 PM")).toBe("2026-10-02T19:30:00.000Z");
+    expect(pacificDisplayTimeToUtc("yesterday")).toBeNull();
+    expect(pacificDisplayTimeToUtc(null)).toBeNull();
   });
 });

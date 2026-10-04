@@ -194,6 +194,8 @@ export { DAILY_COLLECTIBLES_PROFILE_V0_2_0 } from "./curation/daily-collectibles
 export {
   POKEBEACH_PARSER_VERSION,
   POKEBEACH_ORIGIN,
+  HOMEPAGE_TIME_SOURCE,
+  pacificDisplayTimeToUtc,
   decodeHtml,
   canonicalArticleUrl,
   parseHomepage,
@@ -216,3 +218,16 @@ export {
   type MemberWeights,
   type TrackedMember,
 } from "./connectors/pokebeach/members-seed.js";
+export {
+  POKEMON_ENTITY_EXTRACTOR_VERSION,
+  EntityKindSchema,
+  EntityMatchMethodSchema,
+  EntityMentionSchema,
+  entityKey,
+  extractPokemonEntities,
+  quotedSetCandidates,
+  type EntityKind,
+  type EntityMatchMethod,
+  type EntityMention,
+  type PokemonCatalog,
+} from "./entities/pokemon-entities.js";
