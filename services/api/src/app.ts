@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { getPool } from "./db/client.js";
 import { buildClusters, ClustersQuerySchema } from "./lib/clusters.js";
 import { buildSynthesized, SynthesizedQuerySchema } from "./lib/synthesized.js";
+import { buildPokemonFmv, PokemonFmvQuerySchema } from "./lib/pokemonFmv.js";
 import {
   buildDaily,
   DailyProfileNameSchema,
@@ -628,6 +629,19 @@ export function createApp(deps: AppDeps = {}) {
         .json({ error: e instanceof Error ? e.message : "vault_signals unavailable" });
     }
   };
+  app.get("/api/pokemon/fmv", async (req, res) => {
+    const parsed = PokemonFmvQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "expected ?externalId=<catalog id>&windowDays=<1-365>", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      res.json(await buildPokemonFmv(deps.signalsDb ?? getPool(), parsed.data));
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_market unavailable" });
+    }
+  });
+
   app.get("/api/signals/synthesized", async (req, res) => {
     const parsed = SynthesizedQuerySchema.safeParse(req.query);
     if (!parsed.success) {

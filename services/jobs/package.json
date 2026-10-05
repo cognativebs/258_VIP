@@ -12,6 +12,7 @@
     "pokebeach": "tsx src/cli.ts pokebeach",
     "items": "tsx src/cli.ts items",
     "synthesize": "tsx src/cli.ts synthesize",
+    "pokemon-prices": "tsx src/cli.ts pokemon-prices",
     "news-source": "tsx src/cli.ts news-source",
     "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
     "clz-sync": "tsx src/cli.ts clz-sync",
@@ -21,6 +22,7 @@
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",
+    "@vip/dealer-kit": "0.1.0",
     "@vip/signals": "0.1.0",
     "zod": "^3.25.76",
     "@vip/pricing": "0.1.0",

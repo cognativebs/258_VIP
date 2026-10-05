@@ -156,6 +156,8 @@ export const PriceChartingConditionMapSchema = z.object({
   psa10: z.number().nullable(),
   bgs10: z.number().nullable(),
   cgc10: z.number().nullable(),
+  /** condition-18-price; absent from some tokens and older payloads. */
+  sgc10: z.number().nullable().default(null),
 });
 export type PriceChartingConditionMap = z.infer<typeof PriceChartingConditionMapSchema>;
 

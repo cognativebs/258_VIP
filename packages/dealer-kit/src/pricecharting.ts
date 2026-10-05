@@ -21,6 +21,8 @@ import { PRICECHARTING_ADAPTER_VERSION } from "./version.js";
  * Idle without a token. Never fabricates prices when keys are missing.
  */
 export const PRICECHARTING_TOKEN_ENV = "PRICECHARTING_API_TOKEN";
+/** The name the operator's services/api/.env (and the comics guide snapshot) use. */
+export const PRICECHARTING_TOKEN_ENV_ALT = "PRICECHARTING_TOKEN";
 
 const RawProductSchema = z
   .object({
@@ -39,6 +41,7 @@ const RawProductSchema = z
     "manual-only-price": z.union([z.number(), z.null()]).optional(),
     "bgs-10-price": z.union([z.number(), z.null()]).optional(),
     "condition-17-price": z.union([z.number(), z.null()]).optional(),
+    "condition-18-price": z.union([z.number(), z.null()]).optional(),
   })
   .passthrough();
 
@@ -52,7 +55,7 @@ export type PriceChartingClientOptions = {
 export function pricechartingTokenFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  const raw = env[PRICECHARTING_TOKEN_ENV]?.trim();
+  const raw = (env[PRICECHARTING_TOKEN_ENV] ?? env[PRICECHARTING_TOKEN_ENV_ALT])?.trim();
   return raw && raw.length >= 20 ? raw : null;
 }
 
@@ -83,6 +86,7 @@ export function parsePriceChartingProduct(
     "manual-only-price",
     "bgs-10-price",
     "condition-17-price",
+    "condition-18-price",
   ] as const;
   const rawKeysPresent = priceKeys.filter((k) => centsToDollars(parsed[k]) != null);
 
@@ -109,6 +113,7 @@ export function parsePriceChartingProduct(
       psa10: centsToDollars(parsed["manual-only-price"]),
       bgs10: centsToDollars(parsed["bgs-10-price"]),
       cgc10: centsToDollars(parsed["condition-17-price"]),
+      sgc10: centsToDollars(parsed["condition-18-price"]),
     },
     host: PriceChartingHostSchema.parse(host),
     rawKeysPresent,
@@ -125,7 +130,7 @@ export function parsePriceChartingProduct(
 }
 
 export type PriceChartingLookup =
-  | { ok: true; product: PriceChartingProduct; products?: PriceChartingProduct[] }
+  | { ok: true; product: PriceChartingProduct; products?: PriceChartingProduct[]; rawJson?: string }
   | { ok: false; emptyReason: string; status?: number; rawJson?: string };
 
 export async function lookupPriceCharting(
@@ -178,11 +183,11 @@ export async function lookupPriceCharting(
     if (products.length === 0) {
       return { ok: false, emptyReason: "PriceCharting search matched zero parseable products", rawJson: text };
     }
-    return { ok: true, product: products[0]!, products };
+    return { ok: true, product: products[0]!, products, rawJson: text };
   }
 
   try {
-    return { ok: true, product: parsePriceChartingProduct(json, host) };
+    return { ok: true, product: parsePriceChartingProduct(json, host), rawJson: text };
   } catch (e) {
     return {
       ok: false,

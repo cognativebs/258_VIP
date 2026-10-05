@@ -185,6 +185,14 @@ third-party-access licence limit).
 - [ ] **Phase 4** `cardHedgeAdapter` in comps — ranges only, idle without key (rule 4)
 - [ ] **Phase 4** Persist **sold** comps into `vault_market.sale` → `market_value` (schema exists, unwired). Browse listings are not sales — plan 0003 C1.
 - [ ] **Phase 5** eBay Catalog ePID as `external_id` → listing prefill
+- **Pokémon FMV (PriceCharting guide, 2026-10-04 · ADR 0012 amendment)**
+  - [x] `pokemon-prices` job (daily; `--dry-run`, `--limit`): Binder owned + wishlist cards and cards named in signals → PriceCharting match in `vendor_product_map` (one exact English set + number + name match auto-prices; variants, duplicates and other numbers go to `review`); raw responses kept in `raw_snapshots`; one `card_price_history` row per condition per day (ungraded = NM assumed · unverified; 7 / 8 / 9 / 9.5 any grader; PSA / BGS / CGC / SGC 10). Migration `20261004_03` widens the condition CHECK
+  - [x] `GET /api/pokemon/fmv[?externalId=&windowDays=]`: range per condition over stored snapshots, snapshot count, recency, confidence ≤ 0.75 — guide values, never sold comps
+  - [x] Operator review: `job:pokemon-prices -- review`, `-- confirm <externalId> [productId] --confirm-operator` (`confirmed_at` stays NULL — the registry locks confirmed rows to an `asset_id`, which cards lack until TCG D1/D2)
+  - [ ] **Depends on the unmerged PriceCharting registry** (`20260917_01`, `20260920_02` on `cursor/pricecharting-core-wiring-f536`). Without it the job reports `blocked` and FMV shows no matches
+  - [ ] Pokémon **sold comps**: TCGplayer latest-sales and history endpoints return 403 (not worked around) — the existing TCGplayer price-history job is likely failing for the same reason. Card-keyed `sale` waits for a licensed source (eBay Marketplace Insights application)
+  - [ ] Pokémon **asks** (eBay Browse → `listing_observation`): deferred by operator 2026-10-04
+  - [ ] Feed FMV into signal proposals (market confirmation can unlock Buy/Sell/Grade)
 - [x] Postgres asset catalog adapter (repeat scans converge on confirmed assets) — 2026-09-07
 - [x] Re-identify staged units after a catalog upgrade (no re-scan needed) — `POST /api/scan/batches/:id/reidentify` (2026-09-07)
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
