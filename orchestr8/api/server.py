@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -21,6 +23,7 @@ from services.custom_councils import (  # noqa: E402
     delete_custom_council,
     update_custom_council,
 )
+from services.job_monitor import JobCancelled, JobMonitor  # noqa: E402
 from services.orchestrator import resume_job, run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
 from services.registry import (  # noqa: E402
@@ -71,6 +74,10 @@ def read_json(handler: BaseHTTPRequestHandler) -> dict:
     length = int(handler.headers.get("Content-Length", 0))
     raw = handler.rfile.read(length).decode("utf-8") if length else "{}"
     return json.loads(raw) if raw.strip() else {}
+
+
+# Seconds between heartbeats while a streamed job has nothing new to report.
+HEARTBEAT_S = float(os.environ.get("ORCHESTR8_HEARTBEAT_S", "5"))
 
 
 class GatewayHandler(BaseHTTPRequestHandler):
@@ -340,7 +347,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
             json_response(self, 500, {"error": str(e)})
 
     def _handle_job_stream(self) -> None:
-        """SSE: emit one frame per completed agent step, then a final result."""
+        """SSE: progress and completed steps as they happen, a heartbeat every few seconds while
+        model calls are in flight, then the final result. Disconnecting cancels the job."""
         try:
             body = read_json(self)
         except Exception as e:  # noqa: BLE001
@@ -368,32 +376,57 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
+        monitor = JobMonitor()
+        events: queue.Queue = queue.Queue()
+
+        def work() -> None:
+            hooks = {
+                "on_step": lambda step: events.put({"type": "step", "step": step}),
+                "on_progress": lambda p: events.put({"type": "progress", **(p or {})}),
+                "monitor": monitor,
+            }
+            try:
+                if resume_id:
+                    result = resume_job(str(resume_id), **hooks)
+                else:
+                    result = run_job(
+                        task=body.get("task") or "general",
+                        roles=roles,
+                        mode=mode,
+                        question=question,
+                        context_json=context_json,
+                        model_overrides=model_overrides,
+                        council=body.get("council") or None,
+                        **hooks,
+                    )
+                events.put({"type": "done", "result": result})
+            except JobCancelled as e:
+                sys.stderr.write(f"job stopped: {e}\n")
+                events.put({"type": "error", "error": f"Stopped: {e}"})
+            except Exception as e:  # noqa: BLE001
+                events.put({"type": "error", "error": str(e)})
+
+        worker = threading.Thread(target=work, name="orchestr8-job", daemon=True)
         try:
             self._sse({"type": "start", "roles": roles, "mode": mode, "resumeFromRunId": resume_id})
-            if resume_id:
-                result = resume_job(
-                    str(resume_id),
-                    on_step=lambda step: self._sse({"type": "step", "step": step}),
-                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
-                )
-            else:
-                result = run_job(
-                    task=body.get("task") or "general",
-                    roles=roles,
-                    mode=mode,
-                    question=question,
-                    context_json=context_json,
-                    model_overrides=model_overrides,
-                    council=body.get("council") or None,
-                    on_step=lambda step: self._sse({"type": "step", "step": step}),
-                    on_progress=lambda p: self._sse({"type": "progress", **(p or {})}),
-                )
-            self._sse({"type": "done", "result": result})
-        except Exception as e:  # noqa: BLE001
-            try:
-                self._sse({"type": "error", "error": str(e)})
-            except Exception:  # noqa: BLE001 — client may have disconnected
-                pass
+            worker.start()
+            while True:
+                try:
+                    evt = events.get(timeout=HEARTBEAT_S)
+                except queue.Empty:
+                    # Nothing finished in the last few seconds: say what is still in flight.
+                    self._sse({"type": "heartbeat", **monitor.snapshot()})
+                    continue
+                if evt["type"] in ("step", "progress"):
+                    self._sse(evt)
+                    continue
+                self._sse({"type": "heartbeat", **monitor.snapshot()})
+                self._sse(evt)
+                break
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            # The console stopped or closed: call no further roles. A call already in flight finishes.
+            monitor.cancel()
+            sys.stderr.write("client disconnected — job cancelled before its next model call\n")
 
 
 def main() -> None:

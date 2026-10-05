@@ -8,6 +8,7 @@ import {
   type SessionKind,
 } from "@/lib/councilSession";
 import { CreditPauseAlert } from "@/components/CreditPauseAlert";
+import { describeCall, jobHealth } from "@/lib/jobHealth";
 
 function formatElapsed(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -45,9 +46,12 @@ export function ProgressDock() {
       const agent = agents[roleId];
       const { modelLabel } = resolveRoleModel(agent, team.modelOverrides);
       const step = [...session.steps].reverse().find((s) => s.role === roleId);
+      const call = session.heartbeat?.inFlight.find((c) => c.role === roleId);
       let status: "queued" | "active" | "done" | "error" = "queued";
       if (step?.error) status = "error";
+      else if (call) status = "active";
       else if (done.has(roleId)) status = "done";
+      else if (session.heartbeat && session.loading) status = "queued";
       else if (session.loading && !done.has(roleId)) {
         if (session.mode === "parallel") {
           status = session.activeRole ? "active" : "queued";
@@ -65,6 +69,7 @@ export function ProgressDock() {
         status,
         verdict: step?.verdict,
         cost: step?.costUsd,
+        inFlightS: call?.seconds ?? null,
       };
     });
   }, [session, agents, team.modelOverrides]);
@@ -72,6 +77,12 @@ export function ProgressDock() {
   if (!session || (!session.loading && !session.steps.length && !session.result && !session.error)) {
     return null;
   }
+
+  const health = session.loading
+    ? jobHealth({ now, startedAt: session.startedAt, lastHeartbeatAt: session.lastHeartbeatAt })
+    : null;
+  const sinceBeatS = session.lastHeartbeatAt ? Math.max(0, (now - session.lastHeartbeatAt) / 1000) : 0;
+  const beat = session.heartbeat;
 
   const planned = Math.max(session.roles.length, 1);
   const completed = session.steps.filter((s) => s.role).length;
@@ -150,6 +161,34 @@ export function ProgressDock() {
         </div>
       )}
 
+      {health && (
+        <div
+          className={`banner ${health.level === "ok" ? "ok" : health.level === "silent" || health.level === "no_heartbeat" ? "error" : "warn"}`}
+          style={{ margin: "8px 12px 0" }}
+          role="status"
+        >
+          <strong>{health.level === "ok" ? "●" : "○"} </strong>
+          {health.text}
+          {beat ? (
+            <span className="dim">
+              {" "}
+              · {beat.modelCalls} model call{beat.modelCalls === 1 ? "" : "s"} · ${beat.spentUsd.toFixed(4)} so far
+            </span>
+          ) : null}
+          {beat?.inFlight.length ? (
+            <ul className="mono" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {beat.inFlight.map((c) => (
+                <li key={c.role}>{describeCall(c, sinceBeatS)}</li>
+              ))}
+            </ul>
+          ) : beat && session.loading ? (
+            <div className="dim" style={{ marginTop: 4 }}>
+              No model call in flight — the gateway is between roles.
+            </div>
+          ) : null}
+        </div>
+      )}
+
       <div className="progress-track" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <div
           className={`progress-fill ${session.loading ? "live" : vetoed ? "bad" : "ok"}`}
@@ -171,6 +210,7 @@ export function ProgressDock() {
                 <span className="rp-model dim">{r.modelLabel}</span>
                 <span className="rp-status">
                   {r.status}
+                  {r.status === "active" && r.inFlightS != null ? ` · ${Math.round(r.inFlightS + sinceBeatS)}s` : ""}
                   {r.verdict ? ` · ${r.verdict}` : ""}
                   {typeof r.cost === "number" ? ` · $${r.cost.toFixed(4)}` : ""}
                 </span>
