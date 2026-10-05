@@ -11,7 +11,8 @@ $WindowTitles = @(
     "IQVault Orchestr8 Console",
     "IQVault Orchestr8",
     "IQVault Binder",
-    "IQVault Web"
+    "IQVault Web",
+    "IQVault Jobs"
 )
 
 function Get-PidsOnPort([int]$Port) {
@@ -85,6 +86,13 @@ foreach ($port in $Ports) {
         Stop-PidTree $procId
     }
 }
+
+# The jobs scheduler listens on no port: find it by its command line.
+try {
+    Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'cli\.ts"?\s+schedule' } |
+        ForEach-Object { Stop-PidTree ([int]$_.ProcessId) }
+} catch {}
 
 Start-Sleep -Seconds 1
 $left = @()

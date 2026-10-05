@@ -1,6 +1,6 @@
 ﻿# IQVault VIP stack - one-shot launcher (desktop shortcut / Launch IQVault.bat)
 # Docker -> Postgres -> DB migrations -> VIP API -> Comics API -> Orchestr8 ->
-# web UI -> Binder, then opens the browser.
+# web UI -> Binder -> Orchestr8 Console -> background jobs scheduler, then opens the browser.
 #
 # A listening port is NOT treated as healthy. Stale listeners (old VIP API,
 # leftover next-dev on 3000/3010, leftover Comics API) are killed and restarted.
@@ -8,6 +8,7 @@ param(
     [switch]$NoBrowser,
     [switch]$WithBinder,
     [switch]$NoBinder,
+    [switch]$NoJobs,
     [switch]$InstallShortcut
 )
 
@@ -450,12 +451,10 @@ function Test-Orchestr8Healthy {
 }
 
 function Ensure-Orchestr8 {
+    # Always restart, like the other services: a healthy-looking gateway can still be
+    # running old code (it once kept a council blind to heartbeats and Stop).
     if (Test-PortListening $Ports.Orchestr8) {
-        if (Test-Orchestr8Healthy) {
-            Write-Step "Orchestr8 already healthy on port $($Ports.Orchestr8)."
-            return
-        }
-        Write-Warn "Port $($Ports.Orchestr8) is listening but not a healthy Orchestr8 gateway - restarting it."
+        Write-Warn "Restarting Orchestr8 on port $($Ports.Orchestr8) so it is the current checkout."
         Stop-ProcessesOnPort $Ports.Orchestr8
     }
     Ensure-Orchestr8Env
@@ -533,6 +532,59 @@ function Ensure-Orchestr8Console {
     Write-Step "Orchestr8 Console ready on http://127.0.0.1:$($Ports.Orchestr8Console)"
 }
 
+$JobsTitle = "IQVault Jobs"
+# price-history calls TCGplayer, which answers 403 (never worked around) - skipped until a licensed source exists.
+$JobsSkip = "price-history"
+
+function Get-JobsStateDir {
+    # Raw feed snapshots are kept forever, so they live in one durable folder, not in
+    # whichever checkout happens to launch. Set VIP_JOBS_STATE_DIR=<folder> in
+    # services\api\.env (machine-local, git-ignored); otherwise this checkout's .state.
+    if ($env:VIP_JOBS_STATE_DIR) { return $env:VIP_JOBS_STATE_DIR }
+    $envFile = Join-Path $Root "services\api\.env"
+    if (Test-Path $envFile) {
+        foreach ($line in Get-Content $envFile) {
+            if ($line -match '^\s*VIP_JOBS_STATE_DIR\s*=\s*"?([^"]+?)"?\s*$') { return $Matches[1] }
+        }
+    }
+    return (Join-Path $Root "services\jobs\.state")
+}
+
+function Get-JobsSchedulerPids {
+    $ids = @()
+    try {
+        $ids = @(
+            Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -match 'cli\.ts"?\s+schedule' } |
+                Select-Object -ExpandProperty ProcessId
+        )
+    } catch {}
+    return @($ids)
+}
+
+function Ensure-JobsScheduler {
+    # Background jobs: SIGNALS feeds (ESPN, collectibles, headlines, PokeBeach every 30 min),
+    # Pokemon drops, Pokemon prices (daily, PriceCharting). Sources stay blocked until enabled.
+    if ($NoJobs) { return }
+    & taskkill.exe /F /T /FI "WINDOWTITLE eq $JobsTitle*" 2>$null | Out-Null
+    foreach ($procId in (Get-JobsSchedulerPids)) {
+        try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    $stateDir = Get-JobsStateDir
+    New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+    Write-Step "Starting background jobs (snapshots: $stateDir; skipped: $JobsSkip)..."
+    Start-MinimizedProcess $JobsTitle $Root "set `"VIP_JOBS_STATE_DIR=$stateDir`" && npm run start -w @vip/jobs -- schedule --skip $JobsSkip"
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+        if (@(Get-JobsSchedulerPids).Count -gt 0) {
+            Write-Step "Background jobs running (window '$JobsTitle')."
+            return
+        }
+        Start-Sleep -Seconds 2
+    }
+    Write-Warn "Background jobs did not start - open the '$JobsTitle' window, or run: npm run start -w @vip/jobs -- schedule"
+}
+
 function Write-StackSummary {
     Write-Host ""
     Write-Step "Stack health check:"
@@ -575,6 +627,10 @@ function Write-StackSummary {
         $binderLabel = if ($binderOk) { "OK" } else { "DOWN" }
         Write-Step ("  Binder     {0}  http://127.0.0.1:{1}" -f $binderLabel, $Ports.Binder)
     }
+    if (-not $NoJobs) {
+        $jobsLabel = if (@(Get-JobsSchedulerPids).Count -gt 0) { "OK" } else { "DOWN" }
+        Write-Step ("  Jobs       {0}  scheduler (SIGNALS feeds, PokeBeach, Pokemon prices)" -f $jobsLabel)
+    }
     Write-Host ""
     Write-Step "Leave the service windows open. Stop everything with Stop IQVault.bat or the Desktop Stop IQVault shortcut."
     if (-not $orchOk) {
@@ -614,6 +670,7 @@ try {
     Ensure-Web
     Ensure-Binder
     Ensure-Orchestr8Console
+    Ensure-JobsScheduler
 
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 1
