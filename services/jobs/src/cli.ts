@@ -27,8 +27,8 @@ import {
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
 import { formatIndexReport, indexFeedItems } from "./source-items.js";
-import { formatSynthesisReport, synthesizeSignals } from "./synthesis.js";
 import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPokemonPrices } from "./pokemon-prices.js";
+import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -186,18 +186,8 @@ async function main() {
     return;
   }
 
-  if (cmd === "synthesize") {
-    // synthesize [--dry-run] — clusters and official articles → spine events + signals
-    // synthesize [--dry-run] [--window-hours N] — N overrides the profile window once, for a backfill
-    const dryRun = process.argv.includes("--dry-run");
-    const w = process.argv.indexOf("--window-hours");
-    const windowHours = w >= 0 ? Number(process.argv[w + 1]) : undefined;
-    console.log(formatSynthesisReport(await inPokebeachTransaction((db) => synthesizeSignals(db, { dryRun, windowHours }))));
-    return;
-  }
-
   if (cmd === "items") {
-    // items index [--days N] | items extract — feed snapshots → source items → Pokémon entities
+    // items index [--days N] | items extract — feed snapshots → source items → Pokémon entities (manual: groundwork for cross-source clustering)
     const args = process.argv.slice(3);
     const i = args.indexOf("--days");
     if (args[0] === "index") {
@@ -213,7 +203,7 @@ async function main() {
   }
 
   if (cmd === "pokebeach") {
-    // pokebeach official | discover | reconcile | backfill [--days N] | fixtures
+    // pokebeach official | discover | extract | cluster | reconcile | backfill [--days N] | fixtures
     //           members [list] | members set "<handle>" [--profile-url URL] [--weight key=0.8 ...] [--tracked on|off] --confirm-operator
     //           members check --confirm-operator
     const args = process.argv.slice(3);
@@ -234,6 +224,10 @@ async function main() {
     if (sub === "discover") return print(await inPokebeachTransaction((db) => runPokebeachDiscovery(db)));
     if (sub === "extract") {
       console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
+      return;
+    }
+    if (sub === "cluster") {
+      console.log(formatClusterReport(await inPokebeachTransaction((db) => clusterPokebeachItems(db))));
       return;
     }
     if (sub === "reconcile") return print(await inPokebeachTransaction((db) => runPokebeachReconcile(db)));
@@ -284,7 +278,7 @@ async function main() {
         return;
       }
     }
-    console.error("usage: pokebeach official | discover | extract | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
+    console.error("usage: pokebeach official | discover | extract | cluster | reconcile | backfill [--days N] | fixtures | members [list|set|check]");
     process.exit(1);
   }
 
@@ -420,36 +414,16 @@ async function main() {
               .then(() =>
                 inPokebeachTransaction(async (db) => {
                   const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
-                  return { reports, entities: await extractSourceItemEntities(db), synthesis: await synthesizeSignals(db) };
+                  const entities = await extractSourceItemEntities(db);
+                  return { reports, entities, clusters: await clusterPokebeachItems(db) };
                 }),
               )
-              .then(({ reports, entities, synthesis }) => {
+              .then(({ reports, entities, clusters }) => {
                 reports.forEach((r) => console.log(formatPokebeachReport(r)));
                 console.log(formatEntityReport(entities));
-                console.log(formatSynthesisReport(synthesis));
+                console.log(formatClusterReport(clusters));
               })
               .catch((e) => console.error(`pokebeach failed: ${e instanceof Error ? e.message : e}`));
-          },
-        },
-        {
-          name: "items",
-          everyMs: 60 * 60 * 1000,
-          run: () => {
-            // Index the outlets' stored snapshots as items, then read entities, so clusters span sources.
-            void jitter(10 * 60 * 1000)
-              .then(() =>
-                inPokebeachTransaction(async (db) => ({
-                  index: await indexFeedItems(db),
-                  entities: await extractSourceItemEntities(db),
-                  synthesis: await synthesizeSignals(db),
-                })),
-              )
-              .then(({ index, entities, synthesis }) => {
-                console.log(formatIndexReport(index));
-                console.log(formatEntityReport(entities));
-                console.log(formatSynthesisReport(synthesis));
-              })
-              .catch((e) => console.error(`items failed: ${e instanceof Error ? e.message : e}`));
           },
         },
         {

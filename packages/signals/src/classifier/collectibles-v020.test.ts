@@ -4,7 +4,7 @@ import { COLLECTIBLES_HEADLINE_RULES_SEED, COLLECTIBLES_HEADLINE_RULES_V0_2_0 } 
 import { ClassifierRuleSetSchema, compileRuleSet, decideByRules } from "./sports-headline.js";
 
 const MIGRATION = readFileSync(
-  new URL("../../../../infra/db/migrations/20261004_01_signals_pokemon_themes.sql", import.meta.url),
+  new URL("../../../../infra/db/migrations/20261004_02_signals_pokemon_themes.sql", import.meta.url),
   "utf8",
 );
 const v2 = compileRuleSet(COLLECTIBLES_HEADLINE_RULES_V0_2_0);

@@ -1,32 +1,12 @@
 -- Signals synthesis (PokéBeach connector step 9; operator decisions 2026-10-04).
--- 1. event_evidence uniqueness widens from (event, document) to (event, document, item), with NULLS NOT
---    DISTINCT so a document-level row (item_ref NULL) is still unique. Operator-approved: the old
---    constraint is dropped and the wider one added; every existing row satisfies it. Needed because
---    several homepage articles share one snapshot document.
--- 2. vault_core.signals_synthesis_profile: versioned rules for what becomes a signal (official solo
---    themes, cluster size, never-themes), how corroboration lowers noise, and read-time band cut-offs.
---    Seed pokemon-synthesis@0.1.0 · unverified.
+-- vault_core.signals_synthesis_profile: versioned read-time rules for which stored cluster events
+-- (PokéBeach cluster job, 20261004_01) surface — official solo themes, cluster size, never-themes —
+-- and the band cut-offs. Seed pokemon-synthesis@0.1.0 · unverified. Writes no events or evidence.
 -- No stored priority or band (ADR 0013: read time). Re-runnable. No vault_market.
 
 BEGIN;
 
 SET search_path TO vault_signals, vault_core, public;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-     WHERE conrelid = 'vault_signals.event_evidence'::regclass AND conname = 'event_evidence_item_once'
-  ) THEN
-    ALTER TABLE vault_signals.event_evidence DROP CONSTRAINT IF EXISTS event_evidence_document_once;
-    ALTER TABLE vault_signals.event_evidence
-      ADD CONSTRAINT event_evidence_item_once UNIQUE NULLS NOT DISTINCT (event_id, raw_document_id, item_ref);
-  END IF;
-END;
-$$;
-
-COMMENT ON CONSTRAINT event_evidence_item_once ON vault_signals.event_evidence IS
-  'One evidence row per event, document and item (an article inside a multi-item snapshot). A document-level row has item_ref NULL and stays unique.';
 
 CREATE TABLE IF NOT EXISTS vault_core.signals_synthesis_profile (
     id            UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),

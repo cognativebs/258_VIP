@@ -1,10 +1,11 @@
 /**
- * Synthesized signals for a domain, read back with read-time priority,
- * decayed influence and a band from the current synthesis profile. Every
+ * Synthesized signals for a domain: the PokéBeach cluster job's stored events
+ * (connector step 6), read back with read-time priority, decayed influence,
+ * whether the current synthesis profile surfaces them, and a band. Every
  * signal lists its evidence: each article with its outlet, time and link.
  */
 import { z } from "zod";
-import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal } from "@vip/signals";
+import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal, surfaceFor } from "@vip/signals";
 import type { Hunt } from "../seeds/hunts.js";
 import { exposureFor, huntTexts, loadBinderSlots } from "./signalExposure.js";
 
@@ -19,6 +20,10 @@ export const SynthesizedQuerySchema = z
 
 const PROFILE = "pokemon-synthesis";
 const BAND_ORDER = ["high_conviction", "strong", "emerging", "watch", "noise"];
+/** Signals written by the PokéBeach cluster job (services/jobs/src/pokebeach-cluster.ts). */
+const CLUSTER_JOB = "pokebeach-cluster@%";
+/** Exposure matches the most specific entity first. */
+const ENTITY_KIND_ORDER = "CASE se.entity_kind WHEN 'set' THEN 0 WHEN 'product' THEN 1 WHEN 'card' THEN 2 WHEN 'pokemon' THEN 3 ELSE 9 END";
 
 export async function buildSynthesized(
   db: Queryable,
@@ -39,20 +44,29 @@ export async function buildSynthesized(
             vault_signals.signal_priority(s.id)::float AS priority,
             vault_signals.signal_influence(s.id, $1)::float AS influence,
             vault_signals.independent_source_count(s.event_id) AS independent,
-            (SELECT se.entity_ref FROM vault_signals.signal_entity se WHERE se.signal_id = s.id ORDER BY se.entity_ref LIMIT 1) AS entity
+            (SELECT count(*) FROM vault_signals.event_evidence ee
+              WHERE ee.event_id = s.event_id AND ee.role = 'PRIMARY' AND ee.source_item_id IS NOT NULL)::int AS primary_items,
+            (SELECT coalesce(array_agg(DISTINCT i.source_id), '{}') FROM vault_signals.event_evidence ee
+               JOIN vault_signals.source_item i ON i.id = ee.source_item_id
+              WHERE ee.event_id = s.event_id AND ee.role = 'PRIMARY') AS source_keys,
+            (SELECT se.entity_ref FROM vault_signals.event_evidence ee
+               JOIN vault_signals.source_item i ON i.id = ee.source_item_id
+               JOIN vault_signals.source_item_entity se ON se.source_item_id = i.id AND se.content_hash = i.content_hash
+              WHERE ee.event_id = s.event_id AND ee.role = 'PRIMARY' AND se.entity_ref IS NOT NULL
+              ORDER BY ${ENTITY_KIND_ORDER}, se.entity_ref LIMIT 1) AS entity
        FROM vault_signals.signal s
        JOIN vault_signals.signal_type t ON t.id = s.signal_type_id
-      WHERE s.prov_source = 'signals_synthesis' AND s.domain = $2 AND s.first_seen_at <= $1
+      WHERE s.created_by_version LIKE $3 AND s.domain = $2 AND s.first_seen_at <= $1
       ORDER BY influence DESC, s.id`,
-    [at.toISOString(), profile.domain],
+    [at.toISOString(), profile.domain, CLUSTER_JOB],
   );
   const evidence = await db.query(
-    `SELECT ee.event_id, ee.independence_group, ee.source_item_url, ee.detected_at,
+    `SELECT ee.event_id, ee.role, ee.independence_group, ee.source_item_url, ee.detected_at,
             i.title, i.author_name, i.source_id, coalesce(i.published_at, i.first_seen_at) AS at, i.published_at_source
        FROM vault_signals.event_evidence ee
-       LEFT JOIN vault_signals.source_item i ON i.canonical_url = ee.source_item_url
+       LEFT JOIN vault_signals.source_item i ON i.id = ee.source_item_id
       WHERE ee.event_id = ANY($1::uuid[])
-      ORDER BY at`,
+      ORDER BY ee.role DESC, at`,
     [sigs.rows.map((r) => r.event_id)],
   );
 
@@ -63,7 +77,8 @@ export async function buildSynthesized(
   const signals = sigs.rows
     .map((r) => {
       const independent = Number(r.independent);
-      const band = bandFor(Number(r.priority), independent, profile);
+      const surface = surfaceFor({ theme: r.code, primaryItems: Number(r.primary_items), sourceKeys: r.source_keys ?? [] }, profile);
+      const band = surface.surfaced ? bandFor(Number(r.priority), independent, profile) : "noise";
       const exposure = exposureFor(r.entity, binder, hunts);
       const input = {
         title: r.title,
@@ -89,6 +104,7 @@ export async function buildSynthesized(
         direction: r.direction,
         method: r.method,
         band,
+        surface,
         priority: Number(r.priority),
         influence: Number(r.influence),
         scores: { baseConfidence: r.conf, baseImpact: r.impact, noiseProbability: r.noise },
@@ -98,7 +114,8 @@ export async function buildSynthesized(
         evidence: evidence.rows
           .filter((e) => e.event_id === r.event_id)
           .map((e) => ({
-            title: e.title,
+            role: e.role,
+            title: e.role === "DISCUSSION" ? "Forum discussion" : e.title,
             author: e.author_name,
             sourceKey: e.source_id,
             outlet: e.independence_group,
@@ -119,7 +136,7 @@ export async function buildSynthesized(
       method: "synthesis",
       verificationStatus: "unverified",
       notes:
-        "Bands are read-time from signal_priority and the current profile; High Conviction needs 2+ independent sources. Every conclusion lists its articles. A signal proposes; Orchestr8 decides. News is never a price.",
+        "Clusters are the PokéBeach cluster job's stored events; whether one surfaces and its band are read-time from the current profile and signal_priority; High Conviction needs 2+ independent sources. Every conclusion lists its articles. A signal proposes; Orchestr8 decides. News is never a price.",
     },
   };
 }

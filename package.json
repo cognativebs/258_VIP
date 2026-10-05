@@ -25,7 +25,6 @@
     "job:macro-news": "npm run macro-news -w @vip/jobs --",
     "job:pokebeach": "npm run pokebeach -w @vip/jobs --",
     "job:items": "npm run items -w @vip/jobs --",
-    "job:synthesize": "npm run synthesize -w @vip/jobs --",
     "job:pokemon-prices": "npm run pokemon-prices -w @vip/jobs --",
     "news-source": "npm run news-source -w @vip/jobs --",
     "job:clz-sync": "npm run clz-sync -w @vip/jobs",

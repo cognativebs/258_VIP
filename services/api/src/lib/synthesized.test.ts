@@ -3,7 +3,7 @@ import { POKEMON_SYNTHESIS_PROFILE_SEED } from "@vip/signals";
 import { buildSynthesized, type Queryable } from "./synthesized.js";
 
 const AT = new Date("2026-10-04T12:00:00.000Z");
-const sig = (id: string, priority: number, independent: number, influence = priority) => ({
+const sig = (id: string, priority: number, independent: number, influence = priority, code = "PREORDER", primaryItems = 1) => ({
   id,
   event_id: `e-${id}`,
   title: `${id} title`,
@@ -14,8 +14,10 @@ const sig = (id: string, priority: number, independent: number, influence = prio
   conf: 0.54,
   impact: 0.3,
   noise: 0.3,
-  code: "PREORDER",
-  display_name: "Preorder",
+  code,
+  display_name: code,
+  primary_items: primaryItems,
+  source_keys: ["pokebeach_official"],
   priority,
   influence,
   independent,
@@ -30,7 +32,7 @@ function stub(signals: unknown[]): Queryable {
       if (text.includes("vault_tcg.binder_slot")) return { rows: [] };
       return {
         rows: [
-          { event_id: "e-a", independence_group: "pokebeach.com", source_item_url: "https://www.pokebeach.com/x", title: "Article", author_name: "Writer", source_id: "pokebeach_official", at: "2026-10-04T08:00:00.000Z", published_at_source: "homepage_display_time:America/Los_Angeles (inferred)" },
+          { event_id: "e-a", role: "PRIMARY", independence_group: "pokebeach.com", source_item_url: "https://www.pokebeach.com/x", title: "Article", author_name: "Writer", source_id: "pokebeach_official", at: "2026-10-04T08:00:00.000Z", published_at_source: "homepage_display_time:America/Los_Angeles (inferred)" },
         ],
       };
     },
@@ -54,5 +56,17 @@ describe("buildSynthesized", () => {
     expect(out.signals[0]!.orchestr8Question).toMatch(/Decide Buy \/ Hold/);
     const all = await buildSynthesized(stub([sig("d", 0.01, 1)]), { at: AT, includeNoise: true });
     expect(all.signals.map((s) => s.band)).toEqual(["noise"]);
+  });
+
+  it("a stored event surfaces only under the profile: a lone card reveal waits for a cluster", async () => {
+    const out = await buildSynthesized(stub([sig("solo", 0.25, 1, 0.25, "CARD_REVEAL", 1), sig("pair", 0.25, 1, 0.25, "CARD_REVEAL", 2)]), {
+      at: AT,
+      includeNoise: true,
+    });
+    expect(out.signals.map((s) => [s.signalId, s.band, s.surface.kind])).toEqual([
+      ["pair", "strong", "cluster"],
+      ["solo", "noise", "solo"],
+    ]);
+    expect(out.signals[1]!.surface.reason).toBe("CARD_REVEAL needs a cluster (1 of 2 articles)");
   });
 });

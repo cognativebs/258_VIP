@@ -1,7 +1,7 @@
 /**
  * pokemon-synthesis@0.1.0 (operator decisions 2026-10-04). Every cut-off is a
  * starting choice · unverified, to be recalibrated from resolved predictions.
- * Migration 20261004_02 embeds this object; a test fails if the two drift.
+ * Migration 20261004_03 embeds this object; a test fails if the two drift.
  */
 import type { SynthesisProfile } from "./synthesis.js";
 

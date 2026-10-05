@@ -110,6 +110,8 @@ export const EventEvidenceSchema = z
     detectedAt: z.coerce.date(),
     /** The item inside a multi-item document (an RSS guid). NULL when the document is the evidence. */
     itemRef: z.string().min(1).max(1024).nullable().default(null),
+    /** The source item this row is evidence for, when the source has item identity. */
+    sourceItemId: z.string().uuid().nullable().default(null),
   })
   .strict()
   .refine((row) => row.role !== "PRIMARY" || row.independenceGroup != null, {

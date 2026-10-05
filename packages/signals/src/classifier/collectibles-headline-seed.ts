@@ -140,7 +140,7 @@ const v010Rule = (type: string) => v010.rules.find((r) => r.type === type)!;
  * operator's PokéBeach spec — card reveals, product reveals, preorders, pull
  * rates, promotions, competitive play. Preorders leave RESTOCK and get their
  * own theme. Rumour and leak language stays a hedge, not a theme. Migration
- * 20261004_01 embeds this object and makes it current; 0.1.0 stays for
+ * 20261004_02 embeds this object and makes it current; 0.1.0 stays for
  * provenance. New impacts are starting guesses · unverified.
  */
 export const COLLECTIBLES_HEADLINE_RULES_V0_2_0: ClassifierRuleSet = {

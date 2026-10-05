@@ -1,137 +1,96 @@
 /**
- * Read-time clustering of source items (pure). A cluster is every item in a
- * rolling window that mentions the same entity under the same theme. Nothing
- * is stored: clusters are recomputed whenever they are read, like priority and
- * decay. Corroboration is independent_source_count — distinct independence
- * groups (an outlet; later a member or a thread) — never the mention count:
- * five articles from one newsroom are one source.
+ * Source-item clustering onto spine events (pure). Operator decisions
+ * 2026-10-04 (PokéBeach connector step 6):
+ * - An item joins an existing event only when both carry the same signal type,
+ *   share a set or card entity_ref, and the item was published within 72 hours
+ *   of the event's first item. Pokémon species (pokemon:dex:N) and product
+ *   types (product:etb) name categories, not one thing, so they never cluster.
+ * - The first event wins: a later item is attached as evidence and nothing is
+ *   moved or merged.
+ * - Independence: one group per outlet for official news (two staff writers
+ *   are one source), one group per member for community activity, and comment
+ *   threads are DISCUSSION, which never corroborates.
+ * Grouping is inferred · unverified until a person confirms it.
  */
 import { z } from "zod";
 import { EntityKindSchema } from "../entities/pokemon-entities.js";
+import type { EvidenceRole } from "../schemas/spine.js";
 
-export const CLUSTERING_VERSION = "item-clusters@0.1.0";
-export const NO_THEME = "UNCLASSIFIED";
+export const ITEM_CLUSTER_VERSION = "item-clusters@0.1.0";
+export const CLUSTER_WINDOW_HOURS = 72;
+export const CLUSTER_ENTITY_KINDS = ["set", "card"] as const;
 
-export type ClusterInputItem = {
-  id: string;
-  sourceKey: string;
-  /** Independence group: who could have said this independently (outlet, member, thread). */
-  group: string;
-  title: string;
-  url: string;
-  /** Publish time when known, else first-seen; used for the window. */
-  at: string;
-  theme: string | null;
-  entities: { kind: z.infer<typeof EntityKindSchema>; normalizedKey: string; mention: string; entityRef: string | null }[];
-};
+export const SourceItemKindSchema = z.enum(["article", "thread", "forum_post", "member_activity"]);
+export type SourceItemKind = z.infer<typeof SourceItemKindSchema>;
 
-export const ItemClusterSchema = z
+export const ClusterEntitySchema = z
   .object({
-    entity: z
-      .object({ kind: EntityKindSchema, normalizedKey: z.string(), mention: z.string(), entityRef: z.string().nullable() })
-      .strict(),
-    theme: z.string(),
-    windowStart: z.string(),
-    windowEnd: z.string(),
-    mentionCount: z.number().int().positive(),
-    independentSourceCount: z.number().int().positive(),
-    groups: z.array(z.string()),
-    sources: z.array(z.string()),
-    firstAt: z.string(),
-    lastAt: z.string(),
-    corroboration: z.enum(["single_source", "corroborated"]),
-    items: z.array(
-      z
-        .object({ id: z.string(), sourceKey: z.string(), group: z.string(), title: z.string(), url: z.string(), at: z.string() })
-        .strict(),
-    ),
+    kind: EntityKindSchema,
+    entityRef: z.string().min(1).nullable(),
   })
   .strict();
-export type ItemCluster = z.infer<typeof ItemClusterSchema>;
+export type ClusterEntity = z.infer<typeof ClusterEntitySchema>;
 
-export type ClusterOptions = {
-  at: Date;
-  windowHours?: number;
-  /** Smallest cluster returned. One item is not a cluster. */
-  minItems?: number;
-  /** Generic entities that would tie unrelated items together. */
-  excludeEntityKeys?: ReadonlyArray<string>;
-};
+export const ClusterItemSchema = z
+  .object({
+    signalType: z.string().min(1),
+    publishedAt: z.string().datetime(),
+    keys: z.array(z.string().min(1)),
+  })
+  .strict();
+export type ClusterItem = z.infer<typeof ClusterItemSchema>;
 
-/** Product types that appear in many unrelated headlines; clustering on them would merge everything. */
-export const DEFAULT_EXCLUDED_ENTITY_KEYS: ReadonlyArray<string> = ["product:promo", "product:accessory"];
+export const ExistingClusterSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    eventType: z.string().min(1),
+    /** Publish time of the event's first item; the window is measured from here so a cluster never drifts. */
+    anchorPublishedAt: z.string().datetime(),
+    keys: z.array(z.string().min(1)),
+  })
+  .strict();
+export type ExistingCluster = z.infer<typeof ExistingClusterSchema>;
 
-export function clusterItems(items: ReadonlyArray<ClusterInputItem>, opts: ClusterOptions): ItemCluster[] {
-  const windowHours = opts.windowHours ?? 72;
-  const end = opts.at.getTime();
-  const start = end - windowHours * 3600_000;
-  const excluded = new Set(opts.excludeEntityKeys ?? DEFAULT_EXCLUDED_ENTITY_KEYS);
-  const buckets = new Map<string, { entity: ClusterInputItem["entities"][number]; theme: string; items: ClusterInputItem[] }>();
-
-  for (const item of items) {
-    const t = new Date(item.at).getTime();
-    if (Number.isNaN(t) || t < start || t > end) continue;
-    const theme = item.theme ?? NO_THEME;
-    const seen = new Set<string>();
-    for (const e of item.entities) {
-      const ek = `${e.kind}:${e.normalizedKey}`;
-      if (excluded.has(ek) || seen.has(ek)) continue;
-      seen.add(ek);
-      const key = `${ek}|${theme}`;
-      const b = buckets.get(key) ?? { entity: e, theme, items: [] };
-      // Prefer a mention that carries an IQVault identity.
-      if (!b.entity.entityRef && e.entityRef) b.entity = e;
-      b.items.push(item);
-      buckets.set(key, b);
-    }
-  }
-
-  const out: ItemCluster[] = [];
-  for (const b of buckets.values()) {
-    if (b.items.length < (opts.minItems ?? 2)) continue;
-    const sorted = [...b.items].sort((x, y) => x.at.localeCompare(y.at) || x.id.localeCompare(y.id));
-    const groups = [...new Set(sorted.map((i) => i.group))].sort();
-    out.push(
-      ItemClusterSchema.parse({
-        entity: { kind: b.entity.kind, normalizedKey: b.entity.normalizedKey, mention: b.entity.mention, entityRef: b.entity.entityRef },
-        theme: b.theme,
-        windowStart: new Date(start).toISOString(),
-        windowEnd: new Date(end).toISOString(),
-        mentionCount: sorted.length,
-        independentSourceCount: groups.length,
-        groups,
-        sources: [...new Set(sorted.map((i) => i.sourceKey))].sort(),
-        firstAt: sorted[0]!.at,
-        lastAt: sorted.at(-1)!.at,
-        corroboration: groups.length > 1 ? "corroborated" : "single_source",
-        items: sorted.map(({ id, sourceKey, group, title, url, at }) => ({ id, sourceKey, group, title, url, at })),
-      }),
-    );
-  }
-  return out.sort(
-    (a, b) =>
-      b.independentSourceCount - a.independentSourceCount ||
-      b.mentionCount - a.mentionCount ||
-      b.lastAt.localeCompare(a.lastAt) ||
-      `${a.entity.normalizedKey}|${a.theme}`.localeCompare(`${b.entity.normalizedKey}|${b.theme}`),
-  );
+/** Identity-bearing references only: matched sets and cards. */
+export function clusterKeys(entities: ReadonlyArray<ClusterEntity>): string[] {
+  const kinds: ReadonlySet<string> = new Set(CLUSTER_ENTITY_KINDS);
+  return [...new Set(entities.filter((e) => e.entityRef && kinds.has(e.kind)).map((e) => e.entityRef!))].sort();
 }
 
-/** Hosts that carry many independent voices; there the channel (source key) is the voice, not the host. */
-const PLATFORM_HOSTS = new Set(["youtube.com", "m.youtube.com", "youtu.be"]);
-
 /**
- * Who counts as independent: the publishing outlet, by host. Every PokéBeach
- * route (homepage, community feed, a GDELT pickup) is pokebeach.com, one
- * newsroom. On a platform such as YouTube the channel is the voice. Tracked
- * members (later) group by author.
+ * The event this item joins, or null when it starts a new one. Among matches
+ * the earliest anchor wins (then the lowest id), so the result does not
+ * depend on query order.
  */
-export function independenceGroup(sourceKey: string, url: string | null): string {
-  if (!url) return sourceKey;
-  try {
-    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-    return PLATFORM_HOSTS.has(host) ? sourceKey : host;
-  } catch {
-    return sourceKey;
-  }
+export function pickCluster(item: ClusterItem, clusters: ReadonlyArray<ExistingCluster>): ExistingCluster | null {
+  if (!item.keys.length) return null;
+  const at = Date.parse(item.publishedAt);
+  const windowMs = CLUSTER_WINDOW_HOURS * 3600 * 1000;
+  const keys = new Set(item.keys);
+  const matches = clusters.filter(
+    (c) =>
+      c.eventType === item.signalType &&
+      Math.abs(at - Date.parse(c.anchorPublishedAt)) <= windowMs &&
+      c.keys.some((k) => keys.has(k)),
+  );
+  matches.sort((a, b) => Date.parse(a.anchorPublishedAt) - Date.parse(b.anchorPublishedAt) || a.eventId.localeCompare(b.eventId));
+  return matches[0] ?? null;
+}
+
+export function evidenceRoleFor(kind: SourceItemKind): EvidenceRole {
+  return kind === "thread" ? "DISCUSSION" : "PRIMARY";
+}
+
+/** independent_source_count counts these groups on PRIMARY rows. null for DISCUSSION. */
+export function independenceGroupFor(item: {
+  sourceId: string;
+  kind: SourceItemKind;
+  authorRef: string | null;
+  authorName: string | null;
+}): string | null {
+  if (item.kind === "thread") return null;
+  if (item.kind === "article") return item.sourceId;
+  const handle = item.authorRef ?? item.authorName;
+  if (!handle) throw new Error(`${item.kind} item from ${item.sourceId} has no author; a member post needs one to count as independent`);
+  return `${item.sourceId}:member:${handle}`;
 }

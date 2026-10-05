@@ -1,85 +1,61 @@
 import { describe, expect, it } from "vitest";
-import { clusterItems, independenceGroup, type ClusterInputItem } from "./item-clusters.js";
+import { clusterKeys, evidenceRoleFor, independenceGroupFor, pickCluster, type ExistingCluster } from "./item-clusters.js";
 
-const AT = new Date("2026-10-04T12:00:00.000Z");
-const set = (key: string, ref: string | null = null) => ({ kind: "set" as const, normalizedKey: key, mention: key, entityRef: ref });
-const item = (id: string, url: string, hoursAgo: number, theme: string | null, entities: ClusterInputItem["entities"], sourceKey = "pokebeach_official"): ClusterInputItem => ({
-  id,
-  sourceKey,
-  group: independenceGroup(sourceKey, url),
-  title: id,
-  url,
-  at: new Date(AT.getTime() - hoursAgo * 3600_000).toISOString(),
-  theme,
-  entities,
+const cluster = (id: string, eventType: string, anchorPublishedAt: string, keys: string[]): ExistingCluster => ({
+  eventId: `00000000-0000-4000-8000-00000000000${id}`,
+  eventType,
+  anchorPublishedAt,
+  keys,
 });
 
-describe("independence groups", () => {
-  it("are outlets by host; a platform channel is its own voice", () => {
-    expect(independenceGroup("pokebeach_official", "https://www.pokebeach.com/2026/10/x")).toBe("pokebeach.com");
-    expect(independenceGroup("gdelt_doc_v2", "https://www.pokebeach.com/2026/10/x")).toBe("pokebeach.com");
-    expect(independenceGroup("gdelt_doc_v2", "https://news.fixture.example/a")).toBe("news.fixture.example");
-    expect(independenceGroup("alpha_investments_youtube", "https://www.youtube.com/watch?v=X")).toBe("alpha_investments_youtube");
-    expect(independenceGroup("comicsbeat_rss", null)).toBe("comicsbeat_rss");
-  });
-});
-
-describe("clusterItems", () => {
-  it("groups by entity + theme in the window and counts outlets, not mentions", () => {
-    const clusters = clusterItems(
-      [
-        item("pb-1", "https://www.pokebeach.com/a", 10, "RESTOCK", [set("delta-reign")]),
-        item("pb-2", "https://www.pokebeach.com/b", 20, "RESTOCK", [set("delta-reign")]),
-        item("pb-3", "https://www.pokebeach.com/c", 30, "RESTOCK", [set("delta-reign")]),
-        item("gd-1", "https://news.fixture.example/delta", 5, "RESTOCK", [set("delta-reign", "binder_set:delta-reign")], "gdelt_doc_v2"),
-        item("pb-old", "https://www.pokebeach.com/old", 100, "RESTOCK", [set("delta-reign")]),
-        item("pb-other-theme", "https://www.pokebeach.com/d", 8, "REPRINT", [set("delta-reign")]),
-      ],
-      { at: AT },
-    );
-    expect(clusters).toHaveLength(1);
-    expect(clusters[0]).toMatchObject({
-      entity: { normalizedKey: "delta-reign", entityRef: "binder_set:delta-reign" },
-      theme: "RESTOCK",
-      mentionCount: 4,
-      independentSourceCount: 2,
-      groups: ["news.fixture.example", "pokebeach.com"],
-      corroboration: "corroborated",
-    });
-    expect(clusters[0]!.items.map((i) => i.id)).toEqual(["pb-3", "pb-2", "pb-1", "gd-1"]);
-  });
-
-  it("five articles from one newsroom are one source; one article is not a cluster", () => {
-    const many = Array.from({ length: 5 }, (_, i) => item(`pb-${i}`, `https://www.pokebeach.com/${i}`, i + 1, null, [set("fixture-set")]));
-    const [c] = clusterItems(many, { at: AT });
-    expect(c).toMatchObject({ theme: "UNCLASSIFIED", mentionCount: 5, independentSourceCount: 1, corroboration: "single_source" });
-    expect(clusterItems([many[0]!], { at: AT })).toEqual([]);
-  });
-
-  it("ignores generic product entities that would merge unrelated news", () => {
-    const promo = { kind: "product" as const, normalizedKey: "promo", mention: "Promos", entityRef: "product:promo" };
+describe("clusterKeys", () => {
+  it("keeps matched sets and cards only, deduplicated", () => {
     expect(
-      clusterItems(
-        [item("a", "https://www.pokebeach.com/a", 1, null, [promo]), item("b", "https://www.pokebeach.com/b", 2, null, [promo])],
-        { at: AT },
-      ),
-    ).toEqual([]);
+      clusterKeys([
+        { kind: "set", entityRef: "vault_pokemon.set:sv10" },
+        { kind: "set", entityRef: "vault_pokemon.set:sv10" },
+        { kind: "set", entityRef: null },
+        { kind: "card", entityRef: "binder_card:charizard-ex" },
+        { kind: "pokemon", entityRef: "pokemon:dex:6" },
+        { kind: "product", entityRef: "product:etb" },
+      ]),
+    ).toEqual(["binder_card:charizard-ex", "vault_pokemon.set:sv10"]);
+  });
+});
+
+describe("pickCluster", () => {
+  const item = { signalType: "SET_RELEASE", publishedAt: "2026-10-03T12:00:00.000Z", keys: ["vault_pokemon.set:sv10"] };
+
+  it("joins an event of the same type sharing a key within 72 hours", () => {
+    const c = cluster("1", "SET_RELEASE", "2026-10-01T13:00:00.000Z", ["vault_pokemon.set:sv10"]);
+    expect(pickCluster(item, [c])).toBe(c);
   });
 
-  it("orders corroborated clusters first", () => {
-    const clusters = clusterItems(
-      [
-        item("a1", "https://www.pokebeach.com/a1", 1, null, [set("aaa")]),
-        item("a2", "https://www.pokebeach.com/a2", 2, null, [set("aaa")]),
-        item("a3", "https://www.pokebeach.com/a3", 3, null, [set("aaa")]),
-        item("b1", "https://www.pokebeach.com/b1", 1, null, [set("bbb")]),
-        item("b2", "https://other.example/b2", 2, null, [set("bbb")], "gdelt_doc_v2"),
-      ],
-      { at: AT },
+  it("starts a new event when the type differs, the window is passed, no key is shared, or the item has no keys", () => {
+    expect(pickCluster(item, [cluster("1", "RESTOCK", "2026-10-03T00:00:00.000Z", ["vault_pokemon.set:sv10"])])).toBeNull();
+    expect(pickCluster(item, [cluster("1", "SET_RELEASE", "2026-09-30T11:59:00.000Z", ["vault_pokemon.set:sv10"])])).toBeNull();
+    expect(pickCluster(item, [cluster("1", "SET_RELEASE", "2026-10-03T00:00:00.000Z", ["vault_pokemon.set:sv9"])])).toBeNull();
+    expect(pickCluster({ ...item, keys: [] }, [cluster("1", "SET_RELEASE", "2026-10-03T00:00:00.000Z", [])])).toBeNull();
+  });
+
+  it("picks the earliest anchor regardless of order", () => {
+    const late = cluster("2", "SET_RELEASE", "2026-10-02T00:00:00.000Z", ["vault_pokemon.set:sv10"]);
+    const early = cluster("1", "SET_RELEASE", "2026-10-01T00:00:00.000Z", ["vault_pokemon.set:sv10"]);
+    expect(pickCluster(item, [late, early])).toBe(early);
+  });
+});
+
+describe("independence", () => {
+  it("is one group per outlet for articles, one per member for posts, and none for threads", () => {
+    const base = { sourceId: "pokebeach_official", authorRef: "staff-a", authorName: "Staff A" };
+    expect(independenceGroupFor({ ...base, kind: "article" })).toBe("pokebeach_official");
+    expect(independenceGroupFor({ ...base, authorRef: "staff-b", kind: "article" })).toBe("pokebeach_official");
+    expect(independenceGroupFor({ sourceId: "pokebeach_members", kind: "member_activity", authorRef: null, authorName: "PMJ" })).toBe(
+      "pokebeach_members:member:PMJ",
     );
-    expect(clusters.map((c) => [c.entity.normalizedKey, c.independentSourceCount, c.mentionCount])).toEqual([
-      ["bbb", 2, 2],
-      ["aaa", 1, 3],
-    ]);
+    expect(independenceGroupFor({ ...base, kind: "thread" })).toBeNull();
+    expect(() => independenceGroupFor({ sourceId: "pokebeach_members", kind: "forum_post", authorRef: null, authorName: null })).toThrow();
+    expect(evidenceRoleFor("thread")).toBe("DISCUSSION");
+    expect(evidenceRoleFor("article")).toBe("PRIMARY");
   });
 });
