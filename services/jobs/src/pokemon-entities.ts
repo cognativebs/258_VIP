@@ -17,6 +17,9 @@ import {
 
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
+/** Items read for Pokémon entities: PokéBeach plus the outlets indexed for cross-source clusters. */
+export const ENTITY_SOURCES = ["pokebeach_official", "comicsbeat_rss", "alpha_investments_youtube", "psa_news", "tag_news", "gdelt_doc_v2"];
+
 export type EntityExtractionReport = {
   job: "pokemon-entities";
   version: typeof POKEMON_ENTITY_EXTRACTOR_VERSION;
@@ -62,7 +65,7 @@ export async function extractSourceItemEntities(
            WHERE x.source_item_id = i.id AND x.content_hash = i.content_hash AND x.extractor_version = $2)
       ORDER BY i.published_at NULLS LAST, i.id
       LIMIT $3`,
-    [opts.sourceKeys ?? ["pokebeach_official"], POKEMON_ENTITY_EXTRACTOR_VERSION, opts.limit ?? 500],
+    [opts.sourceKeys ?? ENTITY_SOURCES, POKEMON_ENTITY_EXTRACTOR_VERSION, opts.limit ?? 500],
   );
   const catalog = await loadPokemonCatalog(db);
   // Learn quoted set names from this batch first, so a plain mention elsewhere in it still matches.

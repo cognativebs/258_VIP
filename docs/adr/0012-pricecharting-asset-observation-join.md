@@ -51,6 +51,29 @@ comics-asset grain before `card_variant` exists.
 - Unifying comics `asset` and TCG `card_variant` under one `priced_unit`
   is a later ADR after D1/D2.
 
+## Amendment — 2026-10-04: Pokémon cards (operator decision)
+
+TCGplayer refused both its latest-sales and price-history endpoints (HTTP 403)
+on 2026-10-04, so Pokémon fair-market value comes from PriceCharting until a
+licensed sold source exists.
+
+- `vault_market.card_price_history` is the **TCG home for vendor-guide card
+  prices** (`price_source = 'pricecharting'`), keyed by catalog id + day +
+  printing + condition. `guide_price_observation` stays the comics home; its
+  comics asset and holding columns do not fit Binder cards.
+- Its `condition` CHECK widens to graded conditions: `GRADE_7`, `GRADE_8`,
+  `GRADE_9`, `GRADE_9_5` (any grading company) and `PSA_10`, `BGS_10`,
+  `CGC_10`, `SGC_10`. The ungraded column is `NM` with `condition_assumed`.
+- Binder cards map to PriceCharting products in `vendor_product_map`
+  (`asset_id` NULL; the catalog id in `provider_ids.pokemontcg`). Only an
+  exact English set + number + name match is priced without review.
+- Fair-market value is read at request time as a range per condition (low,
+  high, latest, snapshots, recency, confidence ≤ 0.75), labeled a vendor
+  guide, never sold comps.
+- `vault_market.sale` and `priced_unit` are unchanged. Card-keyed sold comps
+  (an additive card key on `sale`) wait for a licensed sold source, e.g. eBay
+  Marketplace Insights.
+
 ## Alternatives rejected
 
 - Reshape `priced_unit` to condition-free identity now — cheap (0 rows) but

@@ -41,6 +41,7 @@ export function AnalysisPanel() {
     quarantinedCount?: number;
     feedKind?: string;
     provenance?: { notes?: string; verificationStatus?: string };
+    synthesized?: unknown;
   } | null>(null);
 
   const loading = session.loading;
@@ -60,6 +61,12 @@ export function AnalysisPanel() {
       setBundle(null);
     }
   };
+
+  useEffect(() => {
+    // IQVault's "Evaluate in Orchestr8" links open the console with ?question=...; the operator still presses Run.
+    const fromLink = new URLSearchParams(window.location.search).get("question")?.trim();
+    if (fromLink) setQuestion(fromLink.slice(0, 2000));
+  }, []);
 
   useEffect(() => {
     void refresh();

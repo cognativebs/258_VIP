@@ -108,7 +108,7 @@ describe.skipIf(!DSN)("PokéBeach clustering onto spine events (IQVAULT_TEST_DSN
       expect(events.rows).toEqual([
         { event_key: "pokebeach_official:980001", event_type: "SET_RELEASE", sources: 1, signals: 1, members: ["980001:DISCUSSION", "980001:PRIMARY", "980002:PRIMARY"] },
         { event_key: "pokebeach_official:980003", event_type: "SET_RELEASE", sources: 1, signals: 1, members: ["980003:PRIMARY"] },
-        { event_key: "pokebeach_official:980004", event_type: "RESTOCK", sources: 1, signals: 1, members: ["980004:PRIMARY"] },
+        { event_key: "pokebeach_official:980004", event_type: "PREORDER", sources: 1, signals: 1, members: ["980004:PRIMARY"] },
         { event_key: "pokebeach_official:980005", event_type: "SET_RELEASE", sources: 1, signals: 1, members: ["980005:PRIMARY"] },
         { event_key: "pokebeach_official:980006", event_type: "SET_RELEASE", sources: 1, signals: 1, members: ["980006:PRIMARY"] },
       ]);
@@ -129,7 +129,7 @@ describe.skipIf(!DSN)("PokéBeach clustering onto spine events (IQVAULT_TEST_DSN
         prov_source: "pokebeach_official",
         prov_method: "inferred",
         prov_verification: "unverified",
-        prov_rule_version: "collectibles-headline@0.1.0+rules+item-clusters@0.1.0",
+        prov_rule_version: "collectibles-headline@0.2.0+rules+item-clusters@0.1.0",
       });
 
       // Nothing is re-clustered or moved; only the noise item is read again.

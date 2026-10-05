@@ -26,6 +26,8 @@ import {
   type Queryable as PokebeachQueryable,
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
+import { formatIndexReport, indexFeedItems } from "./source-items.js";
+import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPokemonPrices } from "./pokemon-prices.js";
 import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
@@ -154,6 +156,50 @@ async function main() {
     console.log(formatMacroNewsReport(report));
     if (report.status === "failed") process.exit(1);
     return;
+  }
+
+  if (cmd === "pokemon-prices") {
+    // pokemon-prices [--dry-run] [--limit N] | review | confirm <externalId> [productId] --confirm-operator
+    loadApiEnv();
+    const args = process.argv.slice(3);
+    if (args[0] === "review") {
+      const rows = await inPokebeachTransaction((db) => listReview(db));
+      if (!rows.length) console.log("No PriceCharting matches waiting for review.");
+      for (const r of rows) console.log(`${r.externalId.padEnd(14)} → ${r.productId.padEnd(10)} ${r.productName}  (${r.reason ?? ""})`);
+      return;
+    }
+    if (args[0] === "confirm") {
+      if (!args[1] || !args.includes("--confirm-operator")) {
+        console.error("usage: pokemon-prices confirm <externalId> [productId] --confirm-operator");
+        process.exit(1);
+      }
+      const productId = args[2] && !args[2].startsWith("--") ? args[2] : undefined;
+      const ok = await inPokebeachTransaction((db) => confirmMatch(db, args[1]!, productId));
+      console.log(ok ? `${args[1]} confirmed; it is priced on the next run.` : `No PriceCharting match found for ${args[1]}.`);
+      return;
+    }
+    const i = args.indexOf("--limit");
+    const report = await inPokebeachTransaction((db) =>
+      runPokemonPrices(db, { dryRun: args.includes("--dry-run"), limit: i >= 0 ? Number(args[i + 1]) : undefined }),
+    );
+    console.log(formatPokemonPricesReport(report));
+    return;
+  }
+
+  if (cmd === "items") {
+    // items index [--days N] | items extract — feed snapshots → source items → Pokémon entities (manual: groundwork for cross-source clustering)
+    const args = process.argv.slice(3);
+    const i = args.indexOf("--days");
+    if (args[0] === "index") {
+      console.log(formatIndexReport(await inPokebeachTransaction((db) => indexFeedItems(db, { days: i >= 0 ? Number(args[i + 1]) : 7 }))));
+      return;
+    }
+    if (args[0] === "extract") {
+      console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
+      return;
+    }
+    console.error("usage: items index [--days N] | items extract");
+    process.exit(1);
   }
 
   if (cmd === "pokebeach") {
@@ -381,6 +427,18 @@ async function main() {
           },
         },
         {
+          name: "pokemon-prices",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            // Daily PriceCharting guide for Binder wants and signal cards; idle without a token.
+            loadApiEnv();
+            void jitter(30 * 60 * 1000)
+              .then(() => inPokebeachTransaction((db) => runPokemonPrices(db)))
+              .then((r) => console.log(formatPokemonPricesReport(r)))
+              .catch((e) => console.error(`pokemon-prices failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "pokebeach-reconcile",
           everyMs: 24 * 60 * 60 * 1000,
           run: () => {
@@ -412,7 +470,7 @@ async function main() {
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news and items hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();

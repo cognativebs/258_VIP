@@ -41,6 +41,8 @@ export type GdeltItem = {
   body: string;
   sourceUrl: string | null;
   signalDate: string;
+  /** When GDELT first saw the article (seendate), not the outlet's publish time. */
+  seenAt: string | null;
   outlet: string | null;
   quarantineStatus: "active" | "quarantined";
 };
@@ -66,6 +68,12 @@ export function gdeltRequestUrl(endpoint: string, q: GdeltLaneQuery, opts: { max
 function seenDate(seendate: string | undefined, fallback: Date): string {
   const m = /^(\d{4})(\d{2})(\d{2})T/.exec(seendate ?? "");
   return m ? `${m[1]}-${m[2]}-${m[3]}` : fallback.toISOString().slice(0, 10);
+}
+
+/** "20261001T121500Z" → "2026-10-01T12:15:00.000Z". */
+function seenAt(seendate: string | undefined): string | null {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(seendate ?? "");
+  return m ? new Date(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!)).toISOString() : null;
 }
 
 export class GdeltDocAdapter {
@@ -120,6 +128,7 @@ export class GdeltDocAdapter {
           body: "Malformed GDELT article — quarantined",
           sourceUrl: url,
           signalDate: seenDate(a.seendate, fetchedAt),
+          seenAt: seenAt(a.seendate),
           outlet: a.domain ?? null,
           quarantineStatus: "quarantined",
         });
@@ -135,6 +144,7 @@ export class GdeltDocAdapter {
         body: a.domain ? `${title} (${a.domain})` : title,
         sourceUrl: url,
         signalDate: seenDate(a.seendate, fetchedAt),
+        seenAt: seenAt(a.seendate),
         outlet: a.domain ?? null,
         quarantineStatus: "active",
       });

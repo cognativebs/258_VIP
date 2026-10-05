@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { getPool } from "./db/client.js";
+import { buildSynthesized, SynthesizedQuerySchema } from "./lib/synthesized.js";
+import { buildPokemonFmv, PokemonFmvQuerySchema } from "./lib/pokemonFmv.js";
 import {
   buildDaily,
   DailyProfileNameSchema,
@@ -626,11 +628,63 @@ export function createApp(deps: AppDeps = {}) {
         .json({ error: e instanceof Error ? e.message : "vault_signals unavailable" });
     }
   };
+  app.get("/api/pokemon/fmv", async (req, res) => {
+    const parsed = PokemonFmvQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "expected ?externalId=<catalog id>&windowDays=<1-365>", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      res.json(await buildPokemonFmv(deps.signalsDb ?? getPool(), parsed.data));
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_market unavailable" });
+    }
+  });
+
+  app.get("/api/signals/synthesized", async (req, res) => {
+    const parsed = SynthesizedQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "expected ?at=<ISO>&includeNoise=true|false", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      res.json(
+        await buildSynthesized(deps.signalsDb ?? getPool(), {
+          at: parsed.data.at ? new Date(parsed.data.at) : undefined,
+          includeNoise: parsed.data.includeNoise === "true",
+          hunts: HUNTS,
+        }),
+      );
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_signals unavailable" });
+    }
+  });
+
   app.get("/api/signals/daily-sports", (req, res) => serveDaily("daily-sports", req, res));
   app.get("/api/signals/daily/:name", (req, res) => serveDaily(String(req.params.name), req, res));
 
-  app.get("/api/signals/context", (_req, res) => {
-    res.json(compactSignalsContext());
+  app.get("/api/signals/context", async (_req, res) => {
+    // Orchestr8's councils read this. Synthesized signals join with their proposals and exposure;
+    // if the spine is unreachable the feed context still goes out, and says so.
+    let synthesized: unknown = null;
+    try {
+      const s = await buildSynthesized(deps.signalsDb ?? getPool(), { hunts: HUNTS });
+      synthesized = {
+        notes: s.provenance.notes,
+        signals: s.signals.slice(0, 10).map((x) => ({
+          title: x.title,
+          theme: x.theme,
+          band: x.band,
+          independentSourceCount: x.independentSourceCount,
+          proposal: x.proposal,
+          exposure: { owned: x.exposure.owned, wishlist: x.exposure.wishlist, hunts: x.exposure.hunts },
+          evidence: x.evidence.map((e) => ({ title: e.title, outlet: e.outlet, url: e.url, at: e.at })),
+        })),
+      };
+    } catch (e) {
+      synthesized = { error: e instanceof Error ? e.message : "vault_signals unavailable", signals: [] };
+    }
+    res.json({ ...compactSignalsContext(), synthesized });
   });
 
   app.get("/api/signals/output", (_req, res) => {
