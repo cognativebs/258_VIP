@@ -94,6 +94,14 @@ try {
         ForEach-Object { Stop-PidTree ([int]$_.ProcessId) }
 } catch {}
 
+# Launcher windows are "cmd /k title IQVault ..." - closing by title misses some minimized
+# windows, and a window whose service already died stays open. Match the command line.
+try {
+    Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match '/k title IQVault ' } |
+        ForEach-Object { Stop-PidTree ([int]$_.ProcessId) }
+} catch {}
+
 Start-Sleep -Seconds 1
 $left = @()
 foreach ($port in $Ports) {
