@@ -50,3 +50,6 @@ services/api/user-constraints.json
 *.sqlite-wal
 *.sqlite-shm
 apps/binder-vault/.data/
+
+# PriceCharting nightly CSV gzips (hash-idempotent raw payloads)
+data/raw/pricecharting/

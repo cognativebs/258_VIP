@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PhaseDContextSchema } from "./phase-d.js";
 import { QuarantineStatusSchema, SignalTypeSchema } from "./signals.js";
 
 export const SIGNALS_CONTEXT_RULE = "signals-context@0.1.0";
@@ -28,6 +29,7 @@ export const SignalsContextSchema = z.object({
     verificationStatus: z.literal("unverified"),
     notes: z.string(),
   }),
+  phaseD: PhaseDContextSchema.optional(),
 });
 export type SignalsContext = z.infer<typeof SignalsContextSchema>;
 
