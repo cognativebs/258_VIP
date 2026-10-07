@@ -17,6 +17,11 @@ import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
 import { registerDealerKitRoutes } from "./routes/dealerKit.js";
+import { registerUnknownExitRoutes } from "./routes/unknownExit.js";
+import {
+  postgresUnknownExitStore,
+  type UnknownExitStore,
+} from "./lib/unknownExit.js";
 import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
   BINDER_WRITE_RULE,
@@ -176,6 +181,8 @@ export type AppDeps = {
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
   /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
   ebaySellService?: ReturnType<typeof createEbaySellService>;
+  /** Injectable so API tests do not need the unknown_exit table. */
+  unknownExitStore?: UnknownExitStore;
 };
 
 type InventoryBundle = {
@@ -436,6 +443,7 @@ export function createApp(deps: AppDeps = {}) {
     },
   });
   registerDealerKitRoutes(app);
+  registerUnknownExitRoutes(app, deps.unknownExitStore ?? postgresUnknownExitStore());
 
   const ebaySellService =
     deps.ebaySellService ??

@@ -14,6 +14,7 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from clz_delta import holding_is_active  # noqa: E402
+from unknown_exit import attach_unknown_exit  # noqa: E402
 
 HOLDINGS_SQL = """
 SELECT
@@ -284,6 +285,7 @@ def fetch_inventory(conn) -> tuple[list[dict], dict]:
     cur.close()
     rows = [row_from_holding(rec) for rec in recs if holding_is_active(rec)]
     meta = build_meta(rows, snapshot_label=_snapshot_label(conn, rows))
+    meta = attach_unknown_exit(conn, meta)
     return rows, meta
 
 

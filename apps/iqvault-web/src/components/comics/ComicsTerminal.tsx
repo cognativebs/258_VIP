@@ -32,7 +32,7 @@ import {
   waitForComicsInboxDrain,
 } from "@/lib/comicsClient";
 import { comicsTerminalSourceLabel } from "@/lib/comicsSourceLabel";
-import type { ComicFilters, ComicRow, ComicsMeta } from "@/lib/comicTypes";
+import type { ComicFilters, ComicRow, ComicsMeta, UnknownExitPayload } from "@/lib/comicTypes";
 import {
   CLZ_CLOUD_URL,
   CLZ_COLLECTOR_URL,
@@ -41,6 +41,8 @@ import {
 } from "@/lib/sourceDrop";
 import { BINDER_URL, ORCHESTR8_CONSOLE_URL } from "@/lib/api";
 import { AnalyticsChat } from "./AnalyticsChat";
+import { UnknownExitBanner } from "./UnknownExitBanner";
+import { moneyRange } from "@/lib/unknownExitPreview";
 
 const PAGE_SIZE = 50;
 
@@ -365,8 +367,17 @@ export function ComicsTerminal({
             <em>Value</em> {fmtMoney(filteredValue)}
           </span>
           <span>
-            <em>Total</em> {fmtMoney(meta?.totalValue)}
+            <em>Catalog</em> {fmtMoney(meta?.totalValue)}
           </span>
+          {meta?.unknownExit?.impact ? (
+            <span title="Physical remaining after unrecorded bulk exit — inferred · unverified">
+              <em>Physical</em>{" "}
+              {moneyRange(
+                meta.unknownExit.impact.physicalValueLow,
+                meta.unknownExit.impact.physicalValueHigh,
+              )}
+            </span>
+          ) : null}
           <span>
             <em>MUS</em> {dashboardStats.museumCount}
           </span>
@@ -390,6 +401,24 @@ export function ComicsTerminal({
           </button>
         </div>
       </div>
+
+      {!isPokemon ? (
+        <UnknownExitBanner
+          meta={meta}
+          onRecorded={(payload: UnknownExitPayload) => {
+            setMeta((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    unknownExit: payload,
+                    physicalValueLow: payload.impact?.physicalValueLow,
+                    physicalValueHigh: payload.impact?.physicalValueHigh,
+                  }
+                : prev,
+            );
+          }}
+        />
+      ) : null}
 
       <div className="bb-command">
         <span className="bb-prompt">Search</span>
