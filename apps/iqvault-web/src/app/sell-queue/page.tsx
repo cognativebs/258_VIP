@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { apiGet, type Holding } from "@/lib/api";
 
@@ -14,7 +13,7 @@ export default async function SellQueuePage() {
 
   return (
     <div className="shell">
-      <><Nav active="/sell-queue" />
+      <>
       <h1 className="page-title">Sell queue</h1>
       <p className="page-sub">
         Dealer + Investment items with High/Medium sell priority. Personal Collection is

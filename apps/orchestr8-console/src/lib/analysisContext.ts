@@ -164,6 +164,7 @@ export function buildAnalysisContext(
     quarantinedCount?: number;
     feedKind?: string;
     provenance?: { notes?: string; verificationStatus?: string };
+    phaseD?: unknown;
   } | null,
 ) {
   const filtered = applySlice(bundle.rows, slice);
@@ -259,6 +260,7 @@ export function buildAnalysisContext(
               signals.provenance?.notes ??
               "News is inferred · unverified RSS; not a market fact; do not invent comps from headlines.",
           },
+          phaseD: signals.phaseD ?? null,
         }
       : undefined,
   };

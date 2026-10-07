@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
 type Experiment = {
@@ -31,7 +30,6 @@ export default function EbayExperimentsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/ebay" />
       <h1 className="page-title">Selling experiments</h1>
       <p className="page-sub">
         First experiment: ~300 comparable $1–$5 cards, singles vs player lots vs team/set lots.

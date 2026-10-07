@@ -39,7 +39,8 @@ Detect emerging opportunities and risks early for Discovery Council.
 ## Inputs
 
 - Inventory + meta aggregates
-- Optional external feeds (future)
+- The `signals` slice on Analysis / Comics Ask context (`GET /api/signals/context`). Cite it. News is inferred · unverified RSS — not a market fact and not a sold comp.
+- PriceCharting market emitters are not live yet. Do not invent velocity, ask-vs-market, or cycle labels from headlines.
 - Hunt progress data
 
 ## Outputs

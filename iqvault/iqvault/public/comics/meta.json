@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-07-04T18:37:28.917496+00:00",
+  "snapshotLabel": "2026-07-04 CLZ Export",
+  "recordCount": 2700,
+  "totalQuantity": 2701.0,
+  "totalValue": 24238.0,
+  "museumCandidates": 76,
+  "highSellPriority": 1963,
+  "duplicates": 288,
+  "needsGrading": 94,
+  "needsVerification": 2684,
+  "pillars": [
+    {
+      "name": "General Inventory",
+      "count": 1044,
+      "value": 3640.0
+    },
+    {
+      "name": "Sci-Fi",
+      "count": 574,
+      "value": 3366.0
+    },
+    {
+      "name": "X-Men",
+      "count": 303,
+      "value": 3489.0
+    },
+    {
+      "name": "Batman",
+      "count": 295,
+      "value": 3781.0
+    },
+    {
+      "name": "First Appearances",
+      "count": 144,
+      "value": 3058.0
+    },
+    {
+      "name": "Spider-Man",
+      "count": 135,
+      "value": 4174.0
+    },
+    {
+      "name": "Superman",
+      "count": 58,
+      "value": 477.0
+    },
+    {
+      "name": "Investment Portfolio",
+      "count": 47,
+      "value": 1382.0
+    },
+    {
+      "name": "Cover Art & Favorite Artists",
+      "count": 45,
+      "value": 511.0
+    },
+    {
+      "name": "Good Girl / Risqué Covers",
+      "count": 44,
+      "value": 158.0
+    },
+    {
+      "name": "Bronze & Silver Age Keys",
+      "count": 9,
+      "value": 202.0
+    },
+    {
+      "name": "Absolute Universe",
+      "count": 2,
+      "value": 0.0
+    }
+  ],
+  "recommendations": {
+    "Sell / Lot Candidate": 1030,
+    "Verify then Lot": 844,
+    "Inventory Review": 490,
+    "Investment Hold / Review": 171,
+    "Sell Duplicate": 89,
+    "Museum Candidate": 76
+  },
+  "topLocations": [
+    {
+      "name": "Unassigned",
+      "count": 1480
+    },
+    {
+      "name": "High Value Bin",
+      "count": 148
+    },
+    {
+      "name": "X-Force, X-Men, X-O",
+      "count": 128
+    },
+    {
+      "name": "Thor, Unity, Venom, WW",
+      "count": 105
+    },
+    {
+      "name": "17",
+      "count": 32
+    },
+    {
+      "name": "5",
+      "count": 31
+    },
+    {
+      "name": "6",
+      "count": 31
+    },
+    {
+      "name": "4",
+      "count": 30
+    },
+    {
+      "name": "19",
+      "count": 30
+    },
+    {
+      "name": "3",
+      "count": 30
+    },
+    {
+      "name": "25",
+      "count": 29
+    },
+    {
+      "name": "29",
+      "count": 29
+    }
+  ],
+  "avgMuseumScore": 23.2,
+  "avgInvestmentScore": 14.8
+}

@@ -1,7 +1,13 @@
+import { loadLocalEnv } from "./loadEnv.js";
+import {
+  formatComicsBrowseWalkReport,
+  runComicsBrowseWalkJob,
+} from "./comics-browse-walk.js";
 import {
   formatEbayBrowseReport,
   runEbayBrowseCompsJob,
 } from "./ebay-browse-comps.js";
+import { formatClzDiffReport, runClzDiffJobAsync } from "./clz-diff.js";
 import { formatClzSyncReport, runClzSyncJobAsync } from "./clz-sync.js";
 import { formatDeltaReport, runPokemonDropsJobAsync } from "./pokemon-drops.js";
 import {
@@ -9,7 +15,13 @@ import {
   parseArgs as parsePriceHistoryArgs,
   runPriceHistoryJob,
 } from "./price-history.js";
+import {
+  formatPriceChartingSnapshotReport,
+  runPriceChartingSnapshotJob,
+} from "./pricecharting-snapshot.js";
 import { startScheduler } from "./scheduler.js";
+
+loadLocalEnv();
 
 const cmd = process.argv[2] ?? "pokemon-drops";
 
@@ -21,11 +33,27 @@ async function main() {
   }
 
   if (cmd === "ebay-browse-comps") {
+    const argv = process.argv.slice(3);
+    const hasQuery = argv.some((a) => a.startsWith("--query=")) || Boolean(process.env.VIP_EBAY_QUERY?.trim());
+    if (!hasQuery) {
+      const walk = await runComicsBrowseWalkJob({ resume: true, triggeredBy: "cli" });
+      console.log(formatComicsBrowseWalkReport(walk));
+      return;
+    }
     const result = await runEbayBrowseCompsJob({
       triggeredBy: "cli",
-      argv: process.argv.slice(3),
+      argv,
     });
     console.log(formatEbayBrowseReport(result));
+    return;
+  }
+
+  if (cmd === "clz-diff") {
+    const result = await runClzDiffJobAsync({
+      triggeredBy: "cli",
+      extraArgs: process.argv.slice(3),
+    });
+    console.log(formatClzDiffReport(result));
     return;
   }
 
@@ -45,6 +73,17 @@ async function main() {
       triggeredBy: "cli",
     });
     console.log(formatPriceHistoryReport(report));
+    return;
+  }
+
+  if (cmd === "pricecharting-snapshot") {
+    const csvFlag = process.argv.slice(3).find((a) => a.startsWith("--csv="));
+    const report = await runPriceChartingSnapshotJob({
+      triggeredBy: "cli",
+      csvPath: csvFlag ? csvFlag.slice("--csv=".length) : undefined,
+      dryRun: process.argv.includes("--dry-run"),
+    });
+    console.log(formatPriceChartingSnapshotReport(report));
     return;
   }
 
@@ -78,11 +117,38 @@ async function main() {
             });
           },
         },
+        {
+          name: "pricecharting-snapshot",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void runPriceChartingSnapshotJob({ triggeredBy: "schedule" }).then((report) => {
+              console.log(formatPriceChartingSnapshotReport(report));
+            });
+          },
+        },
+        {
+          name: "comics-browse-walk",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void runComicsBrowseWalkJob({ resume: true, triggeredBy: "schedule" }).then((result) => {
+              console.log(formatComicsBrowseWalkReport(result));
+            });
+          },
+        },
+        {
+          name: "clz-diff",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void runClzDiffJobAsync({ triggeredBy: "schedule" }).then((result) => {
+              console.log(formatClzDiffReport(result));
+            });
+          },
+        },
       ],
       { runImmediately: true },
     );
     console.log(
-      "Scheduler started (pokemon-drops hourly, clz-sync every 6h, price-history daily). Ctrl+C to stop.",
+      "Scheduler started (pokemon-drops hourly, clz-sync every 6h, price-history + pricecharting-snapshot + comics-browse-walk + clz-diff daily). Ctrl+C to stop.",
     );
     process.on("SIGINT", () => {
       handle.stop();

@@ -85,29 +85,28 @@ Then Analysis → wait for the **comps** pill (and **eBay** / **liquidation** pi
 or **Run** (Run always re-fetches). Do not liquidate until `liquidation` is
 `conditional` and the title is in `eligibleHoldingIds`.
 
-Walking the **whole** comics vault is a batched job, not an Analysis uncap —
-see [plan 0003](../plans/0003-comics-comps-vault-ingest.md). Collection Tab
-VALUE stays the CLZ snapshot. Browse asks land in `vault_market.listing_observation`,
-never in `vault_market.sale` and never over CLZ dollars.
+Walking the **whole** comics vault is the nightly Browse path. Analysis live
+comps may fan out up to 200 holdings; the walk covers every comic asset.
+Collection Tab VALUE stays the CLZ snapshot. Browse asks land in
+`vault_market.listing_observation`, never in `vault_market.sale` and never over
+CLZ dollars.
 
-## 5. Vault walk (Marvel / DC, then all)
+## 5. Vault walk (all publishers, nightly)
 
 Stop VIP is not required. From repo root in PowerShell (after `git pull` on `main`
 and a migrate so `listing_observation` exists):
 
 ```powershell
 cd D:\Projects\Business_Ideas\258_Labs\258_VIP
-npm run job:comics-comps -- --publishers=Marvel,DC --max-holdings=12
+npm run job:comics-comps -- --publishers=all --resume
 ```
 
-Expect a report with `processed` / `wrote` / `unmatched`. Resume the rest:
-
-```powershell
-npm run job:comics-comps -- --publishers=Marvel,DC --resume
-```
-
-Full comics vault (every publisher): `--publishers=all`. Ctrl+C pauses; `--resume`
-continues. Dry-run (`--dry-run`) fetches nothing into Postgres.
+Expect a report with `processed` / `wrote` / `unmatched` / `dailyCallCeiling`.
+`--max-holdings` is optional (tests / emergency slice only). Default publishers
+are `all`. Ctrl+C pauses; `--resume` continues. Dry-run (`--dry-run`) fetches
+nothing into Postgres. Nightly cap is 5,000 Browse searches
+(`VIP_EBAY_DAILY_CALL_CEILING`); the current vault is ~2,700 holdings, so one
+pass covers every asset.
 
 A future LIVE column is range + listing count + recency · unverified, beside
 VALUE, never instead of it.

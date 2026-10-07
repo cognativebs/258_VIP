@@ -29,7 +29,7 @@ export const SIGNALS_INGESTION = {
     "social_intensity",
   ],
   blocks: ["market_cycle_detector", "buy_opportunity_scanner"],
-  note: "Signals job feed and RSS adapter are wired. Phase 2 scoring stays blocked until signals_raw / signals_normalized are confirmed live — do not assume they are.",
+  note: "Signals job feed and RSS adapter are wired. vault_core.signals_raw / signals_normalized exist (20260917_02) but are not operator-confirmed live. Phase 2 scoring stays blocked — do not assume they are.",
 } as const;
 
 function jsonSafe<T>(value: T): T {

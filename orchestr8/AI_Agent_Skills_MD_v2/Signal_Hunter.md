@@ -7,6 +7,7 @@ Detect emerging opportunities and risks early for Discovery Council.
 - Scan for pattern breaks: LIQ vs price mismatch clusters, pillar drift, hunt near-completion arbitrage.
 - Propose watch hypotheses tied to segments (title, publisher, era).
 - Escalate strong signals to Market Intelligence for verification.
+- Cite the Analysis / Ask `signals` slice. News is inferred · unverified — not a sold comp. Do not invent PriceCharting velocity until market emitters are live.
 - Feed Acquisition Scout with "investigate now" list.
 - Note data limits when external feeds absent (internal-only mode).
 

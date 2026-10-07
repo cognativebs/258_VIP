@@ -1,5 +1,5 @@
 {
-  "workspace": "D:\\Projects\\Business_Ideas\\258_Labs\\IQVault",
+  "workspace": "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP",
   "description": "Post-restart background apps for AI / Cursor / VS Code / VIP tools. Edit this list anytime.",
   "apps": [
     {
@@ -21,9 +21,9 @@
       "group": "editors",
       "path": "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
       "processName": "Cursor",
-      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP"],
       "windowStyle": "Normal",
-      "notes": "Primary AI IDE for VIP / Orchestr8 work"
+      "notes": "Primary AI IDE for VIP / Orchestr8 work. Never open IQVault - ARCHIVED."
     },
     {
       "id": "vscode",
@@ -32,7 +32,7 @@
       "group": "editors",
       "path": "C:\\Program Files\\Microsoft VS Code\\Code.exe",
       "processName": "Code",
-      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "args": ["D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP"],
       "windowStyle": "Normal",
       "notes": "Enable if you want VS Code alongside Cursor"
     },
@@ -43,9 +43,9 @@
       "group": "shell",
       "path": "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\wt.exe",
       "processName": "WindowsTerminal",
-      "args": ["-d", "D:\\Projects\\Business_Ideas\\258_Labs\\IQVault"],
+      "args": ["-d", "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP"],
       "windowStyle": "Normal",
-      "notes": "Working shell in the IQVault repo"
+      "notes": "Working shell in 258_VIP (canonical). Never IQVault - ARCHIVED."
     },
     {
       "id": "notion",

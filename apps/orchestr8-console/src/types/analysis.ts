@@ -66,7 +66,7 @@ export const CATALOG_SNAPSHOT_NOTE = "catalog snapshot · unverified" as const;
 export const MIN_SALES_FOR_MARKET_EVIDENCE = 3;
 
 /** Bounded so Analysis cannot fire unbounded adapter fan-out. */
-export const ANALYSIS_COMPS_CAP = 12;
+export const ANALYSIS_COMPS_CAP = 200;
 
 export const CatalogSnapshotSchema = z.object({
   amount: z.number().nullable(),

@@ -1,0 +1,1225 @@
+{
+  "generatedAt": "2026-09-21T02:21:04.790398+00:00",
+  "dryRun": true,
+  "writes": "none \u2014 holding.location untouched, no listings, Phase 2 off",
+  "rates": {
+    "single": "13% FVF + $1.50 shipping per book",
+    "lot": "13% FVF + $8.00 media-mail per lot (target 12, max 20 books)",
+    "bulk": "13% FVF + $15.00 per 50-book pile",
+    "ebayHaircut": "median ask / 1.6 (observed ask/guide median 1.6)",
+    "guide": "PriceCharting baseline-eligible only, condition-matched",
+    "clz": "last resort, confidence 0.25"
+  },
+  "headlineNet": 6637.6,
+  "tenKReachableWithoutVault": false,
+  "reachableWithoutVault": 6637.6,
+  "saleBooks": 1476,
+  "vaultBooks": 417,
+  "gradeBooks": 2,
+  "holdBooks": 805,
+  "buckets": [
+    {
+      "disposition": "VAULT",
+      "books": 417,
+      "copies": 417,
+      "net": 0.0,
+      "effort": 0.0
+    },
+    {
+      "disposition": "GRADE",
+      "books": 2,
+      "copies": 2,
+      "net": 0.0,
+      "effort": 0.0
+    },
+    {
+      "disposition": "SELL_SINGLE",
+      "books": 23,
+      "copies": 23,
+      "net": 1096.7,
+      "effort": 47.68
+    },
+    {
+      "disposition": "SELL_LOT",
+      "books": 197,
+      "copies": 197,
+      "net": 1626.58,
+      "effort": 8.26
+    },
+    {
+      "disposition": "BULK",
+      "books": 1256,
+      "copies": 1257,
+      "net": 3914.32,
+      "effort": 3.12
+    },
+    {
+      "disposition": "HOLD",
+      "books": 805,
+      "copies": 805,
+      "net": 0.0,
+      "effort": 0.0
+    }
+  ],
+  "curveHits": {
+    "2000": 107,
+    "4000": 462,
+    "6000": 1067,
+    "8000": null,
+    "10000": null
+  },
+  "curvePoints": [
+    {
+      "n": 1,
+      "net": 107.25
+    },
+    {
+      "n": 10,
+      "net": 713.09
+    },
+    {
+      "n": 25,
+      "net": 1133.3
+    },
+    {
+      "n": 50,
+      "net": 1496.28
+    },
+    {
+      "n": 100,
+      "net": 1951.31
+    },
+    {
+      "n": 150,
+      "net": 2315.11
+    },
+    {
+      "n": 200,
+      "net": 2629.5
+    },
+    {
+      "n": 300,
+      "net": 3182.41
+    },
+    {
+      "n": 500,
+      "net": 4178.36
+    },
+    {
+      "n": 750,
+      "net": 5150.48
+    },
+    {
+      "n": 1000,
+      "net": 5847.35
+    },
+    {
+      "n": 1476,
+      "net": 6637.6
+    }
+  ],
+  "top100": {
+    "net": 1951.31,
+    "pctOfSale": 29.4,
+    "books": [
+      {
+        "name": "Treasure Chest of Fun and Fact, Vol. 22 #9",
+        "net": 107.25,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Nova, Vol. 4 Annual #1",
+        "net": 100.45,
+        "source": "ebay_ask",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Generations: Banner Hulk & Totally Awesome Hulk #1A (Regular Jorge Molina Cover)",
+        "net": 91.59,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Masks #2B (Jae Lee Cover)",
+        "net": 85.49,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "The United States of Captain America #1C (Incentive Nick Robles Variant Cover)",
+        "net": 77.67,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Draculina, Vol. 1 #1AA (Bird City Comics Ivan Tao Virgin Variant)",
+        "net": 58.37,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Thor: God of Thunder #21A (Esad Ribic Regular Cover)",
+        "net": 51.54,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Batman, Vol. 1 #429A (Direct Edition)",
+        "net": 48.96,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Invincible #75B (Ryan Ottley One Per Store Variant)",
+        "net": 48.46,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "The Maxx #2A (Direct Edition)",
+        "net": 43.31,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "W0rldtr33 #1AO (Las Vegas Con Exclusive Silver Foil Inhyuk Lee)",
+        "net": 42.0,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "X-Men, Vol. 1 #2A (Direct Edition)",
+        "net": 38.15,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Lady Death: Treacherous Infamy #1AJ (Ryan Brown)",
+        "net": 34.21,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Lady Death: Treacherous Infamy #1AH (Violet Editon Cover)",
+        "net": 34.21,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Wonder Woman, Vol. 1 #255A",
+        "net": 33.74,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "X-Men, Vol. 1 #15B (Polybagged with Trading Card (Direct Edition))",
+        "net": 30.94,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Ivar Timewalker #1B (Cvr B Molina)",
+        "net": 27.99,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "The Spirit, Vol. 1 (DC) #11",
+        "net": 26.78,
+        "source": "ebay_ask",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "The Death-Defying Doctor Mirage #1A (Cvr A Foreman)",
+        "net": 24.6,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "DMZ #3",
+        "net": 24.59,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Murder Drones #1A (Alessio Zonno Regular)",
+        "net": 22.94,
+        "source": "ebay_ask",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Q2: The Return of Quantum and Woody #1A (*)",
+        "net": 22.84,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "White Sky #1A (Jean Paul Mavinga Regular)",
+        "net": 20.62,
+        "source": "guide",
+        "disp": "SELL_SINGLE"
+      },
+      {
+        "name": "Infernal Hulk #2A (Nic Klein Regular)",
+        "net": 18.73,
+        "source": "guide",
+        "disp": "SELL_LOT"
+      },
+      {
+        "name": "Justice League, Vol. 1 #7C (Combo Pack)",
+        "net": 17.87,
+        "source": "guide",
+        "disp": "SELL_LOT"
+      }
+    ]
+  },
+  "confidenceSplit": {
+    "guide": {
+      "net": 4615.44,
+      "pct": 69.5
+    },
+    "ebay_ask": {
+      "net": 2022.16,
+      "pct": 30.5
+    }
+  },
+  "lots": [
+    {
+      "lotId": "LOT-AGEOFULTRON-01",
+      "kind": "series_run",
+      "label": "Age of Ultron",
+      "count": 6,
+      "gross": 58.58,
+      "net": 42.96,
+      "titles": [
+        "Age of Ultron #1A (Regular Bryan Hitch Foil Cover)",
+        "Age of Ultron #1A (Regular Bryan Hitch Foil Cover)",
+        "Age of Ultron #2A (Regular Bryan Hitch Cover)",
+        "Age of Ultron #2B (B)",
+        "Age of Ultron #9A (Regular Carlos Pacheco Cover)",
+        "Age of Ultron #9A (Regular Carlos Pacheco Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-ALLNEWXMENVOL1-01",
+      "kind": "series_run",
+      "label": "All-New X-Men, Vol. 1",
+      "count": 3,
+      "gross": 36.1,
+      "net": 23.41,
+      "titles": [
+        "All-New X-Men, Vol. 1 #2A (Regular Stuart Immonen Cover)",
+        "All-New X-Men, Vol. 1 #7A (Regular Stuart Immonen Cover)",
+        "All-New X-Men, Vol. 1 #27A (Regular Stuart Immonen Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-AVENGERSVSXMEN-01",
+      "kind": "series_run",
+      "label": "Avengers vs. X-Men",
+      "count": 4,
+      "gross": 68.86,
+      "net": 51.91,
+      "titles": [
+        "Avengers vs. X-Men #6A (Regular Jim Cheung Cover)",
+        "Avengers vs. X-Men #9A (Regular Jim Cheung Cover)",
+        "Avengers vs. X-Men #10A (Regular Jim Cheung Cover)",
+        "Avengers vs. X-Men #12A (Regular Jim Cheung Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-BATMAN66-01",
+      "kind": "series_run",
+      "label": "Batman '66",
+      "count": 4,
+      "gross": 34.88,
+      "net": 22.35,
+      "titles": [
+        "Batman '66 #2A (Michael Allred Regular Cover)",
+        "Batman '66 #3A",
+        "Batman '66 #5A",
+        "Batman '66 #22"
+      ]
+    },
+    {
+      "lotId": "LOT-BATMANTHERETURNOFB-01",
+      "kind": "series_run",
+      "label": "Batman: The Return of Bruce Wayne",
+      "count": 3,
+      "gross": 25.46,
+      "net": 14.15,
+      "titles": [
+        "Batman: The Return of Bruce Wayne #1A (Andy Kubert Regular Cover)",
+        "Batman: The Return of Bruce Wayne #1B (B)",
+        "Batman: The Return of Bruce Wayne #6A (Andy Kubert Regular Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-BATMANTHREEJOKERS2-01",
+      "kind": "series_run",
+      "label": "Batman: Three Jokers (2020)",
+      "count": 3,
+      "gross": 33.61,
+      "net": 21.24,
+      "titles": [
+        "Batman: Three Jokers (2020) #1A (Regular Jason Fabok Joker Cover)",
+        "Batman: Three Jokers (2020) #1F (Fish Variant)",
+        "Batman: Three Jokers (2020) #3A (Regular Jason Fabok Joker Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-BATMANVOL2-01",
+      "kind": "series_run",
+      "label": "Batman, Vol. 2",
+      "count": 3,
+      "gross": 30.0,
+      "net": 18.1,
+      "titles": [
+        "Batman, Vol. 2 #38A",
+        "Batman, Vol. 2 #38B (Flash 75th Anniversary)",
+        "Batman, Vol. 2 #38C (Andy Kubert Variant Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-CAPTAINBRITAINANDM-01",
+      "kind": "series_run",
+      "label": "Captain Britain and MI:13",
+      "count": 3,
+      "gross": 23.72,
+      "net": 12.64,
+      "titles": [
+        "Captain Britain and MI:13 #1C (2nd Printing Kirk Variant)",
+        "Captain Britain and MI:13 #1D (3rd Printing Bryan Hitch Sketch Variant Cover)",
+        "Captain Britain and MI:13 #10"
+      ]
+    },
+    {
+      "lotId": "LOT-DEADPOOLKILLSTHEMA-01",
+      "kind": "series_run",
+      "label": "Deadpool Kills the Marvel Universe",
+      "count": 3,
+      "gross": 34.49,
+      "net": 22.01,
+      "titles": [
+        "Deadpool Kills the Marvel Universe #1A",
+        "Deadpool Kills the Marvel Universe #2A",
+        "Deadpool Kills the Marvel Universe #4"
+      ]
+    },
+    {
+      "lotId": "LOT-HARLEEN-01",
+      "kind": "series_run",
+      "label": "Harleen",
+      "count": 4,
+      "gross": 51.82,
+      "net": 37.08,
+      "titles": [
+        "Harleen #2A (Regular Stjepan Sejic Cover)",
+        "Harleen #2B (Variant Stjepan Sejic Cover)",
+        "Harleen #3A (Regular Stjepan Sejic Cover)",
+        "Harleen #3B (Variant Stjepan Sejic Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-INCREDIBLEHERCULES-01",
+      "kind": "series_run",
+      "label": "Incredible Hercules",
+      "count": 3,
+      "gross": 28.75,
+      "net": 17.01,
+      "titles": [
+        "Incredible Hercules #113A",
+        "Incredible Hercules #114A",
+        "Incredible Hercules #128A (David Williams Regular Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-JUSTICELEAGUEVOL1-01",
+      "kind": "series_run",
+      "label": "Justice League, Vol. 1",
+      "count": 3,
+      "gross": 70.83,
+      "net": 53.62,
+      "titles": [
+        "Justice League, Vol. 1 #7A (Jim Lee Regular Cover)",
+        "Justice League, Vol. 1 #7A (Jim Lee Regular Cover)",
+        "Justice League, Vol. 1 #7C (Combo Pack)"
+      ]
+    },
+    {
+      "lotId": "LOT-MASKS-01",
+      "kind": "series_run",
+      "label": "Masks",
+      "count": 5,
+      "gross": 67.35,
+      "net": 50.59,
+      "titles": [
+        "Masks #3A",
+        "Masks #4A (Alex Ross Cover)",
+        "Masks #5C (Stephen Segovia Cover)",
+        "Masks #6D (Sean Chen Cover)",
+        "Masks #8C (Stephen Segovia C Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-NOVAVOL4-01",
+      "kind": "series_run",
+      "label": "Nova, Vol. 4",
+      "count": 3,
+      "gross": 41.13,
+      "net": 27.78,
+      "titles": [
+        "Nova, Vol. 4 #8",
+        "Nova, Vol. 4 #31",
+        "Nova, Vol. 4 #34A (Brandon Peterson Regular Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-THEIMMORTALHULK-01",
+      "kind": "series_run",
+      "label": "The Immortal Hulk",
+      "count": 3,
+      "gross": 26.31,
+      "net": 14.89,
+      "titles": [
+        "The Immortal Hulk #43A (Alex Ross regular)",
+        "The Immortal Hulk #43A (Alex Ross regular)",
+        "The Immortal Hulk #43A (Alex Ross regular)"
+      ]
+    },
+    {
+      "lotId": "LOT-THEMANHATTANPROJEC-01",
+      "kind": "series_run",
+      "label": "The Manhattan Projects",
+      "count": 3,
+      "gross": 38.1,
+      "net": 25.15,
+      "titles": [
+        "The Manhattan Projects #3A",
+        "The Manhattan Projects #4A",
+        "The Manhattan Projects #7"
+      ]
+    },
+    {
+      "lotId": "LOT-THESPIRITVOL1DC-01",
+      "kind": "series_run",
+      "label": "The Spirit, Vol. 1 (DC)",
+      "count": 3,
+      "gross": 33.36,
+      "net": 21.02,
+      "titles": [
+        "The Spirit, Vol. 1 (DC) #3",
+        "The Spirit, Vol. 1 (DC) #6",
+        "The Spirit, Vol. 1 (DC) #25"
+      ]
+    },
+    {
+      "lotId": "LOT-UNITYVOL2-01",
+      "kind": "series_run",
+      "label": "Unity, Vol. 2",
+      "count": 7,
+      "gross": 70.19,
+      "net": 53.07,
+      "titles": [
+        "Unity, Vol. 2 #3A (Cvr A Braithwaite)",
+        "Unity, Vol. 2 #6A (Cvr A Crain)",
+        "Unity, Vol. 2 #10A (Cvr A Suayan | Reber)",
+        "Unity, Vol. 2 #12A (Cvr A Level)",
+        "Unity, Vol. 2 #13A (Cvr A CAFU)",
+        "Unity, Vol. 2 #16B (Cvr B Ryp)",
+        "Unity, Vol. 2 #18A (Cvr A Perez | Baron)"
+      ]
+    },
+    {
+      "lotId": "LOT-XMENGOLDVOL2-01",
+      "kind": "series_run",
+      "label": "X-Men: Gold, Vol. 2",
+      "count": 4,
+      "gross": 54.36,
+      "net": 39.29,
+      "titles": [
+        "X-Men: Gold, Vol. 2 #3A (Regular Ardian Syaf Cover)",
+        "X-Men: Gold, Vol. 2 #3A (Regular Ardian Syaf Cover)",
+        "X-Men: Gold, Vol. 2 #3A (Regular Ardian Syaf Cover)",
+        "X-Men: Gold, Vol. 2 #4A"
+      ]
+    },
+    {
+      "lotId": "LOT-SUPERMAN-01",
+      "kind": "character_pillar",
+      "label": "Superman mix",
+      "count": 6,
+      "gross": 57.59,
+      "net": 42.1,
+      "titles": [
+        "Action Comics, Vol. 1 #900C (Alex Ross Variant Cover)",
+        "Adventures of Superman, Vol. 2 #14B (2nd Printing)",
+        "Adventures of Superman, Vol. 2 #16",
+        "Superman Unchained #5B (Jim Lee Sketch Cover)",
+        "Superman Unchained #6B (Incentive Jim Lee Sketch Cover)",
+        "Superman, Vol. 2 #75A (Black Bag Memorial Edition)"
+      ]
+    },
+    {
+      "lotId": "LOT-GENERALINVENTO-01",
+      "kind": "character_pillar",
+      "label": "General Inventory mix (part 1)",
+      "count": 12,
+      "gross": 115.11,
+      "net": 92.15,
+      "titles": [
+        "Agents of Atlas, Vol. 1 #2",
+        "American Splendor #1 (First Printing)",
+        "American Splendor #1 (First Printing)",
+        "Annihilators Earthfall #3",
+        "Ares #3",
+        "Armor Wars #1A (Paul Rivoche Regular Cover)",
+        "Before Watchmen: Comedian #3A (J.G. Jones Regular Cover)",
+        "Before Watchmen: Minutemen #3A (Darwyn Cooke Regular Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-GENERALINVENTO-02",
+      "kind": "character_pillar",
+      "label": "General Inventory mix (part 2)",
+      "count": 12,
+      "gross": 120.16,
+      "net": 96.54,
+      "titles": [
+        "D'Orc #2A (Brett Bean Regular)",
+        "DC Comics Presents Shazam #2",
+        "Dark Nights: Metal #3A (Regular Greg Capullo & Jonathan Glapion Foil-Stamped Cover)",
+        "Doomsday Clock #2B (Gary Frank Variant Cover)",
+        "Doomsday Clock #2C (2nd Printing)",
+        "Fight Man, Vol. 1 #1",
+        "Generations: The Unworthy Thor & The Mighty Thor #1A (Regular Mahmud Asrar Cover)",
+        "Groo Vs Conan #2"
+      ]
+    },
+    {
+      "lotId": "LOT-GENERALINVENTO-03",
+      "kind": "character_pillar",
+      "label": "General Inventory mix (part 3)",
+      "count": 12,
+      "gross": 142.22,
+      "net": 115.73,
+      "titles": [
+        "Howard the Duck, Vol. 4 #3A (Regular Joe Quinones Cover)",
+        "Indestructible Hulk #12A (Regular Mukesh Singh Cover)",
+        "Infernal Hulk #2A (Nic Klein Regular)",
+        "Infinity Gauntlet #6",
+        "Infinity Gauntlet, Vol. 2 #5 (Dustin Weaver Regular Cover)",
+        "Infinity Gauntlet, Vol. 2 #5 (Dustin Weaver Regular Cover)",
+        "Injustice: Gods Among Us #7 (Mico Suayan Cover)",
+        "Irredeemable #1G (Artist Edition)"
+      ]
+    },
+    {
+      "lotId": "LOT-GENERALINVENTO-04",
+      "kind": "character_pillar",
+      "label": "General Inventory mix (part 4)",
+      "count": 12,
+      "gross": 123.69,
+      "net": 99.61,
+      "titles": [
+        "Mantra, Vol. 1 #1A (Direct)",
+        "Marvel Illustrated: The Iliad #1",
+        "Marvel's Avengers: Infinity War Prelude #1",
+        "Marvel's Avengers: Infinity War Prelude #2",
+        "Murder Drones #2A (Alessio Zonno Regular)",
+        "Nectar #1A (Chris Shehan Regular)",
+        "Nova: Origin of Richard Rider #1",
+        "Nova: Origin of Richard Rider #1"
+      ]
+    },
+    {
+      "lotId": "LOT-GENERALINVENTO-05",
+      "kind": "character_pillar",
+      "label": "General Inventory mix (part 5)",
+      "count": 16,
+      "gross": 179.43,
+      "net": 148.1,
+      "titles": [
+        "Protectors #5",
+        "Punk Rock Jesus #1",
+        "Secret Avengers, Vol. 1 #3A (Marko Djurdjevic Regular Cover)",
+        "Starcraft #0 (Federico Dallocchio Regular Cover)",
+        "Thanos: The Final Threat #1",
+        "The Big Lie #1",
+        "The Incredible Hulk, Vol. 2 #49",
+        "The Multiversity: Pax Americana #1A (Frank Quitely Regular Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-SCIFI-01",
+      "kind": "character_pillar",
+      "label": "Sci-Fi mix (part 1)",
+      "count": 12,
+      "gross": 122.82,
+      "net": 98.85,
+      "titles": [
+        "Annihilation: Nova #1",
+        "Annihilators #4A",
+        "Black Panther, Vol. 4 #8A",
+        "Captain America: Steve Rogers #1G (Hip-Hop Variant Cover)",
+        "Captain America: Steve Rogers #16A (Regular Daniel Acuna Cover)",
+        "Django Unchained #5A (Frank Quitely Regular Cover)",
+        "Guardians of the Galaxy, Vol. 2 #16",
+        "Guardians of the Galaxy, Vol. 3 #22"
+      ]
+    },
+    {
+      "lotId": "LOT-SCIFI-02",
+      "kind": "character_pillar",
+      "label": "Sci-Fi mix (part 2)",
+      "count": 13,
+      "gross": 143.24,
+      "net": 116.62,
+      "titles": [
+        "Marvel 75th Anniversary Celebration #1",
+        "Prometheus: Fire and Stone #1A (Regular Cover)",
+        "Quantum & Woody, Vol. 2 #11A (Cvr A Kano)",
+        "Scalped #60",
+        "Silver Surfer, Vol. 3 #24",
+        "Silver Surfer, Vol. 3 #50A (1st Print)",
+        "Star Trek: New Visions #1 (John Byrne Photo Cover)",
+        "Star Trek: New Visions #1 (John Byrne Photo Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-BATMAN-01",
+      "kind": "character_pillar",
+      "label": "Batman mix",
+      "count": 15,
+      "gross": 148.45,
+      "net": 121.15,
+      "titles": [
+        "Batgirl, Vol. 4 #40A",
+        "Batgirl, Vol. 4 #41A (Cameron Stewart Regular Cover)",
+        "Batman '66 Meets The Green Hornet #5",
+        "Batman '66 Meets The Green Hornet #6",
+        "Batman Arkham Knight: Genesis #1A",
+        "Batman Zero Year Director's Cut #1 (Directors Cut)",
+        "Batman, Vol. 1 #426B (Newsstand Edition)",
+        "Batman: Black & White, Vol. 2 #6"
+      ]
+    },
+    {
+      "lotId": "LOT-XMEN-01",
+      "kind": "character_pillar",
+      "label": "X-Men mix",
+      "count": 7,
+      "gross": 76.69,
+      "net": 58.72,
+      "titles": [
+        "Deadpool Kills Deadpool #1A",
+        "Deadpool Killustrated #1B (Second Printing)",
+        "Deadpool, Vol. 4 #5A (Geof Darrow Regular Cover)",
+        "Deadpool, Vol. 4 #22",
+        "Mythos: X-Men #1",
+        "Uncanny X-Men, Vol. 3 #13A (Regular Ed McGuinness Cover)",
+        "Uncanny X-Men, Vol. 3 #21A (Regular Alexander Lozano Cover)"
+      ]
+    },
+    {
+      "lotId": "LOT-SPIDERMAN-01",
+      "kind": "character_pillar",
+      "label": "Spider-Man mix",
+      "count": 3,
+      "gross": 34.91,
+      "net": 22.37,
+      "titles": [
+        "Edge of Venomverse #2A (Regular Francesco Mattina Cover)",
+        "The Amazing Spider-Man, Vol. 1 #314B (Newsstand Edition)",
+        "Ultimate Avengers vs. New Ultimates #1A"
+      ]
+    },
+    {
+      "lotId": "LOT-GOODGIRLRISQUC-01",
+      "kind": "character_pillar",
+      "label": "Good Girl / Risqu\u00e9 Covers mix",
+      "count": 3,
+      "gross": 27.12,
+      "net": 15.59,
+      "titles": [
+        "The Invincible Red Sonja #7J (Incentive Carla Cohen Virgin Variant Cover)",
+        "The Invincible Red Sonja #7T (Bonus FOC Ultraviolet Carla Cohen Virgin Cover)",
+        "X-O Manowar, Vol. 3 #25B (Cvr B Hitch)"
+      ]
+    },
+    {
+      "lotId": "LOT-MIXED-01",
+      "kind": "mixed",
+      "label": "Mixed remaining 1",
+      "count": 4,
+      "gross": 44.69,
+      "net": 30.88,
+      "titles": [
+        "A-Babies vs. X-Babies #1A (Regular Skottie Young Cover)",
+        "Biker Mice from Mars #1",
+        "Dark Nights: Metal #3C (Jim Lee Variant Cover)",
+        "Plop #22"
+      ]
+    }
+  ],
+  "bulkPiles": [
+    {
+      "pileId": "PILE-01",
+      "count": 50,
+      "gross": 349.2,
+      "net": 288.8
+    },
+    {
+      "pileId": "PILE-02",
+      "count": 50,
+      "gross": 323.11,
+      "net": 266.11
+    },
+    {
+      "pileId": "PILE-03",
+      "count": 50,
+      "gross": 312.02,
+      "net": 256.46
+    },
+    {
+      "pileId": "PILE-04",
+      "count": 50,
+      "gross": 312.0,
+      "net": 256.44
+    },
+    {
+      "pileId": "PILE-05",
+      "count": 50,
+      "gross": 301.19,
+      "net": 247.04
+    },
+    {
+      "pileId": "PILE-06",
+      "count": 50,
+      "gross": 279.16,
+      "net": 227.87
+    },
+    {
+      "pileId": "PILE-07",
+      "count": 50,
+      "gross": 260.42,
+      "net": 211.57
+    },
+    {
+      "pileId": "PILE-08",
+      "count": 50,
+      "gross": 249.64,
+      "net": 202.19
+    },
+    {
+      "pileId": "PILE-09",
+      "count": 50,
+      "gross": 238.81,
+      "net": 192.76
+    },
+    {
+      "pileId": "PILE-10",
+      "count": 50,
+      "gross": 221.76,
+      "net": 177.93
+    },
+    {
+      "pileId": "PILE-11",
+      "count": 50,
+      "gross": 205.93,
+      "net": 164.16
+    },
+    {
+      "pileId": "PILE-12",
+      "count": 50,
+      "gross": 196.59,
+      "net": 156.03
+    },
+    {
+      "pileId": "PILE-13",
+      "count": 50,
+      "gross": 183.99,
+      "net": 145.07
+    },
+    {
+      "pileId": "PILE-14",
+      "count": 50,
+      "gross": 171.77,
+      "net": 134.44
+    },
+    {
+      "pileId": "PILE-15",
+      "count": 50,
+      "gross": 160.59,
+      "net": 124.71
+    },
+    {
+      "pileId": "PILE-16",
+      "count": 50,
+      "gross": 154.33,
+      "net": 119.27
+    },
+    {
+      "pileId": "PILE-17",
+      "count": 50,
+      "gross": 148.79,
+      "net": 114.45
+    },
+    {
+      "pileId": "PILE-18",
+      "count": 50,
+      "gross": 142.32,
+      "net": 108.82
+    },
+    {
+      "pileId": "PILE-19",
+      "count": 50,
+      "gross": 132.02,
+      "net": 99.86
+    },
+    {
+      "pileId": "PILE-20",
+      "count": 50,
+      "gross": 124.5,
+      "net": 93.32
+    },
+    {
+      "pileId": "PILE-21",
+      "count": 50,
+      "gross": 115.37,
+      "net": 85.37
+    },
+    {
+      "pileId": "PILE-22",
+      "count": 50,
+      "gross": 102.69,
+      "net": 74.34
+    },
+    {
+      "pileId": "PILE-23",
+      "count": 50,
+      "gross": 96.24,
+      "net": 68.73
+    },
+    {
+      "pileId": "PILE-24",
+      "count": 50,
+      "gross": 86.7,
+      "net": 60.43
+    },
+    {
+      "pileId": "PILE-25",
+      "count": 50,
+      "gross": 60.72,
+      "net": 37.83
+    },
+    {
+      "pileId": "PILE-26",
+      "count": 6,
+      "gross": 3.99,
+      "net": 0.0
+    }
+  ],
+  "boxes": [
+    {
+      "boxId": "VAULT-01",
+      "count": 417,
+      "floor": 150,
+      "underFloor": false,
+      "overpackRecommend": true,
+      "net": 0.0,
+      "disposition": "VAULT"
+    },
+    {
+      "boxId": "HOLD-01",
+      "count": 807,
+      "floor": 150,
+      "underFloor": false,
+      "overpackRecommend": true,
+      "net": 0.0,
+      "disposition": "GRADE"
+    },
+    {
+      "boxId": "SELL-S-01",
+      "count": 23,
+      "floor": 150,
+      "underFloor": true,
+      "overpackRecommend": false,
+      "net": 1096.7,
+      "disposition": "SELL_SINGLE"
+    },
+    {
+      "boxId": "SELL-S-02",
+      "count": 0,
+      "floor": 150,
+      "underFloor": true,
+      "overpackRecommend": false,
+      "net": 0.0,
+      "disposition": null
+    },
+    {
+      "boxId": "SELL-L-01",
+      "count": 150,
+      "floor": 150,
+      "underFloor": false,
+      "overpackRecommend": false,
+      "net": 1244.03,
+      "disposition": "SELL_LOT"
+    },
+    {
+      "boxId": "SELL-L-02",
+      "count": 47,
+      "floor": 150,
+      "underFloor": true,
+      "overpackRecommend": false,
+      "net": 382.55,
+      "disposition": "SELL_LOT"
+    }
+  ],
+  "fit": [
+    {
+      "bucket": "VAULT",
+      "books": 417,
+      "net": 0.0,
+      "boxes": 1,
+      "floorTotal": 150,
+      "softCap": 220,
+      "fits": false,
+      "overflowBooks": 197,
+      "overflowNet": 0.0,
+      "recommendExtraBoxes": 1,
+      "under60": false,
+      "underFloor": false,
+      "note": "Buy 1 more box(es) rather than overpack."
+    },
+    {
+      "bucket": "HOLD+GRADE",
+      "books": 807,
+      "net": 0.0,
+      "boxes": 1,
+      "floorTotal": 150,
+      "softCap": 220,
+      "fits": false,
+      "overflowBooks": 587,
+      "overflowNet": 0.0,
+      "recommendExtraBoxes": 3,
+      "under60": false,
+      "underFloor": false,
+      "note": "Buy 3 more box(es) rather than overpack."
+    },
+    {
+      "bucket": "SELL_SINGLE",
+      "books": 23,
+      "net": 1096.7,
+      "boxes": 2,
+      "floorTotal": 300,
+      "softCap": 440,
+      "fits": true,
+      "overflowBooks": 0,
+      "overflowNet": 0.0,
+      "recommendExtraBoxes": 0,
+      "under60": false,
+      "underFloor": true,
+      "note": "Under 150 floor \u2014 box still assigned, not padded."
+    },
+    {
+      "bucket": "SELL_LOT",
+      "books": 197,
+      "net": 1626.58,
+      "boxes": 2,
+      "floorTotal": 300,
+      "softCap": 440,
+      "fits": true,
+      "overflowBooks": 0,
+      "overflowNet": 0.0,
+      "recommendExtraBoxes": 0,
+      "under60": false,
+      "underFloor": false,
+      "note": "Fits allocated boxes (150 floor, overflow allowed up to ~220/box)."
+    },
+    {
+      "bucket": "BULK",
+      "books": 1256,
+      "net": 3914.32,
+      "boxes": 0,
+      "fits": true,
+      "overflowBooks": 1256,
+      "overflowNet": 3914.32,
+      "recommendExtraBoxes": 0,
+      "note": "No box \u2014 loose pile by design."
+    }
+  ],
+  "vaultUnder60": false,
+  "vaultCount": 417,
+  "looseShelves": {
+    "SHELF-BULK-01": 80,
+    "SHELF-BULK-02": 80,
+    "SHELF-BULK-03": 80,
+    "SHELF-BULK-04": 80,
+    "SHELF-BULK-05": 80,
+    "SHELF-BULK-06": 80,
+    "SHELF-BULK-07": 80,
+    "SHELF-BULK-08": 80,
+    "SHELF-BULK-09": 80,
+    "SHELF-BULK-10": 80,
+    "SHELF-BULK-11": 80,
+    "SHELF-BULK-12": 80,
+    "SHELF-BULK-13": 80,
+    "SHELF-BULK-14": 80,
+    "SHELF-BULK-15": 80,
+    "SHELF-BULK-16": 56
+  },
+  "locationScheme": {
+    "boxed": "VAULT-01, HOLD-01, SELL-S-01/02, SELL-L-01/02",
+    "bulk": "SHELF-BULK-NN, 80 books per shelf string, never mixed with sale/vault",
+    "overflow": "If a bucket needs another box, do not silently put overflow on a mixed shelf"
+  },
+  "p98Comics": [
+    {
+      "assetId": "ca856cde-c86e-4b65-8f61-f53488710a6a",
+      "name": "The Amazing Spider-Man, Vol. 1 #90",
+      "holdings": 1,
+      "disposition": "GRADE"
+    },
+    {
+      "assetId": "5a70f269-5064-439e-8f24-f386858b6709",
+      "name": "The Amazing Spider-Man, Vol. 1 #301A (Direct Edition)",
+      "holdings": 1,
+      "disposition": "GRADE"
+    },
+    {
+      "assetId": "61ca95cb-8df6-4a77-a73d-930707013a46",
+      "name": "Captain America Living Legend #2A",
+      "holdings": 0,
+      "disposition": "NOT_IN_COMICS"
+    }
+  ],
+  "p98TcgExcluded": [
+    {
+      "assetId": "5bdeeea0-732b-486a-8f41-199baaf34783",
+      "name": "XY Black Star Promos #XY76 Zekrom",
+      "disposition": "OUT_OF_SCOPE_TCG"
+    },
+    {
+      "assetId": "46980eaf-fc98-42a7-a73d-930707013a46",
+      "name": "Pitch Black #120 Mega Darkrai ex",
+      "disposition": "OUT_OF_SCOPE_TCG"
+    }
+  ],
+  "labels": [
+    {
+      "boxId": "VAULT-01",
+      "barcode": "VAULT-01",
+      "symbology": "CODE128",
+      "title": "VAULT \u2014 museum, pillar keys, graded"
+    },
+    {
+      "boxId": "HOLD-01",
+      "barcode": "HOLD-01",
+      "symbology": "CODE128",
+      "title": "HOLD/GRADE \u2014 p98 + unmatched/no source"
+    },
+    {
+      "boxId": "SELL-S-01",
+      "barcode": "SELL-S-01",
+      "symbology": "CODE128",
+      "title": "SELL SINGLE 1 \u2014 net \u2265 $20"
+    },
+    {
+      "boxId": "SELL-S-02",
+      "barcode": "SELL-S-02",
+      "symbology": "CODE128",
+      "title": "SELL SINGLE 2 \u2014 net \u2265 $20"
+    },
+    {
+      "boxId": "SELL-L-01",
+      "barcode": "SELL-L-01",
+      "symbology": "CODE128",
+      "title": "SELL LOT 1 \u2014 packed by lot"
+    },
+    {
+      "boxId": "SELL-L-02",
+      "barcode": "SELL-L-02",
+      "symbology": "CODE128",
+      "title": "SELL LOT 2 \u2014 packed by lot"
+    }
+  ],
+  "pickListCount": 2700,
+  "totalComics": 2700,
+  "pillarMix": {
+    "General Inventory": {
+      "BULK": 648,
+      "HOLD": 307,
+      "SELL_LOT": 81,
+      "SELL_SINGLE": 8
+    },
+    "Sci-Fi": {
+      "HOLD": 258,
+      "BULK": 249,
+      "VAULT": 9,
+      "SELL_LOT": 51,
+      "SELL_SINGLE": 7
+    },
+    "X-Men": {
+      "HOLD": 77,
+      "VAULT": 60,
+      "BULK": 143,
+      "SELL_LOT": 21,
+      "SELL_SINGLE": 2
+    },
+    "Batman": {
+      "BULK": 135,
+      "SELL_LOT": 28,
+      "HOLD": 62,
+      "VAULT": 69,
+      "SELL_SINGLE": 1
+    },
+    "First Appearances": {
+      "VAULT": 144
+    },
+    "Spider-Man": {
+      "HOLD": 17,
+      "BULK": 38,
+      "VAULT": 75,
+      "SELL_LOT": 3,
+      "GRADE": 2
+    },
+    "Superman": {
+      "VAULT": 12,
+      "SELL_LOT": 6,
+      "HOLD": 23,
+      "BULK": 17
+    },
+    "Investment Portfolio": {
+      "BULK": 3,
+      "HOLD": 7,
+      "SELL_LOT": 1,
+      "VAULT": 36
+    },
+    "Cover Art & Favorite Artists": {
+      "SELL_LOT": 2,
+      "HOLD": 24,
+      "BULK": 12,
+      "VAULT": 7
+    },
+    "Good Girl / Risqu\u00e9 Covers": {
+      "VAULT": 4,
+      "HOLD": 28,
+      "SELL_SINGLE": 3,
+      "BULK": 6,
+      "SELL_LOT": 3
+    },
+    "Bronze & Silver Age Keys": {
+      "BULK": 4,
+      "VAULT": 1,
+      "SELL_LOT": 1,
+      "HOLD": 1,
+      "SELL_SINGLE": 2
+    },
+    "Absolute Universe": {
+      "BULK": 1,
+      "HOLD": 1
+    }
+  }
+}

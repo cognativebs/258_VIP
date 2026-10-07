@@ -39,6 +39,17 @@ export const COLLECTIONS: CollectionDef[] = [
   },
 ];
 
+export function isNeedBinderHolding(h: Pick<Holding, "pillar">): boolean {
+  return (h.pillar ?? "").includes("Need (Binder)");
+}
+
+/** Portfolio stat: owned rows still flagged. Need Binder is a hunt, not verification debt. */
+export function ownedNeedsVerificationCount(
+  holdings: Array<Pick<Holding, "needsVerification" | "pillar">>,
+): number {
+  return holdings.filter((h) => h.needsVerification && !isNeedBinderHolding(h)).length;
+}
+
 export function isTcgHolding(h: Holding): boolean {
   return (
     h.id.startsWith("binder-slot-") ||

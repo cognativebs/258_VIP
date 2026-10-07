@@ -1,0 +1,39 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif&display=swap");
+
+/* Extracted from the VIP shell canvas. Components consume variables only. */
+:root {
+  --vip-ground: #14120f;
+  --vip-surface: #1a1713;
+  --vip-panel: #1d1a16;
+  --vip-panel-raised: #262219;
+  --vip-border: #322d25;
+  --vip-border-strong: #4f4335;
+  --vip-border-control: #4f4a43;
+  --vip-text: #ede9e2;
+  --vip-text-secondary: #b8b1a7;
+  --vip-text-muted: #9a9188;
+  --vip-text-faint: #6e675f;
+  --vip-text-disabled: #5a544c;
+  --vip-accent: #d9803f;
+  --vip-positive: #6fa88c;
+  --vip-positive-bg: #2f4d40;
+  --vip-positive-text: #9fd4bc;
+  --vip-caution: #c9a227;
+  --vip-caution-bg: #221b14;
+  --vip-caution-border: #5c4f20;
+  --vip-negative: #c4614a;
+
+  --vip-font-display: "Instrument Serif", Georgia, serif;
+  --vip-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --vip-font-numeric: "IBM Plex Mono", monospace;
+
+  --vip-radius-control: 4px;
+  --vip-radius-card: 6px;
+  --vip-radius-overlay: 10px;
+  --vip-radius-pill: 999px;
+
+  --vip-header-height: 56px;
+  --vip-tab-min-height: 44px;
+  --vip-rail-left: 232px;
+  --vip-rail-right: 286px;
+}

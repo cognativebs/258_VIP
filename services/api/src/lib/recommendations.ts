@@ -7,8 +7,8 @@ import { constraintsForHolding, loadUserConstraints } from "./userConstraints.js
 /** Same threshold the decision engine uses for Buy. Sell/Lot needs this many comps too. */
 export const MIN_SALES_FOR_MARKET_EVIDENCE = DEFAULT_RULE_CONFIG.minSalesForBuy;
 
-/** Analysis / targeted recs — cap adapter fan-out. Default list path may use a higher limit. */
-export const COMPS_HOLDING_CAP = 12;
+/** Analysis / targeted recs — live adapter fan-out. Nightly walk covers the vault. */
+export const COMPS_HOLDING_CAP = 200;
 
 /**
  * Market comps for a holding. Live path uses swappable adapters

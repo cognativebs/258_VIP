@@ -83,6 +83,7 @@ const HOLDINGS_SQL = sql`
   JOIN vault_comic.issue i   ON i.id = v.issue_id
   JOIN vault_comic.series s  ON s.id = i.series_id
   WHERE h.source = 'clz_import'
+    AND h.dropped_at IS NULL
   ORDER BY s.title, i.issue_number, v.cover_label
 `;
 

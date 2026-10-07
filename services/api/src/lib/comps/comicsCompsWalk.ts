@@ -10,7 +10,6 @@ import {
   type ComicsCompsWalkCursor,
 } from "@vip/core-model";
 import { getDb } from "../../db/client.js";
-import { COMPS_HOLDING_CAP } from "../recommendations.js";
 import { mapInventoryRow, type ApiHolding } from "../holdings.js";
 import { fetchCompsForHolding } from "./index.js";
 import type { CompsAdapter, CompsAdapterResult } from "./types.js";
@@ -22,7 +21,10 @@ import {
 } from "./listingObservation.js";
 
 export const COMICS_COMPS_WALK_JOB = "comics-comps-walk" as const;
-export const DEFAULT_WALK_PUBLISHERS = ["Marvel", "DC"] as const;
+export const DEFAULT_WALK_PUBLISHERS = ["all"] as const;
+/** eBay Browse search default application daily cap. Override with VIP_EBAY_DAILY_CALL_CEILING. */
+export const EBAY_BROWSE_DAILY_CALL_CEILING = Number(process.env.VIP_EBAY_DAILY_CALL_CEILING ?? 5000);
+export const COMICS_WALK_BATCH_SIZE = 25;
 
 const FATAL_EMPTY = /HTTP 401|HTTP 403|HTTP 429|OAuth|invalid_client|invalid_scope/i;
 
@@ -96,8 +98,7 @@ export function publisherMatches(publisher: string, filters: string[]): boolean 
 
 export function parsePublishers(raw: string | undefined): string[] {
   const text = (raw ?? "").trim();
-  if (!text || text.toLowerCase() === "marvel,dc") return [...DEFAULT_WALK_PUBLISHERS];
-  if (text.toLowerCase() === "all") return ["all"];
+  if (!text || text.toLowerCase() === "all") return [...DEFAULT_WALK_PUBLISHERS];
   return text
     .split(",")
     .map((s) => s.trim())
@@ -180,7 +181,8 @@ export async function runComicsCompsWalk(
   const nowFn = opts.now ?? (() => new Date());
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const publishers = opts.publishers?.length ? opts.publishers : [...DEFAULT_WALK_PUBLISHERS];
-  const batchSize = opts.batchSize ?? COMPS_HOLDING_CAP;
+  const batchSize = opts.batchSize ?? COMICS_WALK_BATCH_SIZE;
+  const dailyCeiling = EBAY_BROWSE_DAILY_CALL_CEILING;
   const staleMs = (opts.staleAfterHours ?? 24) * 3600_000;
   const rateLimitMs = opts.rateLimitMs ?? Number(process.env.VIP_EBAY_RATE_LIMIT_MS ?? 1000);
   const started = nowFn();
@@ -199,6 +201,7 @@ export async function runComicsCompsWalk(
   if (opts.resume && cursor.lastHoldingSourceRowId) {
     const idx = filtered.findIndex((h) => h.holding.id === cursor.lastHoldingSourceRowId);
     start = idx >= 0 ? idx + 1 : 0;
+    if (start >= filtered.length) start = 0;
   }
 
   const fetchHolding =
@@ -222,6 +225,10 @@ export async function runComicsCompsWalk(
       stoppedReason = "max-holdings";
       break;
     }
+    if (fetchedThisRun >= dailyCeiling) {
+      stoppedReason = "daily-call-ceiling";
+      break;
+    }
 
     const batch = filtered.slice(i, i + batchSize);
     batches += 1;
@@ -234,6 +241,10 @@ export async function runComicsCompsWalk(
       }
       if (opts.maxHoldings != null && fetchedThisRun >= opts.maxHoldings) {
         stoppedReason = "max-holdings";
+        break;
+      }
+      if (fetchedThisRun >= dailyCeiling) {
+        stoppedReason = "daily-call-ceiling";
         break;
       }
 
@@ -329,6 +340,7 @@ export function formatComicsCompsWalkReport(result: ComicsCompsWalkResult): stri
     `  processed: ${cursor.processed} · wrote ${cursor.wrote} · unmatched ${cursor.unmatched} · skippedFresh ${cursor.skippedFresh}`,
     `  last: ${cursor.lastHoldingSourceRowId ?? "—"}`,
     `  batches: ${result.batches} · paused=${cursor.paused}`,
+    `  dailyCallCeiling: ${EBAY_BROWSE_DAILY_CALL_CEILING} · nightlyCoverageCap: ${EBAY_BROWSE_DAILY_CALL_CEILING} assets`,
     cursor.errors.length ? `  errors: ${cursor.errors.map((e) => e.reason).join("; ")}` : "",
   ]
     .filter(Boolean)

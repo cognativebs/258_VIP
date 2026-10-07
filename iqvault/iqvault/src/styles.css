@@ -1,0 +1,31 @@
+@import "../../shared/styles/tokens.css";
+@import "../../shared/styles/base.css";
+@import "../../shared/styles/auth.css";
+@import "../../shared/styles/hunts.css";
+@import "./styles/comics-terminal.css";
+
+.iqvault-app .brand-icon {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+}
+
+.insight-quote {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-style: italic;
+}
+
+.arch-layer {
+  padding: 14px 18px;
+  border-radius: 10px;
+  border-left: 3px solid;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+
+.arch-layer.vault { border-color: var(--gold); background: rgba(212, 168, 83, 0.08); }
+.arch-layer.hunt { border-color: var(--purple); background: rgba(167, 139, 250, 0.08); }
+.arch-layer.bridge { border-color: var(--blue); background: rgba(96, 165, 250, 0.08); }
+
+.arch-layer strong { display: block; margin-bottom: 4px; }
+.arch-layer span { color: var(--text-muted); }

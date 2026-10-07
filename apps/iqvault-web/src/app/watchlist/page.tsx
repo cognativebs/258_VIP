@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
 type WatchRow = {
@@ -24,7 +23,7 @@ export default async function WatchlistPage() {
 
   return (
     <div className="shell">
-      <><Nav active="/watchlist" />
+      <>
       <h1 className="page-title">Watchlist</h1>
       <p className="page-sub">
         Durable Binder wishlist rows plus attention-derived comics. Not a fabricated top-N.

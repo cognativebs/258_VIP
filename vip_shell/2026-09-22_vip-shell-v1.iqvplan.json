@@ -1,0 +1,223 @@
+{
+  "plan_id": "vip-shell-v1",
+  "version": "1.0",
+  "created": "2026-09-22",
+  "owner": "Greg Williamson",
+  "repo": "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP",
+  "branch": "cursor/vip-shell-v1",
+  "branch_base": "main",
+
+  "objective": "Replace the current multi-tab navigation with a five-concept shell whose order and default landing are driven by role config. Build the five route shells, the shared component primitives, and the design tokens. Design the global search index as a contract only — do not implement it.",
+
+  "visual_reference": {
+    "canvas": "https://claude.ai/artifact/4D6o1DhSEANT4xbgEyhTiq",
+    "artboards": [
+      "Main.dc.html — VAULT, default landing for the collector role",
+      "Ingest.dc.html — INGEST, Capture/Identify/Review/Commit",
+      "Advisor.dc.html — ADVISOR, permanent evidence rail + insufficient-evidence state",
+      "Signals.dc.html — SIGNALS, three-column reader with origin chain and dual meters",
+      "Command.dc.html — Home behind an open command palette"
+    ],
+    "note": "The canvas is the visual spec. Where this plan and the canvas disagree on behavior, this plan wins. Where they disagree on appearance, the canvas wins."
+  },
+
+  "hard_stops": [
+    {
+      "id": "HS-1",
+      "trigger": "Any component renders a single scalar price for an asset.",
+      "action": "STOP. Every value renders as a range with comp count, recency, and a confidence word. There is no single-number price in this product. This mirrors the schema rule that market price is always a time-series observation, never a stored current value."
+    },
+    {
+      "id": "HS-2",
+      "trigger": "The tab order or the default landing route is written as a literal array or a hardcoded redirect.",
+      "action": "STOP. Both come from role config. See navigation_contract."
+    },
+    {
+      "id": "HS-3",
+      "trigger": "Any step requires implementing cross-store search, a search index, or unified ranking.",
+      "action": "STOP. The palette is contract-only in this pass. It depends on the entity layer, which does not exist."
+    },
+    {
+      "id": "HS-4",
+      "trigger": "A news- or signal-derived value would render inside a valuation slot.",
+      "action": "STOP. This is the UI mirror of may_raise_valuation_ceiling. A signal can annotate a valuation; it can never be one."
+    },
+    {
+      "id": "HS-5",
+      "trigger": "A design decision is needed that is not covered by the GATES list.",
+      "action": "STOP. Report the decision, the options, and your recommendation. Do not pick one and continue."
+    }
+  ],
+
+  "gates": [
+    {
+      "id": "G-1",
+      "name": "Roles shipped in v1",
+      "status": "RESOLVED",
+      "resolution": "Three role configs: collector, dealer, founder. founder inherits collector's order. Adding a role must require only a config entry, never a code change."
+    },
+    {
+      "id": "G-2",
+      "name": "Search index implementation",
+      "status": "DEFERRED — build last",
+      "resolution": "Write the TypeScript interface, the result-type union, and the ranking contract as documentation. Ship a stub resolver that returns an empty result set. The header palette renders and is keyboard-navigable against the stub.",
+      "why": "Unified search spans holdings, signals, transactions, and conversations — four stores with different identifiers. It needs the entity layer so one query resolves to one entity. Designing it now fixes the header layout; building it now blocks on work that does not exist."
+    },
+    {
+      "id": "G-3",
+      "name": "OPERATE sub-pages",
+      "status": "SHELL ONLY",
+      "resolution": "Build the OPERATE route and its secondary nav (Sell · Listings · Transactions · Pricing · Catalogs · Integrations · Jobs) as navigable empty states. No sub-page implementation in this pass."
+    },
+    {
+      "id": "G-4",
+      "name": "Data source for the shell",
+      "status": "FIXTURES",
+      "resolution": "Every screen renders from typed fixtures, not live queries. Phase B pricing coverage is unresolved and vault_signals does not exist yet. Fixtures must include the degraded cases listed in required_states."
+    }
+  ],
+
+  "navigation_contract": {
+    "concepts": ["VAULT", "INGEST", "ADVISOR", "SIGNALS", "OPERATE"],
+    "rule": "The five concepts are fixed. Their ORDER and the DEFAULT LANDING route are role config.",
+    "shape": {
+      "collector": { "order": ["VAULT", "INGEST", "ADVISOR", "SIGNALS", "OPERATE"], "landing": "VAULT" },
+      "founder":  { "order": ["VAULT", "INGEST", "ADVISOR", "SIGNALS", "OPERATE"], "landing": "VAULT" },
+      "dealer":   { "order": ["OPERATE", "INGEST", "VAULT", "ADVISOR", "SIGNALS"], "landing": "OPERATE" }
+    },
+    "requirements": [
+      "Route paths are stable and identical across roles. Only presentation order and landing change.",
+      "A role may hide a concept in future; the component must tolerate a 3- or 4-item order without layout breakage.",
+      "Secondary navigation within a concept is also role config, not a literal.",
+      "No component may import the order array directly. It reads from the role context."
+    ]
+  },
+
+  "design_tokens": {
+    "note": "Extracted from the canvas. Put these in one tokens file. No component defines a raw hex.",
+    "color": {
+      "ground": "#14120F",
+      "surface": "#1A1713",
+      "panel": "#1D1A16",
+      "panel_raised": "#262219",
+      "border": "#322D25",
+      "border_strong": "#4F4335",
+      "border_control": "#4F4A43",
+      "text": "#EDE9E2",
+      "text_secondary": "#B8B1A7",
+      "text_muted": "#9A9188",
+      "text_faint": "#6E675F",
+      "text_disabled": "#5A544C",
+      "accent": "#D9803F",
+      "positive": "#6FA88C",
+      "positive_bg": "#2F4D40",
+      "positive_text": "#9FD4BC",
+      "caution": "#C9A227",
+      "caution_bg": "#221B14",
+      "caution_border": "#5C4F20",
+      "negative": "#C4614A"
+    },
+    "type": {
+      "display": "'Instrument Serif', Georgia, serif",
+      "body": "'IBM Plex Sans', system-ui, sans-serif",
+      "numeric": "'IBM Plex Mono', monospace",
+      "rule": "EVERY number — price, confidence, count, date, score — renders in the numeric face. This is not decorative; it is how the eye separates measured values from prose."
+    },
+    "radius": { "control": 4, "card": 6, "overlay": 10, "pill": 999 },
+    "layout": { "header_height": 56, "tab_min_height": 44, "rail_left": 232, "rail_right": 286 },
+    "forbidden": ["Inter", "Roboto", "Arial", "gradient washes", "emoji in UI chrome"]
+  },
+
+  "components": [
+    {
+      "name": "AppShell",
+      "notes": "Header + role-ordered nav + outlet. Owns the role context. The VIP wordmark routes to Home."
+    },
+    {
+      "name": "ValueRange",
+      "notes": "THE most important primitive. Props: low, high, compCount, recencyDays, confidence ('high'|'medium'|'low'|'none'). Renders the range in the numeric face with the metadata line beneath. When confidence is 'none' it renders 'No matched comps' plus an Ask Advisor action. There is no prop for a single value and no prop for hiding the metadata."
+    },
+    {
+      "name": "VerificationChip",
+      "notes": "Renders unverified/assumed state. 'NM assumed · unverified' in caution color. Never auto-hides. Absence of the chip must mean verified, so never render it optimistically."
+    },
+    {
+      "name": "EvidenceRail",
+      "notes": "Permanent right rail on ADVISOR. Sections: confidence with limiter text, sources used, counter-evidence, what-would-change-this, save-as-prediction. Not a disclosure panel, not collapsible in v1."
+    },
+    {
+      "name": "InsufficientEvidence",
+      "notes": "First-class answer state, not an error. Props: reason, facts[], actions[]. Caution-bordered, never red. Must accept at least one real action so it is never a dead end."
+    },
+    {
+      "name": "DualMeter",
+      "notes": "Fact confidence and attention momentum, side by side, never summed into one score. Two independent scales with independent colors."
+    },
+    {
+      "name": "OriginChain",
+      "notes": "Primary source plus indented derivatives, with the corroboration count stated explicitly ('Counted as 1 corroboration, not 5')."
+    },
+    {
+      "name": "SignalCard",
+      "notes": "Renders 'Why VIP cares' ONLY when holdings linkage resolves. Otherwise falls back to OriginChain with the portfolio-impact-unavailable note. The fallback is a required state, not an edge case."
+    },
+    {
+      "name": "StageStrip",
+      "notes": "Capture → Identify → Review → Commit. Reflects batch state; not clickable navigation in v1."
+    },
+    {
+      "name": "ReviewRow",
+      "notes": "Candidate matches with confidence bars. Always shows the auto-confirm threshold and the current false-auto-confirm rate in the batch header — that metric is the primary accuracy measure for CardSight and belongs on screen, not in a report."
+    },
+    {
+      "name": "CommandPalette",
+      "notes": "Renders, opens on ⌘K, keyboard navigable, grouped result sections. Wired to the STUB resolver (G-2). Empty state reads 'Search is not connected yet' — never a fake result."
+    }
+  ],
+
+  "required_states": [
+    "An asset with high-confidence comps (12 comps, 3d).",
+    "An asset with low-confidence comps — the range must visibly widen rather than narrow (2 comps, 61d).",
+    "An asset with NO matched comps.",
+    "An asset with unverified condition.",
+    "An Advisor answer with full evidence.",
+    "An Advisor answer that is INSUFFICIENT EVIDENCE with working actions.",
+    "A signal with holdings linkage resolved.",
+    "A signal with linkage unavailable, degrading to lineage.",
+    "A signal that is low fact-confidence and high attention simultaneously.",
+    "An ingest item with no candidate above threshold.",
+    "A command palette with an empty result set.",
+    "Every screen under each of the three role orders."
+  ],
+
+  "phases": [
+    { "id": "P0", "tag": "NOW", "name": "Tokens and role config", "tasks": ["Tokens file from design_tokens.", "Role config module + React context.", "Route table with stable paths.", "Fail a test if any component imports a literal tab order or a raw hex."] },
+    { "id": "P1", "tag": "NOW", "name": "AppShell", "tasks": ["Header, role-ordered nav, active state, wordmark to Home.", "Render the shell under all three roles in tests.", "CommandPalette mounted against the stub resolver."] },
+    { "id": "P2", "tag": "NOW", "name": "Primitives", "tasks": ["ValueRange, VerificationChip, DualMeter, OriginChain, InsufficientEvidence.", "A story or test per entry in required_states."] },
+    { "id": "P3", "tag": "NOW", "name": "VAULT", "tasks": ["Saved-views rail, view selector, category pills, coverage strip, asset grid.", "Coverage strip reads real coverage numbers from fixtures, including the by-asset/by-value split."] },
+    { "id": "P4", "tag": "NOW", "name": "INGEST", "tasks": ["StageStrip, three entry actions, active batch bar, review queue, identification details panel.", "Threshold and false-auto-confirm rate always visible."] },
+    { "id": "P5", "tag": "NOW", "name": "ADVISOR", "tasks": ["Conversation column, permanent EvidenceRail, starting-point pills, track-record summary in the left rail.", "Both answer states rendered from fixtures."] },
+    { "id": "P6", "tag": "NOW", "name": "SIGNALS", "tasks": ["Three-column reader, category rail with counts, feed cards, context panel with OriginChain, DualMeter, decay, thesis impact.", "Both linkage states rendered."] },
+    { "id": "P7", "tag": "NOW", "name": "Home + OPERATE shell", "tasks": ["Home: Continue / Attention / Intelligence.", "OPERATE route with secondary nav as navigable empty states."] },
+    { "id": "P8", "tag": "NOW", "name": "Search index CONTRACT ONLY", "tasks": ["TypeScript interface for the resolver.", "Result-type union across holdings, binder slots, transactions, signals, conversations, commands.", "Ranking contract documented: how incomparable types are ordered against each other.", "Dependency on the entity layer stated in writing.", "Stub returns empty. NO implementation."] },
+    { "id": "P9", "tag": "NOW", "name": "ADR + report", "tasks": ["docs/adr/0014-shell-and-role-ordering.md.", "One report: what was built, gates left open, and what you would have done differently but did not."] }
+  ],
+
+  "parked": [
+    { "item": "OPERATE sub-page implementations", "reason": "Shell only this pass." },
+    { "item": "Search index implementation", "reason": "Blocked on the entity layer." },
+    { "item": "Six of the eight SIGNALS dashboard views", "reason": "Only the reader and portfolio impact earn a place." },
+    { "item": "Notion bridge UI", "reason": "Parked at the architecture level." },
+    { "item": "Mobile and Show Mode layouts", "reason": "Desktop shell must settle first." },
+    { "item": "Live data wiring", "reason": "Phase B pricing gate unresolved; vault_signals does not exist." }
+  ],
+
+  "definition_of_done": [
+    "All five routes render under all three role configs.",
+    "No literal tab order and no raw hex anywhere outside the tokens file — enforced by a test.",
+    "Every entry in required_states has a rendered case.",
+    "Command palette opens, navigates by keyboard, and honestly reports that search is not connected.",
+    "Zero live data calls. Fixtures only.",
+    "ADR 0014 written and the report delivered."
+  ]
+}

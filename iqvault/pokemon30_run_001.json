@@ -1,0 +1,32 @@
+{
+  "run_id": "P30IE-20260703-001",
+  "user_profile": {
+    "budget_usd": 2500,
+    "above_msrp_allowed_for": ["Pokemon Center ETB", "Ultra-Premium Collection"],
+    "lgs_over_msrp_tolerance": "10-15% if allocation credible",
+    "memberships": ["Sam's Club"],
+    "max_qty_per_product": 4,
+    "primary_goal": "maximum_roi"
+  },
+  "products": [
+    {"name":"30th Celebration Pokemon Center ETB","priority":"S","target_qty":4,"buy_under":90,"emergency_cap":110,"action":"monitor_daily"},
+    {"name":"30th Celebration Night/Umbreon UPC","priority":"S","target_qty":2,"msrp":179.99,"buy_under":230,"emergency_cap":260,"action":"buy_at_msrp"},
+    {"name":"30th Celebration Day/Espeon UPC","priority":"S","target_qty":2,"msrp":179.99,"buy_under":230,"emergency_cap":260,"action":"buy_at_msrp"},
+    {"name":"30th Celebration Booster Bundle","priority":"A+","target_qty":12,"msrp":26.94,"buy_under":40,"action":"buy_at_msrp_or_low_premium"},
+    {"name":"30th Celebration Elite Trainer Box","priority":"A","target_qty":2,"msrp":49.99,"buy_under":70,"action":"fallback"}
+  ],
+  "retailers": [
+    {"name":"Pokemon Center","role":"exclusive_pc_etb","status":"not_observed_open","action":"account_ready_monitor_daily"},
+    {"name":"GameStop","role":"early_preorder_channel","status":"ex_box_listing_observed","action":"signin_ask_store_monitor"},
+    {"name":"Best Buy","role":"msrp_channel","status":"watch","action":"wishlist_app_alerts"},
+    {"name":"Target","role":"msrp_channel","status":"watch","action":"circle_app_alerts"},
+    {"name":"Walmart","role":"msrp_or_marketplace_channel","status":"watch","action":"buy_direct_only"},
+    {"name":"Sam's Club","role":"warehouse_bundle_channel","status":"watch_later","action":"watch_post_release_bundles"}
+  ],
+  "predictions": [
+    {"prediction":"Pokemon Center ETB sells out quickly","probability":0.95,"action":"monitor_daily_and_buy_max_qty"},
+    {"prediction":"UPCs become best non-PC long-term hold","probability":0.85,"action":"buy_day_and_night_at_msrp"},
+    {"prediction":"Booster Bundles become best pack-efficiency product","probability":0.90,"action":"buy_8_to_12_at_msrp"},
+    {"prediction":"major retailer preorder windows are staggered","probability":0.90,"action":"check_retailers_independently"}
+  ]
+}

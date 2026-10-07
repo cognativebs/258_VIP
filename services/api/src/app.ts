@@ -5,6 +5,7 @@ import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
+import { registerIngestRoutes } from "./routes/ingest.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
 import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
@@ -33,9 +34,10 @@ import { createMemoryEbaySellStore, createPostgresEbaySellStore } from "./lib/eb
 import { registerEbaySellRoutes } from "./routes/ebaySell.js";
 import { classifyInventoryBucket } from "@vip/core-model";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
+import { ownedSnapshotSum } from "./lib/snapshotSum.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
 import { createInventoryTransaction, listInventoryTransactions } from "./lib/transactions.js";
-import { compactSignalsContext, signalsOutputFromFeed } from "./lib/signalsContext.js";
+import { compactSignalsContextWithPhaseD, signalsOutputFromFeed } from "./lib/signalsContext.js";
 import {
   ApproveConfirmListRequestSchema,
   ebayCredsFromEnv,
@@ -441,7 +443,7 @@ export function createApp(deps: AppDeps = {}) {
   app.get("/api/inventory", async (_req, res) => {
     const { holdings, comics, tcgSource, binder, comicsSource, durableBinderHoldings } =
       await buildInventory(deps);
-    const totalValue = holdings.reduce((s, h) => s + (h.currentPrice ?? 0) * h.quantity, 0);
+    const totalValue = ownedSnapshotSum(holdings);
 
     // Loud degraded mode: comics unavailable is a first-class response field,
     // never a quiet 120-row sample that looks like a portfolio.
@@ -455,7 +457,7 @@ export function createApp(deps: AppDeps = {}) {
       durableBinderHoldings,
       totalValueEstimate: {
         note: comics.available
-          ? "Sum of currentPrice CLZ snapshots — not a verified market range"
+          ? "Sum of owned currentPrice snapshots (CLZ + Binder owned). Need Binder excluded — same catalog price is not added per empty pocket. Not a verified market range"
           : "Comics Postgres unavailable — total excludes the real collection",
         amount: Number(totalValue.toFixed(2)),
         confidence: comics.available ? "low" : "none",
@@ -535,7 +537,7 @@ export function createApp(deps: AppDeps = {}) {
 
   app.get("/api/recommendations", async (req, res) => {
     const holdingIds = parseHoldingIdsQuery(req.query.holdingIds);
-    const limit = Math.min(Number(req.query.limit ?? COMPS_HOLDING_CAP), 40);
+    const limit = Math.min(Number(req.query.limit ?? COMPS_HOLDING_CAP), COMPS_HOLDING_CAP);
     const { holdings, comics, comicsSource } = await buildInventory(deps);
     // Default list path still refuses when comics are down so a seed/binder
     // mix cannot masquerade as the collection. Targeted holdingIds are an
@@ -590,17 +592,17 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ recommendation: await buildRecommendation(holding) });
   });
 
-  app.get("/api/signals", (_req, res) =>
+  app.get("/api/signals", async (_req, res) =>
     res.json({
       ...loadSignalsResponse(),
       signalsIngestion: SIGNALS_INGESTION,
-      context: compactSignalsContext(),
+      context: await compactSignalsContextWithPhaseD(),
       output: signalsOutputFromFeed(),
     }),
   );
 
-  app.get("/api/signals/context", (_req, res) => {
-    res.json(compactSignalsContext());
+  app.get("/api/signals/context", async (_req, res) => {
+    res.json(await compactSignalsContextWithPhaseD());
   });
 
   app.get("/api/signals/output", (_req, res) => {
@@ -780,6 +782,8 @@ export function createApp(deps: AppDeps = {}) {
    * Ricoh fi-8170 intake: scan → ID → duplicate alert → inventory confirm
    * → optional eBay listing draft (idle without developer tokens).
    */
+  registerIngestRoutes(app);
+
   app.get("/api/scan", (_req, res) => {
     const inbox = scanInboxRoot();
     res.json({

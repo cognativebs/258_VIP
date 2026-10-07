@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { HuntsExplorer, type Hunt } from "@/components/hunts/HuntsExplorer";
 import { apiGet } from "@/lib/api";
 
@@ -14,7 +13,6 @@ export default async function HuntsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/hunts" />
       {error ? <div className="error">{error}</div> : <HuntsExplorer hunts={hunts} />}
     </div>
   );

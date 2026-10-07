@@ -43,7 +43,7 @@ function bundle(rows: ComicRow[]): InventoryBundle {
 
 describe("analysis comps context", () => {
   it("caps highlight ids and prefers highest catalog snapshot", () => {
-    const rows = Array.from({ length: 20 }, (_, i) =>
+    const rows = Array.from({ length: 250 }, (_, i) =>
       row({
         id: `h${i}`,
         Series: "X-Men",
@@ -53,7 +53,7 @@ describe("analysis comps context", () => {
     );
     const ids = highlightRowsForComps(rows).map((r) => r.id);
     assert.equal(ids.length, ANALYSIS_COMPS_CAP);
-    assert.equal(ids[0], "h19");
+    assert.equal(ids[0], "h249");
     assert.ok(!ids.includes("h0"));
   });
 

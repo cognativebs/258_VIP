@@ -47,11 +47,11 @@ function sale(id: string, price: number, daysAgo: number) {
 
 describe("recommendations holding selection", () => {
   it("parses, dedupes, and caps holdingIds", () => {
-    const ids = Array.from({ length: 20 }, (_, i) => `id-${i}`);
+    const ids = Array.from({ length: COMPS_HOLDING_CAP + 8 }, (_, i) => `id-${i}`);
     const parsed = parseHoldingIdsQuery(`${ids.join(",")},id-0,`);
     expect(parsed).toHaveLength(COMPS_HOLDING_CAP);
     expect(parsed[0]).toBe("id-0");
-    expect(parsed.at(-1)).toBe("id-11");
+    expect(parsed.at(-1)).toBe(`id-${COMPS_HOLDING_CAP - 1}`);
   });
 
   it("selects requested holdings and reports missing ids", () => {

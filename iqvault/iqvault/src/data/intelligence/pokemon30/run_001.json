@@ -1,0 +1,65 @@
+{
+  "run_id": "P30IE-20260703-001",
+  "run_date": "2026-07-03",
+  "set_name": "Pokémon TCG: 30th Celebration",
+  "release_date": "2026-09-16",
+  "executive_summary": "30th Celebration is confirmed as a major special set releasing in waves starting September 16, 2026. Best ROI targets are Pokémon Center ETBs, Ultra-Premium Collections, and Booster Bundles. Pokémon Center preorders have not yet opened; GameStop has begun listing the 30th Celebration ex Box.",
+  "user_profile": {
+    "budget_usd": 2500,
+    "above_msrp_allowed_for": ["Pokemon Center ETB", "Ultra-Premium Collection"],
+    "lgs_over_msrp_tolerance": "10-15% if allocation credible",
+    "memberships": ["Sam's Club"],
+    "max_qty_per_product": 4,
+    "primary_goal": "maximum_roi"
+  },
+  "products": [
+    {"id":"30th-pc-etb","name":"30th Celebration Pokémon Center ETB","priority":"S","target_qty":4,"msrp":59.99,"buy_under":90,"emergency_cap":110,"action":"monitor_daily","product_type":"pc_etb"},
+    {"id":"30th-upc-umbreon","name":"30th Celebration Night/Umbreon UPC","priority":"S","target_qty":2,"msrp":179.99,"buy_under":230,"emergency_cap":260,"action":"buy_at_msrp","product_type":"upc"},
+    {"id":"30th-upc-espeon","name":"30th Celebration Day/Espeon UPC","priority":"S","target_qty":2,"msrp":179.99,"buy_under":230,"emergency_cap":260,"action":"buy_at_msrp","product_type":"upc"},
+    {"id":"30th-booster-bundle","name":"30th Celebration Booster Bundle","priority":"A+","target_qty":12,"msrp":26.94,"buy_under":40,"action":"buy_at_msrp_or_low_premium","product_type":"booster_bundle"},
+    {"id":"30th-etb","name":"30th Celebration Elite Trainer Box","priority":"A","target_qty":2,"msrp":49.99,"buy_under":70,"action":"fallback","product_type":"etb"},
+    {"id":"30th-mew-figure","name":"Mew Figure Collection","priority":"B","target_qty":1,"msrp":29.99,"buy_under":45,"action":"opportunistic","product_type":"premium_collection"},
+    {"id":"30th-mewtwo-figure","name":"Mewtwo Figure Collection","priority":"B","target_qty":1,"msrp":29.99,"buy_under":45,"action":"opportunistic","product_type":"premium_collection"},
+    {"id":"30th-ditto-premium","name":"Ditto Premium Collection","priority":"B","target_qty":1,"msrp":39.99,"buy_under":55,"action":"opportunistic","product_type":"premium_collection"}
+  ],
+  "retailers": [
+    {"name":"Pokémon Center","role":"exclusive_pc_etb","status":"not_observed_open","action":"account_ready_monitor_daily","priority":"primary"},
+    {"name":"GameStop","role":"early_preorder_channel","status":"ex_box_listing_observed","action":"signin_ask_store_monitor","priority":"primary"},
+    {"name":"Best Buy","role":"msrp_channel","status":"watch","action":"wishlist_app_alerts","priority":"secondary"},
+    {"name":"Target","role":"msrp_channel","status":"watch","action":"circle_app_alerts","priority":"secondary"},
+    {"name":"Walmart","role":"msrp_or_marketplace_channel","status":"watch","action":"buy_direct_only","priority":"secondary"},
+    {"name":"Amazon","role":"msrp_channel","status":"watch","action":"buy_sold_by_amazon_only","priority":"secondary"},
+    {"name":"Costco","role":"warehouse_bundle_channel","status":"watch_later","action":"watch_post_release_bundles","priority":"tertiary"},
+    {"name":"Sam's Club","role":"warehouse_bundle_channel","status":"watch_later","action":"watch_post_release_bundles","priority":"tertiary"}
+  ],
+  "predictions": [
+    {"prediction":"Pokémon Center ETB sells out quickly once live","probability":0.95,"action":"monitor_daily_and_buy_max_qty"},
+    {"prediction":"UPCs become the best non-PC long-term hold","probability":0.85,"action":"buy_day_and_night_at_msrp"},
+    {"prediction":"Booster Bundles become most efficient pack-exposure product","probability":0.90,"action":"buy_8_to_12_at_msrp"},
+    {"prediction":"GameStop opens more preorder listings before Pokémon Center","probability":0.60,"action":"monitor_gamestop_daily"},
+    {"prediction":"Major retailer preorder windows do not align","probability":0.90,"action":"check_retailers_independently"},
+    {"prediction":"Sam's Club/Costco bundles appear after main release","probability":0.65,"action":"watch_warehouse_clubs_post_release"}
+  ],
+  "actions": [
+    "Create/sign into Pokémon Center, GameStop, Best Buy, Target, Walmart, Amazon, Costco, Sam's Club",
+    "Save payment and shipping details everywhere",
+    "Turn on app push alerts for Best Buy, Target, Walmart, and GameStop",
+    "Ask local GameStop and LGS about reserve lists for 30th Celebration",
+    "Start saved searches for PC ETB, UPC, Booster Bundle, and GameStop 30th preorder",
+    "Do not spend on low-priority products until PC ETB and UPC attempts resolve"
+  ],
+  "budget_plan": [
+    {"bucket":"Pokémon Center ETBs","amount_min":360,"amount_max":440,"intended":"Up to 4 copies"},
+    {"bucket":"UPCs","amount_min":720,"amount_max":920,"intended":"2–4 copies depending on access"},
+    {"bucket":"Booster Bundles","amount_min":320,"amount_max":480,"intended":"8–12 copies"},
+    {"bucket":"Regular ETBs / fallback","amount_min":100,"amount_max":200,"intended":"2 copies max"},
+    {"bucket":"Mew/Mewtwo/Ditto opportunistic","amount_min":150,"amount_max":250,"intended":"1–3 products"},
+    {"bucket":"Cash reserve","amount_min":400,"amount_max":700,"intended":"Restocks / missed drops / warehouse bundles"}
+  ],
+  "signals": [
+    {"type":"news","text":"30th Celebration launches September 16, 2026 — special set, no booster boxes","date":"2026-07-03"},
+    {"type":"retail","text":"Pokémon Center ETB preorders not observed open yet — account + payment ready","date":"2026-07-03"},
+    {"type":"retail","text":"GameStop 30th Celebration ex Box listing observed","date":"2026-07-03"},
+    {"type":"market","text":"UPC MSRP $179.99 — 29 packs + Classic Collection pack","date":"2026-07-03"}
+  ]
+}

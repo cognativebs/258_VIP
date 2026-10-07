@@ -12,6 +12,9 @@ import {
   type IngestEvent,
   type StageRecord,
 } from "@vip/signals";
+import { Pool } from "pg";
+import { persistSignalsToVault, type PersistableSignal } from "./signalsPersist.js";
+import { dsnFromEnv } from "./price-history.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = join(__dirname, "..", ".state");
@@ -370,7 +373,76 @@ export async function runPokemonDropsJobAsync(opts: {
 }): Promise<{ delta: DeltaReport; state: JobState }> {
   const now = opts.now ?? new Date();
   const events = await collectPokemonDropObservations(now);
-  return runPokemonDropsJob({ ...opts, now, events });
+  const result = runPokemonDropsJob({ ...opts, now, events });
+  if (opts.persist ?? true) {
+    await persistJobFeedToVault();
+  }
+  return result;
+}
+
+async function persistJobFeedToVault(): Promise<void> {
+  if (!existsSync(FEED_FILE)) return;
+  let feed: {
+    provenance?: { ruleOrModelVersion?: string };
+    signals?: Array<{
+      id: string;
+      signalType?: string;
+      title?: string;
+      body: string;
+      signalDate: string;
+      noveltyScore?: number | null;
+      quarantineStatus?: string;
+      sourceUrl?: string | null;
+    }>;
+  };
+  try {
+    feed = JSON.parse(readFileSync(FEED_FILE, "utf8")) as typeof feed;
+  } catch {
+    return;
+  }
+  const signals: PersistableSignal[] = (feed.signals ?? [])
+    .filter((s) => s.id && s.body)
+    .map((s): PersistableSignal => {
+      const signalType: PersistableSignal["signalType"] =
+        s.signalType === "market" ||
+        s.signalType === "supply" ||
+        s.signalType === "retail" ||
+        s.signalType === "reprint" ||
+        s.signalType === "auction"
+          ? s.signalType
+          : "news";
+      const quarantineStatus: PersistableSignal["quarantineStatus"] =
+        s.quarantineStatus === "quarantined" || s.quarantineStatus === "rejected"
+          ? s.quarantineStatus
+          : "active";
+      return {
+        id: s.id,
+        sourceId: "pokemon-news-rss",
+        signalType,
+        title: s.title,
+        body: s.body,
+        signalDate: s.signalDate,
+        noveltyScore: s.noveltyScore ?? null,
+        quarantineStatus,
+        sourceUrl: s.sourceUrl ?? null,
+        ruleVersion: feed.provenance?.ruleOrModelVersion ?? "signals@0.1.0",
+      };
+    });
+  if (!signals.length) return;
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  try {
+    const report = await persistSignalsToVault(pool, signals);
+    if (report.errors.length) {
+      console.warn("[pokemon-drops] signals persist partial:", report.errors.slice(0, 3));
+    }
+  } catch (err) {
+    console.warn(
+      "[pokemon-drops] signals_raw persist skipped:",
+      err instanceof Error ? err.message : err,
+    );
+  } finally {
+    await pool.end();
+  }
 }
 
 export { STATE_FILE, STATE_DIR, FEED_FILE, SNAPSHOT_DIR, SOURCES_STATE };

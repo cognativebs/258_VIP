@@ -7,12 +7,16 @@
     "start": "tsx src/cli.ts",
     "pokemon-drops": "tsx src/cli.ts pokemon-drops",
     "ebay-browse-comps": "tsx src/cli.ts ebay-browse-comps",
+    "comics-browse-walk": "tsx src/cli.ts ebay-browse-comps",
     "clz-sync": "tsx src/cli.ts clz-sync",
+    "clz-diff": "tsx src/cli.ts clz-diff",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "price-history": "tsx src/cli.ts price-history"
+    "price-history": "tsx src/cli.ts price-history",
+    "pricecharting-snapshot": "tsx src/cli.ts pricecharting-snapshot"
   },
   "dependencies": {
+    "@vip/core-model": "0.1.0",
     "@vip/signals": "0.1.0",
     "zod": "^3.25.76",
     "@vip/pricing": "0.1.0",

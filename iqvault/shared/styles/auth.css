@@ -1,0 +1,232 @@
+/* Shared auth + cross-tool linking */
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212, 168, 83, 0.08), transparent),
+    var(--bg-deep);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.login-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.login-brand h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+}
+
+.login-brand p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.login-form input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: var(--gold-dim);
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.login-error {
+  color: var(--red);
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+}
+
+.login-hint {
+  margin: 20px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-family: var(--mono);
+}
+
+.header-signout {
+  margin-left: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.header-signout:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.vaultos-app .brand-icon.vaultos-icon {
+  background: linear-gradient(135deg, var(--green), #059669);
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.25);
+}
+
+.vaultos-app .nav-btn.active {
+  background: var(--green);
+}
+
+.iqvault-app .nav-btn.active {
+  background: var(--gold);
+}
+
+.link-panel {
+  margin-top: 24px;
+}
+
+.link-offline {
+  font-size: 0.8rem;
+  color: var(--gold);
+  margin: 0 0 12px;
+}
+
+.link-status {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+.link-status.linked {
+  color: var(--green);
+}
+
+.link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.link-code-display {
+  font-family: var(--mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+}
+
+.link-accept-form {
+  display: flex;
+  gap: 8px;
+}
+
+.link-accept-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--mono);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.link-msg {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: var(--green);
+}
+
+.link-external {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--gold);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link-external:hover {
+  text-decoration: underline;
+}
+
+.link-peer-data {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+}
+
+.link-peer-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.link-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.link-kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.link-kv dt {
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.link-kv dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}

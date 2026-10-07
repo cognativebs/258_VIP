@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { mapInventoryRow } from "../holdings.js";
-import { COMPS_HOLDING_CAP } from "../recommendations.js";
 import { memoryListingObservationStore } from "./listingObservation.js";
 import {
   parsePublishers,
@@ -55,15 +54,15 @@ function browse(matched: number, extra?: Partial<CompsAdapterResult>): CompsAdap
 }
 
 describe("comicsCompsWalk", () => {
-  it("defaults publishers to Marvel and DC", () => {
-    expect(parsePublishers(undefined)).toEqual(["Marvel", "DC"]);
+  it("defaults publishers to all comic assets", () => {
+    expect(parsePublishers(undefined)).toEqual(["all"]);
     expect(parsePublishers("all")).toEqual(["all"]);
     expect(publisherMatches("DC Comics", ["Marvel", "DC"])).toBe(true);
     expect(publisherMatches("Image", ["Marvel", "DC"])).toBe(false);
     expect(publisherMatches("Image", ["all"])).toBe(true);
   });
 
-  it("walks a batch of 12, writes listings, and skips other publishers", async () => {
+  it("walks an optional 12-holding slice, writes listings, and skips other publishers", async () => {
     const dir = mkdtempSync(join(tmpdir(), "vip-walk-"));
     const store = memoryListingObservationStore();
     const holdings = [
@@ -77,7 +76,7 @@ describe("comicsCompsWalk", () => {
       loadHoldings: async () => holdings,
       fetchHolding: async () => ({ adapters: [browse(2)] }),
       rateLimitMs: 0,
-      maxHoldings: COMPS_HOLDING_CAP,
+      maxHoldings: 12,
     });
     expect(result.cursor.processed).toBe(12);
     expect(result.stoppedReason).toBe("max-holdings");
@@ -149,6 +148,37 @@ describe("comicsCompsWalk", () => {
     expect(result.cursor.paused).toBe(true);
     expect(result.stoppedReason).toMatch(/401|invalid_client/);
     expect(store.observations).toHaveLength(0);
+  });
+
+  it("wraps a completed resume cursor so the next day can skip-fresh", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "vip-walk-"));
+    const cursorPath = join(dir, "cursor.json");
+    const store = memoryListingObservationStore();
+    const holdings = [holding("a-1", "Image"), holding("b-2", "Image")];
+
+    await runComicsCompsWalk({
+      publishers: ["all"],
+      cursorPath,
+      store,
+      loadHoldings: async () => holdings,
+      fetchHolding: async () => ({ adapters: [browse(1)] }),
+      rateLimitMs: 0,
+      now: () => new Date("2026-09-20T00:00:00.000Z"),
+    });
+
+    const next = await runComicsCompsWalk({
+      publishers: ["all"],
+      cursorPath,
+      store,
+      resume: true,
+      loadHoldings: async () => holdings,
+      fetchHolding: async () => ({ adapters: [browse(1)] }),
+      rateLimitMs: 0,
+      staleAfterHours: 24,
+      now: () => new Date("2026-09-20T01:00:00.000Z"),
+    });
+    expect(next.cursor.skippedFresh).toBe(2);
+    expect(next.stoppedReason).toBe("complete");
   });
 
   it("dry-run does not persist observations", async () => {

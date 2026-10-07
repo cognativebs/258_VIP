@@ -59,6 +59,18 @@ export const DEFAULT_SOURCES: SourceRegistryEntry[] = [
     active: true,
   }),
   SourceRegistryEntrySchema.parse({
+    id: "pricecharting",
+    name: "PriceCharting Legendary (vendor-derived market values)",
+    authority: "market",
+    historicalAccuracy: 0,
+    latencyHours: 24,
+    categoryCoverage: ["comic", "sports", "pokemon", "mtg", "other"],
+    accessMethod: "api",
+    terms:
+      "Legendary token; current values only; evidence_class=vendor_derived; redistribution_allowed=false. Nightly Phase B snapshot enabled 2026-09-20 for comics + Pokémon singles.",
+    active: true,
+  }),
+  SourceRegistryEntrySchema.parse({
     id: "tcgplayer-market",
     name: "TCGPlayer market / price history",
     authority: "market",

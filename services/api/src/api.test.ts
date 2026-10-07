@@ -150,12 +150,14 @@ describe("VIP API", () => {
         comicsCount: number;
         comicsSnapshot: { shortHash: string } | null;
         holdings: { provenance: { method: string; source: string } }[];
+        totalValueEstimate: { note: string; amount: number };
       };
       expect(res.status).toBe(200);
       expect(body.comicsAvailable).toBe(true);
       expect(body.comicsSource).toBe("postgres");
       expect(body.comicsCount).toBe(5);
       expect(body.comicsSnapshot?.shortHash).toBe("aaaaaaaaaaaa");
+      expect(body.totalValueEstimate.note).toMatch(/Need Binder excluded/);
       expect(body.holdings[0]?.provenance.method).toBeTruthy();
       expect(body.holdings[0]?.provenance.source).toBe("clz_import");
     });
@@ -178,6 +180,7 @@ describe("VIP API", () => {
       expect(body.comicsError).toMatch(/connection refused/);
       expect(body.totalValueEstimate.confidence).toBe("none");
       expect(body.totalValueEstimate.note).toMatch(/unavailable/i);
+      expect(body.totalValueEstimate.note).not.toMatch(/Need Binder excluded/);
       // Pokémon seeds may still appear; comics must not.
       expect(body.holdings.every((h) => {
         const row = h as { provenance?: { source?: string } };

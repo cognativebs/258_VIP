@@ -94,4 +94,33 @@ describe("listingObservation", () => {
     expect(store.observations).toHaveLength(1);
     expect(store.sqlLog.join("\n")).not.toMatch(FORBIDDEN_PERSIST_SQL);
   });
+
+  it("latestObservedAt ignores non-browse kinds so guide rows cannot mark a holding fresh", async () => {
+    const store = memoryListingObservationStore();
+    const holdingSourceRowId = "clz-1";
+    store.observations.push({
+      ...observationsFromAdapterResult({
+        assetId: randomUUID(),
+        holdingId: randomUUID(),
+        holdingSourceRowId,
+        adapter: { adapterId: "none", sales: [], emptyReason: "guide" },
+        observedAt: new Date("2026-09-16T00:00:00.000Z"),
+        rawSnapshotId: null,
+      })[0]!,
+      observationKind: "guide_quote" as never,
+    });
+    expect(await store.latestObservedAt(holdingSourceRowId)).toBeNull();
+    await store.insertObservations(
+      observationsFromAdapterResult({
+        assetId: randomUUID(),
+        holdingId: randomUUID(),
+        holdingSourceRowId,
+        adapter: listingAdapter(),
+        observedAt: new Date("2026-09-13T00:00:00.000Z"),
+        rawSnapshotId: null,
+      }),
+    );
+    const latest = await store.latestObservedAt(holdingSourceRowId);
+    expect(latest?.toISOString()).toBe("2026-09-13T00:00:00.000Z");
+  });
 });

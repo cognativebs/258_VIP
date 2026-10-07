@@ -88,6 +88,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Basic Signals output on `/signals` (bucket-aware Hold / Review / Churn — never a price) — Week 1 · 2026-08-29
 - [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
 - [ ] Prediction ledger / Brier calibration visible on Signals page
+- [x] News-only registry draft (`vault_core.signals_news_source`) — adapters off, no `signals_normalized` writes, Phase 2 off (2026-09-20)
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
 
@@ -134,7 +135,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [ ] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables
 - [ ] Resolution workflow driven by `vault_core.prediction_needs_scoring` (nothing polls it yet)
 - [ ] Per-page binder chase completion from `vault_tcg` (API reports `available: false`)
-- [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live
+- [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live. Do not enable. ADR 0012.
 
 ### N. Catalog + market adapters *(ADR 0010 · [plan](plans/0001-catalog-adapter-rollout.md))*
 
@@ -159,6 +160,15 @@ third-party-access licence limit).
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09
 - [x] Single inventory truth across Comics + Binder in Postgres (ADR 0007) — VIP API reads both; unified Bloomberg grid still open above
+- [x] **ADR 0012** PriceCharting / comics market writes join on `asset_id`; `guide_price_observation` adopted; `priced_unit` untouched; `market_price_observation` deprecated
+- [x] PriceCharting Phase B nightly CSV snapshot (`npm run job:pricecharting-snapshot`) — gzip + hash-idempotent, one observation per mapped condition, `vendor_derived` ≤ 0.75
+- [x] Nightly PriceCharting clock enabled (comics + Pokémon singles; Windows task `VIP PriceCharting Snapshot` 05:00; reused gzip still writes today's observations)
+- [x] Phase D wave 1 cross-section (`ask_divergence`, `grade_premium_compression`) on `/api/signals/context` — confidence ≤ 0.75. `price_acceleration` / `lull` wait for 30 nightly snapshots. Phase 2 off.
+- [x] Map-integrity rule (n≥5, ask/guide_raw outside [0.10, 10] flags the map) + first P(9.8) calibration set `p98_set_001` (`data/calibration/2026-09-20_p98_set_001.json`). Phase 2 off.
+- [x] Era-gap audit (vendor year >10y before series.year_began) + CLZ DIFF importer (`data/imports/clz/`, dry-run / wait to apply). Phase 2 off.
+- [x] News-only source table `vault_core.signals_news_source` (2026-09-20 seed, adapters off, Phase 2 off). Not `vault_market.data_source`.
+- [x] Portfolio snapshot sum is owned-only (Need Binder catalog prices excluded).
+- [ ] Comics `vendor_product_map` confirm pass (do not auto-confirm below 0.90)
 
 ### G. Product trial & trust
 

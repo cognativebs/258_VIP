@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { ConfidenceBadge } from "@/components/ProvenanceBadge";
 import { apiGet } from "@/lib/api";
 
@@ -33,7 +32,7 @@ export default async function RecommendationsPage() {
 
   return (
     <div className="shell">
-      <><Nav active="/recommendations" />
+      <>
       <h1 className="page-title">Recommendations</h1>
       <p className="page-sub">
         Decision engine output: action + range + evidence. Never a bare point price.

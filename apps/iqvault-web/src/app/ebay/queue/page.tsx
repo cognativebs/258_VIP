@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { apiGet, apiPost } from "@/lib/api";
 
 type QueueItem = {
@@ -51,7 +50,6 @@ export default function EbayQueuePage() {
 
   return (
     <div className="shell">
-      <Nav active="/ebay" />
       <h1 className="page-title">Daily listing queue</h1>
       <p className="page-sub">
         Ranked, not a bulk dump. Target ~20–25. Approve creates a reviewable draft — it does not

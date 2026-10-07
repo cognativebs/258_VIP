@@ -3,18 +3,31 @@ import {
   SIGNALS_CONTEXT_RULE,
   SignalsContextSchema,
   SignalBucketOutputSchema,
+  type PhaseDContext,
   type SignalBucketOutput,
   type SignalsContext,
 } from "@vip/core-model";
+import { loadPhaseDContext } from "./pricecharting/phaseD.js";
 import { defaultSignalsFeedPath, readSignalsFeed, type FeedSignal } from "./signalsFeed.js";
 
 const NEWS_NOTE =
   "News is inferred · unverified RSS; not a market fact; do not invent comps from headlines.";
 
+export async function compactSignalsContextWithPhaseD(
+  feedPath = defaultSignalsFeedPath(),
+): Promise<SignalsContext> {
+  const base = compactSignalsContext(feedPath);
+  try {
+    const phaseD: PhaseDContext = await loadPhaseDContext();
+    return SignalsContextSchema.parse({ ...base, phaseD });
+  } catch {
+    return base;
+  }
+}
+
 export function compactSignalsContext(
   feedPath = defaultSignalsFeedPath(),
-): SignalsContext {
-  const feed = readSignalsFeed(feedPath);
+): SignalsContext {  const feed = readSignalsFeed(feedPath);
   if (!feed) {
     return SignalsContextSchema.parse({
       active: [],
@@ -25,7 +38,7 @@ export function compactSignalsContext(
         method: "inferred",
         ruleOrModelVersion: SIGNALS_CONTEXT_RULE,
         verificationStatus: "unverified",
-        notes: `${NEWS_NOTE} Feed file missing — omit block; do not invent “no news” as a priced event.`,
+        notes: `${NEWS_NOTE} Feed file missing — omit block; do not invent “no news” as a priced event. signals_raw exists but is not confirmed live.`,
       },
     });
   }
@@ -53,7 +66,7 @@ export function compactSignalsContext(
       method: "inferred",
       ruleOrModelVersion: SIGNALS_CONTEXT_RULE,
       verificationStatus: "unverified",
-      notes: NEWS_NOTE,
+      notes: `${NEWS_NOTE} This slice is what Orchestr8 Analysis / Comics Ask must cite. Postgres persist is regenerable; Phase 2 scoring stays off.`,
     },
   });
 }

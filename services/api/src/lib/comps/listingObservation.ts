@@ -15,6 +15,7 @@ import type { CompSale, CompsAdapterResult } from "./types.js";
 
 export const LISTING_OBSERVATION_RULE = "listing-observation@0.1.0";
 export const LISTING_OBSERVATION_SOURCE = "ebay_browse" as const;
+export const BROWSE_OBSERVATION_KINDS = ["browse_listing", "browse_empty"] as const;
 
 export const FORBIDDEN_PERSIST_SQL =
   /\bvault_market\.sale\b|\bcurrent_price_snapshot\b|\bUPDATE\s+vault_collection\.holding\b/i;
@@ -140,7 +141,11 @@ export function memoryListingObservationStore(): ListingObservationStore & {
       return rows.length;
     },
     async latestObservedAt(holdingSourceRowId) {
-      const hits = observations.filter((o) => o.holdingSourceRowId === holdingSourceRowId);
+      const hits = observations.filter(
+        (o) =>
+          o.holdingSourceRowId === holdingSourceRowId &&
+          (BROWSE_OBSERVATION_KINDS as readonly string[]).includes(o.observationKind),
+      );
       if (!hits.length) return null;
       return hits.reduce((a, b) => (a.observedAt > b.observedAt ? a : b)).observedAt;
     },
@@ -231,6 +236,7 @@ export function postgresListingObservationStore(): ListingObservationStore {
         SELECT MAX(observed_at) AS latest
         FROM vault_market.listing_observation
         WHERE holding_source_row_id = ${holdingSourceRowId}
+          AND observation_kind IN ('browse_listing', 'browse_empty')
       `);
       const raw = (result.rows as Array<Record<string, unknown>>)[0]?.latest;
       if (!raw) return null;

@@ -3,7 +3,12 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { COLLECTIONS, pokemonCollectionHoldings, splitTcgHoldings } from "./collections";
+import {
+  COLLECTIONS,
+  ownedNeedsVerificationCount,
+  pokemonCollectionHoldings,
+  splitTcgHoldings,
+} from "./collections";
 import type { Holding } from "./api";
 import { POKEMON_TABLE_COLUMNS } from "./comicEngine";
 
@@ -92,6 +97,7 @@ describe("collection routes", () => {
       pokemonCollectionHoldings(split).map((h) => h.id),
       ["binder-slot-owned"],
     );
+    assert.equal(ownedNeedsVerificationCount(holdings), 1);
   });
 
   it("shows NAME as the first Pokémon column and keeps art out of the grid", () => {

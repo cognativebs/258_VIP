@@ -1,0 +1,61 @@
+{
+  "ruleOrModelVersion": "clz-diff-importer@0.1.0",
+  "dryRun": false,
+  "applied": true,
+  "phase2Enabled": false,
+  "exportPath": "data\\imports\\clz\\comic_2026-09-21_01-54-35-export.xml",
+  "snapshotPath": "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP\\data\\raw\\clz\\2026-09-20_f87b47577755.xml",
+  "contentHash": "f87b4757775575be4221e2f1697a80f1b59fd71e71e225c715fda39d0a36a31e",
+  "incomingCount": 2700,
+  "existingCount": 2700,
+  "newCount": 0,
+  "changedCount": 1,
+  "unchangedCount": 2699,
+  "disappearedCount": 0,
+  "possiblySoldFlagged": 0,
+  "byType": {
+    "ownershipNew": 0,
+    "ownershipSold": 0,
+    "ownershipQuantity": 0,
+    "conditionGrade": 1,
+    "clzValueDrift": 0,
+    "metadataOnly": 0
+  },
+  "newNeedFreshVendorMap": 0,
+  "newReuseExistingMap": 0,
+  "clzValueLanding": {
+    "clzValueField": "vault_collection.holding.current_price_snapshot",
+    "guideBaseline": "vault_market.v_guide_price_baseline",
+    "writesGuideBaseline": false,
+    "notes": "CLZ Current Price writes only holding.current_price_snapshot. Never guide_price_observation / v_guide_price_baseline."
+  },
+  "possiblySoldCandidates": [],
+  "rows": [
+    {
+      "sourceRowId": "8243-e1ec0714",
+      "classification": "changed",
+      "changeTypes": [
+        "condition_grade"
+      ],
+      "changedFields": [
+        "Slab Status"
+      ],
+      "possiblySold": false,
+      "canonicalName": "The Amazing Spider-Man, Vol. 1 #361A (Direct Edition)",
+      "clzValue": 400.0,
+      "quantity": 1,
+      "needsFreshVendorMap": false
+    }
+  ],
+  "notes": "DIFF importer. Dry-run never flags possibly_sold. CLZ value \u2260 PriceCharting baseline. asset_id / vendor_product_map / enrichment scores / guide baseline not written. Not signals_normalized. Phase 2 off. Apply only after confirmation.",
+  "newIds": [],
+  "changedIds": [
+    "8243-e1ec0714"
+  ],
+  "disappearedIds": [],
+  "applyStats": {
+    "changed": 1,
+    "possiblySold": 0,
+    "inserted": 0
+  }
+}
