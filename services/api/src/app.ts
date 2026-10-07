@@ -51,7 +51,7 @@ import { classifyInventoryBucket } from "@vip/core-model";
 import { mapInventoryRow, type ApiHolding } from "./lib/holdings.js";
 import { listListingDrafts, queueListingDrafts } from "./lib/listingQueue.js";
 import { createInventoryTransaction, listInventoryTransactions } from "./lib/transactions.js";
-import { compactSignalsContext, signalsOutputFromFeed } from "./lib/signalsContext.js";
+import { compactSignalsContextWithPhaseD, signalsOutputFromFeed } from "./lib/signalsContext.js";
 import {
   ApproveConfirmListRequestSchema,
   ebayCredsFromEnv,
@@ -612,11 +612,11 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ recommendation: await buildRecommendation(holding) });
   });
 
-  app.get("/api/signals", (_req, res) =>
+  app.get("/api/signals", async (_req, res) =>
     res.json({
       ...loadSignalsResponse(),
       signalsIngestion: SIGNALS_INGESTION,
-      context: compactSignalsContext(),
+      context: await compactSignalsContextWithPhaseD(),
       output: signalsOutputFromFeed(),
     }),
   );
@@ -692,7 +692,7 @@ export function createApp(deps: AppDeps = {}) {
     } catch (e) {
       synthesized = { error: e instanceof Error ? e.message : "vault_signals unavailable", signals: [] };
     }
-    res.json({ ...compactSignalsContext(), synthesized });
+    res.json({ ...(await compactSignalsContextWithPhaseD()), synthesized });
   });
 
   app.get("/api/signals/output", (_req, res) => {

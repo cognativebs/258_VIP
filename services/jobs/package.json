@@ -17,7 +17,8 @@
     "clz-sync": "tsx src/cli.ts clz-sync",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "price-history": "tsx src/cli.ts price-history"
+    "price-history": "tsx src/cli.ts price-history",
+    "pricecharting-snapshot": "tsx src/cli.ts pricecharting-snapshot"
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",

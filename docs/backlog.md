@@ -192,7 +192,8 @@ third-party-access licence limit).
   - [x] `pokemon-prices` job (daily; `--dry-run`, `--limit`): Binder owned + wishlist cards and cards named in signals → PriceCharting match in `vendor_product_map` (one exact English set + number + name match auto-prices; variants, duplicates and other numbers go to `review`); raw responses kept in `raw_snapshots`; one `card_price_history` row per condition per day (ungraded = NM assumed · unverified; 7 / 8 / 9 / 9.5 any grader; PSA / BGS / CGC / SGC 10). Migration `20261004_04` widens the condition CHECK
   - [x] `GET /api/pokemon/fmv[?externalId=&windowDays=]`: range per condition over stored snapshots, snapshot count, recency, confidence ≤ 0.75 — guide values, never sold comps
   - [x] Operator review: `job:pokemon-prices -- review`, `-- confirm <externalId> [productId] --confirm-operator` (`confirmed_at` stays NULL — the registry locks confirmed rows to an `asset_id`, which cards lack until TCG D1/D2)
-  - [ ] **Depends on the unmerged PriceCharting registry** (`20260917_01`, `20260920_02` on `cursor/pricecharting-core-wiring-f536`). Without it the job reports `blocked` and FMV shows no matches
+  - [x] PriceCharting registry landed on main (`20260917_01`, `20260920_02`, 2026-10-06), so a fresh database prices Binder cards too
+  - Split with the nightly snapshot: the nightly CSV prices **asset-linked** items (comics + Pokémon singles that are assets) into `guide_price_observation`; `pokemon-prices` prices **Binder cards** (no asset until TCG D1/D2) into `card_price_history`
   - [ ] Pokémon **sold comps**: TCGplayer latest-sales and history endpoints return 403 (not worked around) — the existing TCGplayer price-history job is likely failing for the same reason. Card-keyed `sale` waits for a licensed source (eBay Marketplace Insights application)
   - [ ] Pokémon **asks** (eBay Browse → `listing_observation`): deferred by operator 2026-10-04
   - [ ] Feed FMV into signal proposals (market confirmation can unlock Buy/Sell/Grade)
@@ -201,6 +202,13 @@ third-party-access licence limit).
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)
 - [x] Team/role picker for collector-face analytics (AI team / council panel on Comics Analytics) — 2026-08-09
 - [x] Single inventory truth across Comics + Binder in Postgres (ADR 0007) — VIP API reads both; unified Bloomberg grid still open above
+- **PriceCharting comics guide** *(built 2026-09-13 → 09-20 in the main folder's uncommitted work; landed on main 2026-10-06; plans [0004](plans/0004-pricecharting-core-wiring.md) / [0005](plans/0005-pricecharting-digital-tools.md))*
+  - [x] Source registry + vendor product map (`20260917_01`, `20260920_02`), `guide_price_observation` adopted (`20260920_01`, ADR 0012), `listing_observation` is asks only (`20260920_03`; freshness reads browse rows only)
+  - [x] Nightly CSV snapshot (`npm run job:pricecharting-snapshot`): gzip + hash-idempotent, one observation per mapped condition, `vendor_derived` ≤ 0.75. Windows task `VIP PriceCharting Snapshot` 05:00 (`scripts/schedule_pricecharting_snapshot.ps1`); raw gzips in `PRICECHARTING_SNAPSHOT_DIR` (git-ignored `data/raw/pricecharting/`)
+  - [x] Phase D wave 1 cross-section (`ask_divergence`, `grade_premium_compression`) on `/api/signals/context`, confidence ≤ 0.75. `price_acceleration` / `lull` wait for 30 nightly snapshots. Phase 2 off
+  - [x] Map-integrity rule, era-gap audit, first P(9.8) calibration set `p98_set_001` (`20260920_04`); operator CLIs `job:pricecharting-ops`, `-map-integrity`, `-era-audit`, `-comics-dry-run`, `-phase-b-write`
+  - [ ] Comics `vendor_product_map` confirm pass (do not auto-confirm below 0.90)
+  - [ ] Retire the failing `VIP Comics Guide Snapshot` 03:00 task and the superseded `cursor/pricecharting-core-wiring-f536` branch (operator)
 
 ### G. Product trial & trust
 
@@ -232,6 +240,12 @@ third-party-access licence limit).
 
 ### J. Data foundation leftovers
 
+- **ComicBase as the comics inventory source** *(ADR 0016; .cbdb is encrypted and never read)*
+  - [x] Watched-folder import of ComicBase Collection Reports (`npm run import:comicbase`; hourly in the launcher's jobs): raw snapshot (`comicbase_export`), parse, match to holdings, ComicBase key in `holding.provider_ids` (migration `20261006_01`)
+  - [x] Review list `vault_collection.comicbase_item`: `npm run import:comicbase -- --review [--unmatched]`, `-- --confirm <item_key> <holding_id> --confirm-operator`; confirmed matches never move
+  - [ ] Burn down the review list (176 items on 2026-10-06) and the 95 unmatched
+  - [ ] When ComicBase holds the whole collection: flag CLZ-only holdings, create holdings for confirmed new ComicBase items, then retire CLZ (ADR 0016 decision 3)
+  - [ ] Optional: a detailed ComicBase export (item id, grade, cost) to replace the report key
 - [ ] Schema review (Opus) before treating Phase 1 as fully closed
 - [ ] Live comps adapters — **code shipped** (auth on `main` via PR #69). Leftover is the vault walk + Collection LIVE column ([plan 0003](plans/0003-comics-comps-vault-ingest.md)), not an Analysis uncap. `vault_market.sale` persist stays blocked until sold (Insights) data exists.
 - [ ] Liquidation-ready valuations: ranges + evidence count + recency + confidence end-to-end
