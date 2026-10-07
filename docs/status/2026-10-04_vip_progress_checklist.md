@@ -25,7 +25,7 @@ decisions. Percentages are estimates. *Unmerged* = lives on a branch not in
 |---|---|---|---|---|
 | Comics collection in Postgres (2,700 holdings) | 100 | 100 | 90 | |
 | Comics Terminal (grid, filters, edits) | 100 | 90 | 80 | |
-| **ComicBase as the inventory source** (ADR 0014) | 10 | 0 | 0 | Waiting on the first ComicBase export |
+| **ComicBase as the inventory source** (ADR 0016) | 10 | 0 | 0 | Waiting on the first ComicBase export |
 | ComicBase matching: keep history, review list | 0 | 0 | 0 | |
 | Retire CLZ (drop zone, importer, CI gate) | 0 | 0 | 0 | After ComicBase lands |
 | Verification burn-down (2,684 marked "Needs Verification") | 5 | 0 | 0 | |
@@ -150,7 +150,7 @@ Production sits around 30–50%. Three things hold most of it back:
 
 ## Dropped because later work replaced them
 
-- CLZ as the inventory source → ComicBase (ADR 0014).
+- CLZ as the inventory source → ComicBase (ADR 0016).
 - TCGplayer price history / latest sales → PriceCharting guide (TCGplayer returns 403).
 - Read-time clusters and the old synthesis job → #98's stored clusters plus read-time synthesis.
 - The hourly items job → manual items index.

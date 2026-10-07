@@ -27,6 +27,8 @@ describe("evidence-bridge", () => {
       assetId: "h1",
       assetName: "Test Holding",
       askPrice: 20,
+      // Pinned clock: the July sales must stay inside the comps window whatever today is.
+      asOf: new Date("2026-07-20T00:00:00.000Z"),
       sales: [
         {
           id: "s1",
