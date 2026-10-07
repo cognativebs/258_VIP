@@ -10,7 +10,7 @@ import type { Hunt } from "../seeds/hunts.js";
 
 export type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
-export type BinderSlot = { setName: string | null; cardName: string | null; owned: boolean; wishlist: boolean };
+export type BinderSlot = { setName: string | null; cardName: string | null; owned: boolean; wishlist: boolean; externalId?: string | null };
 export type HuntText = { hunt: string; text: string };
 
 /** "pokemon:dex:151" → pokemon/mew; "binder_set:x", "set:x", "card:x", "product:x" → that kind and key. */
@@ -45,17 +45,27 @@ export function exposureFor(ref: string | null, binder: ReadonlyArray<BinderSlot
   const matched = [
     ...new Set(matches.map((s) => [s.cardName, s.setName].filter(Boolean).join(" · ")).filter(Boolean)),
   ];
+  const cardIds = [
+    ...new Set(matches.filter((s) => s.owned || s.wishlist).map((s) => s.externalId).filter((x): x is string => Boolean(x))),
+  ];
   return {
     owned: matches.filter((s) => s.owned).length,
     wishlist: matches.filter((s) => s.wishlist && !s.owned).length,
     hunts: huntHits,
     matched,
+    cardIds,
   };
 }
 
 export async function loadBinderSlots(db: Queryable): Promise<BinderSlot[]> {
-  const { rows } = await db.query(`SELECT set_name, card_name, owned, on_wishlist FROM vault_tcg.binder_slot`);
-  return rows.map((r) => ({ setName: r.set_name, cardName: r.card_name, owned: Boolean(r.owned), wishlist: Boolean(r.on_wishlist) }));
+  const { rows } = await db.query(`SELECT set_name, card_name, owned, on_wishlist, external_id FROM vault_tcg.binder_slot`);
+  return rows.map((r) => ({
+    setName: r.set_name,
+    cardName: r.card_name,
+    owned: Boolean(r.owned),
+    wishlist: Boolean(r.on_wishlist),
+    externalId: r.external_id ?? null,
+  }));
 }
 
 /** Pokémon hunts as searchable text: the hunt's name plus each item's name. */

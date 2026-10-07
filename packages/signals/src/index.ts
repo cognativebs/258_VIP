@@ -260,6 +260,8 @@ export {
 export { POKEMON_SYNTHESIS_PROFILE_SEED } from "./synthesis/synthesis-seed.js";
 export {
   PROPOSAL_VERSION,
+  GuideRangeSchema,
+  guideSummary,
   ProposalActionSchema,
   ProposalTagSchema,
   SignalProposalSchema,
@@ -268,6 +270,7 @@ export {
   type ProposalAction,
   type ProposalTag,
   type SignalExposure,
+  type GuideRange,
   type ProposalInput,
   type SignalProposal,
 } from "./synthesis/proposal.js";

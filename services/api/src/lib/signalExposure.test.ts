@@ -23,7 +23,7 @@ describe("signal exposure", () => {
     expect(exposureFor("binder_set:surging-sparks", binder, [])).toMatchObject({ owned: 1, wishlist: 1 });
     expect(exposureFor("binder_card:mew-ex", binder, [])).toMatchObject({ owned: 0, wishlist: 1, matched: ["Mew ex · Surging Sparks"] });
     expect(exposureFor("pokemon:dex:151", binder, [])).toMatchObject({ owned: 0, wishlist: 1 });
-    expect(exposureFor("set:delta-reign", binder, [])).toEqual({ owned: 0, wishlist: 0, hunts: [], matched: [] });
+    expect(exposureFor("set:delta-reign", binder, [])).toEqual({ owned: 0, wishlist: 0, hunts: [], matched: [], cardIds: [] });
   });
 
   it("finds Pokémon hunts that name the entity", () => {

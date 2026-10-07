@@ -11,7 +11,7 @@
 import { z } from "zod";
 import type { Band } from "./synthesis.js";
 
-export const PROPOSAL_VERSION = "signal-proposal@0.1.0";
+export const PROPOSAL_VERSION = "signal-proposal@0.2.0";
 
 export const ProposalActionSchema = z.enum(["Buy", "Hold", "Grade", "Sell", "Lot", "Pass", "Watch"]);
 export type ProposalAction = z.infer<typeof ProposalActionSchema>;
@@ -25,7 +25,29 @@ export type SignalExposure = {
   hunts: string[];
   /** What matched, for the reasons line. */
   matched: string[];
+  /** Catalog ids (pokemontcg) of the matched Binder cards, so guide prices can be looked up. */
+  cardIds?: string[];
 };
+
+/**
+ * PriceCharting guide range for one matched card and condition (vendor guide, sale-derived,
+ * confidence ≤ 0.75). Evidence for Orchestr8 — never sold comps, never unlocks Buy / Sell / Grade
+ * (operator decision 2026-10-06).
+ */
+export const GuideRangeSchema = z
+  .object({
+    externalId: z.string().min(1),
+    card: z.string().min(1),
+    condition: z.string().min(1),
+    conditionAssumed: z.boolean(),
+    low: z.number().nonnegative(),
+    high: z.number().nonnegative(),
+    snapshots: z.number().int().positive(),
+    recencyDays: z.number().int().nonnegative(),
+    confidence: z.number().min(0).max(0.75),
+  })
+  .strict();
+export type GuideRange = z.infer<typeof GuideRangeSchema>;
 
 export type ProposalInput = {
   title: string;
@@ -37,6 +59,8 @@ export type ProposalInput = {
   baseConfidence: number;
   exposure: SignalExposure;
   marketConfirmed: boolean;
+  /** Guide ranges for the matched cards (NM / ungraded first). Evidence only. */
+  guide?: GuideRange[];
 };
 
 export const SignalProposalSchema = z
@@ -48,6 +72,7 @@ export const SignalProposalSchema = z
     reasons: z.array(z.string().min(1)).min(1),
     trigger: z.string().nullable(),
     withheld: z.array(z.object({ action: ProposalActionSchema, reason: z.string() }).strict()),
+    guide: z.array(GuideRangeSchema),
     verification: z.literal("unverified"),
   })
   .strict();
@@ -55,10 +80,30 @@ export type SignalProposal = z.infer<typeof SignalProposalSchema>;
 
 const PRODUCT_THEMES = new Set(["PREORDER", "PRODUCT_REVEAL", "SET_RELEASE", "RESTOCK"]);
 const RESEARCH_THEMES = new Set(["PULL_RATE", "CARD_REVEAL", "SUPPLY_CHANGE", "REPRINT"]);
-const NEEDS_MARKET = "needs sold comps (market data) first";
+const NEEDS_MARKET_BARE = "needs sold comps (market data) first";
+
+const money = (n: number) => `$${n < 100 ? n.toFixed(2) : Math.round(n)}`;
+const span = (g: GuideRange) => (g.low === g.high ? money(g.low) : `${money(g.low)}–${money(g.high)}`);
+const label = (g: GuideRange) => (g.condition === "NM" && g.conditionAssumed ? "NM assumed" : g.condition.replace(/_/g, " "));
+
+/** "Bulbasaur NM assumed $17.00 · PSA 10 $107 (1 snapshot, 0d)" per card, ungraded first. */
+export function guideSummary(guide: ReadonlyArray<GuideRange>, maxCards = 3): string[] {
+  const byCard = new Map<string, GuideRange[]>();
+  for (const g of guide) byCard.set(g.externalId, [...(byCard.get(g.externalId) ?? []), g]);
+  return [...byCard.values()].slice(0, maxCards).map((rows) => {
+    const raw = rows.find((g) => g.condition === "NM");
+    const top = rows.find((g) => g.condition === "PSA_10") ?? rows.filter((g) => g !== raw).at(-1);
+    const parts = [raw, top].filter((g): g is GuideRange => Boolean(g)).map((g) => `${label(g)} ${span(g)}`);
+    const lead = raw ?? rows[0]!;
+    return `${lead.card} ${parts.join(" · ")} (${lead.snapshots} snapshot${lead.snapshots === 1 ? "" : "s"}, ${lead.recencyDays}d)`;
+  });
+}
 
 export function proposeForSignal(input: ProposalInput): SignalProposal {
   const { exposure } = input;
+  const guide = input.guide ?? [];
+  // With a guide range on hand the withheld reason says so; it still is not sold comps.
+  const NEEDS_MARKET = guide.length ? `guide range attached (vendor guide, not sold comps); still ${NEEDS_MARKET_BARE}` : NEEDS_MARKET_BARE;
   const reasons: string[] = [];
   const tags = new Set<ProposalTag>();
   const withheld: SignalProposal["withheld"] = [];
@@ -69,6 +114,7 @@ export function proposeForSignal(input: ProposalInput): SignalProposal {
     `${input.band.replace("_", " ")} · ${input.independentSourceCount} independent source${input.independentSourceCount === 1 ? "" : "s"}`,
   );
   if (exposure.matched.length) reasons.push(`Matches your collection: ${exposure.matched.slice(0, 4).join(", ")}`);
+  if (guide.length) reasons.push(`PriceCharting guide (not sold comps): ${guideSummary(guide).join("; ")}`);
 
   if (input.band === "noise") {
     action = "Pass";
@@ -88,7 +134,7 @@ export function proposeForSignal(input: ProposalInput): SignalProposal {
       tags.add("hunt_target");
       reasons.push(`In your hunts: ${exposure.hunts.slice(0, 3).join(", ")}`);
     }
-    withheld.push({ action: "Buy", reason: `on your wants; Buy ${NEEDS_MARKET} and a price` });
+    withheld.push({ action: "Buy", reason: `on your wants; Buy ${NEEDS_MARKET}${guide.length ? "" : " and a price"}` });
   } else if (input.band === "watch") {
     action = "Pass";
     reasons.push("No exposure in your Binder or hunts; noted, not acted on");
@@ -120,6 +166,7 @@ export function proposeForSignal(input: ProposalInput): SignalProposal {
     reasons,
     trigger,
     withheld,
+    guide,
     verification: "unverified",
   });
 }
@@ -132,6 +179,9 @@ export function orchestr8Question(input: ProposalInput, proposal: SignalProposal
     `SIGNALS proposes ${proposal.action}${proposal.tags.length ? ` [${proposal.tags.join(", ")}]` : ""}${proposal.trigger ? `; trigger: ${proposal.trigger}` : ""}.`,
     `Exposure: owned ${e.owned}, wishlist ${e.wishlist}, hunts ${e.hunts.length ? e.hunts.join(", ") : "none"}.`,
     proposal.withheld.length ? `Withheld: ${proposal.withheld.map((w) => `${w.action} (${w.reason})`).join("; ")}.` : "",
+    proposal.guide.length
+      ? `PriceCharting guide for the matched cards (vendor guide, confidence ≤ 0.75, not sold comps): ${guideSummary(proposal.guide).join("; ")}.`
+      : "",
     "Decide Buy / Hold / Grade / Sell / Lot / Pass / Watch with confidence and reasons. Buy, Sell or Grade only with market evidence; news is never a price.",
   ]
     .filter(Boolean)

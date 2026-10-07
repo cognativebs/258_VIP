@@ -1,5 +1,6 @@
 import type { ComicRow, ComicsMeta, UnknownExitPayload } from "./comicTypes";
 import { apiGet, type Holding, type InventoryResponse } from "./api";
+import { fmvCell, fmvDetail, fmvLow, type FmvCard, type FmvResponse } from "./pokemonFmv";
 import { holdingToComicRow, holdingToPokemonRow, metaFromHoldings } from "./holdingToComic";
 import { pokemonCollectionHoldings, splitTcgHoldings } from "./collections";
 
@@ -136,9 +137,24 @@ export async function loadPokemonTerminalData(): Promise<{
   source: "comics-api" | "vip-api";
   editable: boolean;
 }> {
-  const data = await apiGet<InventoryResponse>("/api/inventory");
+  const [data, fmv] = await Promise.all([
+    apiGet<InventoryResponse>("/api/inventory"),
+    // FMV is best-effort: the collection still loads if the guide is unavailable.
+    apiGet<FmvResponse>("/api/pokemon/fmv").catch(() => null),
+  ]);
+  const fmvById = new Map<string, FmvCard>((fmv?.cards ?? []).map((c) => [c.externalId, c]));
   const split = splitTcgHoldings((data.holdings ?? []).map(normalizeTcgHolding));
-  const inventory = pokemonCollectionHoldings(split).map(holdingToPokemonRow);
+  const inventory = pokemonCollectionHoldings(split).map((h) => {
+    const row = holdingToPokemonRow(h);
+    const cardId = h.externalIds?.find((e) => e.source === "pokemontcg")?.externalValue;
+    const card = cardId ? fmvById.get(cardId) : undefined;
+    return {
+      ...row,
+      "FMV Range": fmv ? fmvCell(card) : "guide unavailable",
+      "FMV Low": fmvLow(card),
+      "FMV Detail": fmv ? fmvDetail(card) : ["PriceCharting FMV could not be loaded."],
+    };
+  });
   const meta = metaFromHoldings(inventory);
   meta.source = data.tcgSource ? `vip-api · ${data.tcgSource}` : "vip-api";
   return {
