@@ -34,7 +34,13 @@
     "job:ebay-order-sync": "npm run ebay-order-sync -w @vip/api",
     "job:ebay-traffic-sync": "npm run ebay-traffic-sync -w @vip/api",
     "job:ebay-preflight": "npm run ebay-preflight -w @vip/api --",
-    "import:comicbase": "python scripts/import_comicbase.py"
+    "import:comicbase": "python scripts/import_comicbase.py",
+    "job:pricecharting-snapshot": "npm run pricecharting-snapshot -w @vip/jobs --",
+    "job:pricecharting-comics-dry-run": "npm run pricecharting-comics-dry-run -w @vip/api --",
+    "job:pricecharting-phase-b-write": "npm run pricecharting-phase-b-write -w @vip/api --",
+    "job:pricecharting-ops": "npm run pricecharting-ops -w @vip/api --",
+    "job:pricecharting-map-integrity": "npm run pricecharting-map-integrity -w @vip/api --",
+    "job:pricecharting-era-audit": "npm run pricecharting-era-audit -w @vip/api --"
   },
   "engines": {
     "node": ">=20"

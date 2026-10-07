@@ -29,6 +29,7 @@ import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entitie
 import { formatIndexReport, indexFeedItems } from "./source-items.js";
 import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPokemonPrices } from "./pokemon-prices.js";
 import { formatComicbaseImport, runComicbaseImport } from "./comicbase-import.js";
+import { formatPriceChartingSnapshotReport, runPriceChartingSnapshotJob } from "./pricecharting-snapshot.js";
 import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
@@ -184,6 +185,20 @@ async function main() {
       runPokemonPrices(db, { dryRun: args.includes("--dry-run"), limit: i >= 0 ? Number(args[i + 1]) : undefined }),
     );
     console.log(formatPokemonPricesReport(report));
+    return;
+  }
+
+  if (cmd === "pricecharting-snapshot") {
+    // pricecharting-snapshot [--csv=<file>] [--dry-run] — nightly guide CSV → guide_price_observation (ADR 0012).
+    // Scheduled by the Windows task from scripts/schedule_pricecharting_snapshot.ps1, not the launcher's scheduler.
+    loadApiEnv();
+    const csvFlag = process.argv.slice(3).find((a) => a.startsWith("--csv="));
+    const report = await runPriceChartingSnapshotJob({
+      triggeredBy: "cli",
+      csvPath: csvFlag ? csvFlag.slice("--csv=".length) : undefined,
+      dryRun: process.argv.includes("--dry-run"),
+    });
+    console.log(formatPriceChartingSnapshotReport(report));
     return;
   }
 

@@ -12,7 +12,13 @@
     "ebay-traffic-sync": "tsx src/ebaySellJobsCli.ts traffic-sync",
     "ebay-preflight": "tsx src/ebaySellJobsCli.ts preflight",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pricecharting-comics-dry-run": "tsx src/pricechartingComicsDryRunCli.ts",
+    "pricecharting-phase-b-write": "tsx src/pricechartingPhaseBWriteCli.ts",
+    "pricecharting-ops": "tsx src/pricechartingOpsCli.ts",
+    "pricecharting-map-integrity": "tsx src/pricechartingMapIntegrityCli.ts",
+    "pricecharting-era-audit": "tsx src/pricechartingEraAuditCli.ts",
+    "pricecharting-era-coverage": "tsx src/pricechartingEraCoverageCli.ts"
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",

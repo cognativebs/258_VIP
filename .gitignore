@@ -53,3 +53,6 @@ apps/binder-vault/.data/
 
 # ComicBase exports dropped for import (raw snapshots go to Postgres)
 data/imports/comicbase/
+
+# PriceCharting nightly CSV gzips (hash-idempotent raw payloads)
+data/raw/pricecharting/
