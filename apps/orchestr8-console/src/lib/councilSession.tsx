@@ -27,6 +27,7 @@ import {
   type TeamSettings,
 } from "@/lib/roles";
 import { defaultTeamSettings, loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
+import { HEARTBEAT_SILENT_MS, type Heartbeat } from "@/lib/jobHealth";
 
 export type ConsoleTab = "analysis" | "build" | "runs" | "specs";
 export type SessionKind = "analysis" | "build";
@@ -57,6 +58,9 @@ export type LiveSession = {
   activeRole: string | null;
   /** Bumped on start / progress / step — stall watchdog must not ignore SSE progress. */
   lastActivityAt: number | null;
+  /** Latest gateway heartbeat (in-flight calls, finished roles, spend so far). */
+  heartbeat: Heartbeat | null;
+  lastHeartbeatAt: number | null;
 };
 
 export type CouncilInfo = {
@@ -125,6 +129,8 @@ const emptySession = (kind: SessionKind): LiveSession => ({
   progressMessage: null,
   activeRole: null,
   lastActivityAt: null,
+  heartbeat: null,
+  lastHeartbeatAt: null,
 });
 
 const CouncilSessionContext = createContext<CouncilSessionValue | null>(null);
@@ -368,11 +374,26 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
           const ageMs = now - s.startedAt;
           const roleCount = Math.max(s.roles.length, 1);
           // Socket timeout for large completions is up to 480s; stall must sit above that.
+          // A gateway that sends heartbeats and then goes silent is gone: say so in 30s, not 10 minutes.
+          if (s.lastHeartbeatAt && now - s.lastHeartbeatAt > HEARTBEAT_SILENT_MS) {
+            changed = true;
+            // Close the stream too: if the gateway is still alive it cancels the job's remaining roles.
+            abortRef.current?.abort();
+            next[k] = {
+              ...s,
+              loading: false,
+              error:
+                s.error ||
+                `Gateway silent for ${Math.round((now - s.lastHeartbeatAt) / 1000)}s — it stopped sending heartbeats (crashed, restarted or the connection dropped). Click Clear, then retry.`,
+            };
+            return;
+          }
           const noStepsStuck = s.steps.length === 0 && stallMs > 10 * 60_000;
           const midRunStuck = s.steps.length > 0 && stallMs > 10 * 60_000;
           const hardCap = ageMs > Math.max(20 * 60_000, roleCount * 8 * 60_000);
           if (noStepsStuck || midRunStuck || hardCap) {
             changed = true;
+            abortRef.current?.abort();
             next[k] = {
               ...s,
               loading: false,
@@ -418,6 +439,8 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
             ? "Resuming after top-off — retrying the failed role only…"
             : "Connecting to gateway stream…",
           activeRole: args.roles[0] || prev[args.kind].activeRole,
+          heartbeat: null,
+          lastHeartbeatAt: null,
         },
       }));
 
@@ -452,6 +475,18 @@ export function CouncilSessionProvider({ children }: { children: ReactNode }) {
                   lastActivityAt: Date.now(),
                   progressMessage: p.message || prev[args.kind].progressMessage,
                   activeRole: p.role || prev[args.kind].activeRole,
+                },
+              }));
+            },
+            onHeartbeat: (beat) => {
+              setSessions((prev) => ({
+                ...prev,
+                [args.kind]: {
+                  ...prev[args.kind],
+                  heartbeat: beat,
+                  lastHeartbeatAt: Date.now(),
+                  lastActivityAt: Date.now(),
+                  activeRole: beat.inFlight[0]?.role || prev[args.kind].activeRole,
                 },
               }));
             },

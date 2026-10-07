@@ -364,8 +364,10 @@ async function main() {
   }
 
   if (cmd === "schedule") {
-    const handle = startScheduler(
-      [
+    // schedule [--skip name,name] — e.g. --skip price-history while TCGplayer answers 403
+    const k = process.argv.indexOf("--skip");
+    const skip = new Set(k >= 0 ? String(process.argv[k + 1] ?? "").split(",").map((x) => x.trim()).filter(Boolean) : []);
+    const jobs: Parameters<typeof startScheduler>[0] = [
         {
           name: "pokemon-drops",
           everyMs: 60 * 60 * 1000,
@@ -466,12 +468,18 @@ async function main() {
             });
           },
         },
-      ],
-      { runImmediately: true },
-    );
+    ];
+    const unknown = [...skip].filter((n) => !jobs.some((j) => j.name === n));
+    if (unknown.length) {
+      console.error(`unknown job(s) for --skip: ${unknown.join(", ")} (jobs: ${jobs.map((j) => j.name).join(", ")})`);
+      process.exit(1);
+    }
+    const running = jobs.filter((j) => !skip.has(j.name));
+    const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news and items hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news and macro-news hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
+    if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {
       handle.stop();
       process.exit(0);

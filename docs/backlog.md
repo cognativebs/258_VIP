@@ -22,6 +22,8 @@ endpoint reports `scoringEnabled: false` until then. The manual intelligence
 store still writes JSON (`VIP_INTELLIGENCE_STATE`); moving it onto the new
 Postgres tables is the next step.
 
+**Progress checklist (2026-10-04):** POC / Testing / Production percentages per task — [`docs/status/2026-10-04_vip_progress_checklist.md`](status/2026-10-04_vip_progress_checklist.md).
+
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
 

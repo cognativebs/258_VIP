@@ -60,7 +60,7 @@ def _step(role: str, *, error: str | None = None) -> dict:
     return out
 
 
-def test_pipeline_pauses_and_does_not_call_later_roles():
+def test_pipeline_pauses_and_does_not_call_later_roles(monkeypatch):
     pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
     from services import orchestrator as orch
 
@@ -72,7 +72,7 @@ def test_pipeline_pauses_and_does_not_call_later_roles():
             return _step(agent_id, error="Error code: 402 - insufficient credits")
         return _step(agent_id)
 
-    orch._run_agent = fake_run  # type: ignore[method-assign]
+    monkeypatch.setattr(orch, "_run_agent", fake_run)
     result = orch._execute_job(
         task="build_spec",
         roles=["architect", "domain_expert", "tester", "critic"],
@@ -90,7 +90,7 @@ def test_pipeline_pauses_and_does_not_call_later_roles():
     assert result["resume"]["failed_role"] == "domain_expert"
 
 
-def test_resume_retries_failed_role_only():
+def test_resume_retries_failed_role_only(monkeypatch):
     pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
     from services import orchestrator as orch
 
@@ -101,7 +101,7 @@ def test_resume_retries_failed_role_only():
         calls.append(agent_id)
         return _step(agent_id)
 
-    orch._run_agent = fake_run  # type: ignore[method-assign]
+    monkeypatch.setattr(orch, "_run_agent", fake_run)
     result = orch._execute_job(
         task="build_spec",
         roles=["architect", "domain_expert", "tester", "critic"],
@@ -126,7 +126,7 @@ def test_non_credit_error_is_not_a_pause_step():
     assert not step_is_credit_pause({"role": "tester", "error": "timed out", "text": "nope"})
 
 
-def test_pipeline_stops_when_coordinator_plan_fails():
+def test_pipeline_stops_when_coordinator_plan_fails(monkeypatch):
     """Empty / generic plan failure must not cascade into every later role."""
     pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
     from services import orchestrator as orch
@@ -151,7 +151,7 @@ def test_pipeline_stops_when_coordinator_plan_fails():
             out["costUsd"] = 0.0
         return out
 
-    orch._run_agent = fake_run  # type: ignore[method-assign]
+    monkeypatch.setattr(orch, "_run_agent", fake_run)
     result = orch._execute_job(
         task="build_spec",
         roles=["orchestrator", "architect", "domain_expert", "tester", "critic"],

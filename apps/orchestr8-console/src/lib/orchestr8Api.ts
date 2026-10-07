@@ -1,6 +1,7 @@
 /** Orchestr8 Console → gateway client (proxied via /api/orchestr8). */
 
 import { RunDetailSchema, RunListResponseSchema } from "../types/runs";
+import type { Heartbeat } from "./jobHealth";
 
 export type Health = {
   ok?: boolean;
@@ -304,6 +305,7 @@ export async function streamJob(
       message?: string;
     }) => void;
     onStep?: (step: JobStep) => void;
+    onHeartbeat?: (beat: Heartbeat) => void;
     onDone?: (result: JobResult) => void;
   } = {},
   signal?: AbortSignal
@@ -373,6 +375,7 @@ export async function streamJob(
             message: evt.message,
           });
         } else if (evt.type === "step" && evt.step) handlers.onStep?.(evt.step);
+        else if (evt.type === "heartbeat") handlers.onHeartbeat?.(evt as unknown as Heartbeat);
         else if (evt.type === "done") {
           result = evt.result ?? null;
           if (result) handlers.onDone?.(result);

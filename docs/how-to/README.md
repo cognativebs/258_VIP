@@ -41,6 +41,9 @@ terminal (and Comics). Binder Vault is started but not opened in the browser:
 | 4 | Comics API (`python api/comics_server.py`) | 5200 |
 | 5 | Orchestr8 gateway (`python orchestr8/api/server.py`) | 5210 |
 | 6 | IQVault web (`npm run web`) | 3000 → `/collections/pokemon` |
+| 7 | Binder Vault (`npm run binder`) | 3010 |
+| 8 | Orchestr8 Console (`npm run orchestr8:console`) | 3001 |
+| 9 | Background jobs (`npm run start -w @vip/jobs -- schedule --skip price-history`, window **IQVault Jobs**): SIGNALS feeds, PokéBeach every 30 min, Pokémon prices daily. Snapshots go to `VIP_JOBS_STATE_DIR` (set it in `services\api\.env`); `-NoJobs` skips it; `price-history` is skipped while TCGplayer answers 403 | — |
 
 Stop app windows with **`Stop IQVault.bat`** (Postgres stays up), or the Desktop
 **Stop IQVault** shortcut (`scripts\create_stop_iqvault_shortcut.ps1` — also

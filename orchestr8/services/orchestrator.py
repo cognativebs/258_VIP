@@ -4,7 +4,8 @@ from __future__ import annotations
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from providers.llm import _is_openai_reasoning, chat_role
+from providers.llm import _http_timeout_for, _is_openai_reasoning, chat_role
+from services.job_monitor import JobCancelled, JobMonitor
 from services.registry import (
     get_agent,
     get_council,
@@ -133,7 +134,7 @@ def _build_user_prompt(
     return "\n".join(parts)
 
 
-def _run_agent(
+def _run_agent_call(
     agent_id: str,
     *,
     task: str,
@@ -142,8 +143,11 @@ def _run_agent(
     trace: list[dict],
     mode: str,
     model_override: str | None = None,
+    monitor: JobMonitor | None = None,
 ) -> dict:
     resolved = resolve_agent_id(agent_id)
+    if monitor:
+        monitor.check(resolved)
     meta = get_agent(resolved)
     routed = resolve_model(resolved, model_override)
     system = _build_system(resolved, task)
@@ -178,6 +182,18 @@ def _run_agent(
         elif resolved == "domain_expert":
             max_tokens = max(max_tokens, 4096)
 
+    def on_attempt(attempt: int) -> None:
+        if monitor:
+            monitor.check(resolved)
+            monitor.call_started(
+                role=resolved,
+                label=meta["label"],
+                provider=routed["provider_label"],
+                model=routed.get("model_label", routed["model"]),
+                attempt=attempt,
+                timeout_s=_http_timeout_for(max_tokens),
+            )
+
     try:
         result = _chat_role_retry(
             provider=routed["provider"],
@@ -187,7 +203,10 @@ def _run_agent(
             temperature=routed.get("temperature", 0.3),
             max_tokens=max_tokens,
             retries=1,
+            on_attempt=on_attempt,
         )
+    except JobCancelled:
+        raise
     except Exception as e:
         # Degrade gracefully for ordinary errors. Credit/billing pauses the
         # pipeline (no walk-around) so the operator can top up and resume.
@@ -232,6 +251,14 @@ def _run_agent(
     return step
 
 
+def _run_agent(agent_id: str, *, monitor: JobMonitor | None = None, **kwargs) -> dict:
+    """One role call, reported to the job monitor when finished (success or degraded)."""
+    step = _run_agent_call(agent_id, monitor=monitor, **kwargs)
+    if monitor:
+        monitor.call_finished(role=step["role"], step=step)
+    return step
+
+
 def _is_retryable_provider_error(exc: BaseException) -> bool:
     msg = str(exc).lower()
     return any(
@@ -260,10 +287,13 @@ def _chat_role_retry(
     temperature: float,
     max_tokens: int,
     retries: int = 0,
+    on_attempt=None,
 ) -> dict:
     last: BaseException | None = None
     attempts = 1 + max(0, retries)
     for i in range(attempts):
+        if on_attempt:
+            on_attempt(i + 1)
         try:
             return chat_role(
                 provider=provider,
@@ -473,6 +503,7 @@ def run_job(
     on_step=None,
     on_progress=None,
     resume: dict | None = None,
+    monitor: JobMonitor | None = None,
 ) -> dict:
     """Execute a job, then persist an immutable run bundle (ADR 0002 · O0)."""
 
@@ -506,6 +537,7 @@ def run_job(
         on_step=on_step,
         on_progress=on_progress,
         resume=resume,
+        monitor=monitor,
     )
     if result.get("paused") and isinstance(result.get("resume"), dict):
         result["resume"]["context_json"] = context_json
@@ -526,6 +558,7 @@ def resume_job(
     *,
     on_step=None,
     on_progress=None,
+    monitor: JobMonitor | None = None,
 ) -> dict:
     """Continue a credit-paused run. Successful steps are not re-called."""
     from services.credit_pause import load_resume_from_bundle
@@ -561,6 +594,7 @@ def resume_job(
         on_step=on_step,
         on_progress=on_progress,
         resume=payload,
+        monitor=monitor,
     )
 
 
@@ -647,6 +681,7 @@ def _execute_job(
     on_step=None,
     on_progress=None,
     resume: dict | None = None,
+    monitor: JobMonitor | None = None,
 ) -> dict:
     if not roles:
         raise ValueError("At least one role is required")
@@ -720,6 +755,7 @@ def _execute_job(
             trace=[],
             mode="single",
             model_override=override_for(unique[0]),
+            monitor=monitor,
         )
         emit(step)
         if step_is_credit_pause(step):
@@ -758,6 +794,7 @@ def _execute_job(
                         trace=[],
                         mode="parallel",
                         model_override=override_for(rid),
+                        monitor=monitor,
                     )
                     for rid in pending
                 ]
@@ -798,6 +835,7 @@ def _execute_job(
                 trace=trace,
                 mode="pipeline",
                 model_override=override_for(synth_id),
+                monitor=monitor,
             )
             label = get_agent(synth_id)["label"]
             synth_step = {**synth, "role_label": f"{label} (Synthesis)"}
@@ -850,6 +888,7 @@ def _execute_job(
                 trace=[],
                 mode="pipeline",
                 model_override=override_for(coordinator),
+                monitor=monitor,
             )
             label = get_agent(coordinator)["label"]
             plan_step = {**plan, "role_label": f"{label} (Plan)"}
@@ -889,6 +928,7 @@ def _execute_job(
             trace=trace,
             mode="pipeline",
             model_override=override_for(agent_id),
+            monitor=monitor,
         )
         trace.append(step)
         emit(step)
@@ -938,6 +978,7 @@ def _execute_job(
             trace=trace,
             mode="pipeline",
             model_override=override_for(coordinator),
+            monitor=monitor,
         )
         label = get_agent(coordinator)["label"]
         final_step = {**synth, "role_label": f"{label} (Final)"}
