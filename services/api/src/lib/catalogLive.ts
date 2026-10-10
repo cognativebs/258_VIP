@@ -16,6 +16,7 @@ import {
   type IdentificationCache,
   type ScanCategory,
   type SnapshotSink,
+  createSportsCardsProCatalogAdapter,
 } from "@vip/scan-ingest";
 import { getDb } from "../db/client.js";
 import { createPostgresAssetCatalogAdapter } from "./postgresAssetAdapter.js";
@@ -23,8 +24,24 @@ import { createPostgresAssetCatalogAdapter } from "./postgresAssetAdapter.js";
 /** Only the verticals with a live adapter. One Piece has none yet. */
 export function catalogResolverEnabled(
   category: ScanCategory | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
 ): boolean {
+  if (category === "sports") return sportsCardsProEnabled(env);
   return category === "pokemon" || category === "mtg";
+}
+
+/** PriceCharting token (either env name the dealer kit accepts). */
+function pricechartingToken(env: NodeJS.ProcessEnv): string | null {
+  const t = (env.PRICECHARTING_API_TOKEN ?? env.PRICECHARTING_TOKEN ?? "").trim();
+  return t || null;
+}
+
+/**
+ * Sports identification through SportsCardsPro — operator opt-in only, after reading its terms
+ * (ADR 0010 amendment 2026-10-10): VIP_CATALOG_SPORTSCARDSPRO=1 plus a PriceCharting token.
+ */
+export function sportsCardsProEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VIP_CATALOG_SPORTSCARDSPRO === "1" && Boolean(pricechartingToken(env));
 }
 
 export function tcgdexEnabled(
@@ -179,6 +196,9 @@ export function defaultCatalogAdapters(
   if (tcgdexEnabled(env)) {
     adapters.push(createTcgdexCatalogAdapter());
   }
+  if (sportsCardsProEnabled(env)) {
+    adapters.push(createSportsCardsProCatalogAdapter({ token: pricechartingToken(env)! }));
+  }
   return adapters;
 }
 
@@ -187,7 +207,8 @@ export function liveCatalogStatus(env: NodeJS.ProcessEnv = process.env) {
   const fixtureOn = fixtureCatalogEnabled(env);
   const tcgdexOn = tcgdexEnabled(env);
   return {
-    resolverEnabledFor: ["pokemon", "mtg"] as const,
+    resolverEnabledFor: (sportsCardsProEnabled(env) ? ["pokemon", "mtg", "sports"] : ["pokemon", "mtg"]) as ScanCategory[],
+    sportsCardsPro: sportsCardsProEnabled(env),
     adapters: adapters.map((a) => ({ id: a.id, label: a.label })),
     tcgdex: tcgdexOn,
     fixtureCatalog: fixtureOn,

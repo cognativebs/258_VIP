@@ -1,9 +1,77 @@
 import { describe, expect, it } from "vitest";
+import { beforeEach } from "vitest";
 import {
   createTcgdexCatalogAdapter,
   parseTcgdexCards,
+  resetTcgdexSetsCache,
+  setTotalFromCollector,
   tcgdexSearchTerms,
 } from "./tcgdexAdapter.js";
+
+beforeEach(() => resetTcgdexSetsCache());
+
+const SETS = [
+  { id: "swsh12.5", name: "Crown Zenith", cardCount: { official: 159, total: 160 } },
+  { id: "sv09", name: "Journey Together", cardCount: { official: 159, total: 190 } },
+  { id: "me02", name: "Phantasmal Flames", cardCount: { official: 94, total: 130 } },
+];
+function fake(routes: Record<string, unknown>, urls: string[] = [], status: Record<string, number> = {}) {
+  return async (url: string) => {
+    urls.push(url);
+    const key = Object.keys(routes).find((k) => url.endsWith(k) || url.includes(k));
+    const code = Object.entries(status).find(([k]) => url.includes(k))?.[1];
+    if (code) return { ok: false, status: code, headers: { get: () => null }, text: async () => "" };
+    if (key === undefined) return { ok: false, status: 404, headers: { get: () => null }, text: async () => "" };
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, text: async () => JSON.stringify(routes[key]) };
+  };
+}
+
+describe("TCGdex lookups the scanner needs", () => {
+  it("reads the printed set total", () => {
+    expect(setTotalFromCollector("146/159")).toBe(159);
+    expect(setTotalFromCollector("082 / 094")).toBe(94);
+    expect(setTotalFromCollector("SWSH123")).toBeUndefined();
+  });
+
+  it("a number-only scan finds the card in every set with that printed total, with set names", async () => {
+    const adapter = createTcgdexCatalogAdapter({
+      fetch: fake({
+        "/sets": SETS,
+        "/cards/swsh12.5-146": { id: "swsh12.5-146", localId: "146", name: "Lumineon V", set: { id: "swsh12.5", name: "Crown Zenith" } },
+        "/cards/sv09-146": { id: "sv09-146", localId: "146", name: "Energy Swatter", set: { id: "sv09", name: "Journey Together" } },
+      }),
+    });
+    const cards = await adapter.search({ text: "146/159", category: "pokemon", collectorNumber: "146/159" });
+    expect(cards.map((c) => [c.externalIds[0]?.value, c.setName, c.collectorNumber])).toEqual([
+      ["swsh12.5-146", "Crown Zenith", "146"],
+      ["sv09-146", "Journey Together", "146"],
+    ]);
+  });
+
+  it("name search rows get their set name from the set list; padded and bare numbers both resolve", async () => {
+    const urls: string[] = [];
+    const adapter = createTcgdexCatalogAdapter({
+      fetch: fake(
+        {
+          "/sets": SETS,
+          "name=Linoone&localId=082": [{ id: "me02-082", localId: "082", name: "Linoone" }],
+        },
+        urls,
+      ),
+    });
+    const cards = await adapter.search({ text: "Linoone 082/094", category: "pokemon", nameHint: "Linoone", collectorNumber: "082/094" });
+    expect(cards[0]).toMatchObject({ displayName: "Linoone", setName: "Phantasmal Flames", collectorNumber: "082" });
+    // The name search already found me02-082, so no second fetch for that set.
+    expect(urls.some((u) => u.includes("/cards/me02-"))).toBe(false);
+  });
+
+  it("an HTTP error is an error (retried once), never 'no such card'", async () => {
+    const urls: string[] = [];
+    const adapter = createTcgdexCatalogAdapter({ fetch: fake({ "/sets": SETS }, urls, { "/cards?": 429 }) });
+    await expect(adapter.search({ text: "Wailmer", category: "pokemon", nameHint: "Wailmer" })).rejects.toThrow(/TCGdex HTTP 429/);
+    expect(urls.filter((u) => u.includes("/cards?"))).toHaveLength(2);
+  });
+});
 
 describe("tcgdexSearchTerms", () => {
   it("extracts Charizard from a structured year/set query", () => {
@@ -116,9 +184,10 @@ describe("TcgdexCatalogAdapter", () => {
       nameHint: "Seel",
       collectorNumber: "021/094",
     });
-    expect(urls).toHaveLength(2);
-    expect(urls[0]).toContain("localId");
-    expect(urls[1]).not.toContain("localId");
+    const searches = urls.filter((u) => u.includes("/cards?"));
+    expect(searches).toHaveLength(2);
+    expect(searches[0]).toContain("localId");
+    expect(searches[1]).not.toContain("localId");
     expect(cards[0]?.externalIds[0]?.value).toBe("me02-021");
   });
 

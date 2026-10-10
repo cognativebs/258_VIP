@@ -6,6 +6,24 @@ import type {
 } from "./types.js";
 
 const TCGDEX = "https://api.tcgdex.net/v2/en";
+/** Set list (id, name, official card count) is re-read at most every 6 hours. */
+const SETS_TTL_MS = 6 * 60 * 60 * 1000;
+/** At most this many sets share one printed total in practice; more is noise. */
+const MAX_SETS_PER_TOTAL = 4;
+
+type TcgdexSet = { id: string; name: string; cardCount?: { official?: number; total?: number } };
+let setsCache: { at: number; sets: TcgdexSet[] } | null = null;
+
+/** Test hook. */
+export function resetTcgdexSetsCache(): void {
+  setsCache = null;
+}
+
+/** "146/159" → 159 (the set's printed total), so a number-only scan can still find its set. */
+export function setTotalFromCollector(raw?: string): number | undefined {
+  const m = raw?.match(/\d{1,3}[a-z]?\s*\/\s*(\d{2,4})/i);
+  return m ? Number(m[1]) : undefined;
+}
 
 function localIdFromCollector(raw?: string): string | undefined {
   if (!raw) return undefined;
@@ -110,6 +128,10 @@ export function parseTcgdexCards(
     name?: string;
     localId?: string;
     set?: { name?: string } | string;
+    /** Set name looked up from the TCGdex set list by id prefix (brief search rows carry no set). */
+    _setName?: string;
+    /** The set's official (printed) card count, from the same list. */
+    _setTotal?: number;
   }>;
   try {
     rows = JSON.parse(raw.payload) as typeof rows;
@@ -118,7 +140,7 @@ export function parseTcgdexCards(
   }
   return (Array.isArray(rows) ? rows : []).slice(0, query.limit ?? 8).map((row) => {
     const setName =
-      typeof row.set === "string" ? row.set : (row.set?.name ?? null);
+      typeof row.set === "string" ? row.set : (row.set?.name ?? row._setName ?? null);
     return {
       catalogKey: `pokemon:tcgdex:${row.id ?? row.name}`,
       category: "pokemon" as const,
@@ -127,7 +149,10 @@ export function parseTcgdexCards(
       collectorNumber: row.localId ?? null,
       playerOrCharacter: row.name ?? null,
       year: null,
-      searchText: `${row.name ?? ""} ${row.localId ?? ""} ${row.id ?? ""} ${setName ?? ""}`,
+      // "002/094" in the text: a scan's printed number/total then favours the set it came from.
+      searchText: `${row.name ?? ""} ${row.localId ?? ""} ${row.id ?? ""} ${setName ?? ""}${
+        row._setTotal && row.localId ? ` ${printed(row.localId, row._setTotal)}` : ""
+      }`,
       externalIds: row.id ? [{ source: "tcgdex", value: row.id }] : [],
     };
   });
@@ -138,9 +163,71 @@ export type TcgdexFetch = (
   init?: RequestInit,
 ) => Promise<{
   ok: boolean;
+  status?: number;
   text: () => Promise<string>;
   headers: { get: (name: string) => string | null };
 }>;
+
+/**
+ * GET one TCGdex URL. 404 → null (no such card). Any other failure throws, so the resolver
+ * records an error instead of "no cards" and the result is not cached; one retry after a short
+ * pause covers rate limits and blips (a 25-card batch otherwise lost half its lookups).
+ */
+async function getTcgdex(
+  fetchImpl: TcgdexFetch,
+  url: string,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<{ text: string; contentType: string } | null> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetchImpl(url, { headers: { accept: "application/json" } });
+    if (res.ok) {
+      return { text: await res.text(), contentType: res.headers.get("content-type") ?? "application/json" };
+    }
+    if (res.status === 404) return null;
+    const retryable = res.status === undefined || res.status === 429 || res.status >= 500;
+    if (attempt >= 2 || !retryable) throw new Error(`TCGdex HTTP ${res.status ?? "error"} for ${url}`);
+    await sleep(800);
+  }
+}
+
+async function tcgdexSets(fetchImpl: TcgdexFetch): Promise<TcgdexSet[]> {
+  if (setsCache && Date.now() - setsCache.at < SETS_TTL_MS) return setsCache.sets;
+  const got = await getTcgdex(fetchImpl, `${TCGDEX}/sets`);
+  const sets = got ? (JSON.parse(got.text) as TcgdexSet[]) : [];
+  setsCache = { at: Date.now(), sets: Array.isArray(sets) ? sets : [] };
+  return setsCache.sets;
+}
+
+/** "2", 94 → "002/094"; TCGdex sets print numbers to the width of the total. */
+function printed(localId: string, total: number): string {
+  const width = String(total).length < 3 ? 3 : String(total).length;
+  const bare = localId.replace(/^0+(?=\d)/, "");
+  return `${/^\d+$/.test(bare) ? bare.padStart(width, "0") : bare}/${String(total).padStart(width, "0")}`;
+}
+
+function setIdOf(cardId: string | undefined): string | undefined {
+  const i = cardId?.lastIndexOf("-") ?? -1;
+  return i > 0 ? cardId!.slice(0, i) : undefined;
+}
+
+function sameLocalId(a: string, b: string): boolean {
+  return a.replace(/^0+(?=\d)/, "").toLowerCase() === b.replace(/^0+(?=\d)/, "").toLowerCase();
+}
+
+/** One card by set + number; TCGdex pads some sets' numbers ("me05-015") and not others ("swsh4-31"). */
+async function fetchTcgdexCard(
+  fetchImpl: TcgdexFetch,
+  setId: string,
+  localId: string,
+): Promise<Record<string, unknown> | null> {
+  const bare = localId.replace(/^0+(?=\d)/, "");
+  const tries = [...new Set([localId, bare, bare.padStart(3, "0")])];
+  for (const id of tries) {
+    const got = await getTcgdex(fetchImpl, `${TCGDEX}/cards/${encodeURIComponent(`${setId}-${id}`)}`);
+    if (got) return JSON.parse(got.text) as Record<string, unknown>;
+  }
+  return null;
+}
 
 export async function fetchTcgdexRaw(
   query: CatalogQuery,
@@ -155,14 +242,43 @@ export async function fetchTcgdexRaw(
     nameHint: query.nameHint,
     collectorNumber: query.collectorNumber,
   });
-  if (!terms.name) return null;
-  const first = await fetchTcgdexCards(fetchImpl, terms.name, terms.localId);
-  if (!first) return null;
-  if (terms.localId && isEmptyCardPayload(first.payload)) {
-    const retry = await fetchTcgdexCards(fetchImpl, terms.name, undefined);
-    if (retry) return retry;
+  const total = setTotalFromCollector(query.collectorNumber) ?? setTotalFromCollector(query.text);
+  if (!terms.name && !(terms.localId && total)) return null;
+
+  const rows: Array<Record<string, unknown>> = [];
+  if (terms.name) {
+    let found = await fetchTcgdexCards(fetchImpl, terms.name, terms.localId);
+    if (terms.localId && found && isEmptyCardPayload(found.payload)) {
+      found = await fetchTcgdexCards(fetchImpl, terms.name, undefined);
+    }
+    if (found) rows.push(...(JSON.parse(found.payload) as Array<Record<string, unknown>>));
   }
-  return first;
+
+  // A printed "NNN/TTT" names the set by its official card count: fetch that card from each
+  // set with that count, so a scan whose name OCR failed still gets an exact set + number.
+  const sets = await tcgdexSets(fetchImpl);
+  if (terms.localId && total) {
+    const matching = sets.filter((s) => s.cardCount?.official === total).slice(0, MAX_SETS_PER_TOTAL);
+    for (const set of matching) {
+      const already = rows.some(
+        (r) => setIdOf(String(r.id ?? "")) === set.id && sameLocalId(String(r.localId ?? ""), terms.localId!),
+      );
+      if (already) continue;
+      const card = await fetchTcgdexCard(fetchImpl, set.id, terms.localId);
+      if (card) rows.push({ ...card, _byPrintedTotal: total });
+    }
+  }
+  const byId = new Map(sets.map((s) => [s.id, s]));
+  const annotated = rows.map((r) => {
+    const set = byId.get(setIdOf(String(r.id ?? "")) ?? "");
+    if (!set) return r;
+    return {
+      ...r,
+      ...(r.set ? {} : { _setName: set.name }),
+      ...(set.cardCount?.official ? { _setTotal: set.cardCount.official } : {}),
+    };
+  });
+  return { payload: JSON.stringify(annotated), contentType: "application/json" };
 }
 
 function isEmptyCardPayload(payload: string): boolean {
@@ -181,13 +297,9 @@ async function fetchTcgdexCards(
 ): Promise<CatalogRawResponse | null> {
   const params = new URLSearchParams({ name });
   if (localId) params.set("localId", localId);
-  const url = `${TCGDEX}/cards?${params.toString()}`;
-  const res = await fetchImpl(url, { headers: { accept: "application/json" } });
-  if (!res.ok) return null;
-  return {
-    payload: await res.text(),
-    contentType: res.headers.get("content-type") ?? "application/json",
-  };
+  const got = await getTcgdex(fetchImpl, `${TCGDEX}/cards?${params.toString()}`);
+  if (!got) return null;
+  return { payload: got.text, contentType: got.contentType };
 }
 
 /**
@@ -201,7 +313,8 @@ export function createTcgdexCatalogAdapter(opts: { fetch?: TcgdexFetch } = {}): 
     id: "tcgdex",
     label: "TCGdex (pokemon)",
     categories: ["pokemon"],
-    timeoutMs: 2500,
+    // A lookup can be a name search plus a few set + number fetches (and one retry).
+    timeoutMs: 9000,
     fetchRaw: (query) => fetchTcgdexRaw(query, fetchImpl),
     parseRaw: parseTcgdexCards,
     async search(query: CatalogQuery): Promise<CatalogCard[]> {

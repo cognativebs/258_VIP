@@ -22,6 +22,8 @@ export function shouldPersistIdentification(
     return result.outcomes.some((o) => o.status === "ok" && o.called);
   }
   if (!real.some((o) => o.status === "ok")) return false;
+  // A live catalog that errored or timed out must not freeze a partial answer on this hash.
+  if (real.some((o) => o.called && (o.status === "error" || o.status === "timeout"))) return false;
   // Empty miss must not freeze "unknown" on this hash — OCR extract and
   // TCGdex coverage both move. Same-bytes replay still applies when we
   // actually had candidates.

@@ -101,6 +101,7 @@ import {
 import { sendScanMedia } from "./lib/scanMedia.js";
 import { buildIdentificationReport } from "./lib/identificationReport.js";
 import { reidentifyStagedBatch, ReidentifyError } from "./lib/reidentifyBatch.js";
+import { autoIntakeStatus } from "./lib/scanAutoIntake.js";
 import {
   inspectBatch001Item,
   loadBatch001,
@@ -1232,6 +1233,10 @@ export function createApp(deps: AppDeps = {}) {
    * Start a batch from the PaperStream drop folder. Preserves masters,
    * pairs front/back, fuses evidence, routes review. Staging only (ADR 0009).
    */
+  app.get("/api/scan/auto-intake", (_req, res) => {
+    res.json(autoIntakeStatus());
+  });
+
   app.post("/api/scan/import-folder", async (req, res) => {
     try {
       const body = req.body ?? {};

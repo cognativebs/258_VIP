@@ -137,3 +137,25 @@ SportsCardsPro is excluded from this round.
 - **Build the sports visual matcher first.** Months of work to reach a standard
   that a metered API already meets; revisit only if provider accuracy proves
   insufficient on the benchmark below.
+
+## Amendment — 2026-10-10: SportsCardsPro for sports identification (own use only)
+
+Sports scans had no live catalog: identity came only from OCR, vision and the
+operator's edits. The operator chose PriceCharting, whose sports cards live on its
+sister host SportsCardsPro — the source this ADR excluded under §7.
+
+- **Allowed for identification in the operator's own tooling only.** Results are
+  staging candidates in VIP and are never published, shared or resold. Prices in
+  the response are never used by identification (they stay in the raw snapshot,
+  like every provider response, §4).
+- **§7 gate stays.** The adapter is off until the operator has read the
+  SportsCardsPro API terms (https://www.sportscardspro.com/api-documentation and the
+  PriceCharting terms of service) and turns it on: `VIP_CATALOG_SPORTSCARDSPRO=1`
+  plus a PriceCharting token. The registry row `vault_market.data_source`
+  `sportscardspro` records the terms link with `redistribution_allowed = false`, and
+  is marked active when the operator confirms (migration `20261010_01`).
+- Products read "Player [Parallel] #Number" in "<Sport> Cards <Year> <Set>", so a
+  catalog match can name the parallel. An empty catalog answer keeps the OCR
+  candidate, so turning it on never leaves a sports card with fewer candidates.
+- Valuation is unchanged: sports prices still come only through the dealer-kit
+  valuation path, ranges only (§6).

@@ -3,6 +3,7 @@ import { comicsDsn, normalizeDsn, redactDsn } from "./db/client.js";
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { loadLocalEnv } from "./lib/loadEnv.js";
+import { startScanAutoIntake } from "./lib/scanAutoIntake.js";
 
 loadLocalEnv();
 
@@ -23,4 +24,18 @@ createApp().listen(port, host, () => {
       ? `eBay deletion endpoint: ${deletion.endpointUrl}`
       : "eBay deletion endpoint: not public yet — see docs/how-to/11-ebay-marketplace-deletion.md",
   );
+  // New Ricoh scan folders import themselves through the same endpoint as the /scan Import button.
+  startScanAutoIntake(async (folder, categoryHint) => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/scan/import-folder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder, categoryHint, notes: "auto-intake", pairing: "auto" }),
+    });
+    const body = (await res.json()) as { ok?: boolean; batchId?: string; error?: string };
+    if (!res.ok || !body.batchId) throw new Error(body.error ?? `HTTP ${res.status}`);
+    return { batchId: body.batchId };
+  });
+  if (process.env.VIP_SCAN_INBOX && process.env.VIP_SCAN_AUTO_INTAKE !== "0") {
+    console.log(`Scan auto-intake: watching ${process.env.VIP_SCAN_INBOX} every 5 min`);
+  }
 });
