@@ -54,7 +54,7 @@ conflicting front/back OCR sidecars.
 
 While the VIP API runs, it checks `VIP_SCAN_INBOX` and each sub-folder every
 5 minutes. **Scan each session into its own new sub-folder** (e.g.
-`D:\VIP\scansi81706-10-10 football`). A folder is imported as one batch
+`D:\VIP\scans\fi8170\2026-10-10 football`). A folder is imported as one batch
 when every image in it is new to VIP and nothing in it has changed for 2 minutes.
 
 - Category comes from the folder name: "Pokemon" → Pokémon, "MTG" / "Magic" →
@@ -70,7 +70,7 @@ when every image in it is new to VIP and nothing in it has changed for 2 minutes
 1. OCR reads the card (Tesseract, local, free).
 2. When OCR cannot read the name or number, **vision** (OpenAI `gpt-4o-mini`)
    reads the front and back — about **1 cent per card**; images go to OpenAI.
-   Needs `OPENAI_API_KEY` in `servicespi\.env`; `VIP_SCAN_VISION=off` disables it.
+   Needs `OPENAI_API_KEY` in `services\api\.env`; `VIP_SCAN_VISION=off` disables it.
 3. A live catalog turns that into candidates:
    - Pokémon — TCGdex (free). A printed `146/159` finds the set by its card count,
      and every candidate shows its set name.
