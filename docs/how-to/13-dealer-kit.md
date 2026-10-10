@@ -24,8 +24,10 @@ PRICECHARTING_API_TOKEN=your_40_char_token
 ```
 
 in the environment for `npm run api`. Sports lookups use the sister host
-`sportscardspro.com` (same token + cents encoding). That hop is **not** a
-catalog identifier — `sportscardspro` stays forbidden for identification.
+`sportscardspro.com` (same token + cents encoding). For valuation that hop is
+not a catalog identifier. Sports **identification** may use SportsCardsPro only
+after the operator reads its terms and sets `VIP_CATALOG_SPORTSCARDSPRO=1`
+(ADR 0010 amendment 2026-10-10, own use only).
 
 Without a token the adapter is idle and returns `emptyReason`. It never
 invents prices. Demo/docs tokens often return identity without condition

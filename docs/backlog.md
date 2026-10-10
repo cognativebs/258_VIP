@@ -182,6 +182,7 @@ third-party-access licence limit).
 - [x] **Phase 0** Wire `vault_market.id_observation` (exists, unused) — predicted vs confirmed
 - [x] **Phase 0** Benchmark harness: top-1 / parallel / card-number accuracy, calibration, failure rate
 - [x] **Phase 1** `TcgdexCatalogAdapter` is the live Pokémon catalog (5-card fixture is `VIP_CATALOG_FIXTURE=1` only, 2026-09-07). Pokémon OCR now lifts species / trainer title + `NNN/NNN` before TCGdex; empty misses without a name are not cached (`catalog-resolver@0.3.0`). **Gate open:** 25 real scans, top-1 ≥ 80%, every candidate has `tcgdex` id. Re-identify batch `ed919c12-4634-439f-b7b6-28d98fa328f3` after pull + API restart.
+  - 2026-10-10: TCGdex lookups no longer lose cards to HTTP errors (retry, not cached), number-only `NNN/TTT` scans find their set, every candidate carries a set name; vision (`gpt-4o-mini`) on when OCR is incomplete. Batch `ed919c12` re-identified: standalone trial 21 / 25 with candidates. **Gate still needs:** operator confirms / corrects the 25 in Review, then `python scripts/score_scan_identification.py`
 - [ ] **Phase 2** `ScryfallCatalogAdapter` + MTGJSON local mirror — **adapters shipped 2026-09-07;** gate open: 25 Magic scans, top-1 ≥ 85%, offline when `VIP_MTGJSON_PATH` is set
 - [ ] **Phase 3** `CardSightCatalogAdapter` (sports, metered) + 100–250 messy-card benchmark
 - [ ] **Phase 3** Parallel disambiguation if exact-parallel accuracy misses target
@@ -233,7 +234,8 @@ third-party-access licence limit).
 - [x] Ricoh trading-card intake v1 — masters, front/back pairing, evidence fusion,
       base vs parallel confidence, HIGH/MEDIUM/LOW/CONFLICT, physical reimport,
       draft inventory, `/scan` front+back review (2026-08-30)
-- [ ] Live catalog adapters (replace fixture sports/TCG matcher)
+- [ ] Live catalog adapters (replace fixture sports/TCG matcher) — Pokémon (TCGdex) and Magic (Scryfall / MTGJSON) live; sports: SportsCardsPro adapter built, **off until the operator reads its terms** and sets `VIP_CATALOG_SPORTSCARDSPRO=1` (ADR 0010 amendment 2026-10-10); empty catalog answers keep the OCR candidate
+- [x] Automatic Ricoh intake: new scan folders under `VIP_SCAN_INBOX` import themselves every 5 min (all images new + 2 min quiet; mixed folders skipped); `GET /api/scan/auto-intake` (2026-10-10)
 - [ ] Museum-quality capture tier (same media model, `quality_tier=museum`)
 - [ ] Store constraints on same engine as VIP
 - [ ] One cooperative store pilot metric

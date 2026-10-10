@@ -50,6 +50,37 @@ conflicting front/back OCR sidecars.
 
 3. Or upload the images from IQVault **Scan** (file picker) — no inbox required.
 
+## Automatic import (2026-10-10)
+
+While the VIP API runs, it checks `VIP_SCAN_INBOX` and each sub-folder every
+5 minutes. **Scan each session into its own new sub-folder** (e.g.
+`D:\VIP\scansi81706-10-10 football`). A folder is imported as one batch
+when every image in it is new to VIP and nothing in it has changed for 2 minutes.
+
+- Category comes from the folder name: "Pokemon" → Pokémon, "MTG" / "Magic" →
+  Magic, anything else → sports.
+- A folder that mixes images VIP already has with new ones is skipped (it would
+  duplicate cards); import the new files from **Scan** by hand.
+- Status: `http://127.0.0.1:8787/api/scan/auto-intake` (last pass, each folder's
+  decision, recent batches). Turn it off with `VIP_SCAN_AUTO_INTAKE=0`.
+- Nothing is confirmed automatically — every card still waits for you in Review.
+
+## How cards are identified
+
+1. OCR reads the card (Tesseract, local, free).
+2. When OCR cannot read the name or number, **vision** (OpenAI `gpt-4o-mini`)
+   reads the front and back — about **1 cent per card**; images go to OpenAI.
+   Needs `OPENAI_API_KEY` in `servicespi\.env`; `VIP_SCAN_VISION=off` disables it.
+3. A live catalog turns that into candidates:
+   - Pokémon — TCGdex (free). A printed `146/159` finds the set by its card count,
+     and every candidate shows its set name.
+   - Magic — Scryfall / MTGJSON.
+   - Sports — SportsCardsPro, **only after you read its terms** and set
+     `VIP_CATALOG_SPORTSCARDSPRO=1` (ADR 0010 amendment). Until then sports
+     candidates come from OCR + vision. A catalog match names the parallel.
+4. You confirm or correct in Review. Those confirmations are the accuracy check:
+   `python scripts/score_scan_identification.py`.
+
 ## Start processing
 
 1. Restart the VIP API after changing env (`npm run api`).

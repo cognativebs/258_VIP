@@ -221,6 +221,11 @@ export {
 } from "./vision/structuredVision.js";
 export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
 export {
+  createSportsCardsProCatalogAdapter,
+  parseSportsCardsProProducts,
+  sportsSearchText,
+} from "./catalog/sportscardsproAdapter.js";
+export {
   createAssetCatalogAdapter,
   filterAssetCards,
 } from "./catalog/assetAdapter.js";

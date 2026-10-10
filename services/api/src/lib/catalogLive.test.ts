@@ -40,6 +40,15 @@ describe("catalog live wiring", () => {
     expect(catalogResolverEnabled(null)).toBe(false);
   });
 
+  it("turns sports on only when the operator opts in to SportsCardsPro and a token exists", () => {
+    expect(catalogResolverEnabled("sports", { PRICECHARTING_TOKEN: "t" })).toBe(false);
+    expect(catalogResolverEnabled("sports", { VIP_CATALOG_SPORTSCARDSPRO: "1" })).toBe(false);
+    const on = { VIP_CATALOG_SPORTSCARDSPRO: "1", PRICECHARTING_TOKEN: "t" };
+    expect(catalogResolverEnabled("sports", on)).toBe(true);
+    expect(defaultCatalogAdapters(on).some((a) => a.id === "sportscardspro")).toBe(true);
+    expect(defaultCatalogAdapters({ PRICECHARTING_TOKEN: "t" }).some((a) => a.id === "sportscardspro")).toBe(false);
+  });
+
   it("includes TCGdex unless VIP_CATALOG_TCGDEX=0", () => {
     expect(defaultCatalogAdapters({}).some((a) => a.id === "tcgdex")).toBe(true);
     expect(

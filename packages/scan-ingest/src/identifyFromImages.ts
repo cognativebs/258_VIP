@@ -397,6 +397,12 @@ export async function identifyFromPairedImages(input: {
       (resolved.cacheHit ? "cache" : "none");
     if (resolved.cacheHit) notes.push(`catalog cache hit · ${catalogSource}`);
     else notes.push(`catalog ${catalogSource}`);
+    // Sports had OCR-only candidates before a live catalog existed; an empty catalog answer
+    // keeps that candidate rather than leaving the card with none.
+    if (candidates.length === 0 && profile.category === "sports") {
+      candidates = identifyUnit(identifyInput, { catalog: [], ...identifyOpts });
+      if (candidates.length) notes.push("catalog empty — OCR candidate kept");
+    }
   } else {
     candidates = identifyUnit(identifyInput, {
       catalog: [],
