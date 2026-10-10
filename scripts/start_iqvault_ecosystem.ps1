@@ -98,7 +98,18 @@ function Wait-HttpJson([string]$Url, [scriptblock]$Ok, [int]$TimeoutSec = 90) {
     return $false
 }
 
+function Close-ServiceWindows([string]$Title) {
+    # A restart kills the old service but used to leave its empty window behind; three
+    # relaunches meant three windows per service. Close the old window by its start command.
+    try {
+        Get-CimInstance Win32_Process -Filter "Name = 'cmd.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match ('/k title ' + [regex]::Escape($Title) + ' &&') } |
+            ForEach-Object { & taskkill.exe /PID $_.ProcessId /T /F 2>$null | Out-Null }
+    } catch {}
+}
+
 function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$CommandLine) {
+    Close-ServiceWindows $Title
     $arg = "/k title $Title && cd /d `"$WorkingDir`" && $CommandLine"
     Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $WorkingDir -WindowStyle Minimized | Out-Null
 }
@@ -491,6 +502,7 @@ function Ensure-Web {
         Stop-ProcessesOnPort $Ports.Web
     }
     Write-Step "Starting IQVault web..."
+    Close-ServiceWindows "IQVault Web"
     Start-Process -FilePath "cmd.exe" -ArgumentList "/k title IQVault Web && cd /d `"$Root`" && npm run web" -WorkingDirectory $Root -WindowStyle Normal | Out-Null
     if (-not (Wait-Port $Ports.Web 120)) {
         throw "IQVault web failed to bind port $($Ports.Web)."
@@ -566,6 +578,8 @@ function Ensure-JobsScheduler {
     # Background jobs: SIGNALS feeds (ESPN, collectibles, headlines, PokeBeach every 30 min),
     # Pokemon drops, Pokemon prices (daily, PriceCharting). Sources stay blocked until enabled.
     if ($NoJobs) { return }
+    # Close the old window (and its supervisor) first, or the supervisor restarts what we stop.
+    Close-ServiceWindows $JobsTitle
     & taskkill.exe /F /T /FI "WINDOWTITLE eq $JobsTitle*" 2>$null | Out-Null
     foreach ($procId in (Get-JobsSchedulerPids)) {
         try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
@@ -573,7 +587,9 @@ function Ensure-JobsScheduler {
     $stateDir = Get-JobsStateDir
     New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
     Write-Step "Starting background jobs (snapshots: $stateDir; skipped: $JobsSkip)..."
-    Start-MinimizedProcess $JobsTitle $Root "set `"VIP_JOBS_STATE_DIR=$stateDir`" && npm run start -w @vip/jobs -- schedule --skip $JobsSkip"
+    # A supervisor restarts the scheduler if it ever exits and logs to scripts\logs\jobs.log.
+    $supervisor = Join-Path $PSScriptRoot "run_jobs_scheduler.ps1"
+    Start-MinimizedProcess $JobsTitle $Root "powershell -NoProfile -ExecutionPolicy Bypass -File `"$supervisor`" -Skip $JobsSkip -StateDir `"$stateDir`""
     $deadline = (Get-Date).AddSeconds(60)
     while ((Get-Date) -lt $deadline) {
         if (@(Get-JobsSchedulerPids).Count -gt 0) {

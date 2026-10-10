@@ -67,6 +67,19 @@ import {
 } from "./sports-classifier.js";
 
 /** Shared by every news job's `classify` subcommand. The LLM is opt-in: it sends headline text to OpenAI. */
+/** Scheduled classification: rules only (no LLM, operator 2026-10-10), one transaction, report printed. */
+async function classifyRulesOnly(
+  label: string,
+  classify: (db: Queryable, llm: LlmClassifier | null) => Promise<HeadlineClassifierReport>,
+): Promise<void> {
+  try {
+    const report = await inPokebeachTransaction((db) => classify(db as unknown as Queryable, null));
+    console.log(formatSportsClassifierReport(report));
+  } catch (e) {
+    console.error(`${label} classify failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function runClassify(
   args: string[],
   classify: (db: Queryable, llm: LlmClassifier | null) => Promise<HeadlineClassifierReport>,
@@ -397,10 +410,11 @@ async function main() {
           name: "espn-sports",
           everyMs: 60 * 60 * 1000,
           run: () => {
-            // Blocked until an operator enables espn_rss; the report says so.
-            void runEspnSportsJob({ live: true }).then((report) => {
-              console.log(formatEspnSportsReport(report));
-            });
+            // Blocked until an operator enables espn_rss; the report says so. New headlines are then
+            // classified by rules (unmatched ones stay stored, unclassified).
+            void runEspnSportsJob({ live: true })
+              .then((report) => console.log(formatEspnSportsReport(report)))
+              .then(() => classifyRulesOnly("espn-sports", (db, llm) => classifyPendingEspnDocuments(db, { llm })));
           },
         },
         {
@@ -410,6 +424,16 @@ async function main() {
             // Each source stays blocked until an operator enables it; the report says so.
             void runCollectiblesNewsJob({ live: true })
               .then((report) => console.log(formatCollectiblesNewsReport(report)))
+              .then(() =>
+                classifyRulesOnly("collectibles-news", (db, llm) =>
+                  classifyPendingDocuments(db, {
+                    sourceKeys: [...COLLECTIBLES_SOURCE_KEYS],
+                    ruleSetName: "collectibles-headline",
+                    job: "collectibles-classifier",
+                    llm,
+                  }),
+                ),
+              )
               .catch((e) => console.error(`collectibles-news failed: ${e instanceof Error ? e.message : e}`));
           },
         },
@@ -420,6 +444,11 @@ async function main() {
             // Blocked until an operator enables gdelt_doc_v2; the report says so.
             void runMacroNewsJob({ live: true })
               .then((report) => console.log(formatMacroNewsReport(report)))
+              .then(() =>
+                classifyRulesOnly("macro-news", (db, llm) =>
+                  classifyPendingDocuments(db, { sourceKeys: [GDELT_SOURCE_KEY], ruleSetName: "macro-headline", job: "macro-classifier", llm }),
+                ),
+              )
               .catch((e) => console.error(`macro-news failed: ${e instanceof Error ? e.message : e}`));
           },
         },
@@ -502,6 +531,15 @@ async function main() {
       process.exit(1);
     }
     const running = jobs.filter((j) => !skip.has(j.name));
+    // One job's stray rejection or throw is logged; it never takes the other jobs down with it.
+    process.on("unhandledRejection", (reason) => {
+      console.error(`[scheduler] unhandled rejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+    });
+    process.on("uncaughtException", (err) => {
+      console.error(`[scheduler] uncaught exception: ${err.stack ?? err.message}`);
+    });
+    const heartbeat = setInterval(() => console.log(`[scheduler] alive ${new Date().toISOString()}`), 60 * 60 * 1000);
+    void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
       "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news and comicbase-import hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",

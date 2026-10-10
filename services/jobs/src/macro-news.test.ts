@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { persistFeedSnapshots } from "./espn-sports.js";
@@ -45,12 +48,7 @@ describe("macro-news job", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
       async () => new Response("Please limit requests to one every 5 seconds", { status: 429, statusText: "Too Many Requests" }),
     );
-    const pool = {
-      query: async () => ({
-        rows: [{ endpoint: "https://api.gdeltproject.org/api/v2/doc/doc", adapter_enabled: true, is_active: true, verify_before_first_run: false, blocked_reason: null }],
-      }),
-    } as unknown as Pool;
-    const report = await runMacroNewsJob({ live: true, now: NOW, pool });
+    const report = await runMacroNewsJob({ live: true, now: NOW, pool: enabledPool(), lanesPerRun: 3, cursorPath: freshCursor() });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(report.status).toBe("failed");
     expect(report.lanes.map((l) => l.error)).toEqual([
@@ -58,6 +56,33 @@ describe("macro-news job", () => {
       expect.stringMatching(/^skipped: GDELT asked to slow down/),
       expect.stringMatching(/^skipped: GDELT asked to slow down/),
     ]);
+  });
+
+  it("asks for one lane per run in rotation, and backs off 1 h, then 2 h, after 429s", async () => {
+    const cursorPath = freshCursor();
+    const gap = process.env.VIP_GDELT_RATE_LIMIT_MS;
+    process.env.VIP_GDELT_RATE_LIMIT_MS = "0";
+    const asked: string[] = [];
+    let status = 429;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      asked.push(String(url));
+      return new Response("slow down", { status, statusText: "Too Many Requests" });
+    });
+    const first = await runMacroNewsJob({ live: true, now: NOW, pool: enabledPool(), cursorPath });
+    expect(first.lanes.map((l) => l.lane)).toEqual(["us"]);
+    const waiting = await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 30 * 60_000), pool: enabledPool(), cursorPath });
+    expect(waiting.status).toBe("waiting");
+    expect(asked).toHaveLength(1);
+    await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 61 * 60_000), pool: enabledPool(), cursorPath });
+    expect(asked).toHaveLength(2);
+    const twoHours = await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 2 * 3600_000), pool: enabledPool(), cursorPath });
+    expect(twoHours.status).toBe("waiting");
+    expect(JSON.parse(readFileSync(cursorPath, "utf8"))).toMatchObject({ next: 0, consecutive429: 2 });
+    fetchSpy.mockRestore();
+    if (gap === undefined) delete process.env.VIP_GDELT_RATE_LIMIT_MS;
+    else process.env.VIP_GDELT_RATE_LIMIT_MS = gap;
+    status = 200;
+    void status;
   });
 
   it("accepts lane overrides from VIP_GDELT_LANES and rejects bad ones", () => {
@@ -129,3 +154,15 @@ describe.skipIf(!DSN)("macro classification (IQVAULT_TEST_DSN, rolled back)", ()
     });
   });
 });
+
+function enabledPool(): Pool {
+  return {
+    query: async () => ({
+      rows: [{ endpoint: "https://api.gdeltproject.org/api/v2/doc/doc", adapter_enabled: true, is_active: true, verify_before_first_run: false, blocked_reason: null }],
+    }),
+  } as unknown as Pool;
+}
+
+function freshCursor(): string {
+  return join(mkdtempSync(join(tmpdir(), "gdelt-cursor-")), "cursor.json");
+}

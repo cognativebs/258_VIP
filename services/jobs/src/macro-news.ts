@@ -9,7 +9,7 @@
  * gdelt_doc_v2 row passes newsAdapterMayRun; this job never enables it (HS-5).
  * Override the lane queries with VIP_GDELT_LANES (JSON [{lane, query}]).
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
@@ -49,7 +49,7 @@ export type MacroNewsReport = {
   job: "macro-news";
   version: typeof MACRO_NEWS_JOB_VERSION;
   mode: "fixture" | "live";
-  status: "dry_run" | "succeeded" | "partial" | "blocked" | "failed";
+  status: "dry_run" | "succeeded" | "partial" | "blocked" | "failed" | "waiting";
   ranAt: string;
   blockedReason: string | null;
   lanes: { lane: string; state: "fixture" | "fetched" | "no_fixture" | "error"; articles: number; documentsNew: number | null; error: string | null }[];
@@ -77,7 +77,31 @@ export function macroFixtureSnapshots(now = new Date(), lanes = DEFAULT_GDELT_LA
   return out;
 }
 
-export async function runMacroNewsJob(opts: { live?: boolean; now?: Date; pool?: Pool; lanes?: GdeltLaneQuery[] } = {}): Promise<MacroNewsReport> {
+/**
+ * GDELT throttles a burst of lane queries (one 429 and the rest of the run is lost), so a live
+ * run asks for one lane at a time, in rotation, and after a 429 waits 1, 2, 4 … up to 12 hours
+ * before asking again. With hourly runs each lane still refreshes every few hours.
+ */
+type LaneCursor = { next: number; backoffUntil: string | null; consecutive429: number };
+const MAX_BACKOFF_HOURS = 12;
+
+function readCursor(path: string): LaneCursor {
+  try {
+    const c = JSON.parse(readFileSync(path, "utf8")) as Partial<LaneCursor>;
+    return { next: Number(c.next) || 0, backoffUntil: c.backoffUntil ?? null, consecutive429: Number(c.consecutive429) || 0 };
+  } catch {
+    return { next: 0, backoffUntil: null, consecutive429: 0 };
+  }
+}
+
+function writeCursor(path: string, c: LaneCursor): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(c, null, 2));
+}
+
+export async function runMacroNewsJob(
+  opts: { live?: boolean; now?: Date; pool?: Pool; lanes?: GdeltLaneQuery[]; lanesPerRun?: number; cursorPath?: string } = {},
+): Promise<MacroNewsReport> {
   const now = opts.now ?? new Date();
   const lanes = opts.lanes ?? lanesFromEnv();
   const report: MacroNewsReport = {
@@ -123,9 +147,19 @@ export async function runMacroNewsJob(opts: { live?: boolean; now?: Date; pool?:
         : (row.blocked_reason ?? "gdelt_doc_v2 is not enabled. An operator runs `news-source enable gdelt_doc_v2 --confirm-operator`.");
       return report;
     }
+    const cursorPath = opts.cursorPath ?? join(STATE_DIR, "gdelt-lane-cursor.json");
+    const cursor = readCursor(cursorPath);
+    if (cursor.backoffUntil && now < new Date(cursor.backoffUntil)) {
+      report.status = "waiting";
+      report.blockedReason = `GDELT asked to slow down; next request after ${cursor.backoffUntil}`;
+      return report;
+    }
+    const perRun = Math.max(1, Math.min(lanes.length, opts.lanesPerRun ?? (Number(process.env.VIP_GDELT_LANES_PER_RUN) || 1)));
+    const start = cursor.next % lanes.length;
+    const thisRun = Array.from({ length: perRun }, (_, i) => lanes[(start + i) % lanes.length]!);
     let fetched = 0;
     let throttled = false;
-    for (const q of lanes) {
+    for (const q of thisRun) {
       if (throttled) {
         report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: "skipped: GDELT asked to slow down (429); the next run retries" });
         continue;
@@ -154,7 +188,14 @@ export async function runMacroNewsJob(opts: { live?: boolean; now?: Date; pool?:
         report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: message });
       }
     }
-    report.status = fetched === 0 ? "failed" : fetched < lanes.length ? "partial" : "succeeded";
+    if (throttled) {
+      const n = cursor.consecutive429 + 1;
+      const hours = Math.min(MAX_BACKOFF_HOURS, 2 ** (n - 1));
+      writeCursor(cursorPath, { next: start, backoffUntil: new Date(now.getTime() + hours * 3600_000).toISOString(), consecutive429: n });
+    } else {
+      writeCursor(cursorPath, { next: (start + perRun) % lanes.length, backoffUntil: null, consecutive429: 0 });
+    }
+    report.status = fetched === 0 ? "failed" : fetched < thisRun.length ? "partial" : "succeeded";
     return report;
   } finally {
     if (ownsPool) await pool.end();

@@ -9,9 +9,13 @@ export type ScheduledJob = {
   run: () => void | Promise<void>;
 };
 
-export function startScheduler(jobs: ScheduledJob[], opts?: { runImmediately?: boolean }) {
+export function startScheduler(jobs: ScheduledJob[], opts?: { runImmediately?: boolean; keepAlive?: boolean }) {
   const timers: NodeJS.Timeout[] = [];
   const runImmediately = opts?.runImmediately ?? true;
+  // The scheduler is the process's only work between runs: its timers must keep it alive.
+  // (Unref'd timers let Node exit quietly once a round finished — the jobs window stayed open
+  // with nothing running, Oct 7.) Tests pass keepAlive: false.
+  const keepAlive = opts?.keepAlive ?? true;
 
   for (const job of jobs) {
     if (runImmediately) {
@@ -24,8 +28,7 @@ export function startScheduler(jobs: ScheduledJob[], opts?: { runImmediately?: b
         console.error(`[scheduler] ${job.name} failed`, err);
       });
     }, job.everyMs);
-    // Don't keep process alive solely for intervals in tests unless needed
-    t.unref?.();
+    if (!keepAlive) t.unref?.();
     timers.push(t);
   }
 
