@@ -99,7 +99,7 @@ def score_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def load_from_db(dsn: str) -> list[dict[str, Any]]:
+def load_from_db(dsn: str, batch: str | None = None) -> list[dict[str, Any]]:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
@@ -126,8 +126,10 @@ def load_from_db(dsn: str) -> list[dict[str, Any]]:
         FROM vault_media.scan_unit u
         LEFT JOIN vault_market.id_observation obs
           ON obs.id::text = u.id_observation_ref
+        WHERE (%(batch)s::uuid IS NULL OR u.batch_id = %(batch)s::uuid)
         ORDER BY u.created_at DESC
-        """
+        """,
+        {"batch": batch},
     )
     rows: list[dict[str, Any]] = []
     for raw in cur.fetchall():
@@ -169,9 +171,14 @@ def main() -> int:
         "--dsn",
         default="dbname=iqvault user=postgres password=vault host=localhost",
     )
+    ap.add_argument(
+        "--batch",
+        default=None,
+        help="score one scan batch (the 25 cards you reviewed) instead of every staged scan",
+    )
     args = ap.parse_args()
     try:
-        rows = load_from_db(args.dsn)
+        rows = load_from_db(args.dsn, args.batch)
     except Exception as exc:  # noqa: BLE001 — operator-facing CLI
         print(f"could not read scan units: {exc}", file=sys.stderr)
         return 1
