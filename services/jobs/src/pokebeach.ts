@@ -76,6 +76,8 @@ export function resetPokebeachThrottleForTests() {
 
 const BACKOFF_BASE_MS = 5 * 60 * 1000;
 const BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
+/** A login wall or bot challenge (401 / 403) is the site saying no: look again once a day, no sooner. */
+const BLOCKED_RECHECK_MS = 24 * 60 * 60 * 1000;
 
 export async function politeGet(
   db: Queryable,
@@ -134,7 +136,7 @@ export async function politeGet(
   const failures = Number(state?.consecutive_failures ?? 0) + 1;
   const status = res?.status ?? null;
   // A login wall or block is access control: wait the maximum, never work around it.
-  const delay = status === 401 || status === 403 ? BACKOFF_MAX_MS : Math.min(BACKOFF_BASE_MS * 2 ** (failures - 1), BACKOFF_MAX_MS);
+  const delay = status === 401 || status === 403 ? BLOCKED_RECHECK_MS : Math.min(BACKOFF_BASE_MS * 2 ** (failures - 1), BACKOFF_MAX_MS);
   const next = new Date(at.getTime() + delay);
   await db.query(
     `INSERT INTO vault_signals.source_fetch_state

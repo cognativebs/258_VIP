@@ -30,6 +30,25 @@ export type EntityExtractionReport = {
   learnedSets: string[];
 };
 
+// TCGdex's set list (cached 6 h) lets a newly listed set replace its provisional set:learned:<key>
+// ref. Off unless VIP_ENTITY_TCGDEX_SETS=1 (the scheduler and CLI turn it on; tests stay offline).
+let tcgdexSetsCache: { at: number; sets: Array<{ id: string; name: string }> } | null = null;
+
+async function tcgdexSetNames(): Promise<Array<{ id: string; name: string }>> {
+  if (process.env.VIP_ENTITY_TCGDEX_SETS !== "1") return [];
+  if (tcgdexSetsCache && Date.now() - tcgdexSetsCache.at < 6 * 3600_000) return tcgdexSetsCache.sets;
+  try {
+    const res = await fetch("https://api.tcgdex.net/v2/en/sets", { headers: { accept: "application/json" } });
+    if (!res.ok) return tcgdexSetsCache?.sets ?? [];
+    const rows = (await res.json()) as Array<{ id?: string; name?: string }>;
+    const sets = rows.filter((r) => r.id && r.name).map((r) => ({ id: r.id!, name: r.name! }));
+    tcgdexSetsCache = { at: Date.now(), sets };
+    return sets;
+  } catch {
+    return tcgdexSetsCache?.sets ?? [];
+  }
+}
+
 export async function loadPokemonCatalog(db: Queryable): Promise<PokemonCatalog> {
   const catalogSets = await db.query(`SELECT id, name FROM vault_pokemon.set WHERE name IS NOT NULL`);
   const binderSets = await db.query(`SELECT DISTINCT set_name FROM vault_tcg.binder_slot WHERE set_name IS NOT NULL AND set_name <> ''`);
@@ -38,11 +57,15 @@ export async function loadPokemonCatalog(db: Queryable): Promise<PokemonCatalog>
     `SELECT DISTINCT ON (normalized_key) mention FROM vault_signals.source_item_entity
       WHERE entity_kind = 'set' AND match_method = 'quoted_set_name' ORDER BY normalized_key, created_at`,
   );
-  const byKey = new Map<string, { name: string; ref: string }>();
+  const byKey = new Map<string, { name: string; ref: string; needsContext?: boolean }>();
   for (const r of catalogSets.rows) byKey.set(entityKey(r.name), { name: r.name, ref: `vault_pokemon.set:${r.id}` });
   for (const r of binderSets.rows) {
     const key = entityKey(r.set_name);
     if (key && !byKey.has(key)) byKey.set(key, { name: r.set_name, ref: `binder_set:${key}` });
+  }
+  for (const s of await tcgdexSetNames()) {
+    const key = entityKey(s.name);
+    if (key && !byKey.has(key)) byKey.set(key, { name: s.name, ref: `tcgdex_set:${s.id}`, needsContext: true });
   }
   return {
     species: SPECIES_BY_DEX,

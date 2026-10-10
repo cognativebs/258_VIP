@@ -218,7 +218,7 @@ describe.skipIf(!DSN)("pokebeach connector, article-page mode (IQVAULT_TEST_DSN,
     });
   });
 
-  it("backs off after a failure, and waits the maximum on a 403 without retrying around it", async () => {
+  it("backs off after a failure, and waits a day on a 403 without retrying around it", async () => {
     await inTransaction(async (db) => {
       await enable(db, "pokebeach_official");
       const down = fakeSite({ [HOME]: { status: 503 } });
@@ -234,7 +234,7 @@ describe.skipIf(!DSN)("pokebeach connector, article-page mode (IQVAULT_TEST_DSN,
       const st = await db.query(
         `SELECT next_attempt_at FROM vault_signals.source_fetch_state WHERE source_id = 'pokebeach_members'`,
       );
-      expect(new Date(st.rows[0].next_attempt_at).toISOString()).toBe("2026-10-03T18:00:00.000Z");
+      expect(new Date(st.rows[0].next_attempt_at).toISOString()).toBe("2026-10-04T12:00:00.000Z");
     });
   });
 

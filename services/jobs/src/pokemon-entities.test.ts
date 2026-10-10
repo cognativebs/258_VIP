@@ -57,10 +57,10 @@ describe.skipIf(!DSN)("source item entity extraction (IQVAULT_TEST_DSN, rolled b
           WHERE i.external_id IN ('990001', '990002') ORDER BY 1, 2, 3`,
       );
       expect(rows.rows.map((r) => [r.external_id, r.entity_kind, r.normalized_key, r.entity_ref, r.match_method])).toEqual([
-        ["990001", "set", "fixture-rise", null, "quoted_set_name"],
+        ["990001", "set", "fixture-rise", "set:learned:fixture-rise", "quoted_set_name"],
         ["990002", "card", "charizard-ex", null, "card_pattern"],
         ["990002", "pokemon", "charizard", "pokemon:dex:6", "species_catalog"],
-        ["990002", "set", "fixture-rise", null, "learned_set_name"],
+        ["990002", "set", "fixture-rise", "set:learned:fixture-rise", "learned_set_name"],
       ]);
       const empty = await db.query(
         `SELECT x.entity_count FROM vault_signals.source_item_extraction x
