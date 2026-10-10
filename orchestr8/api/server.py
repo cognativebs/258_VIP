@@ -16,7 +16,7 @@ sys.path.insert(0, ROOT)
 from providers.billing import accounts_snapshot  # noqa: E402
 from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
 from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
-from services.custom_agents import CustomAgentError, create_custom_agent, update_custom_agent  # noqa: E402
+from services.custom_agents import CustomAgentError, create_custom_agent, delete_custom_agent, update_custom_agent  # noqa: E402
 from services.custom_councils import (  # noqa: E402
     CustomCouncilError,
     create_custom_council,
@@ -233,6 +233,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if path == "/v1/runs" or path.startswith("/v1/runs/"):
             json_response(self, 405, {"error": "method_not_allowed", "detail": "Runs API is read-only"})
             return
+        agent_id = _agent_id_from_path(path)
+        if agent_id:
+            try:
+                json_response(self, 200, {"ok": True, **delete_custom_agent(agent_id)})
+            except CustomAgentError as e:
+                json_response(self, 400, {"error": "invalid_agent", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
         council_id = _council_id_from_path(path)
         if council_id:
             try:
@@ -438,6 +447,7 @@ def main() -> None:
     print("  GET  /v1/agents/:id")
     print("  POST /v1/agents")
     print("  PATCH /v1/agents/:id")
+    print("  DELETE /v1/agents/:id (custom: to .trash; edited shipped: reset)")
     print("  GET  /v1/models")
     print("  GET  /v1/councils")
     print("  GET  /v1/pricing")

@@ -1,3 +1,4 @@
+import { PAGE_CHASE_RULE, type PageChase } from "./binderPageChase.js";
 import { PredictionLedger } from "@vip/signals";
 import {
   INTELLIGENCE_VERSION,
@@ -125,6 +126,8 @@ export function intelligenceSnapshot(
      * page-level chase completion stays unbuilt rather than faked.
      */
     binders?: BinderSummary[];
+    /** Per-page chase completion from vault_tcg (binderPageChase.ts); undefined when Postgres is down. */
+    pageChase?: PageChase[];
   },
 ) {
   const doc = loadIntelligenceDoc();
@@ -165,10 +168,14 @@ export function intelligenceSnapshot(
         museumCompletion: museum,
         culturalIconsPageType: fixtures.culturalIcons.pageType,
         liveBinders: extras?.binders ?? [],
-        pageChaseCompletion: {
-          available: false,
-          note: "Per-page chase completion needs a vault_tcg query; not implemented.",
-        },
+        pageChaseCompletion: extras?.pageChase
+          ? {
+              available: true,
+              rule: PAGE_CHASE_RULE,
+              pages: extras.pageChase,
+              note: "Pockets that name a card, owned vs missing, per binder page. Empty pockets are not part of the chase.",
+            }
+          : { available: false, note: "Binder pages could not be read from vault_tcg (Postgres unavailable)." },
       },
     },
     phase2: {

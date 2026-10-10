@@ -365,3 +365,31 @@ def load_custom_agents() -> dict[str, dict]:
         meta["_dir"] = str(path.parent)
         agents[aid] = meta
     return agents
+
+def delete_custom_agent(agent_id: str) -> dict:
+    """Remove a Console-made role, or reset an edited shipped role to the shipped version.
+
+    Nothing is erased: the folder moves to ``custom_agents/.trash/<id>-<timestamp>`` so a
+    mistaken click is recoverable. A custom role still used by a saved custom council is refused.
+    """
+    import shutil
+
+    from services.custom_councils import load_custom_councils
+    from services.registry import clear_agent_cache
+
+    target = custom_agent_dir(agent_id)
+    if not (target / "agent.yaml").exists():
+        if _is_shipped(agent_id):
+            raise CustomAgentError("Shipped roles cannot be deleted; this one has no edits to reset")
+        raise CustomAgentError(f"Unknown custom role: {agent_id}")
+    shipped = _is_shipped(agent_id)
+    if not shipped:
+        users = sorted(cid for cid, meta in load_custom_councils().items() if agent_id in (meta.get("agents") or []))
+        if users:
+            raise CustomAgentError(f"{agent_id} is in saved council(s) {', '.join(users)}; remove it there first")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    trash = CUSTOM_AGENTS_DIR / ".trash" / f"{agent_id}-{stamp}"
+    trash.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(target), str(trash))
+    clear_agent_cache()
+    return {"id": agent_id, "deleted": not shipped, "reset": shipped, "movedTo": _display_path(trash)}

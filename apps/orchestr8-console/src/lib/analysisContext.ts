@@ -11,6 +11,64 @@ import { insufficientMarket } from "./marketEvidence";
 
 export type SliceId = "all" | "sellHigh" | "highLiquidity" | "museum" | "lot";
 
+/** Optional refinements on top of a slice (backlog A: richer inventory filters). */
+export type AnalysisFilters = { pillar?: string; publisher?: string; minValue?: number };
+
+export function filterOptions(rows: ComicRow[]): { pillars: string[]; publishers: string[] } {
+  const count = (key: "Collection Pillar" | "Publisher") => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const v = String(r[key] ?? "").trim();
+      if (v) m.set(v, (m.get(v) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k]) => k);
+  };
+  return { pillars: count("Collection Pillar"), publishers: count("Publisher").slice(0, 20) };
+}
+
+/** AGENTS rule 6: a recommendation on a holding at or above this catalog value gets a critic pass. */
+export const HIGH_DOLLAR_USD = 100;
+
+/** Slice highlights at or above HIGH_DOLLAR_USD (catalog snapshot), highest first. */
+export function highDollarRows(bundle: InventoryBundle, slice: SliceId, threshold = HIGH_DOLLAR_USD): ComicRow[] {
+  return highlightRowsForComps(applySlice(bundle.rows, slice)).filter((r) => (r["Current Price"] ?? 0) >= threshold);
+}
+
+/** The question for a Challenge Council second pass over a finished analysis. */
+export function challengeQuestion(rows: ComicRow[], priorVerdict?: string | null): string {
+  const list = rows
+    .slice(0, 12)
+    .map((r) => `${r.Series ?? r.Title ?? r.id} #${r["Issue Full"] ?? ""} ($${(r["Current Price"] ?? 0).toFixed(0)} catalog)`)
+    .join("; ");
+  return [
+    `Challenge the council's analysis (in priorAnalysis) for these high-dollar holdings: ${list}.`,
+    priorVerdict ? `The council's verdict was: ${priorVerdict}.` : "",
+    `Reject any Sell, Lot, Buy or Grade that lacks market evidence (matchedSales >= ${MIN_SALES_FOR_MARKET_EVIDENCE}) or rests on catalog snapshots alone.`,
+    "Name what would change your verdict.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** The loaded bundle narrowed by the operator's refinements; `refine` describes them for the council. */
+export function refineBundle(bundle: InventoryBundle, f: AnalysisFilters): InventoryBundle {
+  const parts: string[] = [];
+  let rows = bundle.rows;
+  if (f.pillar) {
+    rows = rows.filter((r) => r["Collection Pillar"] === f.pillar);
+    parts.push(`pillar=${f.pillar}`);
+  }
+  if (f.publisher) {
+    rows = rows.filter((r) => r.Publisher === f.publisher);
+    parts.push(`publisher=${f.publisher}`);
+  }
+  if (f.minValue && f.minValue > 0) {
+    rows = rows.filter((r) => (r["Current Price"] ?? 0) >= f.minValue!);
+    parts.push(`catalog value >= $${f.minValue}`);
+  }
+  return parts.length ? { ...bundle, rows, refine: parts.join("; ") } : bundle;
+}
+
 export { ANALYSIS_COMPS_CAP, MIN_SALES_FOR_MARKET_EVIDENCE };
 
 function marketFor(
@@ -195,7 +253,7 @@ export function buildAnalysisContext(
       note: bundle.meta.note,
     },
     activeFilter: {
-      description: `slice=${slice}`,
+      description: `slice=${slice}${bundle.refine ? `; ${bundle.refine}` : ""}`,
       matchingRecords: filtered.length,
       matchingValue: Math.round(matchingValue * 100) / 100,
       matchingValueNote: CATALOG_SNAPSHOT_NOTE,

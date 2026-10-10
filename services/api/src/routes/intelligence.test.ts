@@ -65,7 +65,7 @@ describe("GET /api/intelligence", () => {
         version: string;
         signalsIngestion: { live: boolean; confirmed: boolean; blocks: string[] };
         phase2: { scoringEnabled: boolean };
-        collection: { binder: { pageChaseCompletion: { available: boolean } } };
+        collection: { binder: { pageChaseCompletion: { available: boolean; note: string; pages?: unknown[] } } };
       };
       expect(res.status).toBe(200);
       expect(body.version).toMatch(/^intelligence@/);
@@ -75,7 +75,10 @@ describe("GET /api/intelligence", () => {
       // Phase 2 scoring must stay off until signals_raw is confirmed live.
       expect(body.phase2.scoringEnabled).toBe(false);
       // Page-level chase completion is unbuilt, and says so rather than faking.
-      expect(body.collection.binder.pageChaseCompletion.available).toBe(false);
+      // Real per-page counts from vault_tcg when Postgres answers; otherwise it says so — never faked.
+      const chase = body.collection.binder.pageChaseCompletion;
+      if (chase.available) expect(Array.isArray(chase.pages)).toBe(true);
+      else expect(chase.note).toMatch(/Postgres unavailable/);
     });
   });
 

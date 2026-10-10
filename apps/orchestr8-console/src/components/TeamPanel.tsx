@@ -24,6 +24,7 @@ import {
   fetchAgents,
   fetchCouncils,
   updateAgent,
+  deleteAgent,
   updateCouncil,
   type Council,
   type Health,
@@ -278,6 +279,28 @@ export function TeamPanel({
       setEditingId(null);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : "Could not save this role");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const removeEditedRole = async () => {
+    if (!editingId) return;
+    const ok = window.confirm(
+      `Delete "${editDraft.name || editingId}"? A role you created is removed; a shipped role you edited goes back to its shipped version. Either way the files move to orchestr8/custom_agents/.trash and can be restored.`,
+    );
+    if (!ok) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      await deleteAgent(editingId);
+      if (draft.roles.includes(editingId)) {
+        setDraft((d) => ({ ...d, roles: d.roles.filter((r) => r !== editingId) }));
+      }
+      await loadRegistry();
+      setEditingId(null);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not delete this role");
     } finally {
       setSavingEdit(false);
     }
@@ -586,6 +609,18 @@ export function TeamPanel({
                           >
                             {savingEdit ? "Saving…" : "Save role"}
                           </button>
+                          {agent.custom ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ marginLeft: 8 }}
+                              disabled={savingEdit}
+                              onClick={removeEditedRole}
+                              title="Custom role: delete. Edited shipped role: reset to shipped. Files go to custom_agents/.trash."
+                            >
+                              Delete / reset role
+                            </button>
+                          ) : null}
                         </div>
                       )}
                       {active && (

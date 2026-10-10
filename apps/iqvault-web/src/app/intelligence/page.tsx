@@ -61,7 +61,21 @@ type IntelligenceSnapshot = {
         ownedSlots: number;
         needSlots: number;
       }[];
-      pageChaseCompletion: { available: boolean; note: string };
+      pageChaseCompletion: {
+        available: boolean;
+        note: string;
+        pages?: {
+          binderId: string;
+          binderName: string;
+          pageIndex: number;
+          title: string;
+          cards: number;
+          owned: number;
+          missing: number;
+          wishlisted: number;
+          completion: number | null;
+        }[];
+      };
     };
   };
   gradingQueue: {
@@ -185,7 +199,25 @@ export default async function IntelligencePage() {
               <p className="muted" style={{ fontSize: 12 }}>
                 {snap.collection.binder.pageChaseCompletion.note}
               </p>
-            ) : null}
+            ) : (
+              <details style={{ fontSize: 13, marginBottom: 8 }}>
+                <summary>
+                  Page chase — {(snap.collection.binder.pageChaseCompletion.pages ?? []).filter((p) => p.cards > 0 && p.missing === 0).length} complete of{" "}
+                  {(snap.collection.binder.pageChaseCompletion.pages ?? []).filter((p) => p.cards > 0).length} pages with cards
+                </summary>
+                {(snap.collection.binder.pageChaseCompletion.pages ?? [])
+                  .filter((p) => p.cards > 0)
+                  .sort((a, b) => (a.completion ?? 0) - (b.completion ?? 0))
+                  .map((p) => (
+                    <p key={`${p.binderId}-${p.pageIndex}`} className="muted" style={{ margin: "2px 0" }}>
+                      {p.binderName} · {p.title}: {p.owned}/{p.cards} owned
+                      {p.missing ? ` · ${p.missing} missing` : " · complete"}
+                      {p.wishlisted ? ` (${p.wishlisted} on wishlist)` : ""}
+                    </p>
+                  ))}
+                <p className="muted" style={{ fontSize: 12 }}>{snap.collection.binder.pageChaseCompletion.note}</p>
+              </details>
+            )}
             {snap.collection.synergy.slice(0, 8).map((s, i) => (
               <p key={`${s.notes ?? "syn"}-${i}`} className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
                 {s.notes} — composite {s.collectionSynergyScore} (market {s.marketAttractiveness} ·
