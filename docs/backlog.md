@@ -196,7 +196,8 @@ third-party-access licence limit).
   - Split with the nightly snapshot: the nightly CSV prices **asset-linked** items (comics + Pokémon singles that are assets) into `guide_price_observation`; `pokemon-prices` prices **Binder cards** (no asset until TCG D1/D2) into `card_price_history`
   - [ ] Pokémon **sold comps**: TCGplayer latest-sales and history endpoints return 403 (not worked around) — the existing TCGplayer price-history job is likely failing for the same reason. Card-keyed `sale` waits for a licensed source (eBay Marketplace Insights application)
   - [ ] Pokémon **asks** (eBay Browse → `listing_observation`): deferred by operator 2026-10-04
-  - [ ] Feed FMV into signal proposals (market confirmation can unlock Buy/Sell/Grade)
+  - [x] FMV feeds signal proposals as evidence (`signal-proposal@0.2.0`, 2026-10-06): the matched cards' guide ranges ride on the proposal and the Orchestr8 question; Buy / Sell / Grade stay withheld until sold comps (operator decision: a guide is not market confirmation)
+  - [x] FMV (GUIDE) column + inspector detail on `/collections/pokemon`; doubtful matches show "match needs review" with the confirm command ([how-to 15](how-to/15-pokemon-fmv.md))
 - [x] Postgres asset catalog adapter (repeat scans converge on confirmed assets) — 2026-09-07
 - [x] Re-identify staged units after a catalog upgrade (no re-scan needed) — `POST /api/scan/batches/:id/reidentify` (2026-09-07)
 - [x] Analysis/insights panel on collector face (Orchestr8 chat ported; Analytics tab on `/collections/comics`)

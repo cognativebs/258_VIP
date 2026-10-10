@@ -67,11 +67,15 @@ export const POKEMON_TABLE_COLUMNS = [
   { id: "Issue Full", label: "#", minWidth: 48 },
   { id: "Edition / Variant", label: "RARITY", minWidth: 90 },
   { id: "Current Price", label: "VALUE", minWidth: 72, numeric: true },
+  { id: "FMV Range", label: "FMV (GUIDE)", minWidth: 220 },
   { id: "Live Range", label: "LIVE", minWidth: 168 },
   { id: "Inventory Bucket", label: "BUCKET", minWidth: 88 },
   { id: "Collection Pillar", label: "STATUS", minWidth: 110 },
   { id: "Recommendation", label: "RECOMMENDATION", minWidth: 130 },
 ];
+
+/** Columns sorted by a numeric companion field instead of their display text. */
+const SORT_FIELD = { "Live Range": "Live Low", "FMV Range": "FMV Low" };
 
 export const NUMERIC_FIELDS = new Set([
   "Museum Score",
@@ -239,11 +243,11 @@ export function filterComics(rows, { query = "", pillar = "", location = "" } = 
 export function sortComics(rows, sortKey, direction = "desc") {
   const col = TABLE_COLUMNS.find((c) => c.id === sortKey);
   const numeric =
-    sortKey === "Live Range" || col?.numeric || NUMERIC_FIELDS.has(sortKey);
+    sortKey in SORT_FIELD || col?.numeric || NUMERIC_FIELDS.has(sortKey);
 
   return [...rows].sort((a, b) => {
-    let av = sortKey === "Live Range" ? a["Live Low"] : a[sortKey];
-    let bv = sortKey === "Live Range" ? b["Live Low"] : b[sortKey];
+    let av = a[SORT_FIELD[sortKey] ?? sortKey];
+    let bv = b[SORT_FIELD[sortKey] ?? sortKey];
     if (numeric) {
       av = Number(av) || 0;
       bv = Number(bv) || 0;
@@ -409,6 +413,9 @@ export function recClass(rec) {
 export function formatCell(colId, value) {
   if (colId === "Live Range") {
     return value || "not fetched";
+  }
+  if (colId === "FMV Range") {
+    return value || "not priced";
   }
   if (colId === "Inventory Bucket") {
     return bucketShort(value);

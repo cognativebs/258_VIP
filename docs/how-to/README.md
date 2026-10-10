@@ -17,6 +17,7 @@ stack (Launch IQVault → `:3000` / `:8787` / `:5200` / Postgres).
 | eBay closed-loop selling engine | [12-ebay-sell-engine.md](12-ebay-sell-engine.md) |
 | Dealer kit (Flip Score / grading / comps / store) | [13-dealer-kit.md](13-dealer-kit.md) |
 | Comics unrecorded bulk giveaway | [14-comics-unknown-exit.md](14-comics-unknown-exit.md) |
+| Pokémon FMV (PriceCharting guide), review and confirm | [15-pokemon-fmv.md](15-pokemon-fmv.md) |
 | Claude MA from WSL2 (placement, billing, no repo mount) | [09-claude-ma-wsl.md](09-claude-ma-wsl.md) |
 | Card price history (TCGplayer, daily) | [08-card-price-history.md](08-card-price-history.md) |
 | Ricoh fi-8170 scan → inventory intake | [06-ricoh-fi8170-scan-intake.md](06-ricoh-fi8170-scan-intake.md) |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orchestr8Question, proposeForSignal, type ProposalInput } from "./proposal.js";
+import { guideSummary, orchestr8Question, proposeForSignal, type GuideRange, type ProposalInput } from "./proposal.js";
 
 const base: ProposalInput = {
   title: "“Fixture Rise” Preorders Now Live",
@@ -52,5 +52,28 @@ describe("proposeForSignal", () => {
     expect(q).toMatch(/Exposure: owned 0, wishlist 1, hunts Fixture Hunt/);
     expect(q).toMatch(/Withheld: Buy/);
     expect(q).toMatch(/Buy, Sell or Grade only with market evidence/);
+  });
+
+  it("attaches guide ranges as evidence; Buy / Sell / Grade stay withheld and say why", () => {
+    const g = (condition: string, low: number, high: number, assumed = false): GuideRange => ({
+      externalId: "me1-133", card: "Bulbasaur", condition, conditionAssumed: assumed, low, high, snapshots: 3, recencyDays: 0, confidence: 0.75,
+    });
+    const guide = [g("NM", 15, 19, true), g("GRADE_9", 40, 44), g("PSA_10", 107, 107)];
+    expect(guideSummary(guide)).toEqual(["Bulbasaur NM assumed $15.00–$19.00 · PSA 10 $107 (3 snapshots, 0d)"]);
+
+    const owned = propose({ direction: "up", guide, exposure: { owned: 1, wishlist: 0, hunts: [], matched: ["Bulbasaur · Mega Evolution"] } });
+    expect(owned.action).toBe("Hold");
+    expect(owned.guide).toEqual(guide);
+    expect(owned.reasons).toEqual(expect.arrayContaining([expect.stringMatching(/^PriceCharting guide \(not sold comps\): Bulbasaur/)]));
+    expect(owned.withheld).toEqual([{ action: "Grade", reason: expect.stringMatching(/guide range attached .*not sold comps.*still needs sold comps/) }]);
+
+    const wanted = propose({ guide, exposure: { owned: 0, wishlist: 1, hunts: [], matched: [] } });
+    expect(wanted.action).toBe("Watch");
+    expect(wanted.withheld.map((w) => w.action)).toEqual(["Buy"]);
+    expect(wanted.withheld[0]!.reason).not.toMatch(/and a price/);
+    const q = orchestr8Question({ ...base, guide }, proposeForSignal({ ...base, guide }));
+    expect(q).toMatch(/PriceCharting guide for the matched cards \(vendor guide, confidence ≤ 0.75, not sold comps\): Bulbasaur/);
+
+    expect(propose({}).guide).toEqual([]);
   });
 });

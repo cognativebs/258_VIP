@@ -17,7 +17,10 @@ export const PokemonFmvQuerySchema = z
   })
   .strict();
 
-export async function buildPokemonFmv(db: Queryable, opts: { externalId?: string; windowDays?: number; asOf?: Date } = {}) {
+export async function buildPokemonFmv(
+  db: Queryable,
+  opts: { externalId?: string; externalIds?: ReadonlyArray<string>; windowDays?: number; asOf?: Date } = {},
+) {
   const asOf = opts.asOf ?? new Date();
   const windowDays = opts.windowDays ?? 30;
   const cards = await db.query(
@@ -26,9 +29,10 @@ export async function buildPokemonFmv(db: Queryable, opts: { externalId?: string
        FROM vault_tcg.binder_slot b
       WHERE b.source = 'pokemontcg' AND b.external_id IS NOT NULL AND (b.owned OR b.on_wishlist)
         AND ($1::text IS NULL OR b.external_id = $1)
+        AND ($2::text[] IS NULL OR b.external_id = ANY($2::text[]))
       GROUP BY b.external_id
       ORDER BY b.external_id`,
-    [opts.externalId ?? null],
+    [opts.externalId ?? null, opts.externalIds ? [...opts.externalIds] : null],
   );
   const ids = cards.rows.map((r) => r.external_id);
   const history = await db.query(

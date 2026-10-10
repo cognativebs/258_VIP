@@ -775,6 +775,14 @@ export function ComicsTerminal({
                   <span className="bb-dim">VALUE (CLZ snapshot)</span>
                   <div>{formatCell("Current Price", selected["Current Price"])}</div>
                 </div>
+                {isPokemon && Array.isArray(selected["FMV Detail"]) ? (
+                  <div>
+                    <span className="bb-dim">FMV (PriceCharting guide · not sold comps · confidence ≤ 0.75)</span>
+                    {(selected["FMV Detail"] as string[]).map((line) => (
+                      <div key={line}>{line}</div>
+                    ))}
+                  </div>
+                ) : null}
                 <div>
                   <span className="bb-dim">LIVE (Browse listings · unverified)</span>
                   <div>{formatCell("Live Range", selected["Live Range"])}</div>

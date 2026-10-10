@@ -5,8 +5,9 @@
  * signal lists its evidence: each article with its outlet, time and link.
  */
 import { z } from "zod";
-import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal, surfaceFor } from "@vip/signals";
+import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal, surfaceFor, type GuideRange } from "@vip/signals";
 import type { Hunt } from "../seeds/hunts.js";
+import { buildPokemonFmv } from "./pokemonFmv.js";
 import { exposureFor, huntTexts, loadBinderSlots } from "./signalExposure.js";
 
 export type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
@@ -73,13 +74,38 @@ export async function buildSynthesized(
   // Exposure is read now, so a proposal changes the moment the Binder or a hunt does.
   const binder = await loadBinderSlots(db).catch(() => []);
   const hunts = huntTexts(opts.hunts ?? []);
+  const exposures = sigs.rows.map((r) => exposureFor(r.entity, binder, hunts));
+
+  // Guide prices for the matched cards (operator 2026-10-06: evidence only, never unlocks an action).
+  // A card whose PriceCharting match still needs review contributes nothing.
+  const cardIds = [...new Set(exposures.flatMap((e) => e.cardIds ?? []))].slice(0, 200);
+  const fmv = cardIds.length ? await buildPokemonFmv(db, { externalIds: cardIds, asOf: at }).catch(() => null) : null;
+  const guideByCard = new Map<string, GuideRange[]>();
+  for (const c of fmv?.cards ?? []) {
+    if (!c.match || c.match.needsReview) continue;
+    guideByCard.set(
+      c.externalId,
+      c.fmv.map((f) => ({
+        externalId: c.externalId,
+        card: c.name,
+        condition: f.condition,
+        conditionAssumed: f.conditionAssumed,
+        low: f.low,
+        high: f.high,
+        snapshots: f.snapshots,
+        recencyDays: f.recencyDays,
+        confidence: f.confidence,
+      })),
+    );
+  }
 
   const signals = sigs.rows
-    .map((r) => {
+    .map((r, i) => {
       const independent = Number(r.independent);
       const surface = surfaceFor({ theme: r.code, primaryItems: Number(r.primary_items), sourceKeys: r.source_keys ?? [] }, profile);
       const band = surface.surfaced ? bandFor(Number(r.priority), independent, profile) : "noise";
-      const exposure = exposureFor(r.entity, binder, hunts);
+      const exposure = exposures[i]!;
+      const guide = (exposure.cardIds ?? []).slice(0, 3).flatMap((id) => guideByCard.get(id) ?? []);
       const input = {
         title: r.title,
         theme: r.code,
@@ -90,6 +116,7 @@ export async function buildSynthesized(
         baseConfidence: r.conf,
         exposure,
         marketConfirmed: false,
+        guide,
       };
       const proposal = proposeForSignal(input);
       return {

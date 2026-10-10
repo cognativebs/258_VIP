@@ -69,4 +69,35 @@ describe("buildSynthesized", () => {
     ]);
     expect(out.signals[1]!.surface.reason).toBe("CARD_REVEAL needs a cluster (1 of 2 articles)");
   });
+
+  it("attaches the PriceCharting guide for matched cards as evidence; nothing is unlocked", async () => {
+    const db: Queryable = {
+      query: async (text) => {
+        if (text.includes("signals_synthesis_profile")) return { rows: [{ version: "0.1.0", profile_json: POKEMON_SYNTHESIS_PROFILE_SEED }] };
+        if (text.includes("FROM vault_signals.signal s")) return { rows: [sig("own", 0.25, 1, 0.25, "CARD_REVEAL", 2)] };
+        if (text.includes("SELECT set_name, card_name, owned, on_wishlist, external_id")) {
+          return { rows: [{ set_name: "Fixture Rise", card_name: "Fixtureon ex", owned: true, on_wishlist: false, external_id: "fx1-12" }] };
+        }
+        if (text.includes("FROM vault_tcg.binder_slot b")) {
+          return { rows: [{ external_id: "fx1-12", card_name: "Fixtureon ex", set_name: "Fixture Rise", number: "12", owned: true, wishlist: false }] };
+        }
+        if (text.includes("card_price_history")) {
+          return { rows: [{ external_id: "fx1-12", condition: "NM", condition_assumed: true, observed_on: "2026-10-04", price: 17 }] };
+        }
+        if (text.includes("to_regclass")) return { rows: [{ ok: true }] };
+        if (text.includes("vendor_product_map")) {
+          return { rows: [{ external_id: "fx1-12", vendor_product_id: "900001", vendor_product_name: "Fixtureon ex #12", needs_review: false }] };
+        }
+        return { rows: [] };
+      },
+    };
+    const out = await buildSynthesized(db, { at: AT });
+    const p = out.signals[0]!.proposal;
+    expect(p.action).toBe("Hold");
+    expect(p.guide).toEqual([
+      expect.objectContaining({ externalId: "fx1-12", condition: "NM", conditionAssumed: true, low: 17, high: 17, snapshots: 1 }),
+    ]);
+    expect(p.withheld.every((w) => /not sold comps/.test(w.reason))).toBe(true);
+    expect(out.signals[0]!.orchestr8Question).toMatch(/PriceCharting guide for the matched cards/);
+  });
 });
