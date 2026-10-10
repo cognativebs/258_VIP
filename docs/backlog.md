@@ -99,17 +99,17 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 
 - [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
 - [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
-  - [ ] Operator: confirm each feed URL + terms (Alpha Investments channel ID, whether PSA/TAG publish a feed; no scraping), then enable per source
+  - [ ] Operator: enable the feeds found 2026-10-10 — TAG `https://taggrading.com/blogs/news.atom` (official Atom, robots allow), Alpha Investments `https://www.youtube.com/feeds/videos.xml?channel_id=UCTp-iVOtTrKau0skmfZlo5Q` (@AlphaInvestments69, opinion). PSA publishes no feed: stays blocked (no scraping)
 - **PokéBeach hybrid connector** *(operator build spec 2026-10-03; mapped onto ADR 0013: three stored scores, read-time priority, no 0–100 strength column)*
   - [x] 1. Official homepage ingestion (`pokebeach official`, every 30 min + jitter; identity and UTC time from each article page; polite fetching, conditional GET, backoff; parser-degraded ingests nothing)
   - [x] 2. Canonical dedupe (`source_item` per canonical URL + WordPress post id; `source_item_revision` history; daily 48h `reconcile`; `backfill --days 90`; community feed + forum RSS are discovery only)
   - [x] 3. Tracked-member configuration (8 members, per-specialty weights in `signals_source_author`; `pokebeach members set|check`)
-  - [ ] Operator: confirm PokéBeach terms, enable `pokebeach_official` (+ discovery feeds), run backfill; supply member profile URLs and run the access check
-  - [ ] 4. Public member activity ingestion: only if the access check passes (forum pages answered 403 to an automated fetch on 2026-10-03; never bypass)
+  - [ ] PokéBeach official is behind a Cloudflare bot challenge since 2026-10-05 (403 to VIP; never worked around). VIP re-checks once a day and resumes on its own if allowed. Operator option: ask PokéBeach for feed access
+  - [ ] 4. Public member activity ingestion: blocked — forum member pages 403 (2026-10-03) and the site now challenges all automated clients; never bypass
   - [x] 5. Pokémon entity extraction (`pokebeach extract`, also after each scheduled poll): species → national Dex, sets → `vault_pokemon.set` / Binder names, cards by suffix/Mega, products by pattern; quoted set names learned without an identity; text placeholders until the entity layer (P7)
   - Homepage-only mode since 2026-10-03 (article pages answered 403): titles only, inferred Pacific times; `VIP_POKEBEACH_ARTICLE_PAGES=on` restores article pages
   - [x] 6. Clustering onto spine events (`pokebeach cluster`, also after each scheduled poll; decisions 2026-10-04): items classified by `collectibles-headline` rules; a signal joins the earliest event of the same type sharing a set or card reference within 72h (species and product-type refs never cluster), first event wins and nothing moves; official news is one independence group per outlet, members one per handle, comment threads are DISCUSSION. `event_evidence.source_item_id` (migration `20261004_01`)
-  - [ ] Cross-source clustering (run the entity extractor over PSA / TAG / Alpha Investments / GDELT business headlines so another outlet can corroborate PokéBeach) — `items index` (manual) already writes ComicsBeat / Alpha Investments / GDELT business items; the read-time cross-outlet clusters were retired 2026-10-04 in favour of the stored events above
+  - [x] Cross-source corroboration (2026-10-10, `cross-source-join@0.1.0`, hourly `items` job): outlet headlines naming the same set or card + theme within 72 h join the existing Pokémon event as their own independent source; join only (outlet classifiers already make their own signals). Sets no catalog lists get `set:learned:<key>` (`pokemon-entities@0.2.0`); TCGdex set names replace them once listed
   - [x] Pokémon themes: `collectibles-headline@0.2.0` (current) adds CARD_REVEAL, PRODUCT_REVEAL, PREORDER, PULL_RATE, PROMOTION, COMPETITIVE; 13 of 16 live PokéBeach titles now carry a theme (was 1); migration `20261004_02`
   - [ ] 7. Source weighting (member specialty weights + prediction-ledger calibration)
   - [x] 9. Signals synthesis, read-time over the cluster job's stored events (reworked 2026-10-04 after #98): official factual articles stand alone, card reveals and chatter need a cluster of 2+ articles, competitive never surfaces; bands read-time from `pokemon-synthesis@0.1.0` (migration `20261004_03`; High Conviction needs 2+ sources); writes nothing; `GET /api/signals/synthesized` (each signal says whether and why it surfaces); "Pokémon SIGNALS" on `/signals`
@@ -117,10 +117,12 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
   - [ ] 8. Community Pulse UI (needs member activity) · market confirmation (sold comps) to lift withheld Buy/Sell/Grade and High Conviction
 - [x] **Headlines (US, World)**: GDELT lanes `us` / `world` on fixtures; `macro-headline` classifier; `daily-headlines` list (US 60 / world 40, starting shares · unverified)
 - [x] **Markets & business news (GDELT lane)**: GDELT `business` lane (collectibles companies, marketplaces, markets); `daily-markets` list
-  - [ ] Operator: `npm run news-source -- enable gdelt_doc_v2 --confirm-operator`, then a first live run to confirm the `sourcecountry` filters split US / world as intended
+  - [x] GDELT enabled; one lane per hourly run in rotation, back-off 1 → 12 h after a 429 (2026-10-10)
   - [ ] SEC EDGAR filings lane (row exists): needs a contact email for the SEC User-Agent and a confirmed company list
   - [ ] Finance newsletters lane (rows exist): needs Gmail access for the job (Google OAuth, read-only label), or a forwarded-email inbox folder
 - [x] `news-source list | enable <key> [--endpoint] --confirm-operator | disable` operator command; collectibles-news and macro-news run hourly in the scheduler (blocked until enabled)
+- [x] Rules-only classification runs after every ESPN, collectibles and GDELT ingest (operator 2026-10-10; no LLM)
+- [x] Jobs scheduler stays up: timers keep the process alive, failures are logged, a supervisor restarts it and logs to `scripts\logs\jobs.log` (it had exited quietly 2026-10-07)
 - [ ] Re-classify command (a document once `extracted` is not re-read when rules or the LLM choice change)
 - [ ] **Retail drops (Pokémon Center, Target) and Whatnot**: no public feed and scraping is forbidden; news reports (PokeBeach) + operator manual entries, both labeled by source
 - [ ] **Market data (separate track, outside the SIGNALS spine)**: stock indices from FRED; gold/silver wait for a licensed free source (FRED no longer carries LBMA metals); eBay asks exist, sold access restricted; TCGplayer API closed (no adapter); PSA/TAG population reports
