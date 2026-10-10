@@ -3,12 +3,15 @@
  * headline text and cross-references the catalogs the caller passes in
  * (national Dex species, IQVault set names). A mention that matches no
  * catalog gets no identity: entity_ref stays null, so nothing new is minted
- * because a source spells a name differently. References are text
+ * because a source spells a name differently. One exception (operator
+ * 2026-10-10): a set named in headlines that no catalog lists yet gets a
+ * provisional ref, `set:learned:<key>`, so its articles can cluster; the real
+ * catalog ref replaces it once the set is listed (inferred · unverified). References are text
  * placeholders until the entity layer exists (P7); never a priced_unit join.
  */
 import { z } from "zod";
 
-export const POKEMON_ENTITY_EXTRACTOR_VERSION = "pokemon-entities@0.1.0";
+export const POKEMON_ENTITY_EXTRACTOR_VERSION = "pokemon-entities@0.2.0";
 
 export const EntityKindSchema = z.enum(["set", "card", "product", "pokemon"]);
 export type EntityKind = z.infer<typeof EntityKindSchema>;
@@ -38,8 +41,10 @@ export type EntityMention = z.infer<typeof EntityMentionSchema>;
 export type PokemonCatalog = {
   /** National Dex number → English species name. */
   species: Readonly<Record<number, string>>;
-  /** Known set names with the IQVault reference to attach. */
-  sets: ReadonlyArray<{ name: string; ref: string }>;
+  /** Known set names with the IQVault reference to attach. `needsContext`: match only when quoted
+   * or followed by set words ("… cards", "… booster") — for broad lists like TCGdex's, whose names
+   * include everyday words ("Base", "Jungle", "Platinum"). */
+  sets: ReadonlyArray<{ name: string; ref: string; needsContext?: boolean }>;
   /** Set names learned from earlier quoted mentions; matched without an identity. */
   learnedSets?: ReadonlyArray<string>;
   /** Card names IQVault already holds (binder slots), normalized with entityKey. */
@@ -135,20 +140,20 @@ export function extractPokemonEntities(text: string, catalog: PokemonCatalog): E
     add(
       hit
         ? { kind: "set", mention: name, normalizedKey: entityKey(name), entityRef: hit.ref, method: "set_catalog", confidence: 0.9 }
-        : { kind: "set", mention: name, normalizedKey: entityKey(name), entityRef: null, method: "quoted_set_name", confidence: 0.6 },
+        : { kind: "set", mention: name, normalizedKey: entityKey(name), entityRef: learnedSetRef(name), method: "quoted_set_name", confidence: 0.6 },
     );
   }
-  const named: Array<{ name: string; ref: string | null; method: EntityMatchMethod; confidence: number }> = [
-    ...catalog.sets.map((s) => ({ name: s.name, ref: s.ref, method: "set_catalog" as const, confidence: 0.9 })),
+  const named: Array<{ name: string; ref: string | null; method: EntityMatchMethod; confidence: number; needsContext?: boolean }> = [
+    ...catalog.sets.map((s) => ({ name: s.name, ref: s.ref, method: "set_catalog" as const, confidence: 0.9, needsContext: s.needsContext })),
     ...(catalog.learnedSets ?? [])
       .filter((n) => !catalogByKey.has(entityKey(n)))
-      .map((n) => ({ name: n, ref: null, method: "learned_set_name" as const, confidence: 0.5 })),
+      .map((n) => ({ name: n, ref: learnedSetRef(n), method: "learned_set_name" as const, confidence: 0.5 })),
   ].sort((a, b) => b.name.length - a.name.length);
   for (const s of named) {
     const re = new RegExp(`${B}${escapeRe(foldForMatch(s.name))}${E}`, "gi");
     for (const m of folded.matchAll(re)) {
       const after = folded.slice(m.index! + m[0].length);
-      if (AMBIGUOUS_SET_NAMES.has(entityKey(s.name)) && !SET_CONTEXT.test(after)) continue;
+      if ((AMBIGUOUS_SET_NAMES.has(entityKey(s.name)) || s.needsContext) && !SET_CONTEXT.test(after)) continue;
       add({ kind: "set", mention: text.slice(m.index!, m.index! + m[0].length), normalizedKey: entityKey(s.name), entityRef: s.ref, method: s.method, confidence: s.confidence });
     }
   }
@@ -183,6 +188,11 @@ export function extractPokemonEntities(text: string, catalog: PokemonCatalog): E
 }
 
 /** Quoted set-name candidates only, so a batch can learn names before matching plain mentions. */
+/** Provisional ref for a set no catalog lists yet ("Delta Reign" → "set:learned:delta-reign"). */
+export function learnedSetRef(name: string): string {
+  return `set:learned:${entityKey(name)}`;
+}
+
 export function quotedSetCandidates(text: string): string[] {
   return extractPokemonEntities(text, { species: {}, sets: [] })
     .filter((e) => e.method === "quoted_set_name")

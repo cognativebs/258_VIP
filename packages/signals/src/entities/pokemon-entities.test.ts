@@ -50,15 +50,15 @@ describe("Pokémon entity extraction", () => {
   });
 
   it("learns quoted set names in PokéBeach's style, with no identity, and skips app names", () => {
-    expect(pick("“Fixture Rise” Preorders Now Live")).toEqual(["set:fixture-rise:-:quoted_set_name"]);
-    expect(pick("All 429 “Deluxe Pack Mega” Cards Revealed for “Pocket!”")).toEqual(["set:deluxe-pack-mega:-:quoted_set_name"]);
+    expect(pick("“Fixture Rise” Preorders Now Live")).toEqual(["set:fixture-rise:set:learned:fixture-rise:quoted_set_name"]);
+    expect(pick("All 429 “Deluxe Pack Mega” Cards Revealed for “Pocket!”")).toEqual(["set:deluxe-pack-mega:set:learned:deluxe-pack-mega:quoted_set_name"]);
     expect(quotedSetCandidates("20+ “Fixture Rise” Card Images Revealed!")).toEqual(["Fixture Rise"]);
     expect(quotedSetCandidates("Pokémon to Release “Something Fun” Next Year")).toEqual([]);
   });
 
   it("matches catalog and learned set names; an ambiguous name needs a set word next to it", () => {
     expect(pick("Surging Sparks Booster Box Restock")).toContain("set:surging-sparks:binder_set:surging-sparks:set_catalog");
-    expect(pick("Cards Revealed from Fixture Storm!")).toEqual(["set:fixture-storm:-:learned_set_name"]);
+    expect(pick("Cards Revealed from Fixture Storm!")).toEqual(["set:fixture-storm:set:learned:fixture-storm:learned_set_name"]);
     expect(pick("How Mega Evolution Changed the Meta")).toEqual([]);
     expect(pick("Mega Evolution Elite Trainer Box Revealed")).toContain("set:mega-evolution:binder_set:mega-evolution:set_catalog");
     expect(pick("All 1,025 Pokémon")).toEqual([]);
@@ -68,5 +68,15 @@ describe("Pokémon entity extraction", () => {
     expect(entityKey("Pokémon Center ETB")).toBe("pokemon-center-etb");
     expect(entityKey("Nidoran♀")).toBe("nidoran-f");
     expect(entityKey("Farfetch’d")).toBe("farfetch-d");
+  });
+
+  it("a broad catalog set name matches only with set context, and a listed set replaces the learned ref", () => {
+    const wide: PokemonCatalog = {
+      ...catalog,
+      sets: [...catalog.sets, { name: "Platinum", ref: "tcgdex_set:pl1", needsContext: true }, { name: "Delta Reign", ref: "tcgdex_set:me06", needsContext: true }],
+    };
+    expect(pick("Platinum prices hit a record as gold rallies", wide)).toEqual([]);
+    expect(pick("Platinum booster boxes return", wide)).toEqual(["product:booster-box:product:booster-box:product_pattern", "set:platinum:tcgdex_set:pl1:set_catalog"]);
+    expect(pick("“Delta Reign” Preorders Now Live", wide)).toEqual(["set:delta-reign:tcgdex_set:me06:set_catalog"]);
   });
 });

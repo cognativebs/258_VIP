@@ -27,6 +27,7 @@ import {
 } from "./pokebeach.js";
 import { extractSourceItemEntities, formatEntityReport } from "./pokemon-entities.js";
 import { formatIndexReport, indexFeedItems } from "./source-items.js";
+import { formatCrossSourceJoinReport, joinOutletItems } from "./cross-source-join.js";
 import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPokemonPrices } from "./pokemon-prices.js";
 import { formatComicbaseImport, runComicbaseImport } from "./comicbase-import.js";
 import { formatPriceChartingSnapshotReport, runPriceChartingSnapshotJob } from "./pricecharting-snapshot.js";
@@ -227,7 +228,12 @@ async function main() {
       console.log(formatEntityReport(await inPokebeachTransaction((db) => extractSourceItemEntities(db))));
       return;
     }
-    console.error("usage: items index [--days N] | items extract");
+    if (args[0] === "join") {
+      // Outlet headlines join existing Pokémon events as independent sources (never start one).
+      console.log(formatCrossSourceJoinReport(await inPokebeachTransaction((db) => joinOutletItems(db))));
+      return;
+    }
+    console.error("usage: items index [--days N] | items extract | items join");
     process.exit(1);
   }
 
@@ -392,6 +398,11 @@ async function main() {
     return;
   }
 
+  if (cmd === "schedule" || cmd === "items" || cmd === "pokebeach") {
+    // Entity extraction may learn set names from TCGdex's public set list (cached 6 h).
+    process.env.VIP_ENTITY_TCGDEX_SETS ??= "1";
+  }
+
   if (cmd === "schedule") {
     // schedule [--skip name,name] — e.g. --skip price-history while TCGplayer answers 403
     const k = process.argv.indexOf("--skip");
@@ -485,6 +496,27 @@ async function main() {
           },
         },
         {
+          name: "items",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Outlet headlines → items → Pokémon entities → join matching Pokémon events (operator 2026-10-10).
+            void jitter(10 * 60 * 1000)
+              .then(() =>
+                inPokebeachTransaction(async (db) => ({
+                  index: await indexFeedItems(db),
+                  entities: await extractSourceItemEntities(db),
+                  joined: await joinOutletItems(db),
+                })),
+              )
+              .then(({ index, entities, joined }) => {
+                console.log(formatIndexReport(index));
+                console.log(formatEntityReport(entities));
+                console.log(formatCrossSourceJoinReport(joined));
+              })
+              .catch((e) => console.error(`items failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "pokemon-prices",
           everyMs: 24 * 60 * 60 * 1000,
           run: () => {
@@ -542,7 +574,7 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news and comicbase-import hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {
