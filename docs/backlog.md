@@ -41,9 +41,9 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Console **Analysis** tab — inventory load (VIP `:8787` first, Comics `:5200` fallback)
 - [x] Compact context builder + Analysis Council / Comics VIP presets
 - [x] Proxies: `/api/comics/*`, `/api/vip/*`
-- [ ] **Gate:** Analysis tab loads inventory + one SSE run persists to Runs (operator-verified). Code path shipped 2026-08-25: snapshot provenance, zod on live `/v1/runs`, Runs auto-refresh after a persisted `runId`. Still needs operator dogfood.
-- [ ] Challenge Council second pass on high-dollar slices (optional path in Console)
-- [ ] Richer inventory filters (pillars / workspace parity with legacy IQVault analytics)
+- [ ] **Gate:** Analysis tab loads inventory + one SSE run persists to Runs (operator-verified). Code path shipped 2026-08-25; live gateway check 2026-10-10: a two-role `gpt-4o-mini` run streamed start / progress / steps / heartbeat / done in 6 s for $0.0005 and `GET /v1/runs/<id>` returned it. Still needs your own run from the Analysis tab
+- [x] Challenge Council second pass on high-dollar picks (2026-10-10): after an analysis, picks at $100+ catalog show **Run Challenge Council** (critic · tester · domain expert get the prior answer + those picks; offered, never automatic)
+- [x] Richer inventory filters (2026-10-10): pillar, publisher (top 20) and minimum catalog value on top of the slice; the council's context names them
 - [x] Evidence-backed market ranges in analysis context (VIP `/api/recommendations?holdingIds=` → per-highlight `market`; idle adapters stay insufficient — never fabricated). Sold-ledger persist to `vault_market.sale` is still open.
 - [ ] Persist **sold** comps into `vault_market.sale` / `market_value`. Browse listings go to `listing_observation` (P1, 2026-08-28) — not `sale` ([plan 0003](plans/0003-comics-comps-vault-ingest.md) C1).
 - [x] **Comics comps vault walk** (plan 0003 Track A / P1): `vault_market.listing_observation` + `npm run job:comics-comps`. Batch 12, Marvel/DC default, pause/resume, raw snapshots. Analysis cap unchanged.
@@ -58,10 +58,10 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Keep-alive tabs + session store (switching tabs does not kill a live council)
 - [x] Always-visible Council Strip (roles · provider · model; click for skill blurb)
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
-- [ ] Gateway `step_start` events (so dock can show “calling model” before first token)
+- [x] Gateway shows what is running — superseded by heartbeats every 5 s with the in-flight model calls (2026-10-04)
 - [x] Create an agent role from the Team panel (name / description / skills → live card; `POST /v1/agents`, auto contract, unverified provenance) — 2026-08-21
 - [x] Edit name / description / skills on any Team-panel card (`PATCH /v1/agents/:id`; shipped roles overlay into `custom_agents/`) — 2026-08-21
-- [ ] Delete custom roles from the Team panel (today: delete the folder under `custom_agents/<id>/` + `POST /v1/reload`)
+- [x] Delete custom roles from the Team panel (2026-10-10): **Delete / reset role** — a role you made moves to `custom_agents/.trash/`; an edited shipped role resets to shipped; refused while a saved council uses it (`DELETE /v1/agents/:id`)
 - [x] Save a named custom council from the team panel (prompt on Save team → selection button + edit/delete; `POST/PATCH/DELETE /v1/councils`) — 2026-08-23
 - [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
@@ -167,7 +167,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] `/intelligence` desk on the collector face; vertical-aware Ask prompts
 - [ ] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables
 - [ ] Resolution workflow driven by `vault_core.prediction_needs_scoring` (nothing polls it yet)
-- [ ] Per-page binder chase completion from `vault_tcg` (API reports `available: false`)
+- [x] Per-page binder chase completion from `vault_tcg` (2026-10-10, `binder-page-chase@0.1.0`): owned vs missing per page on `/intelligence`; empty pockets are not part of the chase
 - [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live
 
 ### N. Catalog + market adapters *(ADR 0010 · [plan](plans/0001-catalog-adapter-rollout.md))*

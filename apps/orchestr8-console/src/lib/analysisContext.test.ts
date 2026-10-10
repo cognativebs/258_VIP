@@ -7,6 +7,10 @@ import {
   highlightRowsForComps,
   ANALYSIS_COMPS_CAP,
   MIN_SALES_FOR_MARKET_EVIDENCE,
+  challengeQuestion,
+  filterOptions,
+  highDollarRows,
+  refineBundle,
 } from "./analysisContext";
 import { bundleFromRecommendations, marketFromRecommendation } from "./marketEvidence";
 import type { ComicRow, InventoryBundle } from "./inventoryApi";
@@ -232,5 +236,45 @@ describe("analysis comps context", () => {
     assert.equal(ctx.signals?.provenance.verificationStatus, "unverified");
     assert.match(ctx.signals?.provenance.notes ?? "", /not a market fact/);
     assert.equal(ctx.signals?.synthesized, null);
+  });
+});
+
+describe("analysis refinements (pillar / publisher / min value)", () => {
+  const rows = [
+    row({ id: "a", Series: "X-Men", "Issue Full": "1", Publisher: "Marvel", "Collection Pillar": "Investment", "Current Price": 120 }),
+    row({ id: "b", Series: "Batman", "Issue Full": "2", Publisher: "DC", "Collection Pillar": "Investment", "Current Price": 40 }),
+    row({ id: "c", Series: "Spawn", "Issue Full": "3", Publisher: "Image", "Collection Pillar": "Museum", "Current Price": 300 }),
+    row({ id: "d", Series: "X-Force", "Issue Full": "4", Publisher: "Marvel", "Collection Pillar": "Investment", "Current Price": 15 }),
+  ];
+
+  it("offers pillars and publishers most common first", () => {
+    assert.deepEqual(filterOptions(rows), { pillars: ["Investment", "Museum"], publishers: ["Marvel", "DC", "Image"] });
+  });
+
+  it("narrows the loaded rows and tells the council what was applied", () => {
+    const refined = refineBundle(bundle(rows), { pillar: "Investment", publisher: "Marvel", minValue: 100 });
+    assert.deepEqual(refined.rows.map((r) => r.id), ["a"]);
+    assert.equal(refined.refine, "pillar=Investment; publisher=Marvel; catalog value >= $100");
+    const ctx = buildAnalysisContext(refined, "all");
+    assert.equal(ctx.activeFilter.description, "slice=all; pillar=Investment; publisher=Marvel; catalog value >= $100");
+    assert.equal(ctx.activeFilter.matchingRecords, 1);
+    const untouched = bundle(rows);
+    assert.equal(refineBundle(untouched, {}), untouched);
+  });
+});
+
+describe("Challenge Council second pass on high-dollar picks", () => {
+  it("picks slice highlights at $100+ catalog and asks the critic to reject unevidenced actions", () => {
+    const rows = [
+      row({ id: "cheap", Series: "Spawn", "Issue Full": "9", "Current Price": 20 }),
+      row({ id: "big", Series: "Amazing Fantasy", "Issue Full": "15", "Current Price": 950 }),
+      row({ id: "mid", Series: "X-Men", "Issue Full": "1", "Current Price": 100 }),
+    ];
+    const picks = highDollarRows(bundle(rows), "all");
+    assert.deepEqual(picks.map((r) => r.id), ["big", "mid"]);
+    const q = challengeQuestion(picks, "approve Sell");
+    assert.match(q, /Amazing Fantasy #15 \(\$950 catalog\)/);
+    assert.match(q, /verdict was: approve Sell/);
+    assert.match(q, /Reject any Sell, Lot, Buy or Grade that lacks market evidence \(matchedSales >= 3\)/);
   });
 });

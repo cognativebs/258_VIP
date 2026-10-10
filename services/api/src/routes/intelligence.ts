@@ -1,3 +1,4 @@
+import type { PageChase } from "../lib/binderPageChase.js";
 import type { Express, Request, Response } from "express";
 import { ZodError } from "zod";
 import {
@@ -32,6 +33,7 @@ export type IntelligenceDeps = {
   loadSnapshotInputs: () => Promise<{
     holdings: ApiHolding[];
     binders: BinderSummary[];
+    pageChase?: PageChase[];
   }>;
 };
 
@@ -56,8 +58,8 @@ function created(res: Response, body: Record<string, unknown>): void {
 
 export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps): void {
   async function snapshot() {
-    const { holdings, binders } = await deps.loadSnapshotInputs();
-    return intelligenceSnapshot(new Date(), { holdings, binders });
+    const { holdings, binders, pageChase } = await deps.loadSnapshotInputs();
+    return intelligenceSnapshot(new Date(), { holdings, binders, pageChase });
   }
 
   app.get("/api/intelligence", async (_req: Request, res: Response) => {

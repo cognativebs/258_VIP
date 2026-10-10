@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { getPool } from "./db/client.js";
 import { buildSynthesized, SynthesizedQuerySchema } from "./lib/synthesized.js";
+import { loadPageChase } from "./lib/binderPageChase.js";
 import { buildPokemonFmv, PokemonFmvQuerySchema } from "./lib/pokemonFmv.js";
 import {
   buildDaily,
@@ -439,7 +440,8 @@ export function createApp(deps: AppDeps = {}) {
   registerIntelligenceRoutes(app, {
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
-      return { holdings, binders: binder.available ? binder.binders : [] };
+      const pageChase = await loadPageChase(deps.signalsDb ?? getPool()).catch(() => undefined);
+      return { holdings, binders: binder.available ? binder.binders : [], pageChase };
     },
   });
   registerDealerKitRoutes(app);

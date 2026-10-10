@@ -162,6 +162,17 @@ export async function updateAgent(
   );
 }
 
+/** Console-made role → moved to custom_agents/.trash; an edited shipped role → reset to shipped. */
+export async function deleteAgent(id: string) {
+  const res = await fetch(`${BASE}/v1/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { detail?: string; error?: string };
+    throw new Error(err.detail || err.error || `Role delete failed (${res.status})`);
+  }
+  return data as { id: string; deleted?: boolean; reset?: boolean; movedTo?: string };
+}
+
 export type Council = {
   id: string;
   label: string;

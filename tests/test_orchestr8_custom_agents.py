@@ -283,3 +283,48 @@ def test_detail_returns_skill_text_for_the_editor():
     detail = agent_public_detail("reprint_scout")
     assert VALID["skill"] in detail["skill"]
     assert detail["label"] == "Reprint Scout"
+
+
+def test_delete_moves_a_custom_role_to_trash_and_resets_an_edited_shipped_role(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    import services.custom_councils as custom_councils
+    from services.custom_agents import delete_custom_agent
+
+    monkeypatch.setattr(custom_councils, "CUSTOM_COUNCILS_DIR", tmp_path / "custom_councils")
+    created = create_custom_agent(VALID)
+    agent_id = created["id"]
+    assert agent_id in load_agents()
+
+    out = delete_custom_agent(agent_id)
+    clear_agent_cache()
+    assert out["deleted"] is True and out["reset"] is False
+    assert agent_id not in load_agents()
+    trash = custom_agents.CUSTOM_AGENTS_DIR / ".trash"
+    assert any(p.name.startswith(f"{agent_id}-") for p in trash.iterdir())  # recoverable, not erased
+
+    # An edited shipped role resets to the shipped definition; it never disappears.
+    update_custom_agent(
+        "critic",
+        {"name": "Critic", "description": "edited in the console for this test", "skill": "Challenge every claim before it ships."},
+    )
+    clear_agent_cache()
+    reset = delete_custom_agent("critic")
+    clear_agent_cache()
+    assert reset["reset"] is True and "critic" in load_agents()
+    assert load_agents()["critic"].get("description") != "edited in the console for this test"
+
+    with pytest.raises(CustomAgentError, match="no edits to reset"):
+        delete_custom_agent("critic")
+    with pytest.raises(CustomAgentError, match="Unknown custom role"):
+        delete_custom_agent("no-such-role")
+
+
+def test_delete_refuses_a_role_a_saved_council_still_uses(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    import services.custom_councils as custom_councils
+    from services.custom_agents import delete_custom_agent
+
+    monkeypatch.setattr(custom_councils, "CUSTOM_COUNCILS_DIR", tmp_path / "custom_councils")
+    created = create_custom_agent(VALID)
+    agent_id = created["id"]
+    monkeypatch.setattr(custom_councils, "load_custom_councils", lambda: {"my-team": {"agents": [agent_id, "critic"]}})
+    with pytest.raises(CustomAgentError, match="my-team"):
+        delete_custom_agent(agent_id)

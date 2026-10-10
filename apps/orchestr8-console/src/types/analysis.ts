@@ -56,6 +56,8 @@ export const InventoryBundleSchema = z.object({
   meta: InventoryMetaSchema,
   rows: z.array(ComicRowSchema),
   provenance: InventoryProvenanceSchema,
+  /** Operator refinements applied on top of the loaded rows (pillar / publisher / min value). */
+  refine: z.string().optional(),
 });
 export type InventoryBundle = z.infer<typeof InventoryBundleSchema>;
 

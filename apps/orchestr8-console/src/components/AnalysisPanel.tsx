@@ -10,6 +10,12 @@ import {
   highlightIdsForComps,
   liquidationGateFromMarket,
   MIN_SALES_FOR_MARKET_EVIDENCE,
+  challengeQuestion,
+  filterOptions,
+  highDollarRows,
+  HIGH_DOLLAR_USD,
+  refineBundle,
+  type AnalysisFilters,
   type SliceId,
 } from "@/lib/analysisContext";
 import { loadInventory, type InventoryBundle } from "@/lib/inventoryApi";
@@ -27,9 +33,13 @@ const SLICES: { id: SliceId; label: string }[] = [
 ];
 
 export function AnalysisPanel() {
-  const { team, runJob, sessions, liveKind } = useCouncilSession();
+  const { team, runJob, sessions, liveKind, councils } = useCouncilSession();
   const session = sessions.analysis;
-  const [bundle, setBundle] = useState<InventoryBundle | null>(null);
+  const [loadedBundle, setBundle] = useState<InventoryBundle | null>(null);
+  const [filters, setFilters] = useState<AnalysisFilters>({});
+  // Everything below works on the refined view, so counts, comps and the council context agree.
+  const bundle = useMemo(() => (loadedBundle ? refineBundle(loadedBundle, filters) : null), [loadedBundle, filters]);
+  const options = useMemo(() => (loadedBundle ? filterOptions(loadedBundle.rows) : { pillars: [], publishers: [] }), [loadedBundle]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [slice, setSlice] = useState<SliceId>("sellHigh");
   const [question, setQuestion] = useState(ANALYSIS_PROMPTS[0]);
@@ -127,6 +137,38 @@ export function AnalysisPanel() {
         mode: roster.roles.length === 1 ? "single" : roster.mode,
         council: roster.councilId,
         contextJson: contextToJson(buildAnalysisContext(bundle, slice, fresh, signals)),
+      });
+    } catch {
+      /* session.error */
+    }
+  };
+
+  // Second pass (AGENTS rule 6): offered, never automatic — it spends tokens only when clicked.
+  const highDollar = useMemo(() => (bundle ? highDollarRows(bundle, slice) : []), [bundle, slice]);
+  const canChallenge =
+    Boolean(session.result?.text) && !session.loading && session.council !== "challenge" && highDollar.length > 0;
+  const runChallenge = async () => {
+    if (!bundle || !session.result) return;
+    const roles = councils.find((c) => c.id === "challenge")?.agents ?? ["critic", "tester", "domain_expert"];
+    const ctx = {
+      ...buildAnalysisContext(bundle, slice, market, signals),
+      priorAnalysis: {
+        runId: session.result.runId ?? null,
+        council: session.council,
+        verdict: session.result.vote?.summary ?? session.result.vote?.verdict ?? null,
+        text: (session.result.text ?? "").slice(0, 8000),
+      },
+      highDollarHoldingIds: highDollar.map((r) => r.id),
+    };
+    try {
+      await runJob({
+        kind: "analysis",
+        task: "collection_challenge",
+        question: challengeQuestion(highDollar, session.result.vote?.summary ?? null),
+        roles,
+        mode: "pipeline",
+        council: "challenge",
+        contextJson: contextToJson(ctx),
       });
     } catch {
       /* session.error */
@@ -231,6 +273,50 @@ export function AnalysisPanel() {
       )}
       {loadError && <div className="banner warn">{loadError}</div>}
 
+      <div className="field-row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <label className="field">
+          <span>Pillar</span>
+          <select
+            value={filters.pillar ?? ""}
+            onChange={(e) => setFilters((f) => ({ ...f, pillar: e.target.value || undefined }))}
+            disabled={loading || !loadedBundle}
+          >
+            <option value="">Any</option>
+            {options.pillars.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Publisher</span>
+          <select
+            value={filters.publisher ?? ""}
+            onChange={(e) => setFilters((f) => ({ ...f, publisher: e.target.value || undefined }))}
+            disabled={loading || !loadedBundle}
+          >
+            <option value="">Any</option>
+            {options.publishers.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Min catalog value ($)</span>
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={filters.minValue ?? ""}
+            onChange={(e) => setFilters((f) => ({ ...f, minValue: Number(e.target.value) || undefined }))}
+            disabled={loading || !loadedBundle}
+          />
+        </label>
+      </div>
+
       <label className="field">
         <span>Slice</span>
         <select
@@ -298,6 +384,15 @@ export function AnalysisPanel() {
 
       {session.error && <div className="banner error">{session.error}</div>}
 
+      {canChallenge && (
+        <div className="banner warn" style={{ marginTop: 8 }}>
+          {highDollar.length} pick{highDollar.length === 1 ? " is" : "s are"} ${HIGH_DOLLAR_USD}+ (catalog snapshot). High-dollar
+          recommendations get a critic pass before you act (AGENTS rule 6).{" "}
+          <button type="button" className="btn btn-ghost" onClick={() => void runChallenge()}>
+            Run Challenge Council
+          </button>
+        </div>
+      )}
       {session.result?.paused && session.result.pause && (
         <CreditPauseAlert
           pause={session.result.pause}
