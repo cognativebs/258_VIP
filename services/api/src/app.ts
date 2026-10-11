@@ -1302,6 +1302,8 @@ export function createApp(deps: AppDeps = {}) {
           : undefined;
       const result = await reidentifyStagedBatch(String(req.params.id), {
         unitId,
+        // Saved vision readings are reused unless the operator asks for a fresh (paid) one.
+        freshVision: req.body?.freshVision === true,
       });
       res.json({
         ok: true,

@@ -26,6 +26,7 @@ import {
   type DevicePage,
   type IdentityCandidate,
 } from "@vip/scan-ingest";
+import { pgVisionCache } from "./visionCache.js";
 import { getDb } from "../db/client.js";
 import type { ApiHolding } from "./holdings.js";
 import { importFolderPages, resolveScanFolder } from "./scanFolder.js";
@@ -235,6 +236,7 @@ export async function ingestRicohBatch(
         backPath: backMaster?.dest ?? null,
         frontHash: frontMaster.hash,
         backHash: backMaster?.hash,
+        visionCache: pgVisionCache(),
         sidecarFront: sidecarSync(frontSrc),
         sidecarBack: backSrc ? sidecarSync(backSrc) : "",
         frontFileName: basename(frontSrc),
@@ -515,6 +517,7 @@ export async function swapStagedFaces(opts: {
       backPath: newBackMaster,
       frontHash: newFrontHash,
       backHash: newBackHash,
+      visionCache: pgVisionCache(),
       sidecarFront: sidecarSync(newFrontRef),
       sidecarBack: sidecarSync(newBackRef),
       frontFileName: basename(newFrontRef),

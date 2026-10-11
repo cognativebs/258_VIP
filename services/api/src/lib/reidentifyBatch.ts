@@ -17,6 +17,7 @@ import {
   invalidateIdentificationCache,
 } from "./catalogLive.js";
 import { getStagedBatch, type StagedBatchRow } from "./scanStorePg.js";
+import { pgVisionCache } from "./visionCache.js";
 
 export class ReidentifyError extends Error {
   status: 400 | 404;
@@ -36,7 +37,8 @@ function fileHash(path: string): string {
  */
 export async function reidentifyStagedBatch(
   batchId: string,
-  opts: { unitId?: string } = {},
+  /** freshVision: pay for a new vision reading instead of reusing the saved one. */
+  opts: { unitId?: string; freshVision?: boolean } = {},
 ): Promise<{
   batchId: string;
   categoryHint: string | null;
@@ -99,6 +101,8 @@ export async function reidentifyStagedBatch(
       backFileName: back ? basename(back) : "",
       categoryHint: category,
       resolver,
+      visionCache: pgVisionCache(),
+      freshVision: opts.freshVision,
     });
     const evidence = pixelId.evidence;
     const split = baseVsParallelFromEvidence(evidence);

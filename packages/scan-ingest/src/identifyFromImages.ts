@@ -28,7 +28,9 @@ import { resolveOcrProfile, type OcrProfile } from "./ocr/profiles.js";
 import {
   extractVisionEvidence,
   shouldRunVision,
+  visionCacheKey,
   visionObservedFields,
+  type VisionCache,
   type VisionExtract,
 } from "./vision/structuredVision.js";
 
@@ -215,6 +217,9 @@ export async function identifyFromPairedImages(input: {
   resolver?: CatalogResolver;
   /** Test hook — skip file OCR. */
   ocrOverride?: { front: OcrResult; back: OcrResult };
+  /** Saved vision readings (needs frontHash). New readings are saved; a saved one is reused unless freshVision. */
+  visionCache?: VisionCache;
+  freshVision?: boolean;
 }): Promise<ImageIdResult> {
   const notes: string[] = [];
   const hinted = resolveOcrProfile({
@@ -312,10 +317,22 @@ export async function identifyFromPairedImages(input: {
 
   if (shouldRunVision(privilegedComplete)) {
     try {
-      const vision = await extractVisionEvidence({
-        frontPath: input.frontPath,
-        backPath: input.backPath,
-      });
+      const cacheKey = input.visionCache && input.frontHash ? visionCacheKey(input.frontHash, input.backHash) : null;
+      const saved = cacheKey && !input.freshVision ? await input.visionCache!.get(cacheKey) : null;
+      const vision = saved
+        ? { extract: saved.extract, model: saved.model, estimatedCostUsd: 0, skipped: null }
+        : await extractVisionEvidence({
+            frontPath: input.frontPath,
+            backPath: input.backPath,
+          });
+      if (saved) notes.push("vision reused: saved reading for these images · no new cost");
+      else if (cacheKey && vision.extract) {
+        await input.visionCache!.put(cacheKey, {
+          extract: vision.extract,
+          model: vision.model,
+          estimatedCostUsd: vision.estimatedCostUsd,
+        });
+      }
       estimatedCostUsd = vision.estimatedCostUsd;
       visionModel = vision.model;
       if (vision.skipped) notes.push(vision.skipped);

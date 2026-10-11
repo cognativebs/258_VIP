@@ -4,6 +4,7 @@ import { identifyFromPairedImages } from "./identifyFromImages.js";
 import { spansFromTextBlock } from "./ocr/classifyOcr.js";
 import { ocrAvailable, type OcrResult } from "./ocr/tesseractOcr.js";
 import { isGenericScanFileName } from "./identify.js";
+import { SCAN_VISION_RULE, VisionExtractSchema } from "./vision/structuredVision.js";
 
 const FIXTURE = join(import.meta.dirname, "..", "fixtures", "pixel-baker");
 
@@ -88,6 +89,43 @@ describe("identifyFromPairedImages", () => {
     expect(result.evidence.fused.collectorNumber.value).toBe("082/094");
     expect(result.evidence.fused.category.value).toBe("pokemon");
     expect(result.notes.some((n) => n.startsWith("pokemon_ocr"))).toBe(true);
+  });
+
+  it("reuses a saved vision reading for the same images instead of paying again", async () => {
+    process.env.VIP_SCAN_VISION = "always";
+    const saved = VisionExtractSchema.parse({
+      playerOrCharacter: { value: "Bo Nix", status: "observed", uncertainty: 0.1, evidence: "front nameplate" },
+      notes: [],
+    });
+    const puts: string[] = [];
+    const gets: string[] = [];
+    const cache = {
+      get: async (key: string) => {
+        gets.push(key);
+        return { extract: saved, model: "gpt-4o-mini" };
+      },
+      put: async (key: string) => {
+        puts.push(key);
+      },
+    };
+    try {
+      const result = await identifyFromPairedImages({
+        frontPath: "/tmp/unused-front.jpg",
+        frontHash: "f".repeat(64),
+        frontFileName: "20260906184941_0008.jpg",
+        categoryHint: "sports",
+        visionCache: cache,
+        ocrOverride: { front: ocrFromText("~~"), back: ocrFromText("") },
+      });
+      expect(gets).toEqual([`${SCAN_VISION_RULE}:${"f".repeat(64)}:-`]);
+      expect(puts).toEqual([]);
+      expect(result.estimatedCostUsd).toBe(0);
+      expect(result.usedVision).toBe(true);
+      expect(result.evidence.fused.playerOrCharacter.value).toBe("Bo Nix");
+      expect(result.notes.some((n) => n.startsWith("vision reused"))).toBe(true);
+    } finally {
+      process.env.VIP_SCAN_VISION = "off";
+    }
   });
 
   it("does not conflict Carvanha when front/back junk looks like two players", async () => {

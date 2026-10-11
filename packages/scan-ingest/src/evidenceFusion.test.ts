@@ -6,6 +6,7 @@ import {
   fuseIdentitySides,
   structuredIdentityQuery,
   withoutYearAsNumber,
+  isNonPlayerName,
 } from "./evidenceFusion.js";
 import { extractStructuredFromOcr, spansFromTextBlock } from "./ocr/classifyOcr.js";
 import { getOcrProfile } from "./ocr/profiles.js";
@@ -99,5 +100,18 @@ describe("withoutYearAsNumber", () => {
   it("keeps real numbers, including a four-digit one far from the card year", () => {
     expect(withoutYearAsNumber(withNumber("302", "2021")).collectorNumber.value).toBe("302");
     expect(withoutYearAsNumber(withNumber("1999", "2021")).collectorNumber.value).toBe("1999");
+  });
+});
+
+describe("isNonPlayerName", () => {
+  it("catches teams, cities and company lines read as the player", () => {
+    for (const v of ["Texans LS", "Cleveland Browns", "Mew York", "New York", "Erica Inc", "Panini America Inc", "BROWNS"]) {
+      expect(isNonPlayerName(v)).toBe(true);
+    }
+  });
+  it("keeps real names, including ones that contain a team word", () => {
+    for (const v of ["Bo Nix", "Magic Johnson", "Carson Wentz", "Jalen Hurts", "Justin Herbert", "Dallas Goedert"]) {
+      expect(isNonPlayerName(v)).toBe(false);
+    }
   });
 });

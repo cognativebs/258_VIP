@@ -192,6 +192,64 @@ function pick(
  * Fuse front + back into one evidence package.
  * Conflicts are listed — never silently chosen.
  */
+/** Cities and regions on team cards ("Cleveland Browns", "New York"). */
+const TEAM_PLACES = [
+  "arizona", "atlanta", "baltimore", "boston", "brooklyn", "buffalo", "calgary", "carolina", "charlotte",
+  "chicago", "cincinnati", "cleveland", "colorado", "columbus", "dallas", "denver", "detroit", "edmonton",
+  "florida", "golden state", "green bay", "houston", "indiana", "indianapolis", "jacksonville", "kansas city",
+  "las vegas", "los angeles", "memphis", "miami", "milwaukee", "minnesota", "montreal", "nashville",
+  "new england", "new jersey", "new orleans", "new york", "oakland", "oklahoma city", "orlando", "ottawa",
+  "philadelphia", "phoenix", "pittsburgh", "portland", "sacramento", "san antonio", "san diego",
+  "san francisco", "seattle", "st louis", "tampa bay", "tennessee", "texas", "toronto", "utah", "vancouver",
+  "washington", "winnipeg",
+];
+
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    let prev = row[0]!;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cur = row[j]!;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length]!;
+}
+
+/**
+ * True when a "player" read is really a team, a city or a company line: "Texans LS",
+ * "Cleveland Browns", "Mew York" (one misread letter), "Erica Inc". A real name that merely
+ * contains a nickname word ("Magic Johnson") is kept.
+ */
+export function isNonPlayerName(value: string): boolean {
+  const v = value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!v) return false;
+  if (/\b(inc|llc|ltd|corp|co)$/.test(v)) return true;
+  const place = TEAM_PLACES.find((c) => v === c || v.startsWith(`${c} `) || editDistance(v, c) <= 1);
+  const rest = place ? v.slice(v.startsWith(`${place} `) ? place.length + 1 : v.length).trim() : v;
+  if (place && !rest) return true;
+  // Team nickname, optionally after a place, optionally followed by a 1–2 letter OCR fragment.
+  const words = rest.split(" ");
+  const tail = words.length > 1 && words[words.length - 1]!.length <= 2 ? words.slice(0, -1) : words;
+  const nickname = tail.join(" ");
+  return Boolean(nickname) && new RegExp(`^${TEAM_RE.source}$`).test(nickname);
+}
+
+/** Drop a team/city/company read as the player; it is not identity evidence for a person. */
+export function withoutNonPlayerName(fields: CardIdentityFields): CardIdentityFields {
+  const p = fields.playerOrCharacter.value;
+  if (!p || fields.category.value === "pokemon" || !isNonPlayerName(p)) return fields;
+  return { ...fields, playerOrCharacter: unknownField("inference") };
+}
+
 /**
  * A copyright or season year ("© 2025", "2025-26") is often read as the card number. Treat a
  * four-digit 19xx/20xx number within a year of the card's year (or with no year read) as unknown.
@@ -261,7 +319,7 @@ export function fuseCardEvidence(input: {
     autograph: pick(front.autograph, back.autograph, conflictNotes, "autograph", prefer),
     relic: pick(front.relic, back.relic, conflictNotes, "relic", prefer),
   };
-  return { front, back, fused: withoutYearAsNumber(fused), conflictNotes };
+  return { front, back, fused: withoutNonPlayerName(withoutYearAsNumber(fused)), conflictNotes };
 }
 
 export function fuseIdentitySides(input: {
@@ -323,7 +381,7 @@ export function fuseIdentitySides(input: {
     autograph: pick(input.front.autograph, input.back.autograph, conflictNotes, "autograph", prefer),
     relic: pick(input.front.relic, input.back.relic, conflictNotes, "relic", prefer),
   };
-  return { front: input.front, back: input.back, fused: withoutYearAsNumber(fused), conflictNotes };
+  return { front: input.front, back: input.back, fused: withoutNonPlayerName(withoutYearAsNumber(fused)), conflictNotes };
 }
 
 /** Fill empty fused fields from overlay. Incompatible observed values become conflicts. */
@@ -350,7 +408,7 @@ export function overlayIdentityFields(
     conflicts.push(`${key}: ${label} “${b.value}” vs “${a.value}”`);
     out[key] = unknownField("inference");
   }
-  return withoutYearAsNumber(out);
+  return withoutNonPlayerName(withoutYearAsNumber(out));
 }
 
 export function structuredIdentityQuery(fields: CardIdentityFields): string {

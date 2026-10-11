@@ -43,6 +43,19 @@ export const VisionExtractSchema = z.object({
 });
 export type VisionExtract = z.infer<typeof VisionExtractSchema>;
 
+/**
+ * Saved vision readings, keyed by image bytes and prompt rule. A re-identify reuses the reading
+ * for the same images instead of paying for it again; a new prompt rule never reuses an old one.
+ */
+export type VisionCache = {
+  get(key: string): Promise<{ extract: VisionExtract; model: string } | null>;
+  put(key: string, value: { extract: VisionExtract; model: string; estimatedCostUsd: number }): Promise<void>;
+};
+
+export function visionCacheKey(frontHash: string, backHash?: string | null): string {
+  return `${SCAN_VISION_RULE}:${frontHash}:${backHash ?? "-"}`;
+}
+
 export type VisionResult = {
   extract: VisionExtract | null;
   textFront: string;

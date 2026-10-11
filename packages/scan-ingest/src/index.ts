@@ -218,7 +218,11 @@ export {
   shouldRunVision,
   shouldEscalateToVision,
   visionObservedFields,
+  visionCacheKey,
   SCAN_VISION_RULE,
+  VisionExtractSchema,
+  type VisionCache,
+  type VisionExtract,
 } from "./vision/structuredVision.js";
 export { createTcgdexCatalogAdapter } from "./catalog/tcgdexAdapter.js";
 export {
