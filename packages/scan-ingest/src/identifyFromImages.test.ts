@@ -22,6 +22,10 @@ describe("identifyFromPairedImages", () => {
   it("treats PaperStream IMG_#### names as non-identity", () => {
     expect(isGenericScanFileName("IMG_0001.jpg")).toBe(true);
     expect(isGenericScanFileName("1986_topps_michael_jordan_57_front.jpg")).toBe(false);
+    expect(isGenericScanFileName("20260906184941_0043.jpg")).toBe(true);
+    expect(isGenericScanFileName("54489ecacc1aa32e_20260906184941_0002.jpg")).toBe(true);
+    expect(isGenericScanFileName("D:\\VIP\\masters\\54489ecacc1aa32e_20260906184941_0002_back.jpg")).toBe(true);
+    expect(isGenericScanFileName("54489ecacc1aa32e_1986_topps_jordan_57.jpg")).toBe(false);
   });
 
   it("OCRs pixels on generic filenames and produces a base candidate", async () => {

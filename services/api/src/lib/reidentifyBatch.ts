@@ -127,7 +127,7 @@ export async function reidentifyStagedBatch(
           ${candidate.setName ?? null}, ${candidate.collectorNumber ?? null},
           ${candidate.playerOrCharacter ?? null}, ${candidate.year ?? null},
           ${JSON.stringify(candidate.externalIds)}::jsonb,
-          ${candidate.adapterId ?? "tcgdex"}, ${candidate.confidence},
+          ${candidate.adapterId ?? "ocr-fallback"}, ${candidate.confidence},
           ARRAY(
             SELECT jsonb_array_elements_text(${JSON.stringify(candidate.matchReasons)}::jsonb)
           ),
@@ -172,7 +172,7 @@ export async function reidentifyStagedBatch(
     reidentified,
     skippedConfirmed,
     skippedMissing,
-    catalogSource: "tcgdex",
+    catalogSource: category === "sports" ? "sportscardspro" : category === "mtg" ? "scryfall" : "tcgdex",
     batch,
   };
 }
