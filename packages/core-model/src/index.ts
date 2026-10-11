@@ -14,6 +14,7 @@ export * from "./decisions.js";
 export * from "./theses.js";
 export * from "./hunts.js";
 export * from "./hunt-shelf.js";
+export * from "./hunt-market.js";
 export * from "./workflow.js";
 export * from "./media.js";
 export * from "./audit.js";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { apiPatch } from "@/lib/api";
+import { apiPatch, apiPost } from "@/lib/api";
 
 /** TARGET → WATCHING → BUY → ORDERED → OWNED, PASS; owned/wanted/missing on older hunts. */
 export type HuntItemStatus =
@@ -24,6 +24,7 @@ export type HuntItem = {
   imageUrl?: string | null;
   notes?: string | null;
   details?: { reason?: string };
+  ebay?: HuntItemEbay | null;
   /** Comic hunts: copies found on the shelf by series + issue + cover. Inferred, never a status. */
   shelf?: {
     copies: number;
@@ -33,6 +34,53 @@ export type HuntItem = {
 };
 
 export type HuntShelfSummary = { onShelf: number; possible: number; total: number; pct: number };
+
+export type HuntAlert = {
+  id: string;
+  band: string;
+  askPrice: number;
+  title: string | null;
+  url: string | null;
+  status: "new" | "seen" | "dismissed";
+  createdAt: string;
+};
+
+/** Latest "Check eBay now": asking prices only — never market value. */
+export type HuntItemEbay = {
+  checkedAt: string | null;
+  strongCount: number;
+  listingCount: number;
+  lowStrongAsk: number | null;
+  alerts: HuntAlert[];
+};
+
+type CheckResult = {
+  checked: number;
+  listings: number;
+  strongListings: number;
+  newAlerts: number;
+  stoppedReason: string | null;
+  errors: { itemId: string; error: string }[];
+};
+
+function money2(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+}
+
+function AskLine({ item }: { item: HuntItem }) {
+  const e = item.ebay;
+  if (!e?.checkedAt) return null;
+  const when = new Date(e.checkedAt).toLocaleString();
+  return (
+    <div className="muted" style={{ fontSize: 11, marginTop: 4 }} title={`Checked ${when}. Asking price is not market value.`}>
+      {e.lowStrongAsk != null
+        ? `eBay ask from ${money2(e.lowStrongAsk)} · ${e.strongCount} exact of ${e.listingCount} listings`
+        : e.listingCount
+          ? `eBay: ${e.listingCount} listings, none clearly this cover`
+          : "eBay: no listings"}
+    </div>
+  );
+}
 
 export type HuntSet = {
   id: string;
@@ -80,6 +128,51 @@ function ShelfLine({ item }: { item: HuntItem }) {
         ? `On shelf ×${shelf.copies} · inferred · unverified${item.status !== "owned" ? " — mark Owned if right" : ""}`
         : `Possibly on shelf ×${shelf.possibleCopies} — cover not recorded, check the book`}
     </div>
+  );
+}
+
+function HuntAlerts({
+  hunt,
+  onSet,
+}: {
+  hunt: Hunt;
+  onSet: (alertId: string, status: "seen" | "dismissed") => void;
+}) {
+  const alerts = hunt.sections
+    .flatMap((s) => s.items)
+    .flatMap((i) => (i.ebay?.alerts ?? []).map((a) => ({ ...a, itemName: i.name })));
+  if (!alerts.length) return null;
+  const small = { fontSize: 10, padding: "2px 6px" };
+  return (
+    <ul className="hunt-preview-list" style={{ marginTop: 10 }}>
+      {alerts.map((a) => (
+        <li key={a.id}>
+          <strong>{a.band.replace("_", " ")}</strong> · {a.itemName} · ask {money2(a.askPrice)}
+          {a.status === "seen" ? " · seen" : ""}
+          {a.url ? (
+            <>
+              {" · "}
+              <a href={a.url} target="_blank" rel="noreferrer">
+                listing
+              </a>
+            </>
+          ) : null}
+          <div className="muted" style={{ fontSize: 11 }}>
+            {a.title}
+          </div>
+          <span style={{ display: "inline-flex", gap: 4, marginTop: 4 }}>
+            {a.status === "new" ? (
+              <button type="button" className="nav-link" style={small} onClick={() => onSet(a.id, "seen")}>
+                Seen
+              </button>
+            ) : null}
+            <button type="button" className="nav-link" style={small} onClick={() => onSet(a.id, "dismissed")}>
+              Dismiss
+            </button>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -138,6 +231,45 @@ export function HuntsExplorer({ hunts: initialHunts }: { hunts: Hunt[] }) {
   const [hunts, setHunts] = useState(initialHunts);
   const [busyItem, setBusyItem] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+
+  const replaceHunt = (updated: Hunt | null) => {
+    if (updated) setHunts((all) => all.map((h) => (h.id === updated.id ? updated : h)));
+  };
+
+  async function checkEbay(huntId: string) {
+    setChecking(true);
+    setEditError(null);
+    setCheckResult(null);
+    try {
+      // One eBay search per open item; allow a few minutes for a large hunt.
+      const out = await apiPost<{ result: CheckResult; hunt: Hunt | null }>(
+        `/api/hunts/${encodeURIComponent(huntId)}/check-ebay`,
+        {},
+        180_000,
+      );
+      setCheckResult(out.result);
+      replaceHunt(out.hunt);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "eBay check failed");
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function setAlertStatus(huntId: string, alertId: string, status: "seen" | "dismissed") {
+    setEditError(null);
+    try {
+      const out = await apiPatch<{ hunt: Hunt | null }>(
+        `/api/hunts/${encodeURIComponent(huntId)}/alerts/${encodeURIComponent(alertId)}`,
+        { status },
+      );
+      replaceHunt(out.hunt);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Alert update failed");
+    }
+  }
   const [activeId, setActiveId] = useState<string | null>(null);
 
   async function setItemStatus(huntId: string, itemId: string, status: HuntItemStatus) {
@@ -148,7 +280,7 @@ export function HuntsExplorer({ hunts: initialHunts }: { hunts: Hunt[] }) {
         `/api/hunts/${encodeURIComponent(huntId)}/items/${encodeURIComponent(itemId)}`,
         { status },
       );
-      if (updated) setHunts((all) => all.map((h) => (h.id === updated.id ? updated : h)));
+      replaceHunt(updated);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : "Status change failed");
     } finally {
@@ -240,6 +372,27 @@ export function HuntsExplorer({ hunts: initialHunts }: { hunts: Hunt[] }) {
 
         {editError ? <div className="error" style={{ marginBottom: 12 }}>{editError}</div> : null}
 
+        {hunt.source === "vault_hunt" ? (
+          <div className="panel" style={{ marginBottom: 22 }}>
+            <h3>eBay asks</h3>
+            <p className="muted" style={{ fontSize: 12 }}>
+              Runs only when you click: one eBay search per item still wanted. Asking prices are not market value.
+            </p>
+            <button type="button" className="nav-link" disabled={checking} onClick={() => void checkEbay(hunt.id)}>
+              {checking ? "Checking eBay…" : "Check eBay now"}
+            </button>
+            {checkResult ? (
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                Checked {checkResult.checked} items · {checkResult.listings} listings ({checkResult.strongListings} exact) ·{" "}
+                {checkResult.newAlerts} new alert{checkResult.newAlerts === 1 ? "" : "s"}
+                {checkResult.stoppedReason ? ` · stopped: ${checkResult.stoppedReason}` : ""}
+                {checkResult.errors.length && !checkResult.stoppedReason ? ` · ${checkResult.errors.length} errors` : ""}
+              </div>
+            ) : null}
+            <HuntAlerts hunt={hunt} onSet={(alertId, status) => void setAlertStatus(hunt.id, alertId, status)} />
+          </div>
+        ) : null}
+
         {hunt.sets?.length ? (
           <div className="panel" style={{ marginBottom: 22 }}>
             <h3>Sets</h3>
@@ -292,6 +445,7 @@ export function HuntsExplorer({ hunts: initialHunts }: { hunts: Hunt[] }) {
                       {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
                     </div>
                     <ShelfLine item={item} />
+                    <AskLine item={item} />
                     {hunt.source === "vault_hunt" ? (
                       <StatusButtons
                         item={item}

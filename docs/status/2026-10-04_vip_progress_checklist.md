@@ -117,10 +117,10 @@ decisions. Percentages are estimates. *Unmerged* = lives on a branch not in
 | Task | POC | Testing | Prod | Note |
 |---|---|---|---|---|
 | Hunts explorer | 100 | 80 | 50 | |
-| Marvel Midnight Universe HUNT basics | 100 | 70 | 0 | Unmerged |
-| Hunts served from Postgres, not seed files | 40 | 20 | 0 | |
-| HUNT market slice (asks, price alerts, bundles, status edits) | 0 | 0 | 0 | |
-| Hunt completion % vs shelf | 0 | 0 | 0 | |
+| Marvel Midnight Universe HUNT basics | 100 | 90 | 0 | Rebased on main, branch `cursor/hunts-f1-f4` (2026-10-10) |
+| Hunts served from Postgres, not seed files | 100 | 80 | 0 | Absolute Batman moved to `data/hunts/`; Pokémon 30th sample retired (2026-10-10) |
+| HUNT market slice (asks, price alerts, bundles, status edits) | 60 | 40 | 0 | Asks + band alerts (click-only "Check eBay now") + status buttons built; sold comps and bundles wait on Marketplace Insights |
+| Hunt completion % vs shelf | 100 | 70 | 0 | Comics: CLZ + unlinked ComicBase, series + issue + cover, inferred · unverified |
 
 ## 9. Selling (eBay)
 | Task | POC | Testing | Prod | Note |

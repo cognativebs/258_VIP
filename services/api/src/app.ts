@@ -112,7 +112,7 @@ import {
   NEED_BINDER_HUNT_ID,
   needBinderHuntPayload,
 } from "./lib/needBinderHunt.js";
-import { HuntItemPatchSchema, HuntSetPatchSchema } from "@vip/core-model";
+import { HuntAlertPatchSchema, HuntItemPatchSchema, HuntSetPatchSchema } from "@vip/core-model";
 import {
   listDefinedHunts,
   updateHuntItem,
@@ -121,6 +121,7 @@ import {
   type Queryable,
 } from "./lib/huntStore.js";
 import { loadShelfCopies, withShelf } from "./lib/huntShelf.js";
+import { checkHuntOnEbay, loadHuntMarket, setHuntAlertStatus, type HuntBrowseFetch } from "./lib/huntMarket.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -195,6 +196,8 @@ export type AppDeps = {
   unknownExitStore?: UnknownExitStore;
   /** Injectable vault_hunt connection so API tests control which definition hunts exist. */
   huntDb?: Queryable;
+  /** Injectable eBay Browse search for "Check eBay now" so tests never call eBay. */
+  huntBrowse?: HuntBrowseFetch;
 };
 
 type InventoryBundle = {
@@ -544,13 +547,31 @@ export function createApp(deps: AppDeps = {}) {
 
   const huntDb = (): Queryable => deps.huntDb ?? getPool();
   /** Shelf completion for comic hunts; if the shelf cannot be read the hunts still render, and say so. */
-  const attachShelf = async (hunts: DefinedHunt[]) => {
-    if (!hunts.some((h) => h.category === "comic")) return { hunts, shelfError: null };
-    try {
-      return { hunts: withShelf(hunts, await loadShelfCopies(huntDb())), shelfError: null };
-    } catch (e) {
-      return { hunts, shelfError: e instanceof Error ? e.message : "shelf unavailable" };
+  const attachShelf = async (input: DefinedHunt[]) => {
+    let hunts: DefinedHunt[] = input;
+    let shelfError: string | null = null;
+    if (hunts.some((h) => h.category === "comic")) {
+      try {
+        hunts = withShelf(hunts, await loadShelfCopies(huntDb())) as DefinedHunt[];
+      } catch (e) {
+        shelfError = e instanceof Error ? e.message : "shelf unavailable";
+      }
     }
+    // Latest "Check eBay now" per item: asks and alerts read from observations, never stored on the item.
+    try {
+      const ids = hunts.flatMap((h) => h.sections.flatMap((s) => s.items.map((i) => i.id)));
+      const market = await loadHuntMarket(huntDb(), ids);
+      hunts = hunts.map((h) => ({
+        ...h,
+        sections: h.sections.map((s) => ({
+          ...s,
+          items: s.items.map((i) => ({ ...i, ebay: market.get(i.id) ?? null })),
+        })),
+      }));
+    } catch {
+      // Hunts still render without ask data (e.g. before the 20261010_02 migration).
+    }
+    return { hunts, shelfError };
   };
   /** Signal exposure names hunts when it can; an unreachable vault_hunt just means no hunt matches. */
   const huntsForSignals = async () => listDefinedHunts(huntDb()).catch(() => []);
@@ -605,6 +626,38 @@ export function createApp(deps: AppDeps = {}) {
     const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
     const shelf = await attachShelf(hunt ? [hunt] : []);
     res.json({ hunt: shelf.hunts[0] ?? null, shelfError: shelf.shelfError });
+  });
+
+  app.post("/api/hunts/:id/check-ebay", async (req, res) => {
+    // Operator click only. One Browse search per open item; asks are observations, never market value.
+    try {
+      const result = await checkHuntOnEbay(huntDb(), String(req.params.id), { fetch: deps.huntBrowse });
+      if (!result) {
+        res.status(404).json({ error: "Hunt not found" });
+        return;
+      }
+      const [hunt] = await listDefinedHunts(huntDb(), result.huntId);
+      const enriched = await attachShelf(hunt ? [hunt] : []);
+      res.json({ result, hunt: enriched.hunts[0] ?? null });
+    } catch (e) {
+      res.status(503).json({ error: e instanceof Error ? e.message : "vault_hunt unavailable" });
+    }
+  });
+
+  app.patch("/api/hunts/:id/alerts/:alertId", async (req, res) => {
+    const parsed = HuntAlertPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid patch", issues: parsed.error.issues });
+      return;
+    }
+    const ok = await setHuntAlertStatus(huntDb(), String(req.params.id), String(req.params.alertId), parsed.data.status);
+    if (!ok) {
+      res.status(404).json({ error: "Alert not found" });
+      return;
+    }
+    const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
+    const enriched = await attachShelf(hunt ? [hunt] : []);
+    res.json({ hunt: enriched.hunts[0] ?? null });
   });
 
   app.patch("/api/hunts/:id/sets/:setId", async (req, res) => {
