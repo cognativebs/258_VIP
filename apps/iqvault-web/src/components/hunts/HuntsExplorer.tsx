@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { apiPatch } from "@/lib/api";
 
 /** TARGET → WATCHING → BUY → ORDERED → OWNED, PASS; owned/wanted/missing on older hunts. */
 export type HuntItemStatus =
@@ -49,6 +50,8 @@ export type HuntSet = {
 
 export type Hunt = {
   id: string;
+  /** "vault_hunt" hunts are editable; Need Binder is computed from the collection. */
+  source?: string;
   name: string;
   description: string;
   metrics: {
@@ -80,6 +83,36 @@ function ShelfLine({ item }: { item: HuntItem }) {
   );
 }
 
+/** The lifecycle the collector moves an item through (PASS = evaluated and declined). */
+const LIFECYCLE: HuntItemStatus[] = ["target", "watching", "buy", "ordered", "owned", "pass"];
+
+function StatusButtons({
+  item,
+  busy,
+  onSet,
+}: {
+  item: HuntItem;
+  busy: boolean;
+  onSet: (status: HuntItemStatus) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+      {LIFECYCLE.map((s) => (
+        <button
+          key={s}
+          type="button"
+          className={`nav-link ${item.status === s ? "on" : ""}`}
+          style={{ fontSize: 10, padding: "2px 6px" }}
+          disabled={busy || item.status === s}
+          onClick={() => onSet(s)}
+        >
+          {s.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 const stillWanted = (i: HuntItem) => i.status !== "owned" && i.status !== "pass";
 
@@ -101,8 +134,27 @@ function money(n: number | null | undefined) {
   }).format(n);
 }
 
-export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
+export function HuntsExplorer({ hunts: initialHunts }: { hunts: Hunt[] }) {
+  const [hunts, setHunts] = useState(initialHunts);
+  const [busyItem, setBusyItem] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  async function setItemStatus(huntId: string, itemId: string, status: HuntItemStatus) {
+    setBusyItem(itemId);
+    setEditError(null);
+    try {
+      const { hunt: updated } = await apiPatch<{ hunt: Hunt | null }>(
+        `/api/hunts/${encodeURIComponent(huntId)}/items/${encodeURIComponent(itemId)}`,
+        { status },
+      );
+      if (updated) setHunts((all) => all.map((h) => (h.id === updated.id ? updated : h)));
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Status change failed");
+    } finally {
+      setBusyItem(null);
+    }
+  }
   const hunt = useMemo(
     () => hunts.find((h) => h.id === activeId) ?? null,
     [hunts, activeId],
@@ -186,6 +238,8 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
           </div>
         ) : null}
 
+        {editError ? <div className="error" style={{ marginBottom: 12 }}>{editError}</div> : null}
+
         {hunt.sets?.length ? (
           <div className="panel" style={{ marginBottom: 22 }}>
             <h3>Sets</h3>
@@ -238,6 +292,13 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
                       {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
                     </div>
                     <ShelfLine item={item} />
+                    {hunt.source === "vault_hunt" ? (
+                      <StatusButtons
+                        item={item}
+                        busy={busyItem === item.id}
+                        onSet={(status) => void setItemStatus(hunt.id, item.id, status)}
+                      />
+                    ) : null}
                     {item.notes ?? item.details?.reason ? (
                       <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                         {item.notes ?? item.details?.reason}

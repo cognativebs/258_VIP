@@ -603,7 +603,8 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
-    res.json({ hunt });
+    const shelf = await attachShelf(hunt ? [hunt] : []);
+    res.json({ hunt: shelf.hunts[0] ?? null, shelfError: shelf.shelfError });
   });
 
   app.patch("/api/hunts/:id/sets/:setId", async (req, res) => {
@@ -618,7 +619,8 @@ export function createApp(deps: AppDeps = {}) {
       return;
     }
     const [hunt] = await listDefinedHunts(huntDb(), String(req.params.id));
-    res.json({ hunt });
+    const shelf = await attachShelf(hunt ? [hunt] : []);
+    res.json({ hunt: shelf.hunts[0] ?? null, shelfError: shelf.shelfError });
   });
 
   app.get("/api/recommendations", async (req, res) => {

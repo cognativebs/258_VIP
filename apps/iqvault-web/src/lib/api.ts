@@ -54,10 +54,28 @@ export async function apiPost<T>(
   body: unknown,
   timeoutMs = API_TIMEOUT_MS,
 ): Promise<T> {
+  return apiSend<T>("POST", path, body, timeoutMs);
+}
+
+/** Partial updates (hunt item status, etc.). Same rejection handling as apiPost. */
+export async function apiPatch<T>(
+  path: string,
+  body: unknown,
+  timeoutMs = API_TIMEOUT_MS,
+): Promise<T> {
+  return apiSend<T>("PATCH", path, body, timeoutMs);
+}
+
+async function apiSend<T>(
+  method: "POST" | "PATCH",
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${vipApiBase()}${path}`, {
-      method: "POST",
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
       cache: "no-store",
