@@ -159,3 +159,24 @@ sister host SportsCardsPro — the source this ADR excluded under §7.
   candidate, so turning it on never leaves a sports card with fewer candidates.
 - Valuation is unchanged: sports prices still come only through the dealer-kit
   valuation path, ranges only (§6).
+
+### Operator terms review — 2026-10-10 (SportsCardsPro enabled for identification)
+
+Recorded as the operator gave it:
+
+| | |
+|---|---|
+| Provider | SportsCardsPro |
+| Use | Internal valuation enrichment |
+| Raw data storage | Allowed for internal use under a valid subscription |
+| External redistribution | **No** |
+| Public display | **No** without written permission |
+| Derived commercial display | Restricted pending permission |
+| Attribution | Required when externally referencing price data |
+| Licence review before a SaaS launch | **Required** |
+
+Enabled 2026-10-10 (`VIP_CATALOG_SPORTSCARDSPRO=1`; registry row `sportscardspro` active,
+`redistribution_allowed = false`). Identification candidates stay inside the operator's own
+Review screen. Nothing from SportsCardsPro may appear on a public, shared or customer-facing
+surface (including any SaaS / VaultOS store face) until written permission and a licence
+review exist.

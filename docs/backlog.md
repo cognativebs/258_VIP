@@ -237,7 +237,8 @@ third-party-access licence limit).
 - [x] Ricoh trading-card intake v1 — masters, front/back pairing, evidence fusion,
       base vs parallel confidence, HIGH/MEDIUM/LOW/CONFLICT, physical reimport,
       draft inventory, `/scan` front+back review (2026-08-30)
-- [ ] Live catalog adapters (replace fixture sports/TCG matcher) — Pokémon (TCGdex) and Magic (Scryfall / MTGJSON) live; sports: SportsCardsPro adapter built, **off until the operator reads its terms** and sets `VIP_CATALOG_SPORTSCARDSPRO=1` (ADR 0010 amendment 2026-10-10); empty catalog answers keep the OCR candidate
+- [x] Live catalog adapters (replace fixture sports/TCG matcher) — Pokémon (TCGdex), Magic (Scryfall / MTGJSON) and sports (SportsCardsPro, enabled 2026-10-10 after the operator's terms review; internal use only) are live; empty catalog answers keep the OCR candidate
+- [ ] **Licence review before any SaaS / customer-facing launch:** SportsCardsPro data may not be redistributed or displayed publicly without written permission; attribution required when price data is referenced externally (ADR 0010, 2026-10-10)
 - [x] Automatic Ricoh intake: new scan folders under `VIP_SCAN_INBOX` import themselves every 5 min (all images new + 2 min quiet; mixed folders skipped); `GET /api/scan/auto-intake` (2026-10-10)
 - [ ] Museum-quality capture tier (same media model, `quality_tier=museum`)
 - [ ] Store constraints on same engine as VIP
