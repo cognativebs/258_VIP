@@ -400,7 +400,10 @@ export async function identifyFromPairedImages(input: {
     // Sports had OCR-only candidates before a live catalog existed; an empty catalog answer
     // keeps that candidate rather than leaving the card with none.
     if (candidates.length === 0 && profile.category === "sports") {
-      candidates = identifyUnit(identifyInput, { catalog: [], ...identifyOpts });
+      candidates = identifyUnit(identifyInput, { catalog: [], ...identifyOpts }).map((c) => ({
+        ...c,
+        adapterId: "ocr-fallback",
+      }));
       if (candidates.length) notes.push("catalog empty — OCR candidate kept");
     }
   } else {

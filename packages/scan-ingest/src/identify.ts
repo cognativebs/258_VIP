@@ -34,8 +34,13 @@ type IdentifyInput = Pick<
 
 /** PaperStream default names carry no identity — do not score them. */
 export function isGenericScanFileName(name: string): boolean {
-  const stem = (name.split(/[\\/]/).pop() ?? name).replace(/\.[^.]+$/, "");
-  return /^(img|image|scan|doc|dsc)[_-]?\d+$/i.test(stem);
+  const stem = (name.split(/[\\/]/).pop() ?? name)
+    .replace(/\.[^.]+$/, "")
+    // VIP's master copies are "<16-hex content prefix>_<original name>".
+    .replace(/^[0-9a-f]{16}_/i, "");
+  // Camera / scanner auto-names carry no card identity: IMG_0042, scan-7, and PaperStream's
+  // "<yyyymmddhhmmss>_<sequence>" (20260906184941_0043).
+  return /^(img|image|scan|doc|dsc)[_-]?\d+$/i.test(stem) || /^\d{8,14}[_-]\d{1,5}(?:[_-](?:front|back))?$/i.test(stem);
 }
 
 /** Text the matcher scores against: OCR when present, else a non-generic file name. */
