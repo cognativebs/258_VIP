@@ -6,7 +6,8 @@
  */
 import { SPECIES_BY_DEX } from "@vip/core-model";
 import { entityKey, type SignalExposure } from "@vip/signals";
-import type { Hunt } from "../seeds/hunts.js";
+/** The hunt fields exposure reads; seed-style and vault_hunt hunts both fit. */
+export type HuntForSignals = { name: string; category: string; sections: ReadonlyArray<{ items: ReadonlyArray<{ name: string }> }> };
 
 export type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
@@ -69,7 +70,7 @@ export async function loadBinderSlots(db: Queryable): Promise<BinderSlot[]> {
 }
 
 /** Pokémon hunts as searchable text: the hunt's name plus each item's name. */
-export function huntTexts(hunts: ReadonlyArray<Hunt>): HuntText[] {
+export function huntTexts(hunts: ReadonlyArray<HuntForSignals>): HuntText[] {
   return hunts
     .filter((h) => h.category === "pokemon")
     .flatMap((h) => [{ hunt: h.name, text: h.name }, ...h.sections.flatMap((s) => s.items.map((i) => ({ hunt: h.name, text: i.name })))]);

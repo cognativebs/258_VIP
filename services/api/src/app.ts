@@ -112,7 +112,6 @@ import {
   NEED_BINDER_HUNT_ID,
   needBinderHuntPayload,
 } from "./lib/needBinderHunt.js";
-import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { HuntItemPatchSchema, HuntSetPatchSchema } from "@vip/core-model";
 import {
   listDefinedHunts,
@@ -542,6 +541,8 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   const huntDb = (): Queryable => deps.huntDb ?? getPool();
+  /** Signal exposure names hunts when it can; an unreachable vault_hunt just means no hunt matches. */
+  const huntsForSignals = async () => listDefinedHunts(huntDb()).catch(() => []);
 
   app.get("/api/hunts", async (_req, res) => {
     const { holdings } = await buildInventory(deps);
@@ -551,17 +552,10 @@ export function createApp(deps: AppDeps = {}) {
     try {
       defined = await listDefinedHunts(huntDb());
     } catch (e) {
-      // Seed hunts still render; say why the database hunts are missing.
+      // Need Binder (computed from the collection) still renders; say why the database hunts are missing.
       definedHuntsError = e instanceof Error ? e.message : "vault_hunt unavailable";
     }
-    res.json({
-      hunts: [
-        needBinder,
-        ...defined,
-        ...HUNTS.map((h) => ({ ...h, metrics: huntCompletion(h) })),
-      ],
-      definedHuntsError,
-    });
+    res.json({ hunts: [needBinder, ...defined], definedHuntsError });
   });
 
   app.get("/api/hunts/:id", async (req, res) => {
@@ -569,11 +563,6 @@ export function createApp(deps: AppDeps = {}) {
     if (id === NEED_BINDER_HUNT_ID) {
       const { holdings } = await buildInventory(deps);
       res.json({ hunt: needBinderHuntPayload(holdings) });
-      return;
-    }
-    const hunt = HUNTS.find((h) => h.id === id || h.slug === id);
-    if (hunt) {
-      res.json({ hunt: { ...hunt, metrics: huntCompletion(hunt) } });
       return;
     }
     try {
@@ -724,7 +713,7 @@ export function createApp(deps: AppDeps = {}) {
         await buildSynthesized(deps.signalsDb ?? getPool(), {
           at: parsed.data.at ? new Date(parsed.data.at) : undefined,
           includeNoise: parsed.data.includeNoise === "true",
-          hunts: HUNTS,
+          hunts: await huntsForSignals(),
         }),
       );
     } catch (e) {
@@ -740,7 +729,7 @@ export function createApp(deps: AppDeps = {}) {
     // if the spine is unreachable the feed context still goes out, and says so.
     let synthesized: unknown = null;
     try {
-      const s = await buildSynthesized(deps.signalsDb ?? getPool(), { hunts: HUNTS });
+      const s = await buildSynthesized(deps.signalsDb ?? getPool(), { hunts: await huntsForSignals() });
       synthesized = {
         notes: s.provenance.notes,
         signals: s.signals.slice(0, 10).map((x) => ({

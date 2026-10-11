@@ -367,18 +367,21 @@ describe("VIP API", () => {
     }, unavailableComics());
   });
 
-  it("hunts include Need Binder plus Absolute Batman + Pokémon seeds", async () => {
-    await withServer(async (base) => {
-      const res = await fetch(`${base}/api/hunts`);
-      const body = (await res.json()) as {
-        hunts: { id: string; name: string }[];
-      };
-      const ids = body.hunts.map((h) => h.id);
-      expect(ids[0]).toBe("pokemon-need-binder");
-      expect(body.hunts[0]?.name).toBe("Pokémon Need Binder");
-      expect(ids).toContain("absolute-batman");
-      expect(ids).toContain("pokemon-30th");
-    });
+  it("hunts are Need Binder plus vault_hunt hunts, never seed files", async () => {
+    const emptyDb = { query: async () => ({ rows: [] }) };
+    await withServer(
+      async (base) => {
+        const res = await fetch(`${base}/api/hunts`);
+        const body = (await res.json()) as {
+          hunts: { id: string; name: string }[];
+        };
+        expect(body.hunts.map((h) => h.id)).toEqual(["pokemon-need-binder"]);
+        expect(body.hunts[0]?.name).toBe("Pokémon Need Binder");
+        expect((await fetch(`${base}/api/hunts/pokemon-30th`)).status).toBe(404);
+      },
+      fixtureComics(),
+      { huntDb: emptyDb },
+    );
   });
 
   it("daily sports rejects a malformed at, and reports an unavailable database as 503", async () => {
@@ -400,7 +403,7 @@ describe("VIP API", () => {
     );
   });
 
-  it("hunts still list the seed hunts when vault_hunt is unreachable, and say why", async () => {
+  it("hunts still list Need Binder when vault_hunt is unreachable, and say why", async () => {
     const downDb = {
       query: async () => {
         throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
@@ -410,9 +413,7 @@ describe("VIP API", () => {
       async (base) => {
         const res = await fetch(`${base}/api/hunts`);
         const body = (await res.json()) as { hunts: { id: string }[]; definedHuntsError: string | null };
-        expect(body.hunts.map((h) => h.id)).toEqual(
-          expect.arrayContaining(["pokemon-need-binder", "absolute-batman", "pokemon-30th"]),
-        );
+        expect(body.hunts.map((h) => h.id)).toEqual(["pokemon-need-binder"]);
         expect(body.definedHuntsError).toContain("ECONNREFUSED");
       },
       fixtureComics(),

@@ -6,9 +6,8 @@
  */
 import { z } from "zod";
 import { SynthesisProfileSchema, bandFor, orchestr8Question, proposeForSignal, surfaceFor, type GuideRange } from "@vip/signals";
-import type { Hunt } from "../seeds/hunts.js";
 import { buildPokemonFmv } from "./pokemonFmv.js";
-import { exposureFor, huntTexts, loadBinderSlots } from "./signalExposure.js";
+import { exposureFor, huntTexts, loadBinderSlots, type HuntForSignals } from "./signalExposure.js";
 
 export type Queryable = { query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
@@ -28,7 +27,7 @@ const ENTITY_KIND_ORDER = "CASE se.entity_kind WHEN 'set' THEN 0 WHEN 'product' 
 
 export async function buildSynthesized(
   db: Queryable,
-  opts: { at?: Date; includeNoise?: boolean; hunts?: ReadonlyArray<Hunt> } = {},
+  opts: { at?: Date; includeNoise?: boolean; hunts?: ReadonlyArray<HuntForSignals> } = {},
 ) {
   const at = opts.at ?? new Date();
   const prof = await db.query(

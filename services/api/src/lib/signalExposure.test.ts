@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { pokemon30thHunt } from "../seeds/hunts.js";
 import { exposureFor, huntTexts, parseEntityRef, type BinderSlot } from "./signalExposure.js";
+
+const pokemonHunt = {
+  name: "Pokémon 30th Celebration",
+  category: "pokemon",
+  sections: [{ items: [{ name: "30th ETB" }, { name: "30th Booster Box" }] }],
+};
 
 const binder: BinderSlot[] = [
   { setName: "Surging Sparks", cardName: "Pikachu ex", owned: true, wishlist: false },
@@ -27,7 +32,7 @@ describe("signal exposure", () => {
   });
 
   it("finds Pokémon hunts that name the entity", () => {
-    const hunts = huntTexts([pokemon30thHunt]);
+    const hunts = huntTexts([pokemonHunt]);
     expect(exposureFor("set:30th-celebration", binder, hunts).hunts).toEqual(["Pokémon 30th Celebration"]);
     expect(exposureFor("set:delta-reign", binder, hunts).hunts).toEqual([]);
   });
