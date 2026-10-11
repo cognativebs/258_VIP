@@ -114,7 +114,6 @@ import {
 } from "./lib/needBinderHunt.js";
 import { HUNTS, huntCompletion } from "./seeds/hunts.js";
 import { HuntItemPatchSchema, HuntSetPatchSchema } from "@vip/core-model";
-import { getPool } from "./db/client.js";
 import {
   listDefinedHunts,
   updateHuntItem,
