@@ -117,8 +117,10 @@ import {
   listDefinedHunts,
   updateHuntItem,
   updateHuntSet,
+  type DefinedHunt,
   type Queryable,
 } from "./lib/huntStore.js";
+import { loadShelfCopies, withShelf } from "./lib/huntShelf.js";
 import { markInferred, markObserved } from "@vip/evidence";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -541,6 +543,15 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   const huntDb = (): Queryable => deps.huntDb ?? getPool();
+  /** Shelf completion for comic hunts; if the shelf cannot be read the hunts still render, and say so. */
+  const attachShelf = async (hunts: DefinedHunt[]) => {
+    if (!hunts.some((h) => h.category === "comic")) return { hunts, shelfError: null };
+    try {
+      return { hunts: withShelf(hunts, await loadShelfCopies(huntDb())), shelfError: null };
+    } catch (e) {
+      return { hunts, shelfError: e instanceof Error ? e.message : "shelf unavailable" };
+    }
+  };
   /** Signal exposure names hunts when it can; an unreachable vault_hunt just means no hunt matches. */
   const huntsForSignals = async () => listDefinedHunts(huntDb()).catch(() => []);
 
@@ -555,7 +566,8 @@ export function createApp(deps: AppDeps = {}) {
       // Need Binder (computed from the collection) still renders; say why the database hunts are missing.
       definedHuntsError = e instanceof Error ? e.message : "vault_hunt unavailable";
     }
-    res.json({ hunts: [needBinder, ...defined], definedHuntsError });
+    const shelf = await attachShelf(defined);
+    res.json({ hunts: [needBinder, ...shelf.hunts], definedHuntsError, shelfError: shelf.shelfError });
   });
 
   app.get("/api/hunts/:id", async (req, res) => {
@@ -568,7 +580,8 @@ export function createApp(deps: AppDeps = {}) {
     try {
       const [defined] = await listDefinedHunts(huntDb(), id);
       if (defined) {
-        res.json({ hunt: defined });
+        const shelf = await attachShelf([defined]);
+        res.json({ hunt: shelf.hunts[0], shelfError: shelf.shelfError });
         return;
       }
     } catch (e) {

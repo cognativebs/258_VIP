@@ -23,7 +23,15 @@ export type HuntItem = {
   imageUrl?: string | null;
   notes?: string | null;
   details?: { reason?: string };
+  /** Comic hunts: copies found on the shelf by series + issue + cover. Inferred, never a status. */
+  shelf?: {
+    copies: number;
+    possibleCopies: number;
+    matches: { source: string; kind: "exact" | "possible"; label: string; quantity: number }[];
+  };
 };
+
+export type HuntShelfSummary = { onShelf: number; possible: number; total: number; pct: number };
 
 export type HuntSet = {
   id: string;
@@ -52,7 +60,25 @@ export type Hunt = {
   };
   sections: { id: string; name: string; items: HuntItem[] }[];
   sets?: HuntSet[];
+  shelf?: HuntShelfSummary;
 };
+
+function ShelfLine({ item }: { item: HuntItem }) {
+  const shelf = item.shelf;
+  if (!shelf || (shelf.copies === 0 && shelf.possibleCopies === 0)) return null;
+  const exact = shelf.copies > 0;
+  return (
+    <div
+      className="muted"
+      style={{ fontSize: 11, marginTop: 4 }}
+      title={shelf.matches.map((m) => `${m.kind === "exact" ? "match" : "possible"}: ${m.label}`).join(" | ")}
+    >
+      {exact
+        ? `On shelf ×${shelf.copies} · inferred · unverified${item.status !== "owned" ? " — mark Owned if right" : ""}`
+        : `Possibly on shelf ×${shelf.possibleCopies} — cover not recorded, check the book`}
+    </div>
+  );
+}
 
 const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 const stillWanted = (i: HuntItem) => i.status !== "owned" && i.status !== "pass";
@@ -115,7 +141,7 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
           <CompletionRing pct={hunt.metrics.completionPct} size={72} />
         </div>
 
-        <div className="grid-stats" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        <div className="grid-stats" style={{ gridTemplateColumns: `repeat(${hunt.shelf ? 5 : 4}, 1fr)` }}>
           <div className="stat">
             <div className="n">
               {hunt.metrics.owned}/{hunt.metrics.total}
@@ -134,6 +160,16 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
             <div className="n">{money(remaining)}</div>
             <div className="l">Est. remaining</div>
           </div>
+          {hunt.shelf ? (
+            <div className="stat" title="Matched from your collection by series + issue + cover. Inferred · unverified.">
+              <div className="n">
+                {hunt.shelf.onShelf}/{hunt.shelf.total}
+              </div>
+              <div className="l">
+                On shelf · inferred{hunt.shelf.possible ? ` (+${hunt.shelf.possible} possible)` : ""}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {buyTargets.length ? (
@@ -201,6 +237,7 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
                       {item.status.toUpperCase()}
                       {item.buyUnder != null ? ` · buy under ${money(item.buyUnder)}` : ""}
                     </div>
+                    <ShelfLine item={item} />
                     {item.notes ?? item.details?.reason ? (
                       <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                         {item.notes ?? item.details?.reason}
@@ -244,6 +281,11 @@ export function HuntsExplorer({ hunts }: { hunts: Hunt[] }) {
                 {h.metrics.owned}/{h.metrics.total} owned
               </span>
               <span>{h.metrics.completionPct}% complete</span>
+              {h.shelf ? (
+                <span title="Inferred from your collection · unverified">
+                  {h.shelf.onShelf}/{h.shelf.total} on shelf
+                </span>
+              ) : null}
             </div>
           </button>
         ))}
