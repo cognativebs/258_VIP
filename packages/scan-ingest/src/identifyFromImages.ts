@@ -397,6 +397,13 @@ export async function identifyFromPairedImages(input: {
       (resolved.cacheHit ? "cache" : "none");
     if (resolved.cacheHit) notes.push(`catalog cache hit · ${catalogSource}`);
     else notes.push(`catalog ${catalogSource}`);
+    // "none" alone hid whether the catalog answered empty, timed out or errored.
+    if (catalogSource === "none") {
+      const why = resolved.outcomes
+        .filter((o) => o.adapterId !== "fixture-catalog")
+        .map((o) => `${o.adapterId} ${o.status === "ok" ? "0 results" : o.status}`);
+      if (why.length) notes.push(`catalog miss · ${why.join(", ")}`);
+    }
     // Sports had OCR-only candidates before a live catalog existed; an empty catalog answer
     // keeps that candidate rather than leaving the card with none.
     if (candidates.length === 0 && profile.category === "sports") {

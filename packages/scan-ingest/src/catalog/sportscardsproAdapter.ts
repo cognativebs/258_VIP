@@ -37,6 +37,15 @@ export function sportsSearchText(query: Pick<CatalogQuery, "text" | "nameHint" |
 
 type Product = { id?: string | number; "product-name"?: string; "console-name"?: string };
 
+function productCount(payload: string): number {
+  try {
+    const parsed = JSON.parse(payload) as { products?: unknown[] };
+    return Array.isArray(parsed.products) ? parsed.products.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function parseSportsCardsProProducts(raw: CatalogRawResponse, query: CatalogQuery): CatalogCard[] {
   let products: Product[];
   try {
@@ -71,14 +80,39 @@ export function parseSportsCardsProProducts(raw: CatalogRawResponse, query: Cata
   });
 }
 
-export function createSportsCardsProCatalogAdapter(opts: { token: string; fetch?: SportsCardsProFetch }): CatalogAdapter {
+export function createSportsCardsProCatalogAdapter(opts: {
+  token: string;
+  fetch?: SportsCardsProFetch;
+  /** Gap between calls. PriceCharting asks for about one call per second; faster bursts come back empty or 404. */
+  minIntervalMs?: number;
+}): CatalogAdapter {
   const fetchImpl = opts.fetch ?? fetch;
+  const minIntervalMs = opts.minIntervalMs ?? 1100;
+  let nextCallAt = 0;
   const fetchRaw = async (query: CatalogQuery): Promise<CatalogRawResponse | null> => {
     if (query.category && query.category !== "sports") return null;
+    // Without a player the search runs on scraps ("Mosaic 2021", "#103 Panini") and returns a
+    // random player at high confidence. Keep the OCR reading for the operator instead.
+    if (!query.nameHint?.trim()) return null;
     const q = sportsSearchText(query);
     if (q.split(" ").length < 2) return null; // a lone token matches thousands of cards
+    const first = await searchOnce(q);
+    if (productCount(first.payload) > 0) return first;
+    // An empty answer is either a stray word (every word must appear in a product) or a throttled
+    // call. One retry covers both: just the player and number when we have them, else the same words.
+    const narrow = query.nameHint ? sportsSearchText({ text: "", nameHint: query.nameHint, collectorNumber: query.collectorNumber }) : "";
+    return searchOnce(narrow.split(" ").length >= 2 ? narrow : q);
+  };
+  const searchOnce = async (q: string, attempt = 0): Promise<CatalogRawResponse> => {
+    const wait = nextCallAt - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    nextCallAt = Date.now() + minIntervalMs;
     const params = new URLSearchParams({ t: opts.token, q });
     const res = await fetchImpl(`${HOST}/api/products?${params.toString()}`, { headers: { accept: "application/json" } });
+    if ((res.status === 404 || res.status === 429) && attempt === 0) {
+      nextCallAt = Date.now() + 2 * minIntervalMs; // back off, then one more try
+      return searchOnce(q, 1);
+    }
     // Never echo the URL: it carries the token.
     if (!res.ok) throw new Error(`SportsCardsPro HTTP ${res.status ?? "error"}`);
     const payload = await res.text();
@@ -89,7 +123,7 @@ export function createSportsCardsProCatalogAdapter(opts: { token: string; fetch?
     id: "sportscardspro",
     label: "SportsCardsPro (sports, identification only)",
     categories: ["sports"],
-    timeoutMs: 8000,
+    timeoutMs: 12000, // room for the 1 s call gap, one empty-answer retry and one 404 back-off
     fetchRaw,
     parseRaw: parseSportsCardsProProducts,
     async search(query) {

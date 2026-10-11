@@ -5,9 +5,12 @@ import {
   fuseCardEvidence,
   fuseIdentitySides,
   structuredIdentityQuery,
+  withoutYearAsNumber,
 } from "./evidenceFusion.js";
 import { extractStructuredFromOcr, spansFromTextBlock } from "./ocr/classifyOcr.js";
 import { getOcrProfile } from "./ocr/profiles.js";
+import { emptyIdentityFields } from "./evidenceFusion.js";
+import { field } from "@vip/core-model";
 
 describe("fuseCardEvidence", () => {
   it("uses both sides and keeps a weak parallel off the base score", () => {
@@ -79,5 +82,22 @@ describe("structuredIdentityQuery", () => {
     );
     expect(fields.playerOrCharacter.value).toBe("Charizard");
     expect(structuredIdentityQuery(fields).startsWith("Charizard")).toBe(true);
+  });
+});
+
+describe("withoutYearAsNumber", () => {
+  const withNumber = (number: string, year: string | null) => ({
+    ...emptyIdentityFields("front_text"),
+    collectorNumber: field(number, 0.8, "front_text"),
+    year: year ? field(year, 0.8, "front_text") : emptyIdentityFields("front_text").year,
+  });
+  it("drops a copyright or season year read as the card number", () => {
+    expect(withoutYearAsNumber(withNumber("2026", "2025")).collectorNumber.value).toBeNull();
+    expect(withoutYearAsNumber(withNumber("2025", "2025")).collectorNumber.value).toBeNull();
+    expect(withoutYearAsNumber(withNumber("2025", null)).collectorNumber.value).toBeNull();
+  });
+  it("keeps real numbers, including a four-digit one far from the card year", () => {
+    expect(withoutYearAsNumber(withNumber("302", "2021")).collectorNumber.value).toBe("302");
+    expect(withoutYearAsNumber(withNumber("1999", "2021")).collectorNumber.value).toBe("1999");
   });
 });

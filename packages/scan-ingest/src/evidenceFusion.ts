@@ -192,6 +192,18 @@ function pick(
  * Fuse front + back into one evidence package.
  * Conflicts are listed — never silently chosen.
  */
+/**
+ * A copyright or season year ("© 2025", "2025-26") is often read as the card number. Treat a
+ * four-digit 19xx/20xx number within a year of the card's year (or with no year read) as unknown.
+ */
+export function withoutYearAsNumber(fields: CardIdentityFields): CardIdentityFields {
+  const n = fields.collectorNumber.value;
+  if (!n || !/^(19|20)\d{2}$/.test(n)) return fields;
+  const year = Number(fields.year.value);
+  if (fields.year.value && Number.isFinite(year) && Math.abs(Number(n) - year) > 1) return fields;
+  return { ...fields, collectorNumber: unknownField("inference") };
+}
+
 export function fuseCardEvidence(input: {
   frontText: string;
   backText: string;
@@ -249,7 +261,7 @@ export function fuseCardEvidence(input: {
     autograph: pick(front.autograph, back.autograph, conflictNotes, "autograph", prefer),
     relic: pick(front.relic, back.relic, conflictNotes, "relic", prefer),
   };
-  return { front, back, fused, conflictNotes };
+  return { front, back, fused: withoutYearAsNumber(fused), conflictNotes };
 }
 
 export function fuseIdentitySides(input: {
@@ -311,7 +323,7 @@ export function fuseIdentitySides(input: {
     autograph: pick(input.front.autograph, input.back.autograph, conflictNotes, "autograph", prefer),
     relic: pick(input.front.relic, input.back.relic, conflictNotes, "relic", prefer),
   };
-  return { front: input.front, back: input.back, fused, conflictNotes };
+  return { front: input.front, back: input.back, fused: withoutYearAsNumber(fused), conflictNotes };
 }
 
 /** Fill empty fused fields from overlay. Incompatible observed values become conflicts. */
@@ -338,7 +350,7 @@ export function overlayIdentityFields(
     conflicts.push(`${key}: ${label} “${b.value}” vs “${a.value}”`);
     out[key] = unknownField("inference");
   }
-  return out;
+  return withoutYearAsNumber(out);
 }
 
 export function structuredIdentityQuery(fields: CardIdentityFields): string {

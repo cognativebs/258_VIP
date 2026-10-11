@@ -198,6 +198,7 @@ export {
   fuseIdentitySides,
   baseVsParallelFromEvidence,
   structuredIdentityQuery,
+  withoutYearAsNumber,
 } from "./evidenceFusion.js";
 export { identifyFromPairedImages } from "./identifyFromImages.js";
 export { ocrImageFile, ocrAvailable, SCAN_OCR_RULE } from "./ocr/tesseractOcr.js";
