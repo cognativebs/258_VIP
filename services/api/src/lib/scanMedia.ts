@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { extname, isAbsolute, join, resolve, sep } from "node:path";
+import { delimiter, extname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import type { Response } from "express";
@@ -19,6 +19,11 @@ export function allowedScanRoots(): string[] {
   ];
   const inbox = scanInboxRoot();
   if (inbox) roots.push(resolve(inbox));
+  // Extra master folders (e.g. masters written by another checkout of this repo), separated by
+  // the OS path delimiter. Still a fixed allow-list: nothing outside these roots is served.
+  for (const extra of (process.env.VIP_SCAN_EXTRA_ROOTS ?? "").split(delimiter)) {
+    if (extra.trim()) roots.push(resolve(extra.trim()));
+  }
   return [...new Set(roots)];
 }
 
