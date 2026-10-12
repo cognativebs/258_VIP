@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "../db/client.js";
+import { cleanupTrackedScanBatches, trackScanBatch } from "./scanTestCleanup.js";
 import { openScanFromApi } from "./scanIngest.js";
 import {
   approveConfirmList,
@@ -67,6 +68,7 @@ async function countScanHoldings(): Promise<number> {
 
 describe("scan staging (ADR 0009)", () => {
   afterAll(async () => {
+    await cleanupTrackedScanBatches();
     await closeDb();
   });
 
@@ -80,6 +82,7 @@ describe("scan staging (ADR 0009)", () => {
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
 
     expect(staged.unitCount).toBe(1);
     expect(staged.candidateCount).toBeGreaterThan(0);
@@ -104,6 +107,7 @@ describe("scan staging (ADR 0009)", () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
     const staged = await persistBatch(await stageOneUnit(tag));
+    trackScanBatch(staged.batchId);
 
     const batches = await listStagedBatches(50);
     const found = batches.find((b) => b.id === staged.batchId);
@@ -119,6 +123,7 @@ describe("scan staging (ADR 0009)", () => {
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
     const unitId = opened.batch.units[0]!.id;
     const catalogKey = opened.batch.units[0]!.candidates[0]!.catalogKey;
 
@@ -168,7 +173,7 @@ describe("scan staging (ADR 0009)", () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
-    await persistBatch(opened);
+    trackScanBatch((await persistBatch(opened)).batchId);
     const unitId = opened.batch.units[0]!.id;
 
     const before = await countScanHoldings();
@@ -194,7 +199,7 @@ describe("scan staging (ADR 0009)", () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
-    await persistBatch(opened);
+    trackScanBatch((await persistBatch(opened)).batchId);
     const unitId = opened.batch.units[0]!.id;
 
     const result = await resolveUnit({
@@ -211,7 +216,7 @@ describe("scan staging (ADR 0009)", () => {
     if (!(await dbAvailable())) return;
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
-    await persistBatch(opened);
+    trackScanBatch((await persistBatch(opened)).batchId);
     const unitId = opened.batch.units[0]!.id;
     const before = await countScanHoldings();
 
@@ -240,6 +245,7 @@ describe("scan staging (ADR 0009)", () => {
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
     const unitId = opened.batch.units[0]!.id;
     const before = await countScanHoldings();
 
@@ -261,6 +267,7 @@ describe("scan staging (ADR 0009)", () => {
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
     const unitId = opened.batch.units[0]!.id;
     const before = await countScanHoldings();
 
@@ -293,6 +300,7 @@ describe("scan staging (ADR 0009)", () => {
     const tag = randomUUID().slice(0, 8);
     const opened = await stageOneUnit(tag);
     const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
     const before = await countScanHoldings();
 
     const discarded = await discardBatch(staged.batchId);

@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   importFolderPages,
   isImageFile,
@@ -9,8 +9,17 @@ import {
   resolveScanFolder,
 } from "./scanFolder.js";
 
+// The operator's machine sets VIP_SCAN_INBOX for real scans; each test starts without it and the
+// real value comes back afterwards (process only — the user environment is never touched).
+const operatorInbox = process.env.VIP_SCAN_INBOX;
+beforeEach(() => {
+  delete process.env.VIP_SCAN_INBOX;
+});
 afterEach(() => {
   delete process.env.VIP_SCAN_INBOX;
+});
+afterAll(() => {
+  if (operatorInbox !== undefined) process.env.VIP_SCAN_INBOX = operatorInbox;
 });
 
 function makeInbox(): string {

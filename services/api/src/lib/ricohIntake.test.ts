@@ -15,6 +15,7 @@ import {
   writeUploadFile,
 } from "./ricohIntake.js";
 import { getStagedBatch } from "./scanStorePg.js";
+import { cleanupTrackedScanBatches, trackScanBatch } from "./scanTestCleanup.js";
 
 async function dbAvailable(): Promise<boolean> {
   try {
@@ -27,6 +28,7 @@ async function dbAvailable(): Promise<boolean> {
 
 describe("Ricoh trading-card scan intake v1", () => {
   afterAll(async () => {
+    await cleanupTrackedScanBatches();
     await closeDb();
   });
 
@@ -54,6 +56,7 @@ describe("Ricoh trading-card scan intake v1", () => {
       scannerProfile: "004_Cards",
       notes: "acceptance fixture",
     });
+    trackScanBatch(result.batchId);
 
     expect(result.imageCount).toBe(40);
     expect(result.cards).toHaveLength(20);
@@ -135,6 +138,7 @@ describe("Ricoh trading-card scan intake v1", () => {
       scannerProfile: "004_Cards",
       notes: "PaperStream IMG_#### pairing",
     });
+    trackScanBatch(result.batchId);
 
     expect(result.imageCount).toBe(46);
     expect(result.cards).toHaveLength(23);
@@ -168,6 +172,7 @@ describe("Ricoh trading-card scan intake v1", () => {
       scannerProfile: "004_Cards",
       notes: "face-up ADF",
     });
+    trackScanBatch(ingested.batchId);
 
     expect(ingested.pairingMethod).toBe("sequential_duplex_back_first");
     expect(ingested.cards).toHaveLength(1);
@@ -212,6 +217,7 @@ describe("Ricoh trading-card scan intake v1", () => {
       pairing: "sequential_duplex",
       notes: "pixel-id v1",
     });
+    trackScanBatch(result.batchId);
     expect(result.imageCount).toBe(16);
     expect(result.cards).toHaveLength(8);
     const named = result.cards.filter((c) => c.baseVsParallel.baseDisplayName);
