@@ -36,6 +36,34 @@ describe("asset catalog adapter", () => {
     expect(cards[0]?.externalIds).toEqual([{ source: "tcgdex", value: "base1-4" }]);
   });
 
+  it("never guesses a sports card from scraps when no player was read", async () => {
+    const rourke: CatalogCard = {
+      catalogKey: "asset:rourke",
+      category: "sports",
+      displayName: "2025 Panini Prizm Kurtis Rourke #397",
+      setName: null,
+      collectorNumber: "397",
+      playerOrCharacter: "Kurtis Rourke",
+      year: 2025,
+      searchText: "2025 panini prizm kurtis rourke 397",
+      assetId: "22222222-2222-4222-8222-222222222222",
+      externalIds: [{ source: "sports_parsed", value: "rourke-397" }],
+    };
+    let searched = 0;
+    const adapter = createAssetCatalogAdapter({
+      search: async (q) => {
+        searched += 1;
+        return filterAssetCards([rourke], q);
+      },
+    });
+    expect(await adapter.search({ text: "2025 Panini Prizm", category: "sports" })).toEqual([]);
+    expect(searched).toBe(0);
+    expect(await adapter.search({ text: "2025 Panini Prizm Kurtis Rourke", category: "sports", nameHint: "Kurtis Rourke" })).toHaveLength(1);
+    expect(
+      await adapter.search({ text: "x", category: "sports", externalIds: [{ source: "sports_parsed", value: "rourke-397" }] }),
+    ).toHaveLength(1);
+  });
+
   it("returns empty when the query has no identity signal", async () => {
     const adapter = createAssetCatalogAdapter({ cards: [CONFIRMED] });
     expect(await adapter.search({ text: "", category: "pokemon" })).toEqual([]);

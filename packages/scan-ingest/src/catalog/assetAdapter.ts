@@ -67,6 +67,11 @@ export function createAssetCatalogAdapter(opts: {
     id: opts.id ?? "postgres-assets",
     label: opts.label ?? "Confirmed VIP assets",
     timeoutMs: 800,
-    search: searchFn,
+    async search(query) {
+      // A sports card with no player read only has scraps ("2025 Panini Prizm"), which overlap
+      // hundreds of owned cards; any pick would be a guess. An exact external id still matches.
+      if (query.category === "sports" && !query.nameHint?.trim() && !(query.externalIds?.length ?? 0)) return [];
+      return searchFn(query);
+    },
   };
 }
