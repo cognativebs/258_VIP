@@ -132,6 +132,9 @@ export function parseTcgdexCards(
     _setName?: string;
     /** The set's official (printed) card count, from the same list. */
     _setTotal?: number;
+    /** Basic Energy looked up by set + number; _year set when the scan's copyright year matched. */
+    _basicEnergy?: boolean;
+    _year?: number;
   }>;
   try {
     rows = JSON.parse(raw.payload) as typeof rows;
@@ -144,15 +147,15 @@ export function parseTcgdexCards(
     return {
       catalogKey: `pokemon:tcgdex:${row.id ?? row.name}`,
       category: "pokemon" as const,
-      displayName: row.name ?? "Unknown",
+      displayName: row._basicEnergy && row.name && !/^basic /i.test(row.name) ? `Basic ${row.name}` : (row.name ?? "Unknown"),
       setName,
       collectorNumber: row.localId ?? null,
       playerOrCharacter: row.name ?? null,
-      year: null,
+      year: row._year ?? null,
       // "002/094" in the text: a scan's printed number/total then favours the set it came from.
       searchText: `${row.name ?? ""} ${row.localId ?? ""} ${row.id ?? ""} ${setName ?? ""}${
         row._setTotal && row.localId ? ` ${printed(row.localId, row._setTotal)}` : ""
-      }`,
+      }${row._basicEnergy ? ` basic energy${row._year ? ` ${row._year}` : ""}` : ""}`,
       externalIds: row.id ? [{ source: "tcgdex", value: row.id }] : [],
     };
   });
@@ -215,6 +218,20 @@ function sameLocalId(a: string, b: string): boolean {
 }
 
 /** One card by set + number; TCGdex pads some sets' numbers ("me05-015") and not others ("swsh4-31"). */
+/**
+ * Basic Energy cards print only a set code and number ("MEE EN 003"); the type is an icon, so
+ * text reads just "Basic Energy". These sets number the types in the same order, so set + number
+ * is the exact card. Copyright year ranks the sets (MEE © 2025, SVE © 2024).
+ */
+export const BASIC_ENERGY_SETS: ReadonlyArray<{ id: string; year: number }> = [
+  { id: "mee", year: 2025 },
+  { id: "sve", year: 2024 },
+];
+
+export function isBasicEnergyName(name: string | undefined): boolean {
+  return Boolean(name && /\benerg\w*\b/i.test(name) && !/\b(special|double|jet|reversal|gift)\b/i.test(name));
+}
+
 async function fetchTcgdexCard(
   fetchImpl: TcgdexFetch,
   setId: string,
@@ -246,7 +263,16 @@ export async function fetchTcgdexRaw(
   if (!terms.name && !(terms.localId && total)) return null;
 
   const rows: Array<Record<string, unknown>> = [];
-  if (terms.name) {
+  if (isBasicEnergyName(terms.name) && terms.localId && /^\d{1,3}$/.test(terms.localId)) {
+    const year = Number(/\b(20\d{2})\b/.exec(query.text)?.[1] ?? NaN);
+    const ordered = [...BASIC_ENERGY_SETS].sort((a, b) => Number(b.year === year) - Number(a.year === year));
+    for (const [rank, set] of ordered.entries()) {
+      const card = await fetchTcgdexCard(fetchImpl, set.id, terms.localId);
+      // The copyright-year set leads; the other energy set stays as a lower-ranked alternative.
+      if (card) rows.push({ ...card, _basicEnergy: true, _energyRank: rank, ...(set.year === year ? { _year: set.year } : {}) });
+    }
+  }
+  if (terms.name && !rows.length) {
     let found = await fetchTcgdexCards(fetchImpl, terms.name, terms.localId);
     if (terms.localId && found && isEmptyCardPayload(found.payload)) {
       found = await fetchTcgdexCards(fetchImpl, terms.name, undefined);

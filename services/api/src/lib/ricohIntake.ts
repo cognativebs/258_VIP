@@ -20,6 +20,7 @@ import {
   pairPagesForReview,
   policyFromEnv,
   readImageMeta,
+  doubleFeedSuspects,
   resolveOcrProfile,
   routeReview,
   thresholdsFromEnv,
@@ -210,6 +211,17 @@ export async function ingestRicohBatch(
   let failures = 0;
 
   const db = getDb();
+  // Cards prone to sticking in the feed (operator 2026-10-11): an oversized front goes to review.
+  const doubleFeeds = doubleFeedSuspects(
+    opened.batch.units.map((u) => {
+      try {
+        const meta = readImageMeta(readFileSync(u.frontStorageRef));
+        return { key: u.id, width: meta.width, height: meta.height };
+      } catch {
+        return { key: u.id, width: null, height: null };
+      }
+    }),
+  );
 
   for (const [i, unit] of opened.batch.units.entries()) {
     try {
@@ -248,6 +260,11 @@ export async function ingestRicohBatch(
           : undefined,
       });
       const evidence = pixelId.evidence;
+      const doubleFeed = doubleFeeds.get(unit.id);
+      if (doubleFeed) {
+        evidence.conflictNotes.push(doubleFeed);
+        warnings.push(`unit ${unit.unitIndex}: ${doubleFeed}`);
+      }
       visionCostUsd += pixelId.estimatedCostUsd;
       if (pixelId.notes.length) {
         warnings.push(...pixelId.notes.map((n) => `unit ${unit.unitIndex}: ${n}`));

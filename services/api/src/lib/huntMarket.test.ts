@@ -79,15 +79,25 @@ describe.skipIf(!DSN)("Check eBay now (IQVAULT_TEST_DSN, rolled back, no network
       const second = await checkHuntOnEbay(db, "test-midnight-market", { fetch: fakeBrowse, now, delayMs: 0 });
       expect(second!.newAlerts).toBe(0);
 
+      // Similar alerts are minimized: a pricier listing in the same band does not alert; a cheaper one does.
+      const another = (price: string, id: string): HuntBrowseFetch => async (q) => ({
+        ok: true,
+        rawJson: q.includes("cover J")
+          ? JSON.stringify({ itemSummaries: [{ itemId: id, title: "Midnight X-Men #1 Cover J Ito 1:100 Virgin", price: { value: price, currency: "USD" } }] })
+          : JSON.stringify({ itemSummaries: [] }),
+      });
+      expect((await checkHuntOnEbay(db, "test-midnight-market", { fetch: another("78.00", "v1|9|0"), now, delayMs: 0 }))!.newAlerts).toBe(0);
+      expect((await checkHuntOnEbay(db, "test-midnight-market", { fetch: another("72.00", "v1|8|0"), now, delayMs: 0 }))!.newAlerts).toBe(1);
+
       const [hunt] = await listDefinedHunts(db, "test-midnight-market");
       const items = hunt!.sections.flatMap((s) => s.items);
       const gambit = items.find((i) => i.key === "mxm-1-j")!;
       const market = await loadHuntMarket(db, items.map((i) => i.id));
       expect(market.get(gambit.id)).toMatchObject({
         strongCount: 1,
-        listingCount: 4,
-        lowStrongAsk: 75,
-        alerts: [{ band: "HIGH_PRIORITY", askPrice: 75, status: "new" }],
+        listingCount: 1,
+        lowStrongAsk: 72,
+        alerts: [{ band: "HIGH_PRIORITY", askPrice: 72, status: "new", similarCount: 1 }],
       });
       // An item with no listings still records that the check ran.
       const coverA = items.find((i) => i.key === "msm-1-a")!;

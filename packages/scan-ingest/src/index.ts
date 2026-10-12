@@ -261,3 +261,4 @@ export type {
   FolderWatchConfig,
   PairingStrategy,
 } from "./adapters/types.js";
+export { doubleFeedSuspects, DOUBLE_FEED_RULE, type ScanSize } from "./doubleFeed.js";

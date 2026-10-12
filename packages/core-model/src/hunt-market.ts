@@ -49,6 +49,8 @@ export const HuntItemMarketSchema = z.object({
       url: z.string().nullable(),
       status: z.enum(["new", "seen", "dismissed"]),
       createdAt: z.string(),
+      /** Other open listings in the same item + band, folded into this alert. */
+      similarCount: z.number().int().nonnegative(),
     }),
   ),
   ruleVersion: z.literal(HUNT_MARKET_RULE),

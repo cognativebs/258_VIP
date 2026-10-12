@@ -65,6 +65,21 @@ describe("TCGdex lookups the scanner needs", () => {
     expect(urls.some((u) => u.includes("/cards/me02-"))).toBe(false);
   });
 
+  it("a Basic Energy scan resolves by energy set + number, copyright-year set first", async () => {
+    const adapter = createTcgdexCatalogAdapter({
+      fetch: fake({
+        "/sets": SETS,
+        "/cards/mee-003": { id: "mee-003", localId: "003", name: "Water Energy", set: { id: "mee", name: "Mega Evolution Energy" } },
+        "/cards/sve-003": { id: "sve-003", localId: "003", name: "Water Energy", set: { id: "sve", name: "Scarlet & Violet Energy" } },
+      }),
+    });
+    const cards = await adapter.search({ text: "Basic Energy #003 Pokémon 2025", category: "pokemon", nameHint: "Basic Energy", collectorNumber: "003" });
+    expect(cards.map((c) => [c.displayName, c.externalIds[0]?.value, c.year])).toEqual([
+      ["Basic Water Energy", "mee-003", 2025],
+      ["Basic Water Energy", "sve-003", null],
+    ]);
+  });
+
   it("an HTTP error is an error (retried once), never 'no such card'", async () => {
     const urls: string[] = [];
     const adapter = createTcgdexCatalogAdapter({ fetch: fake({ "/sets": SETS }, urls, { "/cards?": 429 }) });

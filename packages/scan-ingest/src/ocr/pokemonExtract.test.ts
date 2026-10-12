@@ -47,6 +47,15 @@ const RICO = {
 } as const;
 
 describe("extractPokemonFromOcr", () => {
+  it("reads a Basic Energy card's bare set number, even with a garbled title", () => {
+    const got = extractPokemonFromOcr(
+      ['"Basic #2 wy Enerey 7', "006 Da", "©2025 Pokémon / Nintendo / Creatures / GAME FREAK y"].join("\n"),
+    );
+    expect(got).toMatchObject({ name: "Basic Energy", collectorNumber: "006", localId: "006" });
+    // A bare number is only an energy number on an energy card.
+    expect(extractPokemonFromOcr("Pikachu 006 Thunder").collectorNumber).toBeNull();
+  });
+
   it("reads species from lore and attack when the title is garbage", () => {
     const got = extractPokemonFromOcr(RICO.pikipek);
     expect(got.name).toBe("Pikipek");

@@ -43,6 +43,7 @@ export type HuntAlert = {
   url: string | null;
   status: "new" | "seen" | "dismissed";
   createdAt: string;
+  similarCount?: number;
 };
 
 /** Latest "Check eBay now": asking prices only — never market value. */
@@ -147,7 +148,8 @@ function HuntAlerts({
     <ul className="hunt-preview-list" style={{ marginTop: 10 }}>
       {alerts.map((a) => (
         <li key={a.id}>
-          <strong>{a.band.replace("_", " ")}</strong> · {a.itemName} · ask {money2(a.askPrice)}
+          <strong>{a.band.replace("_", " ")}</strong> · {a.itemName} · ask from {money2(a.askPrice)}
+          {a.similarCount ? ` · +${a.similarCount} similar listing${a.similarCount === 1 ? "" : "s"}` : ""}
           {a.status === "seen" ? " · seen" : ""}
           {a.url ? (
             <>

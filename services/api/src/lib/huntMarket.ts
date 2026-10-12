@@ -193,10 +193,17 @@ export async function checkHuntOnEbay(
       if (!observationId || !isAlertable(ask)) continue;
       const band = huntAlertBand({ priceBands: bands, targetPrice: target }, ask.askPrice);
       if (!band) continue;
+      // Similar alerts are minimized (operator 2026-10-11): a listing alerts only when it beats every
+      // open alert for this item in the same band. The ask itself is still kept as an observation.
       const alert = await db.query(
         `INSERT INTO vault_hunt.hunt_band_alert
            (hunt_item_id, source, listing_id, band, ask_price, listing_title, listing_url, observation_id, prov_rule_version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         SELECT $1::uuid, $2::text, $3::text, $4::text, $5::numeric, $6::text, $7::text, $8::uuid, $9::text
+          WHERE NOT EXISTS (
+            SELECT 1 FROM vault_hunt.hunt_band_alert open
+             WHERE open.hunt_item_id = $1::uuid AND open.band = $4::text AND open.status <> 'dismissed'
+               AND open.ask_price <= $5::numeric
+          )
          ON CONFLICT (hunt_item_id, source, listing_id) DO NOTHING
          RETURNING id`,
         [itemId, HUNT_BROWSE_SOURCE, ask.listingId, band, ask.askPrice, ask.title, ask.url, observationId, HUNT_MARKET_RULE],
@@ -255,7 +262,18 @@ export async function loadHuntMarket(db: Queryable, itemIds: string[]): Promise<
     }
     out.set(id, m);
   }
+  // One alert per item and band: the lowest open ask, with a count of the similar ones behind it.
+  const grouped = new Map<string, { row: (typeof alerts.rows)[number]; similar: number }>();
   for (const a of alerts.rows) {
+    const key = `${a.hunt_item_id}|${a.band}`;
+    const g = grouped.get(key);
+    if (!g) grouped.set(key, { row: a, similar: 0 });
+    else {
+      g.similar += 1;
+      if (Number(a.ask_price) < Number(g.row.ask_price)) g.row = a;
+    }
+  }
+  for (const { row: a, similar } of grouped.values()) {
     const id = String(a.hunt_item_id);
     const m = out.get(id) ?? blank();
     m.alerts.push({
@@ -266,6 +284,7 @@ export async function loadHuntMarket(db: Queryable, itemIds: string[]): Promise<
       url: a.listing_url ?? null,
       status: a.status,
       createdAt: new Date(String(a.created_at)).toISOString(),
+      similarCount: similar,
     });
     out.set(id, m);
   }
@@ -278,13 +297,16 @@ export async function setHuntAlertStatus(
   alertId: string,
   status: "new" | "seen" | "dismissed",
 ): Promise<boolean> {
+  // Alerts show grouped by item + band, so a status change applies to the whole group.
   const res = await db.query(
     `UPDATE vault_hunt.hunt_band_alert a
         SET status = $3
-       FROM vault_hunt.hunt_item i
+       FROM vault_hunt.hunt_band_alert picked
+       JOIN vault_hunt.hunt_item i ON i.id = picked.hunt_item_id
        JOIN vault_hunt.hunt_section s ON s.id = i.section_id
        JOIN vault_hunt.collection_hunt h ON h.id = s.hunt_id
-      WHERE a.hunt_item_id = i.id AND a.id::text = $2 AND (h.id::text = $1 OR h.slug = $1)
+      WHERE picked.id::text = $2 AND (h.id::text = $1 OR h.slug = $1)
+        AND a.hunt_item_id = picked.hunt_item_id AND a.band = picked.band AND a.status <> 'dismissed'
       RETURNING a.id`,
     [huntIdOrSlug, alertId, status],
   );

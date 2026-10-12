@@ -192,8 +192,11 @@ export function extractPokemonFromOcr(text: string): PokemonOcrExtract {
   const folded = fold(text);
   const pairs = parseCollectorPairs(text);
   const pair = pairs.length ? pairs[pairs.length - 1]! : null;
-  const collectorNumber = pair ? `${pair.local}/${pair.printed}` : null;
-  const localId = pair?.local ?? null;
+  // Basic Energy cards print "MEE EN 003" — a bare number, no "/total".
+  const energyTitle = /\bbasic\b.{0,24}\bener[a-z]{2,4}\b/.test(fold(text));
+  const bareEnergyNumber = !pair && energyTitle ? /(?:^|\s)(0\d{2})(?=\s|$)/m.exec(text)?.[1] ?? null : null;
+  const collectorNumber = pair ? `${pair.local}/${pair.printed}` : bareEnergyNumber;
+  const localId = pair?.local ?? bareEnergyNumber;
   if (collectorNumber) methods.push(`collector:${collectorNumber}`);
 
   const pokedexNumber = parsePokedexNumber(text);
@@ -233,7 +236,8 @@ export function extractPokemonFromOcr(text: string): PokemonOcrExtract {
     name = `${type[0]!.toUpperCase()}${type.slice(1)} Energy`;
     methods.push(`title:${name}`);
     confidence = 0.7;
-  } else if (/\bbasic\b.{0,24}\benergy\b/.test(folded)) {
+  } else if (/\bbasic\b.{0,24}\bener[a-z]{2,4}\b/.test(folded)) {
+    // "Enerey", "Enerqy": the title font OCRs badly; the type is an icon, never text.
     name = "Basic Energy";
     methods.push("title:Basic Energy");
     confidence = 0.55;
