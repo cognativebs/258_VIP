@@ -61,6 +61,27 @@ function pct(n: number | null | undefined): string {
   return n == null ? "—" : `${Math.round(n * 100)}%`;
 }
 
+/** A scan face: large enough to read the card, click for the full-size master, and a clear box when the file is missing. */
+function ScanFace({ imageId, label }: { imageId: string; label: string }) {
+  const [missing, setMissing] = useState(false);
+  const url = scanMediaUrl(imageId);
+  if (missing) {
+    return (
+      <div className="scan-face-missing" title={label}>
+        Image missing
+        <br />
+        <span>{label}</span>
+      </div>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" title={`${label} — open full size`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={label} loading="lazy" onError={() => setMissing(true)} />
+    </a>
+  );
+}
+
 function fileName(ref: string): string {
   return ref.split(/[\\/]/).pop() ?? ref;
 }
@@ -969,18 +990,10 @@ export function ScanIntake() {
                           <td>
                             <div className="scan-faces">
                               {unit.frontImageId ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={scanMediaUrl(unit.frontImageId)}
-                                  alt={`Front ${fileName(unit.frontStorageRef)}`}
-                                />
+                                <ScanFace imageId={unit.frontImageId} label={`Front ${fileName(unit.frontStorageRef)}`} />
                               ) : null}
                               {unit.backImageId ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={scanMediaUrl(unit.backImageId)}
-                                  alt={`Back ${fileName(unit.backStorageRef ?? "")}`}
-                                />
+                                <ScanFace imageId={unit.backImageId} label={`Back ${fileName(unit.backStorageRef ?? "")}`} />
                               ) : null}
                             </div>
                             <div className="muted" style={{ fontSize: 12 }}>
