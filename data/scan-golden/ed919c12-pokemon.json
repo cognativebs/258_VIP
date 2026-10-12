@@ -1,0 +1,39 @@
+{
+  "schema": "vip_scan_golden_v1",
+  "batchId": "ed919c12-4634-439f-b7b6-28d98fa328f3",
+  "category": "pokemon",
+  "source": "D:\\VIP\\scans\\fi8170\\Test Scans 25 Pokemon (Ricoh fi-8170, PaperStream 004_Cards)",
+  "notes": [
+    "Truth for the scan-id-v2 benchmark (docs/specs/scan-id-v2-pokemon.md, O5).",
+    "verification=operator: Greg confirmed this identity in Review on 2026-10-11 and it matches the card image.",
+    "verification=unverified: read from the card image by Claude on 2026-10-11; Greg's Review confirmed a different or incomplete identity (or did not review the card). Greg must confirm these before they count as ground truth.",
+    "Cards are keyed by the 16-hex content prefix of the preserved master file name, which is stable across databases."
+  ],
+  "cards": [
+    { "unit": "0001", "master": "d2fc8daea2d9bf35", "name": "Pikipek", "setCode": "PBL", "number": "066/084", "tcgdexId": "me05-066", "verification": "operator" },
+    { "unit": "0003", "master": "4a6424757423352d", "name": "Paldean Tauros", "setCode": "PFL", "number": "048/094", "tcgdexId": "me02-048", "verification": "operator" },
+    { "unit": "0005", "master": "c225d7dc7b446cc1", "name": "Battle Cage", "setCode": "PFL", "number": "085/094", "tcgdexId": "me02-085", "verification": "operator" },
+    { "unit": "0007", "master": "c406af4c522584b9", "name": "Linoone", "setCode": "PFL", "number": "082/094", "tcgdexId": "me02-082", "verification": "operator" },
+    { "unit": "0009", "master": "9ce57757ee7f5379", "name": "Yamper", "setCode": "PFL", "number": "030/094", "tcgdexId": "me02-030", "verification": "operator" },
+    { "unit": "0011", "master": "3a83067e8f36aa12", "name": "Carvanha", "setCode": "PFL", "number": "060/094", "tcgdexId": "me02-060", "verification": "operator" },
+    { "unit": "0013", "master": "0445ccdcd28d829b", "name": "Gloom", "setCode": "PFL", "number": "002/094", "tcgdexId": "me02-002", "verification": "operator" },
+    { "unit": "0015", "master": "970a540e640601a8", "name": "Seel", "setCode": "PFL", "number": "021/094", "tcgdexId": "me02-021", "verification": "operator" },
+    { "unit": "0017", "master": "e457759829fcfa4d", "name": "Basic Water Energy", "setCode": "MEE", "number": "003", "tcgdexId": "mee-003", "verification": "unverified", "reviewNote": "Review confirmed '2025 Basic Energy' without type or set" },
+    { "unit": "0019", "master": "494dc7d7107e1838", "name": "Jumbo Ice Cream", "setCode": "PFL", "number": "091/094", "tcgdexId": "me02-091", "verification": "operator" },
+    { "unit": "0021", "master": "631739d237796aeb", "name": "Boltund", "setCode": "PFL", "number": "031/094", "tcgdexId": "me02-031", "verification": "operator" },
+    { "unit": "0023", "master": "ebc1afd5683e4871", "name": "Buneary", "setCode": "PFL", "number": "083/094", "tcgdexId": "me02-083", "verification": "operator" },
+    { "unit": "0025", "master": "a00de94f29c9440b", "name": "Brambleghast", "setCode": "PFL", "number": "047/094", "tcgdexId": "me02-047", "verification": "operator" },
+    { "unit": "0027", "master": "3fe93bbf66b9d87d", "name": "Archaludon", "setCode": "PFL", "number": "075/094", "tcgdexId": "me02-075", "verification": "operator" },
+    { "unit": "0029", "master": "4d1f02b233de304c", "name": "Lotad", "setCode": "PFL", "number": "005/094", "tcgdexId": "me02-005", "verification": "unverified", "reviewNote": "Review confirmed Lotad · McDonald's Collection 2015 #2 (wrong printing)" },
+    { "unit": "0031", "master": "adac78802f0e8dec", "name": "Darumaka", "setCode": "PFL", "number": "015/094", "tcgdexId": "me02-015", "verification": "operator" },
+    { "unit": "0033", "master": "5233be8c31ae55ab", "name": "Basic Fighting Energy", "setCode": "MEE", "number": "006", "tcgdexId": "mee-006", "verification": "unverified", "reviewNote": "Review confirmed '2025 Basic Energy' without type or set" },
+    { "unit": "0035", "master": "b065ae9f7e4e2fd9", "name": "Volcarona", "setCode": "JTG", "number": "029/159", "tcgdexId": "sv09-029", "verification": "operator" },
+    { "unit": "0037", "master": "69912cdbc25ce56c", "name": "Brock's Scouting", "setCode": "JTG", "number": "146/159", "tcgdexId": "sv09-146", "verification": "operator" },
+    { "unit": "0039", "master": "a2999a3021a95aff", "name": "Escavalier", "setCode": "JTG", "number": "102/159", "tcgdexId": "sv09-102", "verification": "operator" },
+    { "unit": "0041", "master": "7d77caea5e46a09c", "name": "N's Darumaka", "setCode": "JTG", "number": "026/159", "tcgdexId": "sv09-026", "verification": "operator" },
+    { "unit": "0043", "master": "77995061d988808c", "name": "Wailmer", "setCode": "JTG", "number": "040/159", "tcgdexId": "sv09-040", "verification": "operator" },
+    { "unit": "0045", "master": "aa32e52d670e49a1", "name": "Black Belt's Training", "setCode": "JTG", "number": "144/159", "tcgdexId": "sv09-144", "verification": "operator", "doubleFeed": true, "reviewNote": "A second card (SVE 016) is stuck underneath; must be flagged as a possible double feed" },
+    { "unit": "0047", "master": "8cbc87898f288ff1", "name": "Basic Metal Energy", "setCode": "SVE", "number": "016", "tcgdexId": "sve-016", "verification": "unverified", "reviewNote": "Not reviewed" },
+    { "unit": "0049", "master": "43b92b858d402724", "name": "Premium Power Pro", "setCode": "MEG", "number": "124/132", "tcgdexId": "me01-124", "verification": "unverified", "reviewNote": "Review confirmed Narrow Gym · Gym Heroes #124 (wrong card)" }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "schema": "build_spec_v1",
+  "id": "scan-id-v2-pokemon",
+  "title": "Card Identification v2 (Pokémon first)",
+  "verification": "draft",
+  "council": null,
+  "authoredBy": "Claude Code (operator session 2026-10-11); not yet run through Build Spec / Challenge Council",
+  "operatorDecisions": {
+    "P1": "Stop patching v1; write this spec",
+    "P2": "Pokémon first, sports after",
+    "P3": "Identification budget up to $0.04 per card",
+    "P4": "Operator review of ed919c12 and 7025bfdd done"
+  },
+  "goal": "Identify a scanned Pokémon card to the exact printing (TCGdex id) from the master images, with a confidence that means something, and a Review screen where confirming or correcting takes seconds. Measure every change against a fixed truth set before it ships.",
+  "passBar": [
+    "Golden ed919c12: top-1 exact printing >= 24/25, top-3 25/25",
+    "Zero confident-wrong (no wrong card marked HIGH)",
+    "Unit 0045 flagged as possible double feed",
+    "Mean cost <= $0.04 per card, recorded per card",
+    "The 5 unverified truth rows confirmed by the operator before the bar is declared passed"
+  ],
+  "constraints": [
+    "AGENTS.md in full: provenance on every derived field; inferred never stored as verified; raw captures immutable; needs_review never auto-cleared; confirmed identities never silently overwritten; adapters swappable; no TCGplayer API",
+    "TypeScript + zod contracts first; apps consume packages; packages never reach the DB",
+    "v2 behind VIP_SCAN_ID_V2=1 until the pass bar is met; v1 stays default and is not patched further",
+    "Every provider response (catalog JSON, official image, vision reply) is a raw snapshot; results regenerable from snapshots; vision via the scan_vision cache",
+    "Per-card budget meter enforced in code (cap $0.04, VIP_SCAN_ID_BUDGET_USD); spend recorded in provenance",
+    "Sports, MTG and comics out of scope and must not regress (v1 path unchanged)",
+    "No table or column beyond the file plan; report gaps instead"
+  ],
+  "pipeline": [
+    "O1 strip reader: crop the identifier strip from the full-resolution master (region per OCR profile), Tesseract psm 7 at 3x, parse SETCODE [LANG] NNN[/TTT], map via TCGdex set.abbreviation.official + reviewed overrides; vision on the strip crop only if OCR does not parse",
+    "Candidates: union of strip exact lookup, existing TCGdex name/number search, confirmed VIP assets; max 5",
+    "O2 picture check: official image (TCGdex image + /low.webp) cached as raw snapshot; dHash of the art box; pairwise vision for the top two only when within the ambiguity margin and within budget",
+    "O3 agreement confidence: HIGH = strip unique AND name agrees AND picture match; MEDIUM = two agree, none contradicts; else LOW/CONFLICT naming the disagreeing signal; thresholds are versioned constants",
+    "O4 review screen: scan beside official image; alternatives as images; search any TCGdex card; keys Enter/1-5/'/'/R; names from the catalog record; corrections write history (identity_correction), never overwrite",
+    "O5 benchmark + feedback: npm run scan:benchmark on preserved masters, read-only; each correction becomes a golden case (N2) and feeds a correction report by cause (N1)"
+  ],
+  "contracts": [
+    {
+      "path": "packages/core-model/src/scan-id-v2.ts",
+      "types": [
+        "StripRead",
+        "VisualMatch",
+        "AgreementVerdict",
+        "CardIdSpend",
+        "IdentityCorrection",
+        "GoldenCase (vip_scan_golden_v1)"
+      ]
+    }
+  ],
+  "file_plan": [
+    {
+      "path": "packages/core-model/src/scan-id-v2.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/image/imageOps.ts",
+      "action": "create",
+      "notes": "Only module touching the image library (D1)"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/stripRegions.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/stripReader.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/setCodes.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/visualMatch.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/agreement.ts",
+      "action": "create",
+      "notes": "rule scan-id-v2-agreement@0.1.0"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/budget.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/v2/identifyV2.ts",
+      "action": "create"
+    },
+    {
+      "path": "packages/scan-ingest/src/catalog/tcgdexAdapter.ts",
+      "action": "modify",
+      "notes": "exact setId+localId lookup by set code; v1 search intact"
+    },
+    {
+      "path": "services/api/src/lib/catalogImageCache.ts",
+      "action": "create"
+    },
+    {
+      "path": "services/api/src/lib/reidentifyBatch.ts",
+      "action": "modify",
+      "notes": "identifyV2 when VIP_SCAN_ID_V2=1 and Pokémon"
+    },
+    {
+      "path": "services/api/src/lib/ricohIntake.ts",
+      "action": "modify",
+      "notes": "same flag"
+    },
+    {
+      "path": "services/api/src/lib/scanStorePg.ts",
+      "action": "modify",
+      "notes": "correction history; was_correct from catalog key"
+    },
+    {
+      "path": "services/api/src/app.ts",
+      "action": "modify",
+      "notes": "GET /api/scan/catalog-search, GET /api/scan/catalog-image/:key, POST /api/scan/units/:id/correct"
+    },
+    {
+      "path": "services/api/src/scanBenchmarkCli.ts",
+      "action": "create",
+      "notes": "npm run scan:benchmark; read-only"
+    },
+    {
+      "path": "infra/db/migrations/<date>_NN_scan_identity_corrections.sql",
+      "action": "create",
+      "notes": "vault_media.identity_correction; scan_unit_id on vault_core.identification_golden_case"
+    },
+    {
+      "path": "apps/iqvault-web/src/components/scan/ReviewCard.tsx",
+      "action": "create"
+    },
+    {
+      "path": "apps/iqvault-web/src/components/scan/CardSearchPicker.tsx",
+      "action": "create"
+    },
+    {
+      "path": "apps/iqvault-web/src/components/scan/ScanIntake.tsx",
+      "action": "modify"
+    },
+    {
+      "path": "data/scan-golden/ed919c12-pokemon.json",
+      "action": "leave",
+      "notes": "truth set; 20 operator, 5 pending"
+    }
+  ],
+  "acceptance_tests": [
+    "AT-01 strip parse fixtures (PFL EN 005/094, MEE EN 003, MEG EN 124/132, JTG EN 029/159); garbage -> null",
+    "AT-02 every golden set code maps to its TCGdex set id; unknown -> null and reported",
+    "AT-03 strip PFL 005/094 resolves only to me02-005",
+    "AT-04 dHash ranks the true printing first for golden Lotad and Premium Power Pro",
+    "AT-05 HIGH requires all three signals; disagreement never HIGH; verdict names the signal",
+    "AT-06 budget cap stops escalation at $0.04, marks capped, routes to Review, records spend",
+    "AT-07 benchmark meets the pass bar and writes nothing to scan batches",
+    "AT-08 correction keeps the old identity in identity_correction; holding changes only via that path",
+    "AT-09 confirmed names come from the catalog record, never repeated-word concatenations",
+    "AT-10 unit 0045 flagged (double-feed-size@0.1.0)",
+    "AT-11 sports/MTG/comics unchanged on v1; npm test green; scan tests leave DB row counts unchanged",
+    "AT-12 every catalog reply, official image and vision reply is a raw snapshot; offline benchmark replay gives the same result"
+  ],
+  "open_decisions": [
+    {
+      "id": "D1",
+      "question": "Image library",
+      "options": [
+        "sharp (native, fast)",
+        "jimp (pure JS, slower)"
+      ],
+      "recommendation": "sharp"
+    },
+    {
+      "id": "D2",
+      "question": "Picture match method",
+      "options": [
+        "dHash + vision pairwise when ambiguous",
+        "local CLIP embeddings in pgvector"
+      ],
+      "recommendation": "dHash + pairwise now; CLIP for sports catalog-wide search later"
+    },
+    {
+      "id": "D3",
+      "question": "Fix the 4 wrong Pokémon confirmations and garbled sports names",
+      "options": [
+        "through the new correction path (keeps history)",
+        "one-off script now"
+      ],
+      "recommendation": "new correction path"
+    }
+  ],
+  "risks": [
+    "Strip position varies by era and card type; regions live in profiles",
+    "TCGdex images missing for very new sets; picture check abstains",
+    "dHash is noisier on holo/foil; ambiguity margin routes to pairwise check or Review",
+    "Vision pricing can change; meter reads model price from config"
+  ]
+}
