@@ -151,6 +151,13 @@ export async function classifyPendingDocuments(
     version?: string;
     stateDir?: string;
     llm?: LlmClassifier | null;
+    /**
+     * Re-read snapshots fetched in the last N days (already extracted too) and classify, with the
+     * current rule set, only headlines that never produced an event. Additive: existing events and
+     * signals are never touched or re-scored.
+     */
+    reclassifyDays?: number;
+    now?: Date;
   },
 ): Promise<HeadlineClassifierReport> {
   const stateDir = opts.stateDir ?? STATE_DIR;
@@ -158,7 +165,7 @@ export async function classifyPendingDocuments(
   const ctx = await loadContext(db, opts.ruleSetName, opts.sourceKeys);
   const createdBy = opts.version ?? HEADLINE_CLASSIFIER_JOB_VERSION;
   const report: HeadlineClassifierReport = {
-    job: opts.job ?? "headline-classifier",
+    job: `${opts.job ?? "headline-classifier"}${opts.reclassifyDays ? ` (reclassify ${opts.reclassifyDays}d)` : ""}`,
     version: createdBy,
     ruleSet: ctx.ruleSetVersion,
     method: llm ? "llm" : "rules",
@@ -169,13 +176,16 @@ export async function classifyPendingDocuments(
     byType: {},
   };
 
+  const reclassify = Boolean(opts.reclassifyDays);
+  const since = new Date((opts.now ?? new Date()).getTime() - (opts.reclassifyDays ?? 0) * 86_400_000);
   const docs = await db.query(
-    `SELECT d.id, d.source_id, d.fetched_at, d.source_url, s.storage_key
+    `SELECT d.id, d.source_id, d.fetched_at, d.source_url, d.extraction_status, s.storage_key
        FROM vault_signals.raw_document d
        JOIN vault_signals.document_snapshot s ON s.raw_document_id = d.id
-      WHERE d.source_id = ANY($1::text[]) AND d.extraction_status = 'pending'
+      WHERE d.source_id = ANY($1::text[])
+        AND (d.extraction_status = 'pending' OR ($2::boolean AND d.extraction_status = 'extracted' AND d.fetched_at >= $3))
       ORDER BY d.fetched_at, d.id`,
-    [opts.sourceKeys],
+    [opts.sourceKeys, reclassify, since.toISOString()],
   );
 
   // Headlines that produced no signal leave no row, so remember what was already classified:
@@ -194,7 +204,8 @@ export async function classifyPendingDocuments(
     }
     const fetchedAt = new Date(doc.fetched_at);
     const feedKey = `${sourceKey} ${doc.source_url}`;
-    if (!primedFeeds.has(feedKey)) {
+    // Reclassify revisits headlines earlier runs dropped, so it does not prime from the last extracted snapshot.
+    if (!reclassify && !primedFeeds.has(feedKey)) {
       primedFeeds.add(feedKey);
       const prior = await db.query(
         `SELECT s.storage_key
@@ -257,7 +268,7 @@ export async function classifyPendingDocuments(
       const scores = scoreDecision(decision, ctx.compiled.ruleSet, source.ceiling);
       const typeId = ctx.signalTypeIds.get(decision.signalType);
       if (!typeId) throw new Error(`signal_type ${decision.signalType} missing`);
-      const ruleVersion = `${ctx.ruleSetVersion}+${modelTag}`;
+      const ruleVersion = `${ctx.ruleSetVersion}+${modelTag}${reclassify ? "+reclassify" : ""}`;
       const attribution = item.outlet ? `${item.outlet} via ${source.attribution}` : source.attribution;
       const notes = [
         attribution,
@@ -332,7 +343,9 @@ export async function classifyPendingDocuments(
       report.byType[decision.signalType] = (report.byType[decision.signalType] ?? 0) + 1;
     }
 
-    await db.query(`UPDATE vault_signals.raw_document SET extraction_status = 'extracted' WHERE id = $1`, [doc.id]);
+    if (doc.extraction_status !== "extracted") {
+      await db.query(`UPDATE vault_signals.raw_document SET extraction_status = 'extracted' WHERE id = $1`, [doc.id]);
+    }
     report.documents.processed += 1;
   }
   return report;
@@ -340,7 +353,7 @@ export async function classifyPendingDocuments(
 
 export function classifyPendingEspnDocuments(
   db: Queryable,
-  opts: { stateDir?: string; llm?: LlmClassifier | null } = {},
+  opts: { stateDir?: string; llm?: LlmClassifier | null; reclassifyDays?: number; now?: Date } = {},
 ): Promise<SportsClassifierReport> {
   return classifyPendingDocuments(db, {
     ...opts,

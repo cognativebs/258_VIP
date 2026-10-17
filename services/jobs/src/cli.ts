@@ -81,9 +81,21 @@ async function classifyRulesOnly(
   }
 }
 
+/** `classify --reclassify [--days N]`: also re-read the last N days (default 14) of extracted snapshots. */
+function reclassifyDaysFrom(args: string[]): number | undefined {
+  if (!args.includes("--reclassify")) return undefined;
+  const k = args.indexOf("--days");
+  const days = k >= 0 ? Number(args[k + 1]) : 14;
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    console.error("--days must be a whole number from 1 to 365.");
+    process.exit(1);
+  }
+  return days;
+}
+
 async function runClassify(
   args: string[],
-  classify: (db: Queryable, llm: LlmClassifier | null) => Promise<HeadlineClassifierReport>,
+  classify: (db: Queryable, llm: LlmClassifier | null, reclassifyDays?: number) => Promise<HeadlineClassifierReport>,
 ) {
   let llm: LlmClassifier | null = null;
   if (args.includes("--llm")) {
@@ -99,7 +111,7 @@ async function runClassify(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const report = await classify(client, llm);
+    const report = await classify(client, llm, reclassifyDaysFrom(args));
     await client.query(dryRun ? "ROLLBACK" : "COMMIT");
     console.log(formatSportsClassifierReport(report));
     if (dryRun) console.log("dry run: rolled back, nothing written.");
@@ -118,6 +130,7 @@ import {
   runPriceHistoryJob,
 } from "./price-history.js";
 import { startScheduler } from "./scheduler.js";
+import { formatBriefJobReport, runSignalsBriefJob } from "./signals-brief.js";
 
 const cmd = process.argv[2] ?? "pokemon-drops";
 
@@ -146,7 +159,7 @@ async function main() {
       return;
     }
     if (sub === "classify") {
-      await runClassify(args, (db, llm) => classifyPendingEspnDocuments(db, { llm }));
+      await runClassify(args, (db, llm, reclassifyDays) => classifyPendingEspnDocuments(db, { llm, reclassifyDays }));
       return;
     }
     const report = await runEspnSportsJob({ live: args.includes("--live") });
@@ -158,12 +171,13 @@ async function main() {
   if (cmd === "macro-news") {
     const args = process.argv.slice(3);
     if (args.find((a) => !a.startsWith("--")) === "classify") {
-      await runClassify(args, (db, llm) =>
+      await runClassify(args, (db, llm, reclassifyDays) =>
         classifyPendingDocuments(db, {
           sourceKeys: [GDELT_SOURCE_KEY],
           ruleSetName: "macro-headline",
           job: "macro-classifier",
           llm,
+          reclassifyDays,
         }),
       );
       return;
@@ -213,6 +227,16 @@ async function main() {
       dryRun: process.argv.includes("--dry-run"),
     });
     console.log(formatPriceChartingSnapshotReport(report));
+    return;
+  }
+
+  if (cmd === "signals-brief") {
+    // signals-brief [--force] [--dry-run] — the daily Orchestr8 brief via the VIP API (must be running).
+    loadApiEnv();
+    const args = process.argv.slice(3);
+    const r = await runSignalsBriefJob({ force: args.includes("--force"), dryRun: args.includes("--dry-run") });
+    console.log(formatBriefJobReport(r));
+    if (args.includes("--dry-run") && r.api) console.log(JSON.stringify(r.api, null, 2).slice(0, 4000));
     return;
   }
 
@@ -354,12 +378,13 @@ async function main() {
   if (cmd === "collectibles-news") {
     const args = process.argv.slice(3);
     if (args.find((a) => !a.startsWith("--")) === "classify") {
-      await runClassify(args, (db, llm) =>
+      await runClassify(args, (db, llm, reclassifyDays) =>
         classifyPendingDocuments(db, {
           sourceKeys: [...COLLECTIBLES_SOURCE_KEYS],
           ruleSetName: "collectibles-headline",
           job: "collectibles-classifier",
           llm,
+          reclassifyDays,
         }),
       );
       return;
@@ -539,6 +564,18 @@ async function main() {
           },
         },
         {
+          name: "signals-brief",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Hourly check; the brief itself runs once a local day after VIP_SIGNALS_BRIEF_HOUR (operator 2026-10-17).
+            loadApiEnv();
+            void jitter(15 * 60 * 1000)
+              .then(() => runSignalsBriefJob())
+              .then((r) => console.log(formatBriefJobReport(r)))
+              .catch((e) => console.error(`signals-brief failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "clz-sync",
           everyMs: 6 * 60 * 60 * 1000,
           run: () => {
@@ -574,7 +611,7 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {
