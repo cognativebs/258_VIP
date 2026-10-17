@@ -51,7 +51,7 @@ export function laneFor(sourceKey: string, storageKey: string | null, feedUrl: s
   return sourceKey === "espn_rss" ? (sportFromFeedUrl(feedUrl) ?? "unknown") : sourceKey;
 }
 
-function attributionFor(sourceKey: string, sourceName: string | null, itemUrl: string | null): string {
+export function attributionFor(sourceKey: string, sourceName: string | null, itemUrl: string | null): string {
   if (sourceKey === "espn_rss") return ESPN_ATTRIBUTION;
   if (sourceKey === "gdelt_doc_v2" && itemUrl) {
     try {

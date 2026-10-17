@@ -19,6 +19,8 @@ import { SIGNALS_INGESTION } from "./lib/intelligence.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
 import { registerDealerKitRoutes } from "./routes/dealerKit.js";
 import { registerUnknownExitRoutes } from "./routes/unknownExit.js";
+import { registerSignalsDeskRoutes } from "./routes/signalsDesk.js";
+import { listTheses, type FetchLike as Orchestr8Fetch } from "./lib/signalsDesk.js";
 import {
   postgresUnknownExitStore,
   type UnknownExitStore,
@@ -198,6 +200,8 @@ export type AppDeps = {
   huntDb?: Queryable;
   /** Injectable eBay Browse search for "Check eBay now" so tests never call eBay. */
   huntBrowse?: HuntBrowseFetch;
+  /** Injectable Orchestr8 HTTP for the Signals Desk so tests never call a model. */
+  orchestr8Fetch?: Orchestr8Fetch;
 };
 
 type InventoryBundle = {
@@ -397,34 +401,6 @@ function watchlistFrom(holdings: ApiHolding[]) {
   }));
 }
 
-function thesesFrom(holdings: ApiHolding[]) {
-  // Derived from live pillars with real counts — not a hardcoded claim list.
-  const byPillar = new Map<string, number>();
-  for (const h of holdings) {
-    if (!h.pillar) continue;
-    byPillar.set(h.pillar, (byPillar.get(h.pillar) ?? 0) + h.quantity);
-  }
-  return [...byPillar.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([pillar, count], i) => ({
-      id: `thesis-pillar-${i + 1}`,
-      claim: `${pillar} is a live collection pillar (${count} copies in inventory).`,
-      horizon: "current holdings",
-      status: "active" as const,
-      linkedAssetNames: holdings
-        .filter((h) => h.pillar === pillar)
-        .slice(0, 3)
-        .map((h) => h.assetName),
-      evidence: {
-        method: "derived_from_holdings",
-        pillar,
-        count,
-        note: "Count from live inventory — not a market thesis with comps",
-      },
-    }));
-}
-
 export function createApp(deps: AppDeps = {}) {
   const app = express();
   app.use(
@@ -575,6 +551,11 @@ export function createApp(deps: AppDeps = {}) {
   };
   /** Signal exposure names hunts when it can; an unreachable vault_hunt just means no hunt matches. */
   const huntsForSignals = async () => listDefinedHunts(huntDb()).catch(() => []);
+  registerSignalsDeskRoutes(app, {
+    db: () => deps.signalsDb ?? getPool(),
+    hunts: huntsForSignals,
+    orchestr8Fetch: deps.orchestr8Fetch,
+  });
 
   app.get("/api/hunts", async (_req, res) => {
     const { holdings } = await buildInventory(deps);
@@ -813,7 +794,28 @@ export function createApp(deps: AppDeps = {}) {
     } catch (e) {
       synthesized = { error: e instanceof Error ? e.message : "vault_signals unavailable", signals: [] };
     }
-    res.json({ ...(await compactSignalsContextWithPhaseD()), synthesized });
+    // Open theses (drafts from the daily brief, plus the ones the operator activated) so councils
+    // weigh new signals against standing beliefs.
+    const theses = await listTheses(deps.signalsDb ?? getPool())
+      .then((rows) =>
+        rows
+          .filter((t) => t.status === "draft" || t.status === "active")
+          .slice(0, 20)
+          .map((t) => ({
+            id: t.id,
+            claim: t.claim,
+            status: t.status,
+            action: t.action,
+            withheld: t.withheld,
+            confidence: t.confidence,
+            horizonDays: t.horizonDays,
+            expiresAt: t.expiresAt,
+            lastReview: t.lastReview,
+            signals: t.signals.slice(0, 5).map((x) => ({ title: x.title, url: x.url })),
+          })),
+      )
+      .catch((e) => ({ error: e instanceof Error ? e.message : "vault_signals.thesis unavailable" }));
+    res.json({ ...(await compactSignalsContextWithPhaseD()), synthesized, theses });
   });
 
   app.get("/api/signals/output", (_req, res) => {
@@ -952,24 +954,6 @@ export function createApp(deps: AppDeps = {}) {
         error: e instanceof Error ? e.message : String(e),
       });
     }
-  });
-
-  app.get("/api/theses", async (_req, res) => {
-    const { holdings, comics, comicsSource } = await buildInventory(deps);
-    if (!comics.available) {
-      res.status(503).json({
-        error: "Comics inventory unavailable — theses not served from hardcoded claims",
-        comicsSource,
-        comicsError: comics.error,
-        theses: [],
-      });
-      return;
-    }
-    res.json({
-      comicsSource,
-      comicsSnapshot: comics.snapshot,
-      theses: thesesFrom(holdings),
-    });
   });
 
   app.get("/api/sources", (_req, res) => {

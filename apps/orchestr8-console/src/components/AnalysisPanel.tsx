@@ -52,6 +52,7 @@ export function AnalysisPanel() {
     feedKind?: string;
     provenance?: { notes?: string; verificationStatus?: string };
     synthesized?: unknown;
+    theses?: unknown;
   } | null>(null);
 
   const loading = session.loading;

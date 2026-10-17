@@ -224,6 +224,8 @@ export function buildAnalysisContext(
     provenance?: { notes?: string; verificationStatus?: string };
     /** Synthesized SIGNALS with their proposals and your exposure (VIP /api/signals/context). */
     synthesized?: unknown;
+    /** Open theses (daily-brief drafts and operator-activated) with the signals they rest on. */
+    theses?: unknown;
   } | null,
 ) {
   const filtered = applySlice(bundle.rows, slice);
@@ -321,6 +323,8 @@ export function buildAnalysisContext(
           },
           // SIGNALS proposes, Orchestr8 decides: proposals carry withheld Buy/Sell/Grade until market evidence exists.
           synthesized: signals.synthesized ?? null,
+          // Standing beliefs: judge new signals against them; only the operator changes a thesis's status.
+          theses: signals.theses ?? null,
         }
       : undefined,
   };
