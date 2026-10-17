@@ -100,7 +100,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
 - [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
   - [x] TAG and Alpha Investments enabled by the operator (2026-10-11)
-  - [ ] Operator: enable PSA from its official YouTube channel feed, found 2026-10-17 (no scraping): `npm run news-source -- enable psa_news --endpoint "https://www.youtube.com/feeds/videos.xml?channel_id=UCUVfCsjCXyyUDAK7VDnXh2Q" --confirm-operator` ("PSA Official", verified live)
+  - [x] PSA enabled by the operator 2026-10-17 from its official YouTube channel feed (no scraping): `npm run news-source -- enable psa_news --endpoint "https://www.youtube.com/feeds/videos.xml?channel_id=UCUVfCsjCXyyUDAK7VDnXh2Q" --confirm-operator` ("PSA Official", verified live)
 - **PokéBeach hybrid connector** *(operator build spec 2026-10-03; mapped onto ADR 0013: three stored scores, read-time priority, no 0–100 strength column)*
   - [x] 1. Official homepage ingestion (`pokebeach official`, every 30 min + jitter; identity and UTC time from each article page; polite fetching, conditional GET, backoff; parser-degraded ingests nothing)
   - [x] 2. Canonical dedupe (`source_item` per canonical URL + WordPress post id; `source_item_revision` history; daily 48h `reconcile`; `backfill --days 90`; community feed + forum RSS are discovery only)
