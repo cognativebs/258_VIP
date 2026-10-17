@@ -14,7 +14,19 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import { z } from "zod";
-import { GdeltDocAdapter, GdeltLaneQuerySchema, gdeltRequestUrl, newsAdapterMayRun, type GdeltLaneQuery, type RawRssSnapshot } from "@vip/signals";
+import {
+  CircuitSchema,
+  GdeltDocAdapter,
+  GdeltLaneQuerySchema,
+  gdeltRequestUrl,
+  mayCall,
+  newsAdapterMayRun,
+  recordOutcome,
+  type Circuit,
+  type GdeltLaneQuery,
+  type RawRssSnapshot,
+} from "@vip/signals";
+import { saveCircuitState } from "./circuit-state.js";
 import { STATE_DIR, persistFeedSnapshots } from "./espn-sports.js";
 import { dsnFromEnv } from "./price-history.js";
 
@@ -78,19 +90,25 @@ export function macroFixtureSnapshots(now = new Date(), lanes = DEFAULT_GDELT_LA
 }
 
 /**
- * GDELT throttles a burst of lane queries (one 429 and the rest of the run is lost), so a live
- * run asks for one lane at a time, in rotation, and after a 429 waits 1, 2, 4 … up to 12 hours
- * before asking again. With hourly runs each lane still refreshes every few hours.
+ * The DOC API is an optional channel (B1, operator 2026-10-17): GDELT's legacy search is overloaded,
+ * and discovery now comes from the GDELT 5 radar. A live run asks for one lane at a time, in rotation,
+ * behind a circuit breaker: the first 429 marks the channel degraded, the second opens the circuit,
+ * and an open circuit makes one probe request every 6 hours. Nothing else waits on this job.
  */
-type LaneCursor = { next: number; backoffUntil: string | null; consecutive429: number };
-const MAX_BACKOFF_HOURS = 12;
+type LaneCursor = { next: number; circuit: Circuit };
 
 function readCursor(path: string): LaneCursor {
   try {
-    const c = JSON.parse(readFileSync(path, "utf8")) as Partial<LaneCursor>;
-    return { next: Number(c.next) || 0, backoffUntil: c.backoffUntil ?? null, consecutive429: Number(c.consecutive429) || 0 };
+    const c = JSON.parse(readFileSync(path, "utf8")) as { next?: number; circuit?: unknown; backoffUntil?: string | null; consecutive429?: number };
+    if (c.circuit) return { next: Number(c.next) || 0, circuit: CircuitSchema.parse(c.circuit) };
+    // Cursor files written before the circuit breaker carried a 429 count and a back-off time.
+    const n = Number(c.consecutive429) || 0;
+    return {
+      next: Number(c.next) || 0,
+      circuit: CircuitSchema.parse({ state: n >= 2 ? "open" : n === 1 ? "degraded" : "closed", consecutiveFailures: n, failureType: n ? "HTTP 429" : null, nextProbeAt: n >= 2 ? (c.backoffUntil ?? null) : null }),
+    };
   } catch {
-    return { next: 0, backoffUntil: null, consecutive429: 0 };
+    return { next: 0, circuit: CircuitSchema.parse({}) };
   }
 }
 
@@ -149,12 +167,14 @@ export async function runMacroNewsJob(
     }
     const cursorPath = opts.cursorPath ?? join(STATE_DIR, "gdelt-lane-cursor.json");
     const cursor = readCursor(cursorPath);
-    if (cursor.backoffUntil && now < new Date(cursor.backoffUntil)) {
+    const gate = mayCall(cursor.circuit, now);
+    if (!gate.call) {
       report.status = "waiting";
-      report.blockedReason = `GDELT asked to slow down; next request after ${cursor.backoffUntil}`;
+      report.blockedReason = `DOC API circuit open after ${cursor.circuit.failureType ?? "failures"} (optional channel; the GDELT radar is unaffected); next probe ${cursor.circuit.nextProbeAt}`;
       return report;
     }
-    const perRun = Math.max(1, Math.min(lanes.length, opts.lanesPerRun ?? (Number(process.env.VIP_GDELT_LANES_PER_RUN) || 1)));
+    // An open circuit's probe is one request.
+    const perRun = gate.probe ? 1 : Math.max(1, Math.min(lanes.length, opts.lanesPerRun ?? (Number(process.env.VIP_GDELT_LANES_PER_RUN) || 1)));
     const start = cursor.next % lanes.length;
     const thisRun = Array.from({ length: perRun }, (_, i) => lanes[(start + i) % lanes.length]!);
     let fetched = 0;
@@ -188,13 +208,14 @@ export async function runMacroNewsJob(
         report.lanes.push({ lane: q.lane, state: "error", articles: 0, documentsNew: null, error: message });
       }
     }
-    if (throttled) {
-      const n = cursor.consecutive429 + 1;
-      const hours = Math.min(MAX_BACKOFF_HOURS, 2 ** (n - 1));
-      writeCursor(cursorPath, { next: start, backoffUntil: new Date(now.getTime() + hours * 3600_000).toISOString(), consecutive429: n });
-    } else {
-      writeCursor(cursorPath, { next: (start + perRun) % lanes.length, backoffUntil: null, consecutive429: 0 });
-    }
+    const lastError = report.lanes.find((l) => l.error && !l.error.startsWith("skipped"))?.error ?? "";
+    const circuit = throttled
+      ? recordOutcome(cursor.circuit, { ok: false, failureType: "HTTP 429" }, now)
+      : fetched > 0
+        ? recordOutcome(cursor.circuit, { ok: true }, now)
+        : recordOutcome(cursor.circuit, { ok: false, failureType: lastError.slice(0, 200) || "error" }, now);
+    writeCursor(cursorPath, { next: throttled ? start : (start + perRun) % lanes.length, circuit });
+    await saveCircuitState(pool, GDELT_SOURCE_KEY, row.endpoint, circuit, throttled ? 429 : fetched > 0 ? 200 : null, now).catch(() => undefined);
     report.status = fetched === 0 ? "failed" : fetched < thisRun.length ? "partial" : "succeeded";
     return report;
   } finally {

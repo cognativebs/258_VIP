@@ -16,7 +16,7 @@ async function load<T>(path: string, timeoutMs?: number): Promise<{ data: T | nu
   }
 }
 
-const STATE_CLASS: Record<string, string> = { ok: "badge-ok", stale: "badge-warn", failing: "badge-danger", blocked: "badge-danger", off: "" };
+const STATE_CLASS: Record<string, string> = { ok: "badge-ok", stale: "badge-warn", failing: "badge-danger", blocked: "badge-danger", degraded: "badge-warn", off: "" };
 
 function BriefCard({ b, latest }: { b: DeskBrief; latest: boolean }) {
   return (
@@ -88,9 +88,10 @@ export default async function SignalDeskPage() {
             <span className="badge">Last brief {ago(briefList[0]?.createdAt ?? null)}</span>
             {briefs.data?.running ? <span className="badge badge-info">brief running…</span> : null}
             {trouble.map((s) => (
-              <span key={s.sourceKey} className={`badge ${STATE_CLASS[s.state]}`} title={s.blockedReason ?? `last success ${ago(s.lastSuccessAt)}`}>
+              <span key={s.sourceKey} className={`badge ${STATE_CLASS[s.state]}`} title={s.requiredNote ?? s.blockedReason ?? `last success ${ago(s.lastSuccessAt)}`}>
                 {s.sourceKey}: {s.state}
                 {s.failingStatus ? ` (${s.failingStatus})` : ""}
+                {!s.required ? ` · circuit ${s.circuit} · optional, no impact` : ""}
               </span>
             ))}
           </>
@@ -190,6 +191,7 @@ export default async function SignalDeskPage() {
               <tr>
                 <th>Source</th>
                 <th>State</th>
+                <th>Circuit</th>
                 <th>Last success</th>
                 <th>Last signal</th>
                 <th>Note</th>
@@ -204,10 +206,13 @@ export default async function SignalDeskPage() {
                   </td>
                   <td>
                     <span className={`badge ${STATE_CLASS[s.state]}`}>{s.state}</span>
+                    {!s.required ? <span className="badge">optional</span> : null}
                   </td>
+                  <td>{s.enabled ? s.circuit : "—"}</td>
                   <td>{ago(s.lastSuccessAt)}</td>
                   <td>{ago(s.lastSignalAt)}</td>
                   <td className="muted">
+                    {s.requiredNote ? `${s.requiredNote} ` : ""}
                     {s.blockedReason ??
                       (s.consecutiveFailures ? `${s.consecutiveFailures} failure(s)${s.failingStatus ? `, HTTP ${s.failingStatus}` : ""}${s.nextAttemptAt ? `; retry at ${new Date(s.nextAttemptAt).toLocaleString()}` : ""}` : "")}
                   </td>

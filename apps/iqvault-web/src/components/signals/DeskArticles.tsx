@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ago, GROUPS, type DeskArticle } from "@/lib/signalsDesk";
+import { ago, GROUPS, RADAR_SOURCE, type DeskArticle } from "@/lib/signalsDesk";
 
 const BAND_LABEL: Record<string, string> = {
   noise: "Noise",
@@ -25,7 +25,7 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
     const needle = q.trim().toLowerCase();
     return articles.filter(
       (a) =>
-        (group === "All" || a.group === group) &&
+        (group === "All" || a.group === group || (group === "Radar" && a.sourceKey === RADAR_SOURCE)) &&
         (!hideNoise || a.band !== "noise") &&
         (!needle || `${a.title} ${a.summary} ${a.attribution} ${a.typeName}`.toLowerCase().includes(needle)),
     );
@@ -34,9 +34,12 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
   return (
     <div>
       <div className="desk-filters">
-        {["All", ...GROUPS].map((g) => (
+        {["All", ...GROUPS, "Radar"].map((g) => (
           <button key={g} type="button" className={group === g ? "desk-chip on" : "desk-chip"} onClick={() => setGroup(g)}>
-            {g} <span className="muted">{g === "All" ? articles.length : (counts.get(g) ?? 0)}</span>
+            {g}{" "}
+            <span className="muted">
+              {g === "All" ? articles.length : g === "Radar" ? articles.filter((a) => a.sourceKey === RADAR_SOURCE).length : (counts.get(g) ?? 0)}
+            </span>
           </button>
         ))}
         <input className="desk-search" placeholder="Search titles, sources…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search articles" />
@@ -56,6 +59,7 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
               {a.direction === "up" || a.direction === "down" ? <span className="badge">{a.direction === "up" ? "↑ up" : "↓ down"}</span> : null}
               {a.method === "opinion" ? <span className="badge badge-warn">opinion</span> : null}
               {a.thesisCount ? <span className="badge badge-warn">in {a.thesisCount} thesis</span> : null}
+              {a.sourceKey === RADAR_SOURCE ? <span className="badge badge-info">radar</span> : null}
               <span className="muted desk-time" title={a.firstSeenAt}>
                 {ago(a.firstSeenAt)}
               </span>

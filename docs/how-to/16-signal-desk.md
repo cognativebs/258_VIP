@@ -51,3 +51,16 @@ Windows task **VIP IQVault Stack at Logon** starts everything 2 minutes after yo
 PR merged to `main` goes live then. Re-register it with
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\register_iqvault_logon_task.ps1 -Root <live folder>`.
 While the PC sleeps nothing runs; feeds and the brief catch up when it wakes.
+
+## GDELT radar
+
+News discovery from GDELT runs on GDELT 5's downloadable Web NGrams, not its search API
+(GDELT asked for this while its search is overloaded). Every 10 minutes the jobs scheduler downloads
+the newest published minutes and matches the watch vocabulary locally: stored terms in
+`vault_signals.signal_watch_term` (graders, Topps, Panini, Pokémon TCG, auction houses, licensing,
+reprints, …) plus terms built from your Binder, active hunts and open theses. Matches show on the Desk
+under the **Radar** filter once a classifier makes a signal of them. Run it by hand:
+`npm run job:gdelt-radar`. Add a term: insert a row with tier `operator` in `signal_watch_term`.
+
+The old search API is an optional channel: after two 429s its circuit opens and it is tried once every
+6 hours. Feed health shows it as "degraded · optional, no impact"; nothing waits on it.

@@ -302,3 +302,36 @@ export {
   type GateResult,
 } from "./thesis/brief.js";
 export { calibrationSummary, type MeasuredCall, type CalibrationSummary } from "./thesis/calibration.js";
+export {
+  GDELT_V5_SOURCE_KEY,
+  GDELT_V5_BASE,
+  RADAR_VERSION,
+  PUBLISH_LAG_MINUTES,
+  DEFAULT_CONTEXT,
+  RadarDomainSchema,
+  WatchTermSchema,
+  normalizeText as normalizeRadarText,
+  minuteStamps,
+  stampOf,
+  dateOfStamp,
+  parseToc,
+  gramIndex,
+  compileTerms,
+  matchBatch,
+  canonicalUrl,
+  radarSnapshotJson,
+  type RadarDomain,
+  type WatchTerm,
+  type TocRow,
+  type RadarMatch,
+} from "./radar/gdelt-v5.js";
+export {
+  CircuitSchema,
+  CircuitStateSchema,
+  PROBE_EVERY_MS,
+  isTripping,
+  mayCall,
+  recordOutcome,
+  type Circuit,
+  type CircuitStateName,
+} from "./radar/circuit.js";

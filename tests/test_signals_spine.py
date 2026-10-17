@@ -89,8 +89,8 @@ def test_spine_schema_guards(conn):
     enabled, active, ceiling, total = cur.fetchone()
     # Every seeded source ships disabled (HS-5). 14 from 20260920_06, plus pokebeach_rss, psa_news,
     # tag_news, alpha_investments_youtube (20261001_03) and pokebeach_official,
-    # pokebeach_frontpage_feed, pokebeach_members (20261003_01).
-    assert (enabled, active, ceiling, total) == (0, 0, 0, 21)
+    # pokebeach_frontpage_feed, pokebeach_members (20261003_01), and gdelt_v5_ngrams (20261017_02).
+    assert (enabled, active, ceiling, total) == (0, 0, 0, 22)
 
     cur.execute(
         """

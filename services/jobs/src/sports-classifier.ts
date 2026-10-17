@@ -136,7 +136,7 @@ type FeedItem = {
 function parseFile(path: string, sourceKey: string, url: string, fetchedAt: Date, stateDir: string): FeedItem[] {
   const raw = readFileSync(path, "utf8");
   const snapshot = { url, fetchedAt: fetchedAt.toISOString(), rawXml: raw, snapshotPath: path, byteLength: Buffer.byteLength(raw, "utf8") };
-  if (sourceKey === "gdelt_doc_v2") {
+  if (sourceKey === "gdelt_doc_v2" || sourceKey === "gdelt_v5_ngrams") {
     return new GdeltDocAdapter({ sourceId: sourceKey, snapshotDir: stateDir, rateLimitMs: 0 }).parseSnapshot(snapshot);
   }
   return new RssAdapter({ feedUrl: "", sourceId: sourceKey, rateLimitMs: 0, snapshotDir: stateDir }).parseSnapshot(snapshot);
@@ -158,6 +158,8 @@ export async function classifyPendingDocuments(
      */
     reclassifyDays?: number;
     now?: Date;
+    /** Only snapshots stored under these lanes (snapshots/<source>/<lane>/), e.g. the radar's domains. */
+    lanes?: string[];
   },
 ): Promise<HeadlineClassifierReport> {
   const stateDir = opts.stateDir ?? STATE_DIR;
@@ -184,8 +186,9 @@ export async function classifyPendingDocuments(
        JOIN vault_signals.document_snapshot s ON s.raw_document_id = d.id
       WHERE d.source_id = ANY($1::text[])
         AND (d.extraction_status = 'pending' OR ($2::boolean AND d.extraction_status = 'extracted' AND d.fetched_at >= $3))
+        AND ($4::text[] IS NULL OR substring(s.storage_key from 'snapshots/[^/]+/([a-z0-9_]+)/[^/]+$') = ANY($4::text[]))
       ORDER BY d.fetched_at, d.id`,
-    [opts.sourceKeys, reclassify, since.toISOString()],
+    [opts.sourceKeys, reclassify, since.toISOString(), opts.lanes ?? null],
   );
 
   // Headlines that produced no signal leave no row, so remember what was already classified:

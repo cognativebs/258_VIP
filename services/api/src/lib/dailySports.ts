@@ -53,11 +53,12 @@ export function laneFor(sourceKey: string, storageKey: string | null, feedUrl: s
 
 export function attributionFor(sourceKey: string, sourceName: string | null, itemUrl: string | null): string {
   if (sourceKey === "espn_rss") return ESPN_ATTRIBUTION;
-  if (sourceKey === "gdelt_doc_v2" && itemUrl) {
+  if ((sourceKey === "gdelt_doc_v2" || sourceKey === "gdelt_v5_ngrams") && itemUrl) {
+    const via = sourceKey === "gdelt_v5_ngrams" ? "via GDELT radar" : "via GDELT";
     try {
-      return `${new URL(itemUrl).hostname.replace(/^www\./, "")} via GDELT`;
+      return `${new URL(itemUrl).hostname.replace(/^www\./, "")} ${via}`;
     } catch {
-      return "via GDELT";
+      return via;
     }
   }
   return sourceName ?? sourceKey;

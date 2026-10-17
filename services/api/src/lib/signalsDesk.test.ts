@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   briefFromRun,
   groupFor,
+  signalsHealth,
   listBriefs,
   runSignalsBrief,
   setThesisStatus,
@@ -217,5 +218,28 @@ describe("groupFor", () => {
     expect(groupFor("macro", "headline-classifier@0.1.0", "business")).toBe("Markets");
     expect(groupFor("macro", "headline-classifier@0.1.0", "us")).toBe("Headlines");
     expect(groupFor("sports_cards", "sports-classifier@0.1.0", "nfl")).toBe("Sports");
+  });
+});
+
+describe("signalsHealth", () => {
+  const row = (o: Record<string, unknown>) => ({
+    source_key: "x", display_name: "X", adapter_enabled: true, is_active: true, blocked_reason: null, cadence: null,
+    last_run: null, last_success: NOW.toISOString(), failures: 0, next_attempt: null, failing_status: null, last_signal: null, ...o,
+  });
+
+  it("shows an optional channel by its circuit and never counts it as failing", async () => {
+    const db: Queryable = {
+      query: async () => ({
+        rows: [
+          row({ source_key: "gdelt_doc_v2", failures: 3, failing_status: 429, last_success: "2026-10-10T00:00:00Z" }),
+          row({ source_key: "gdelt_v5_ngrams" }),
+          row({ source_key: "espn_rss", failures: 2, failing_status: 503 }),
+        ],
+      }),
+    };
+    const h = await signalsHealth(db, NOW);
+    expect(h.sources.find((s) => s.sourceKey === "gdelt_doc_v2")).toMatchObject({ state: "degraded", circuit: "open", required: false });
+    expect(h.sources.find((s) => s.sourceKey === "gdelt_v5_ngrams")).toMatchObject({ state: "ok", required: true });
+    expect(h.summary).toMatchObject({ enabled: 3, ok: 1, failing: 1, degradedOptional: 1 });
   });
 });

@@ -121,7 +121,9 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] **Markets & business news (GDELT lane)**: GDELT `business` lane (collectibles companies, marketplaces, markets); `daily-markets` list
   - [x] GDELT enabled; one lane per hourly run in rotation, back-off 1 → 12 h after a 429 (2026-10-10)
   - [ ] SEC EDGAR filings lane (row exists): needs a contact email for the SEC User-Agent and a confirmed company list
-  - [ ] GDELT answers 429 to every request (checked again 2026-10-17, single request): the job backs off 1 → 12 h and resumes on its own. If it stays down, the operator could approve an alternative headline source (e.g. publisher RSS); none is enabled
+  - [x] **B1 GDELT radar** (2026-10-17, ADR 0013 amendment b): discovery moved off the overloaded DOC search API onto GDELT 5 downloadable Web NGrams, matched locally every 10 min (`npm run job:gdelt-radar`); `gdelt_v5_ngrams` enabled by the operator; watch registry `vault_signals.signal_watch_term` (Tier D seeded; A Binder, B hunts, C theses built per run); matches → per-domain snapshot + source_item → existing rules classify; raw minute files kept 7 days. First live run: 5,171 articles scanned, 16 matched
+  - [x] B1.14–16: DOC API is optional behind a circuit breaker (degraded → open → 6 h probe); per-channel health on the Desk; an optional channel never counts as failing
+  - [ ] B1.11 fetch the original article (needs a terms decision: robots, excerpt only); B1.20 GDELT Events; B1.21 GKG entities; B1.22 BigQuery history; B1.23 emergent phrases (Tier E); B1.24 attention velocity; B1.25 narrative clustering
   - [ ] Finance newsletters lane (rows exist): needs Gmail access for the job (Google OAuth, read-only label), or a forwarded-email inbox folder
 - [x] `news-source list | enable <key> [--endpoint] --confirm-operator | disable` operator command; collectibles-news and macro-news run hourly in the scheduler (blocked until enabled)
 - [x] Rules-only classification runs after every ESPN, collectibles and GDELT ingest (operator 2026-10-10; no LLM)

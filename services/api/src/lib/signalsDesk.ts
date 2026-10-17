@@ -45,6 +45,7 @@ const BRIEF_PROV_SOURCE = "orchestr8:signals-brief";
 const DEFAULT_BRIEF_MODEL = "gpt-4o-mini";
 const ORCHESTR8_TIMEOUT_MS = 15 * 60 * 1000;
 const POKEMON_BRIEF_DAYS = 7;
+const RADAR_BRIEF_MAX = 10;
 
 async function withTx<T>(db: Connectable, fn: (q: Queryable) => Promise<T>): Promise<T> {
   if (!db.connect) return fn(db);
@@ -257,6 +258,28 @@ export async function buildBriefContext(
         exposure: null,
       });
     }
+  }
+  // GDELT radar finds (B1): the strongest of the last day, as their own group so curated slots are untouched.
+  const radar = await signalArticles(db, { at, hours: 24, limit: 500 }).catch(() => null);
+  for (const a of (radar?.articles ?? []).filter((x) => x.sourceKey === "gdelt_v5_ngrams" && !bySignal.has(x.signalId)).sort((x, y) => y.influence - x.influence).slice(0, RADAR_BRIEF_MAX)) {
+    bySignal.set(a.signalId, {
+      ref: "S0",
+      signalId: a.signalId,
+      group: "Radar",
+      domain: a.domain,
+      title: a.title,
+      summary: a.summary,
+      type: a.typeName,
+      direction: a.direction,
+      band: null,
+      attribution: a.attribution,
+      url: a.url,
+      firstSeenAt: a.firstSeenAt,
+      confidence: a.confidence,
+      method: a.method,
+      proposal: null,
+      exposure: null,
+    });
   }
   const signals = [...bySignal.values()].map((s, i) => ({ ...s, ref: `S${i + 1}` }));
   return { windowHours, signals, openTheses: await loadOpenTheses(db), notes };
@@ -638,12 +661,24 @@ export async function measurePrediction(db: Queryable, measurementId: string, pa
 // ---------------------------------------------------------------------------
 // Source health
 
+/** Channels SIGNALS can run without (B1.16): shown by circuit state, never counted as failing. */
+export const OPTIONAL_CHANNELS: Record<string, string> = {
+  gdelt_doc_v2: "Optional: the GDELT radar (gdelt_v5_ngrams) does discovery; this search API only adds to it.",
+  pokebeach_official: "Optional while the homepage is behind a Cloudflare challenge: the community front-page feed supplies new articles (never worked around).",
+};
+
+/** source_fetch_state mirrors each job's circuit: 0 failures closed, 1 degraded, 2+ open. */
+export function circuitFrom(failures: number): "closed" | "degraded" | "open" {
+  return failures >= 2 ? "open" : failures === 1 ? "degraded" : "closed";
+}
+
 export async function signalsHealth(db: Queryable, now: Date = new Date()) {
   const { rows } = await db.query(
     `SELECT s.source_key, s.display_name, s.adapter_enabled, s.is_active, s.blocked_reason, s.cadence,
             (SELECT row_to_json(x) FROM (SELECT status, started_at, finished_at, documents_fetched, documents_new, error_text
                FROM vault_signals.ingest_run r WHERE r.source_id = s.source_key ORDER BY started_at DESC LIMIT 1) x) AS last_run,
-            (SELECT max(started_at) FROM vault_signals.ingest_run r WHERE r.source_id = s.source_key AND r.status = 'succeeded') AS last_success,
+            greatest((SELECT max(started_at) FROM vault_signals.ingest_run r WHERE r.source_id = s.source_key AND r.status = 'succeeded'),
+                     (SELECT max(f.last_success_at) FROM vault_signals.source_fetch_state f WHERE f.source_id = s.source_key)) AS last_success,
             (SELECT max(f.consecutive_failures) FROM vault_signals.source_fetch_state f WHERE f.source_id = s.source_key) AS failures,
             (SELECT max(f.next_attempt_at) FROM vault_signals.source_fetch_state f WHERE f.source_id = s.source_key) AS next_attempt,
             (SELECT max(f.last_status) FILTER (WHERE f.consecutive_failures > 0) FROM vault_signals.source_fetch_state f WHERE f.source_id = s.source_key) AS failing_status,
@@ -658,19 +693,26 @@ export async function signalsHealth(db: Queryable, now: Date = new Date()) {
     const enabled = Boolean(r.adapter_enabled && r.is_active);
     const lastSuccess = r.last_success ? new Date(r.last_success) : null;
     const staleHours = lastSuccess ? Math.round((now.getTime() - lastSuccess.getTime()) / 3_600_000) : null;
+    const optional = OPTIONAL_CHANNELS[r.source_key] ?? null;
+    const circuit = circuitFrom(Number(r.failures ?? 0));
     const state = !enabled
       ? "off"
       : r.blocked_reason
         ? "blocked"
-        : Number(r.failures ?? 0) > 0
-          ? "failing"
-          : staleHours === null || staleHours > 6
-            ? "stale"
-            : "ok";
+        : optional && circuit !== "closed"
+          ? "degraded"
+          : Number(r.failures ?? 0) > 0
+            ? "failing"
+            : staleHours === null || staleHours > 6
+              ? "stale"
+              : "ok";
     return {
       sourceKey: r.source_key,
       name: r.display_name,
       enabled,
+      required: !optional,
+      requiredNote: optional,
+      circuit,
       state,
       blockedReason: r.blocked_reason,
       cadence: r.cadence,
@@ -689,8 +731,9 @@ export async function signalsHealth(db: Queryable, now: Date = new Date()) {
     summary: {
       enabled: enabled.length,
       ok: enabled.filter((s) => s.state === "ok").length,
-      stale: enabled.filter((s) => s.state === "stale").length,
-      failing: enabled.filter((s) => s.state === "failing" || s.state === "blocked").length,
+      stale: enabled.filter((s) => s.required && s.state === "stale").length,
+      failing: enabled.filter((s) => s.required && (s.state === "failing" || s.state === "blocked")).length,
+      degradedOptional: enabled.filter((s) => !s.required && s.state === "degraded").length,
       lastIngestAt: enabled.map((s) => s.lastSuccessAt).filter(Boolean).sort().at(-1) ?? null,
     },
     sources,

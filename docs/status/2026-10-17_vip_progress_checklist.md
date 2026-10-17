@@ -69,7 +69,8 @@ decisions. Percentages are estimates. *Unmerged* = lives on a branch not in
 | Signals core (events, evidence, three scores, read-time priority) | 100 | 100 | 90 | |
 | Sports: ESPN + classifier + 80/10/5/5 daily list | 100 | 95 | 85 | Rules-only classify runs after every ingest (operator 2026-10-10) |
 | Collectibles news (ComicsBeat, TAG, Alpha live) | 100 | 90 | 75 | PSA feed found (official YouTube); one operator command enables it |
-| Headlines US / World / business (GDELT) | 100 | 70 | 20 | GDELT answers 429 to every request; job backs off and resumes on its own |
+| Headlines US / World / business (GDELT DOC API) | 100 | 70 | 20 | Optional channel now: circuit breaker, 6 h probe; GDELT's legacy search is overloaded |
+| **GDELT radar (GDELT 5 Web NGrams, local matching)** | 100 | 85 | 45 | Live 2026-10-17; watch registry + Tier A/B/C; Prod jumps on merge |
 | PokéBeach ingestion + dedupe | 100 | 95 | 75 | Homepage Cloudflare-challenged since Oct 5; community-feed fallback stores new articles (2026-10-17) |
 | Pokémon entity extraction | 100 | 90 | 85 | |
 | Clustering into stored events | 100 | 90 | 80 | |
@@ -154,7 +155,7 @@ predictions works end to end (verified live 2026-10-17). What still holds
 Production back:
 
 1. Merging `cursor/signals-complete` (brief, theses, desk, reclassify, feed fallback).
-2. Outside blocks: GDELT 429s, PokéBeach Cloudflare challenge, forum 403 (never bypassed).
+2. Outside blocks: PokéBeach Cloudflare challenge and forum 403 (never bypassed). GDELT's 429s no longer block anything: discovery runs on the radar.
 3. A licensed sold-comps source, which unlocks Buy / Sell / Grade and market confirmation.
 4. Operator inputs: PSA enable command, SEC contact email, Gmail access, manual-entry and market-data decisions.
 

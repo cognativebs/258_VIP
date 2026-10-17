@@ -64,7 +64,11 @@ export type DeskSource = {
   sourceKey: string;
   name: string;
   enabled: boolean;
-  state: "ok" | "stale" | "failing" | "blocked" | "off";
+  /** false: SIGNALS runs without it (shown by circuit state, never counted as failing). */
+  required: boolean;
+  requiredNote: string | null;
+  circuit: "closed" | "degraded" | "open";
+  state: "ok" | "stale" | "failing" | "blocked" | "degraded" | "off";
   blockedReason: string | null;
   lastSuccessAt: string | null;
   hoursSinceSuccess: number | null;
@@ -76,7 +80,7 @@ export type DeskSource = {
 
 export type DeskHealth = {
   at: string;
-  summary: { enabled: number; ok: number; stale: number; failing: number; lastIngestAt: string | null };
+  summary: { enabled: number; ok: number; stale: number; failing: number; degradedOptional: number; lastIngestAt: string | null };
   sources: DeskSource[];
 };
 
@@ -87,6 +91,8 @@ export type DeskPredictions = {
 };
 
 export const GROUPS = ["Pokémon", "Sports", "Collectibles", "Headlines", "Markets"] as const;
+/** Radar is a filter by source (GDELT 5 Web NGrams), across the domain groups. */
+export const RADAR_SOURCE = "gdelt_v5_ngrams";
 
 export function ago(iso: string | null, now: Date = new Date()): string {
   if (!iso) return "never";
