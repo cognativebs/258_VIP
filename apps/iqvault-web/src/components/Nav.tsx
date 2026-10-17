@@ -18,6 +18,7 @@ const links = [
   { href: "/ebay", label: "eBay" },
   { href: "/transactions", label: "Txns" },
   { href: "/signals", label: "Signals" },
+  { href: "/signals/desk", label: "Desk" },
   { href: "/watchlist", label: "Watch" },
   { href: "/theses", label: "Theses" },
   { href: "/sources", label: "Sources" },

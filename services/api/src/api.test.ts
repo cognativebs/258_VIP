@@ -186,9 +186,9 @@ describe("VIP API", () => {
     }, unavailableComics());
   });
 
-  it("sell-queue / recommendations / theses refuse sample data when comics are down", async () => {
+  it("sell-queue / recommendations refuse sample data when comics are down", async () => {
     await withServer(async (base) => {
-      for (const path of ["/api/sell-queue", "/api/recommendations", "/api/theses"]) {
+      for (const path of ["/api/sell-queue", "/api/recommendations"]) {
         const res = await fetch(`${base}${path}`);
         expect(res.status).toBe(503);
         const body = (await res.json()) as { error: string };

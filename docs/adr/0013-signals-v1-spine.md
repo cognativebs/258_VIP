@@ -67,3 +67,22 @@ SIGNALS needs a place to keep raw evidence, group it into events, score a signal
 - Writing decay into a stored "current influence" column.
 - A generated `priority_score` column (shipped 2026-09-22, removed 2026-09-24). A generated column cannot read the weight table.
 - Waiting to create prediction rows until the thesis engine exists.
+
+## Amendment 2026-10-17: thesis table and the daily Orchestr8 brief (Greg)
+
+Operator decisions: a new thesis table (not theses-as-predictions); the brief runs once a day; it may send headline titles, links and our own fields to the model provider (no article bodies); the stack restarts at logon, and the PC still sleeps.
+
+- `vault_signals.thesis` + `vault_signals.thesis_signal` (migration `20261017_01`). A thesis is a claim with a horizon and an action (Buy / Hold / Grade / Sell / Lot / Pass / Watch), resting on at least one linked signal. Orchestr8 writes `draft · inferred · unverified`; only the operator sets `active`, `retired` or `invalidated` (status change names who and when). One open thesis per normalized claim: a restated claim links its new signals to the open thesis. Orchestr8's later verdicts (`holds` / `weakened` / `invalidated`) go to `last_review` and never change status.
+- `prediction.source_thesis_ref` stays TEXT and carries the thesis id. Each new thesis writes one prediction, so the +7/+30/+90/+180/+365 clock measures Orchestr8's calls; the operator records whether the claim held at each date. Brier is computed at read time.
+- The brief (`signals-brief@0.1.0`, `POST /api/signals/briefs/run`, scheduled hourly, runs once a local day after 07:00, $1/day cap, gpt-4o-mini by default) sends the four curated daily lists plus surfaced Pokémon signals and the open theses to an Orchestr8 pipeline: Signal Hunter → Thesis Manager → Critic → Synthesizer. The run bundle stays in Orchestr8's immutable `.runs/` (task `signals_brief`); VIP stores only what passes the gate.
+- Gate (`gateThesis`): every thesis cites signals from that brief (short refs `S1…`, full ids, or a unique 8+ character id prefix); Buy, Sell and Grade become Watch with the proposed action in `withheld` while market data is absent; confidence capped at 0.75.
+- HS-1/HS-2 hold: no priced_unit, no vault_market write, no read of `v_guide_price_baseline`. HS-3 holds: theses are not a source table. HS-5 holds: the brief makes no source call; it calls Orchestr8 only.
+
+## Amendment 2026-10-17 (b): GDELT radar replaces the DOC API as the discovery path (B1, Greg)
+
+GDELT asked researchers to use the GDELT 5 downloadable Web NGrams while its legacy search moves to Spanner (blog, 2026-06-30); the DOC API answered 429 to every request. Operator decisions: keep the matched rows forever and the full minute files 7 days (rule 3 read as "what we import"); titles and links only, no article fetching; operator authorized enabling the new source; Tier A from hunts, theses and the Pokémon Binder.
+
+- Source `gdelt_v5_ngrams` (`published_file_check`, migration `20261017_02`; seeded disabled, enabled by the operator 2026-10-17). Every 10 minutes the radar lists minute stamps after its checkpoint up to 5 minutes ago, downloads each published minute's `.toc.json.gz` + `.ngrams.txt.gz`, indexes every 1–4-word gram per document, and matches the watch vocabulary locally. A missing minute older than 30 minutes is a gap; a recent one ends the run. Matches only become one immutable snapshot per domain lane (`snapshots/gdelt_v5_ngrams/<domain>/`, GDELT DOC JSON) plus a `source_item`; the existing headline classifiers decide what is a signal.
+- `vault_signals.signal_watch_term` holds Tier D (seeded) and operator terms. Tiers A (Binder sets and cards, needing "pokemon"/"tcg"/"trading card" in the article), B (active hunt names) and C (open thesis subjects) are built at run time. Single-word terms need a context word. Tier E (emerging) is reserved.
+- The DOC API is an optional channel behind a circuit breaker (closed → degraded on one 429 → open on two → one probe every 6 h). Health is per channel; an optional channel shows its circuit and never counts as failing. PokéBeach official is shown the same way while its feed fallback covers it.
+- Not built yet: article fetching (B1.11, needs a terms decision), GDELT Events / GKG / BigQuery (B1.20–22), emergent phrases, attention velocity, narrative clustering (B1.23–25).

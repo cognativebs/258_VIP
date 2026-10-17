@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { POKEMON_SYNTHESIS_PROFILE_SEED } from "@vip/signals";
-import { buildSynthesized, type Queryable } from "./synthesized.js";
+import { buildSynthesized, reportingFor, type Queryable } from "./synthesized.js";
 
 const AT = new Date("2026-10-04T12:00:00.000Z");
 const sig = (id: string, priority: number, independent: number, influence = priority, code = "PREORDER", primaryItems = 1) => ({
@@ -99,5 +99,15 @@ describe("buildSynthesized", () => {
     ]);
     expect(p.withheld.every((w) => /not sold comps/.test(w.reason))).toBe(true);
     expect(out.signals[0]!.orchestr8Question).toMatch(/PriceCharting guide for the matched cards/);
+  });
+});
+
+describe("reportingFor", () => {
+  it("labels PokéBeach-only claims specialist primary until a second outlet corroborates them", () => {
+    expect(reportingFor(1, ["pokebeach_official"])).toBe("specialist_primary");
+    expect(reportingFor(2, ["pokebeach_official", "comicsbeat_rss"])).toBe("corroborated");
+    expect(reportingFor(1, ["comicsbeat_rss"])).toBe("single_source");
+    expect(reportingFor(1, [])).toBe("single_source");
+    expect(reportingFor(2, ["pokebeach_official", "pokemon_card_jp_youtube"])).toBe("official_confirmed");
   });
 });

@@ -81,9 +81,21 @@ async function classifyRulesOnly(
   }
 }
 
+/** `classify --reclassify [--days N]`: also re-read the last N days (default 14) of extracted snapshots. */
+function reclassifyDaysFrom(args: string[]): number | undefined {
+  if (!args.includes("--reclassify")) return undefined;
+  const k = args.indexOf("--days");
+  const days = k >= 0 ? Number(args[k + 1]) : 14;
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    console.error("--days must be a whole number from 1 to 365.");
+    process.exit(1);
+  }
+  return days;
+}
+
 async function runClassify(
   args: string[],
-  classify: (db: Queryable, llm: LlmClassifier | null) => Promise<HeadlineClassifierReport>,
+  classify: (db: Queryable, llm: LlmClassifier | null, reclassifyDays?: number) => Promise<HeadlineClassifierReport>,
 ) {
   let llm: LlmClassifier | null = null;
   if (args.includes("--llm")) {
@@ -99,7 +111,7 @@ async function runClassify(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const report = await classify(client, llm);
+    const report = await classify(client, llm, reclassifyDaysFrom(args));
     await client.query(dryRun ? "ROLLBACK" : "COMMIT");
     console.log(formatSportsClassifierReport(report));
     if (dryRun) console.log("dry run: rolled back, nothing written.");
@@ -118,6 +130,30 @@ import {
   runPriceHistoryJob,
 } from "./price-history.js";
 import { startScheduler } from "./scheduler.js";
+import { formatBriefJobReport, runSignalsBriefJob } from "./signals-brief.js";
+import { formatRadarReport, runGdeltRadar } from "./gdelt-radar.js";
+
+/** Radar matches land in one lane per domain; each lane is classified by that domain's rules. */
+const RADAR_LANES = [
+  { lane: "collectibles", ruleSetName: "collectibles-headline", job: "radar-collectibles-classifier" },
+  { lane: "sports_cards", ruleSetName: "sports-headline", job: "radar-sports-classifier" },
+  { lane: "macro", ruleSetName: "macro-headline", job: "radar-macro-classifier" },
+] as const;
+
+/** One radar pass (autocommit, so the checkpoint never runs ahead of the database), then rules-only classification. */
+async function radarAndClassify(maxBatches?: number): Promise<void> {
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  try {
+    console.log(formatRadarReport(await runGdeltRadar(pool, { maxBatches })));
+  } finally {
+    await pool.end();
+  }
+  for (const l of RADAR_LANES) {
+    await classifyRulesOnly(l.job, (db, llm) =>
+      classifyPendingDocuments(db, { sourceKeys: ["gdelt_v5_ngrams"], ruleSetName: l.ruleSetName, job: l.job, lanes: [l.lane], llm }),
+    );
+  }
+}
 
 const cmd = process.argv[2] ?? "pokemon-drops";
 
@@ -146,7 +182,7 @@ async function main() {
       return;
     }
     if (sub === "classify") {
-      await runClassify(args, (db, llm) => classifyPendingEspnDocuments(db, { llm }));
+      await runClassify(args, (db, llm, reclassifyDays) => classifyPendingEspnDocuments(db, { llm, reclassifyDays }));
       return;
     }
     const report = await runEspnSportsJob({ live: args.includes("--live") });
@@ -158,12 +194,13 @@ async function main() {
   if (cmd === "macro-news") {
     const args = process.argv.slice(3);
     if (args.find((a) => !a.startsWith("--")) === "classify") {
-      await runClassify(args, (db, llm) =>
+      await runClassify(args, (db, llm, reclassifyDays) =>
         classifyPendingDocuments(db, {
           sourceKeys: [GDELT_SOURCE_KEY],
           ruleSetName: "macro-headline",
           job: "macro-classifier",
           llm,
+          reclassifyDays,
         }),
       );
       return;
@@ -213,6 +250,23 @@ async function main() {
       dryRun: process.argv.includes("--dry-run"),
     });
     console.log(formatPriceChartingSnapshotReport(report));
+    return;
+  }
+
+  if (cmd === "gdelt-radar") {
+    // gdelt-radar [--max N] — GDELT 5 Web NGrams radar, then classify its matches (blocked until enabled).
+    const k = process.argv.indexOf("--max");
+    await radarAndClassify(k >= 0 ? Number(process.argv[k + 1]) || undefined : undefined);
+    return;
+  }
+
+  if (cmd === "signals-brief") {
+    // signals-brief [--force] [--dry-run] — the daily Orchestr8 brief via the VIP API (must be running).
+    loadApiEnv();
+    const args = process.argv.slice(3);
+    const r = await runSignalsBriefJob({ force: args.includes("--force"), dryRun: args.includes("--dry-run") });
+    console.log(formatBriefJobReport(r));
+    if (args.includes("--dry-run") && r.api) console.log(JSON.stringify(r.api, null, 2).slice(0, 4000));
     return;
   }
 
@@ -354,12 +408,13 @@ async function main() {
   if (cmd === "collectibles-news") {
     const args = process.argv.slice(3);
     if (args.find((a) => !a.startsWith("--")) === "classify") {
-      await runClassify(args, (db, llm) =>
+      await runClassify(args, (db, llm, reclassifyDays) =>
         classifyPendingDocuments(db, {
           sourceKeys: [...COLLECTIBLES_SOURCE_KEYS],
           ruleSetName: "collectibles-headline",
           job: "collectibles-classifier",
           llm,
+          reclassifyDays,
         }),
       );
       return;
@@ -465,10 +520,12 @@ async function main() {
         },
         {
           name: "pokebeach",
-          everyMs: 30 * 60 * 1000,
+          // Every 15 minutes (operator 2026-10-17). Conditional GETs keep an unchanged feed cheap, and a
+          // homepage refusal is re-checked once a day, so the shorter cadence asks no more of a block.
+          everyMs: 15 * 60 * 1000,
           run: () => {
             // Blocked until an operator enables pokebeach_official; jittered so polls never land on the same second.
-            void jitter(5 * 60 * 1000)
+            void jitter(3 * 60 * 1000)
               .then(() =>
                 inPokebeachTransaction(async (db) => {
                   const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
@@ -539,6 +596,26 @@ async function main() {
           },
         },
         {
+          name: "gdelt-radar",
+          everyMs: 10 * 60 * 1000,
+          run: () => {
+            // GDELT 5 Web NGrams, matched locally (B1, operator 2026-10-17); idle until gdelt_v5_ngrams is enabled.
+            void radarAndClassify().catch((e) => console.error(`gdelt-radar failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
+          name: "signals-brief",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Hourly check; the brief itself runs once a local day after VIP_SIGNALS_BRIEF_HOUR (operator 2026-10-17).
+            loadApiEnv();
+            void jitter(15 * 60 * 1000)
+              .then(() => runSignalsBriefJob())
+              .then((r) => console.log(formatBriefJobReport(r)))
+              .catch((e) => console.error(`signals-brief failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
           name: "clz-sync",
           everyMs: 6 * 60 * 60 * 1000,
           run: () => {
@@ -574,7 +651,7 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {

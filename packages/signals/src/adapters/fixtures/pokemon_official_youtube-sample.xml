@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. Atom shaped like a YouTube channel feed. Video IDs and titles are fictional. Not live data. -->
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+  <title>The Official Pokémon YouTube channel (fixture)</title>
+  <entry>
+    <id>yt:video:FIXTUREPKM1</id>
+    <yt:videoId>FIXTUREPKM1</yt:videoId>
+    <title>Pokémon TCG: Fixture Rise Expansion Revealed | Official Trailer</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=FIXTUREPKM1"/>
+    <published>2026-10-01T15:00:00+00:00</published>
+    <media:group>
+      <media:description>The Fixture Rise expansion arrives soon.</media:description>
+    </media:group>
+  </entry>
+</feed>

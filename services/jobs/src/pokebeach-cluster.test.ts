@@ -129,7 +129,7 @@ describe.skipIf(!DSN)("PokéBeach clustering onto spine events (IQVAULT_TEST_DSN
         prov_source: "pokebeach_official",
         prov_method: "inferred",
         prov_verification: "unverified",
-        prov_rule_version: "collectibles-headline@0.2.0+rules+item-clusters@0.1.0",
+        prov_rule_version: "collectibles-headline@0.3.0+rules+item-clusters@0.1.0",
       });
 
       // Nothing is re-clustered or moved; only the noise item is read again.

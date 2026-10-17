@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Pool, type PoolClient } from "pg";
@@ -58,31 +58,42 @@ describe("macro-news job", () => {
     ]);
   });
 
-  it("asks for one lane per run in rotation, and backs off 1 h, then 2 h, after 429s", async () => {
+  it("one lane per run behind a circuit breaker: degraded after a 429, open after two, one probe every 6 h", async () => {
     const cursorPath = freshCursor();
     const gap = process.env.VIP_GDELT_RATE_LIMIT_MS;
     process.env.VIP_GDELT_RATE_LIMIT_MS = "0";
     const asked: string[] = [];
-    let status = 429;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       asked.push(String(url));
-      return new Response("slow down", { status, statusText: "Too Many Requests" });
+      return new Response("slow down", { status: 429, statusText: "Too Many Requests" });
     });
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
     const first = await runMacroNewsJob({ live: true, now: NOW, pool: enabledPool(), cursorPath });
     expect(first.lanes.map((l) => l.lane)).toEqual(["us"]);
-    const waiting = await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 30 * 60_000), pool: enabledPool(), cursorPath });
-    expect(waiting.status).toBe("waiting");
-    expect(asked).toHaveLength(1);
-    await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 61 * 60_000), pool: enabledPool(), cursorPath });
+    expect(JSON.parse(readFileSync(cursorPath, "utf8")).circuit).toMatchObject({ state: "degraded", consecutiveFailures: 1 });
+    // Degraded still asks on the next run; the second 429 opens the circuit.
+    await runMacroNewsJob({ live: true, now: at(60), pool: enabledPool(), cursorPath });
     expect(asked).toHaveLength(2);
-    const twoHours = await runMacroNewsJob({ live: true, now: new Date(NOW.getTime() + 2 * 3600_000), pool: enabledPool(), cursorPath });
-    expect(twoHours.status).toBe("waiting");
-    expect(JSON.parse(readFileSync(cursorPath, "utf8"))).toMatchObject({ next: 0, consecutive429: 2 });
+    expect(JSON.parse(readFileSync(cursorPath, "utf8")).circuit).toMatchObject({ state: "open", nextProbeAt: at(60 + 360).toISOString() });
+    const waiting = await runMacroNewsJob({ live: true, now: at(120), pool: enabledPool(), cursorPath });
+    expect(waiting).toMatchObject({ status: "waiting", blockedReason: expect.stringMatching(/radar is unaffected/) });
+    expect(asked).toHaveLength(2);
+    // The probe is one request even with more lanes per run.
+    await runMacroNewsJob({ live: true, now: at(60 + 361), pool: enabledPool(), cursorPath, lanesPerRun: 3 });
+    expect(asked).toHaveLength(3);
+    expect(JSON.parse(readFileSync(cursorPath, "utf8"))).toMatchObject({ next: 0, circuit: { state: "open", consecutiveFailures: 3 } });
     fetchSpy.mockRestore();
     if (gap === undefined) delete process.env.VIP_GDELT_RATE_LIMIT_MS;
     else process.env.VIP_GDELT_RATE_LIMIT_MS = gap;
-    status = 200;
-    void status;
+  });
+
+  it("reads a cursor written before the circuit breaker as an open circuit", async () => {
+    const cursorPath = freshCursor();
+    writeFileSync(cursorPath, JSON.stringify({ next: 1, backoffUntil: "2026-10-01T20:00:00.000Z", consecutive429: 4 }));
+    const fetchSpy = noNetwork();
+    const r = await runMacroNewsJob({ live: true, now: NOW, pool: enabledPool(), cursorPath });
+    expect(r.status).toBe("waiting");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("accepts lane overrides from VIP_GDELT_LANES and rejects bad ones", () => {

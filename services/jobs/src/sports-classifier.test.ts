@@ -158,6 +158,30 @@ describe.skipIf(!DSN)("sports classifier writes (IQVAULT_TEST_DSN, rolled back)"
     });
   });
 
+  it("reclassify: headlines an earlier run dropped get the current rules; existing signals are untouched", async () => {
+    await inTransaction(async (db) => {
+      const nothing: LlmClassifier = {
+        model: "stub",
+        classify: async () => ({ signalType: "NONE", subjectKind: "other", subjectName: null, severity: null, hedged: false, confidence: 0.8, rationale: "x" }),
+      };
+      const first = await classifyPendingEspnDocuments(db, { llm: nothing });
+      expect(first.items).toMatchObject({ signals: 0, noSignal: 5, noise: 1 });
+
+      const re = await classifyPendingEspnDocuments(db, { reclassifyDays: 14, now: NOW });
+      expect(re).toMatchObject({ job: "sports-classifier (reclassify 14d)", documents: { processed: 3 }, items: { signals: 4, noSignal: 1, noise: 1 } });
+      const versions = await db.query(
+        `SELECT DISTINCT s.prov_rule_version FROM vault_signals.signal s
+           JOIN vault_signals.event_evidence ee ON ee.event_id = s.event_id WHERE ee.item_ref LIKE '9000%'`,
+      );
+      expect(versions.rows.map((r) => r.prov_rule_version)).toEqual(["sports-headline@0.2.0+rules+reclassify"]);
+
+      // A second pass finds every event already there, and a window that ends before the fetch reads nothing.
+      expect((await classifyPendingEspnDocuments(db, { reclassifyDays: 14, now: NOW })).items).toMatchObject({ signals: 0, alreadyClassified: 5 });
+      const later = new Date(NOW.getTime() + 30 * 86_400_000);
+      expect((await classifyPendingEspnDocuments(db, { reclassifyDays: 14, now: later })).documents.processed).toBe(0);
+    });
+  });
+
   it("leaves a document pending when its snapshot file is missing", async () => {
     await inTransaction(async (db) => {
       const report = await classifyPendingEspnDocuments(db, { stateDir: "/nonexistent-state-dir" });

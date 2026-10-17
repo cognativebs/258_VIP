@@ -236,6 +236,13 @@ describe("analysis comps context", () => {
     assert.equal(ctx.signals?.provenance.verificationStatus, "unverified");
     assert.match(ctx.signals?.provenance.notes ?? "", /not a market fact/);
     assert.equal(ctx.signals?.synthesized, null);
+    assert.equal(ctx.signals?.theses, null);
+  });
+
+  it("carries open theses from /api/signals/context through to the council context", () => {
+    const theses = [{ id: "t-1", claim: "Fixture set sells out within 30 days", status: "draft", action: "Watch" }];
+    const ctx = buildAnalysisContext(bundle([]), "all", null, { active: [], theses });
+    assert.deepEqual(ctx.signals?.theses, theses);
   });
 });
 

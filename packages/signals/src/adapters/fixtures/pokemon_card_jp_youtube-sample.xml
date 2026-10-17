@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Offline fixture. Atom shaped like a YouTube channel feed. Video IDs and titles are fictional. Not live data. -->
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+  <title>【公式】ポケモンカードチャンネル (fixture)</title>
+  <entry>
+    <id>yt:video:FIXTUREJP01</id>
+    <yt:videoId>FIXTUREJP01</yt:videoId>
+    <title>【ポケカ新商品】拡張パック「フィクスチャライズ」発売決定！【ポケモンカード】</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=FIXTUREJP01"/>
+    <published>2026-10-01T03:00:00+00:00</published>
+    <media:group>
+      <media:description>新しい拡張パックの紹介です。</media:description>
+    </media:group>
+  </entry>
+</feed>

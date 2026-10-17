@@ -177,7 +177,7 @@ export {
   type CuratedItem,
 } from "./curation/daily-sports.js";
 export { DAILY_SPORTS_PROFILE_SEED } from "./curation/daily-sports-seed.js";
-export { COLLECTIBLES_HEADLINE_RULES_SEED, COLLECTIBLES_HEADLINE_RULES_V0_2_0 } from "./classifier/collectibles-headline-seed.js";
+export { COLLECTIBLES_HEADLINE_RULES_SEED, COLLECTIBLES_HEADLINE_RULES_V0_2_0, COLLECTIBLES_HEADLINE_RULES_V0_3_0 } from "./classifier/collectibles-headline-seed.js";
 export { DAILY_COLLECTIBLES_PROFILE_SEED } from "./curation/daily-collectibles-seed.js";
 export { MACRO_HEADLINE_RULES_SEED } from "./classifier/macro-headline-seed.js";
 export { DAILY_HEADLINES_PROFILE_SEED, DAILY_MARKETS_PROFILE_SEED } from "./curation/daily-macro-seed.js";
@@ -202,6 +202,10 @@ export {
   parseArticlePage,
   articleContentHash,
   parseDiscoveryFeedUrls,
+  parseDiscoveryFeedArticles,
+  feedPubDateToUtc,
+  FEED_TIME_SOURCE,
+  type FeedArticle,
   parseForumThreads,
   titleKey,
   HomepageArticleSchema,
@@ -274,3 +278,60 @@ export {
   type ProposalInput,
   type SignalProposal,
 } from "./synthesis/proposal.js";
+export {
+  BRIEF_VERSION,
+  BRIEF_TASK,
+  BRIEF_ROLES,
+  THESIS_CONFIDENCE_CAP,
+  BriefSignalSchema,
+  OpenThesisSchema,
+  BriefThesisCandidateSchema,
+  ThesisVerdictSchema,
+  ThesisDraftSchema,
+  parseBriefOutput,
+  claimKey,
+  gateThesis,
+  resolveCitation,
+  briefQuestion,
+  type BriefSignal,
+  type OpenThesis,
+  type BriefThesisCandidate,
+  type ThesisVerdict,
+  type BriefOutput,
+  type ThesisDraft,
+  type GateResult,
+} from "./thesis/brief.js";
+export { calibrationSummary, type MeasuredCall, type CalibrationSummary } from "./thesis/calibration.js";
+export {
+  GDELT_V5_SOURCE_KEY,
+  GDELT_V5_BASE,
+  RADAR_VERSION,
+  PUBLISH_LAG_MINUTES,
+  DEFAULT_CONTEXT,
+  RadarDomainSchema,
+  WatchTermSchema,
+  normalizeText as normalizeRadarText,
+  minuteStamps,
+  stampOf,
+  dateOfStamp,
+  parseToc,
+  gramIndex,
+  compileTerms,
+  matchBatch,
+  canonicalUrl,
+  radarSnapshotJson,
+  type RadarDomain,
+  type WatchTerm,
+  type TocRow,
+  type RadarMatch,
+} from "./radar/gdelt-v5.js";
+export {
+  CircuitSchema,
+  CircuitStateSchema,
+  PROBE_EVERY_MS,
+  isTripping,
+  mayCall,
+  recordOutcome,
+  type Circuit,
+  type CircuitStateName,
+} from "./radar/circuit.js";
