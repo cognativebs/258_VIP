@@ -85,8 +85,10 @@ export type SignalArticle = {
   direction: string;
   band: string | null;
   proposal: string | null;
-  /** Pokémon clusters: corroborated, specialist_primary (PokéBeach alone) or single_source. */
+  /** Pokémon clusters: official_confirmed, corroborated, specialist_primary (PokéBeach alone) or single_source. */
   reporting: string | null;
+  /** Featured image the source published (display only). */
+  imageUrl: string | null;
   attribution: string;
   sourceKey: string;
   url: string | null;
@@ -122,6 +124,7 @@ export async function signalArticles(
             vault_signals.signal_influence(s.id, $1)::float AS influence,
             vault_signals.independent_source_count(s.event_id) AS independent,
             d.source_id, d.source_url AS feed_url, ee.source_item_url, src.display_name AS source_name,
+            (SELECT i.image_url FROM vault_signals.source_item i WHERE i.id = ee.source_item_id) AS image_url,
             (SELECT ds.storage_key FROM vault_signals.document_snapshot ds
               WHERE ds.raw_document_id = d.id ORDER BY ds.storage_key LIMIT 1) AS storage_key,
             (SELECT count(*) FROM vault_signals.thesis_signal ts WHERE ts.signal_id = s.id)::int AS thesis_count
@@ -159,6 +162,7 @@ export async function signalArticles(
         band: p?.band ?? null,
         proposal: p?.proposal ?? null,
         reporting: p?.reporting ?? null,
+        imageUrl: r.image_url ?? null,
         attribution: attributionFor(r.source_id, r.source_name, r.source_item_url),
         sourceKey: r.source_id,
         url: r.source_item_url,

@@ -24,6 +24,8 @@ describe("collectibles-news job", () => {
       ["psa_news", "fixture", 1],
       ["tag_news", "no_fixture", 0],
       ["alpha_investments_youtube", "fixture", 2],
+      ["pokemon_official_youtube", "fixture", 1],
+      ["pokemon_card_jp_youtube", "fixture", 1],
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -72,7 +74,7 @@ describe.skipIf(!DSN)("collectibles classification (IQVAULT_TEST_DSN, rolled bac
         ruleSetName: "collectibles-headline",
       });
       expect(report).toMatchObject({
-        ruleSet: "collectibles-headline@0.2.0",
+        ruleSet: "collectibles-headline@0.3.0",
         documents: { processed: 3, missingSnapshot: [] },
         items: { seen: 6, signals: 4, noise: 1, noSignal: 1 },
         byType: { MEDIA_ADAPTATION: 1, REPRINT: 2, GRADING_SERVICE_CHANGE: 1 },

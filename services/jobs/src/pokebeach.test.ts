@@ -321,6 +321,12 @@ describe.skipIf(!DSN)("pokebeach connector, homepage-only mode (the default; IQV
       expect(missed.rows.map((r) => [r.status, new Date(r.published_at).toISOString(), r.published_at_source, r.discovered_via])).toEqual([
         ["discovered", "2026-09-30T16:00:00.000Z", "community_feed_pubDate:Pacific wall clock labeled GMT (inferred)", ["community_feed"]],
       ]);
+      // Featured images: filled in for the article the homepage already gave us; an http image is not kept.
+      const images = await db.query(
+        `SELECT canonical_url, image_url, revision_count FROM vault_signals.source_item WHERE source_id = 'pokebeach_official' ORDER BY canonical_url`,
+      );
+      expect(images.rows.find((r) => r.canonical_url === STORM)).toMatchObject({ image_url: "https://www.pokebeach.com/news/2026/10/fixture-storm-etb.jpg", revision_count: 0 });
+      expect(images.rows.find((r) => r.canonical_url === MISSED)?.image_url).toBeNull();
     });
   });
 

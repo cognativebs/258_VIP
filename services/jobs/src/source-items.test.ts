@@ -37,10 +37,10 @@ describe.skipIf(!DSN)("indexing outlets as items (IQVAULT_TEST_DSN, rolled back)
       for (const s of macroFixtureSnapshots(NOW)) await persistFeedSnapshots(db, GDELT_SOURCE_KEY, [s], { status: "succeeded" });
 
       const first = await indexFeedItems(db, { now: NOW });
-      // ComicsBeat 3 + PSA 1 + Alpha 2 + GDELT business 3; the us/world lanes are not indexed.
-      expect(first).toMatchObject({ documents: 4, created: 9, revised: 0 });
+      // ComicsBeat 3 + PSA 1 + Alpha 2 + the two official Pokémon channels 1 each + GDELT business 3; the us/world lanes are not indexed.
+      expect(first).toMatchObject({ documents: 6, created: 11, revised: 0 });
       const again = await indexFeedItems(db, { now: NOW });
-      expect(again).toMatchObject({ created: 0, revised: 0, seen: 9 });
+      expect(again).toMatchObject({ created: 0, revised: 0, seen: 11 });
 
       const rows = await db.query(
         `SELECT source_id, canonical_url, published_at, published_at_source, status, excerpt
@@ -72,7 +72,7 @@ describe.skipIf(!DSN)("indexing outlets as items (IQVAULT_TEST_DSN, rolled back)
     await inTransaction(async (db) => {
       for (const s of collectiblesFixtureSnapshots(NOW)) await persistFeedSnapshots(db, s.sourceKey, [s], { status: "succeeded" });
       const r = await indexFeedItems(db, { now: NOW, stateDir: "/nonexistent-state-dir" });
-      expect(r).toMatchObject({ documents: 0, missingSnapshot: 3, created: 0 });
+      expect(r).toMatchObject({ documents: 0, missingSnapshot: 5, created: 0 });
     });
   });
 });

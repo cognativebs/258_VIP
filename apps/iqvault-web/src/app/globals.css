@@ -1188,3 +1188,19 @@ button.desk-chip.on:not(.hunt-card):not(.nav-link) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.desk-article-image {
+  float: right;
+  width: 112px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 4px 0 4px 10px;
+  border: 1px solid var(--border);
+}
+
+.desk-article::after {
+  content: "";
+  display: block;
+  clear: both;
+}

@@ -211,12 +211,12 @@ export function feedPubDateToUtc(pubDate: string | null | undefined): string | n
   return pacificDisplayTimeToUtc(display);
 }
 
-export type FeedArticle = { canonicalUrl: string; title: string; author: string | null; publishedAt: string };
+export type FeedArticle = { canonicalUrl: string; title: string; author: string | null; publishedAt: string; imageUrl: string | null };
 
 /**
  * Homepage-blocked fallback (operator 2026-10-17: find work-arounds): the community
- * feed's article title, author and Pacific time. Discovered · inferred, never confirmed;
- * an item without a parsable time is skipped.
+ * feed's article title, author, Pacific time and featured image (https only, display
+ * only). Discovered · inferred, never confirmed; an item without a parsable time is skipped.
  */
 export function parseDiscoveryFeedArticles(xml: string): FeedArticle[] {
   const out = new Map<string, FeedArticle>();
@@ -227,7 +227,9 @@ export function parseDiscoveryFeedArticles(xml: string): FeedArticle[] {
     const publishedAt = feedPubDateToUtc(/<pubDate>([\s\S]*?)<\/pubDate>/.exec(block!)?.[1]);
     if (!url || !title || !publishedAt || out.has(url)) continue;
     const author = strip(/<dc:creator>([\s\S]*?)<\/dc:creator>/.exec(block!)?.[1]) || null;
-    out.set(url, { canonicalUrl: url, title, author, publishedAt });
+    const image = decodeHtml(/<media:(?:thumbnail|content)\b[^>]*\burl="([^"]+)"/.exec(block!)?.[1] ?? "").trim();
+    const imageUrl = /^https:\/\/\S+$/.test(image) && image.length <= 2048 ? image : null;
+    out.set(url, { canonicalUrl: url, title, author, publishedAt, imageUrl });
   }
   return [...out.values()];
 }

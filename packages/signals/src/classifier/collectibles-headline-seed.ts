@@ -216,3 +216,63 @@ export const COLLECTIBLES_HEADLINE_RULES_V0_2_0: ClassifierRuleSet = {
   notes:
     "0.2.0 · unverified (2026-10-04). Adds Pokémon TCG themes (card reveal, product reveal, preorder, pull rate, promotion, competitive); preorders are no longer restocks. Competitive news carries little collector impact. All numbers are starting guesses, not measurements.",
 };
+
+const v020Rule = (type: string) => COLLECTIBLES_HEADLINE_RULES_V0_2_0.rules.find((r) => r.type === type)!;
+
+/**
+ * collectibles-headline@0.3.0 (operator 2026-10-17): leaks and rumours get their own theme
+ * (LEAK_RUMOR, read first so a leaked reveal is labelled a leak; the hedge still lowers its
+ * confidence) and accessories / merch move out of product reveals into MERCH. Japanese titles
+ * from the official Pokémon Card channel read as product reveals, preorders, card reveals and set
+ * releases. Neither new theme stands alone in synthesis: each needs a cluster of 2+ articles.
+ * Migration 20261017_03 embeds this object. Impacts are starting guesses · unverified.
+ */
+export const COLLECTIBLES_HEADLINE_RULES_V0_3_0: ClassifierRuleSet = {
+  ...COLLECTIBLES_HEADLINE_RULES_V0_2_0,
+  version: "0.3.0",
+  rules: [
+    {
+      type: "LEAK_RUMOR",
+      patterns: ["\\bleak(ed|s)?\\b", "\\brumou?r(s|ed)?\\b", "\\bdatamine[ds]?\\b", "リーク"],
+      excludePatterns: [],
+    },
+    v020Rule("GRADING_SERVICE_CHANGE"),
+    v020Rule("REPRINT"),
+    v020Rule("PULL_RATE"),
+    { ...v020Rule("PREORDER"), patterns: [...v020Rule("PREORDER").patterns, "予約(受付|開始)"] },
+    v020Rule("RESTOCK"),
+    v020Rule("SUPPLY_CHANGE"),
+    v020Rule("PROMOTION"),
+    v020Rule("COMPETITIVE"),
+    {
+      type: "MERCH",
+      patterns: [
+        "\\b(plush(ies)?|skateboards?|apparel|clothing|hoodies?|t-?shirts?|figures?|figurines?|merch(andise)?|playmats?|sleeves|deck box(es)?|accessor(y|ies)|collab(oration)?s?)\\b",
+        "ぬいぐるみ|グッズ",
+      ],
+      excludePatterns: [],
+    },
+    { ...v020Rule("CARD_REVEAL"), patterns: [...v020Rule("CARD_REVEAL").patterns, "新カード", "カード.*初公開"] },
+    {
+      type: "PRODUCT_REVEAL",
+      patterns: [
+        "\\b(elite trainer box(es)?|etbs?|booster box(es)?|booster bundles?|collections?|tins?|binders?|blisters?)\\b.*\\b(revealed|announced|unveiled|to release|releasing|released)\\b",
+        "\\b(revealed|announced|unveiled)\\b.*\\b(elite trainer box(es)?|etbs?|booster box(es)?|booster bundles?|collections?|tins?|binders?)\\b",
+        "新商品",
+        "発売決定",
+      ],
+      excludePatterns: [],
+    },
+    v020Rule("MEDIA_ADAPTATION"),
+    { ...v020Rule("SET_RELEASE"), patterns: [...v020Rule("SET_RELEASE").patterns, "拡張パック.*発売"] },
+    v020Rule("AUCTION_RESULT"),
+    v020Rule("LICENSE_CHANGE"),
+  ],
+  types: {
+    ...COLLECTIBLES_HEADLINE_RULES_V0_2_0.types,
+    LEAK_RUMOR: { direction: "mixed", impact: { unknown: 0.25 } },
+    MERCH: { direction: "mixed", impact: { unknown: 0.1 } },
+  },
+  notes:
+    "0.3.0 · unverified (2026-10-17). Adds LEAK_RUMOR (leaks, rumours, dataminers; still hedged) and MERCH (accessories, plush, apparel, collaborations), read before reveals; accessories leave PRODUCT_REVEAL. Japanese product, preorder, card and set patterns for the official Pokémon Card channel. All numbers are starting guesses, not measurements.",
+};

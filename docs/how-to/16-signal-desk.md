@@ -13,7 +13,7 @@ It may propose new **theses** (a claim with a horizon and an action). They arriv
   - **Orchestr8 briefs**: today's brief (headline, summary, points per group, cost, run id); earlier briefs fold away
   - **Theses**: action, what is withheld (Buy / Sell / Grade wait for sold comps), confidence (max 0.75), horizon, the articles it rests on, Orchestr8's latest verdict, and **Activate / Retire / Invalidate**
   - **Calls to score**: each thesis is checked at +7 / +30 / +90 / +180 / +365 days; press **Held** or **Did not hold** when one is due. The Brier score appears once there are enough calls (lower is better; 0.25 = coin flip)
-  - **Articles · last 72h**: every signal article, newest first; filter by group, search, hide Pokémon noise; each title links to the source
+  - **Articles · last 72h**: every signal article, newest first; filter by group (or **Radar**), search, hide Pokémon noise; each title links to the source; PokéBeach stories show their featured image and how the claim stands: **official confirmed** (an official Pokémon channel among the sources), **corroborated** (2+ independent outlets), **specialist primary** (PokéBeach alone) or **single source**
   - **Feed health** (fold-out): every source, its state and the last success
 - **Theses** (`/theses`): all theses grouped by status.
 - **Orchestr8 console**: briefs are runs with task `signals_brief`; open theses also ride along in `/api/signals/context`, so the Analysis tab and councils see them.

@@ -577,8 +577,12 @@ export async function runPokebeachDiscovery(db: Queryable, client: ClientOptions
       await finishRun(db, feedRun, "succeeded", 1, 0, null);
       const feedArticles = new Map(parseDiscoveryFeedArticles(got.body).map((a) => [a.canonicalUrl, a]));
       for (const url of parseDiscoveryFeedUrls(got.body)) {
-        if (await touchArticle(db, url, null, "community_feed", now)) report.seen += 1;
-        else if (articlePagesEnabled()) await ingestArticle(db, runId, url, "community_feed", report, client);
+        const image = feedArticles.get(url)?.imageUrl ?? null;
+        if (await touchArticle(db, url, null, "community_feed", now)) {
+          report.seen += 1;
+          // Featured image (operator 2026-10-17): fill it in for an article we already know; display only.
+          if (image) await db.query(`UPDATE vault_signals.source_item SET image_url = $3 WHERE source_id = $1 AND canonical_url = $2 AND image_url IS NULL`, [OFFICIAL, url, image]);
+        } else if (articlePagesEnabled()) await ingestArticle(db, runId, url, "community_feed", report, client);
         else if (feedItemsEnabled() && feedArticles.has(url)) {
           // Homepage blocked (Cloudflare challenge since 2026-10-05): the feed's own title, author and
           // Pacific time, discovered · inferred. The homepage or an article page supersedes it by URL.
@@ -587,7 +591,7 @@ export async function runPokebeachDiscovery(db: Queryable, client: ClientOptions
           const result = await upsertSourceItem(
             db,
             OFFICIAL,
-            { externalId: null, canonicalUrl: a.canonicalUrl, authorSlug: null, modifiedAt: null, ...fields },
+            { externalId: null, canonicalUrl: a.canonicalUrl, authorSlug: null, modifiedAt: null, imageUrl: a.imageUrl, ...fields },
             {
               via: "community_feed",
               rawDocumentId: feedRawId,

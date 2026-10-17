@@ -108,5 +108,6 @@ describe("reportingFor", () => {
     expect(reportingFor(2, ["pokebeach_official", "comicsbeat_rss"])).toBe("corroborated");
     expect(reportingFor(1, ["comicsbeat_rss"])).toBe("single_source");
     expect(reportingFor(1, [])).toBe("single_source");
+    expect(reportingFor(2, ["pokebeach_official", "pokemon_card_jp_youtube"])).toBe("official_confirmed");
   });
 });

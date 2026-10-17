@@ -58,6 +58,8 @@ export const SIGNAL_TYPE_SEED: ReadonlyArray<{
   { code: "PULL_RATE", displayName: "Pull rate", defaultHalfLifeHours: 720, description: GUESS, halfLifeVerified: false },
   { code: "PROMOTION", displayName: "Promotion", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
   { code: "COMPETITIVE", displayName: "Competitive", defaultHalfLifeHours: 168, description: GUESS, halfLifeVerified: false },
+  { code: "LEAK_RUMOR", displayName: "Leak or rumour", defaultHalfLifeHours: 168, description: GUESS, halfLifeVerified: false },
+  { code: "MERCH", displayName: "Merch and accessories", defaultHalfLifeHours: 336, description: GUESS, halfLifeVerified: false },
 ];
 
 export const SCORE_WEIGHT_SEED = {

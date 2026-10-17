@@ -25,12 +25,20 @@ const CLUSTER_JOB = "pokebeach-cluster@%";
 /** Exposure matches the most specific entity first. */
 const ENTITY_KIND_ORDER = "CASE se.entity_kind WHEN 'set' THEN 0 WHEN 'product' THEN 1 WHEN 'card' THEN 2 WHEN 'pokemon' THEN 3 ELSE 9 END";
 
+/** First-party Pokémon channels (operator 2026-10-17). */
+export const OFFICIAL_POKEMON_SOURCES = new Set(["pokemon_official_youtube", "pokemon_card_jp_youtube"]);
+
 /**
- * How the claim stands: two or more independent outlets = corroborated; PokéBeach alone =
- * specialist primary reporting (credible trade press, not yet confirmed by a second source);
- * anything else alone = single source. Read-time, never stored.
+ * How the claim stands: an official Pokémon channel among the sources = official confirmed;
+ * two or more independent outlets = corroborated; PokéBeach alone = specialist primary reporting
+ * (credible trade press, not yet confirmed by a second source); anything else alone = single
+ * source. Read-time, never stored.
  */
-export function reportingFor(independent: number, sourceKeys: ReadonlyArray<string>): "corroborated" | "specialist_primary" | "single_source" {
+export function reportingFor(
+  independent: number,
+  sourceKeys: ReadonlyArray<string>,
+): "official_confirmed" | "corroborated" | "specialist_primary" | "single_source" {
+  if (sourceKeys.some((k) => OFFICIAL_POKEMON_SOURCES.has(k))) return "official_confirmed";
   if (independent >= 2) return "corroborated";
   return sourceKeys.length > 0 && sourceKeys.every((k) => k.startsWith("pokebeach")) ? "specialist_primary" : "single_source";
 }

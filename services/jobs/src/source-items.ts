@@ -26,6 +26,8 @@ export type SourceItemInput = {
   publishedAt: string | null;
   modifiedAt: string | null;
   description: string | null;
+  /** Featured image the feed published (https). Display only: not in the content hash, never a revision. */
+  imageUrl?: string | null;
 };
 
 /** Material content only (title, author, publish time, summary); comment counts and routes never revise. */
@@ -64,8 +66,8 @@ export async function upsertSourceItem(
       `INSERT INTO vault_signals.source_item (
          source_id, item_kind, external_id, canonical_url, title, author_name, author_ref,
          published_at, published_at_source, modified_at, excerpt, content_hash, status,
-         first_seen_at, last_seen_at, discovered_via, parser_version
-       ) VALUES ($1, 'article', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, ARRAY[$14], $15)
+         first_seen_at, last_seen_at, discovered_via, parser_version, image_url
+       ) VALUES ($1, 'article', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, ARRAY[$14], $15, $16)
        RETURNING id`,
       [
         sourceKey,
@@ -83,6 +85,7 @@ export async function upsertSourceItem(
         opts.now,
         opts.via,
         opts.parserVersion,
+        item.imageUrl ?? null,
       ],
     );
     await db.query(
@@ -105,9 +108,10 @@ export async function upsertSourceItem(
             published_at = CASE WHEN $6 THEN $9::timestamptz ELSE published_at END,
             excerpt = CASE WHEN $6 THEN $10 ELSE excerpt END,
             content_hash = $11,
-            revision_count = revision_count + CASE WHEN $6 THEN 1 ELSE 0 END
+            revision_count = revision_count + CASE WHEN $6 THEN 1 ELSE 0 END,
+            image_url = coalesce($12, image_url)
       WHERE id = $1`,
-    [existing.id, opts.now, opts.via, item.modifiedAt, item.canonicalUrl, revised, item.title, item.author, item.publishedAt, excerpt, hash],
+    [existing.id, opts.now, opts.via, item.modifiedAt, item.canonicalUrl, revised, item.title, item.author, item.publishedAt, excerpt, hash, item.imageUrl ?? null],
   );
   if (revised) {
     await db.query(
@@ -121,7 +125,7 @@ export async function upsertSourceItem(
 }
 
 /** Feeds the indexer reads, and which GDELT lanes count (only business news is collectibles-relevant). */
-export const INDEXED_FEED_SOURCES = ["comicsbeat_rss", "alpha_investments_youtube", "psa_news", "tag_news", "gdelt_doc_v2"] as const;
+export const INDEXED_FEED_SOURCES = ["comicsbeat_rss", "alpha_investments_youtube", "psa_news", "tag_news", "gdelt_doc_v2", "pokemon_official_youtube", "pokemon_card_jp_youtube"] as const;
 const GDELT_LANES = new Set(["business"]);
 
 export type IndexReport = {

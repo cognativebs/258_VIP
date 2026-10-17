@@ -57,8 +57,11 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
               {a.band ? <span className={`badge ${a.band === "strong" || a.band === "high_conviction" ? "badge-ok" : ""}`}>{BAND_LABEL[a.band] ?? a.band}</span> : null}
               {a.proposal ? <span className="badge badge-ok">Proposed: {a.proposal}</span> : null}
               {a.reporting ? (
-                <span className={`badge ${a.reporting === "corroborated" ? "badge-ok" : ""}`} title="Two or more independent outlets = corroborated; PokéBeach alone = specialist primary reporting">
-                  {a.reporting === "specialist_primary" ? "specialist primary" : a.reporting.replace("_", " ")}
+                <span
+                  className={`badge ${a.reporting === "official_confirmed" || a.reporting === "corroborated" ? "badge-ok" : ""}`}
+                  title="An official Pokémon channel among the sources = official confirmed; two or more independent outlets = corroborated; PokéBeach alone = specialist primary reporting"
+                >
+                  {a.reporting.replace("_", " ")}
                 </span>
               ) : null}
               {a.direction === "up" || a.direction === "down" ? <span className="badge">{a.direction === "up" ? "↑ up" : "↓ down"}</span> : null}
@@ -69,6 +72,11 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
                 {ago(a.firstSeenAt)}
               </span>
             </div>
+            {a.imageUrl ? (
+              // Featured image as the source published it; loaded by your browser, never stored.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="desk-article-image" src={a.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+            ) : null}
             <div className="desk-article-title">
               {a.url ? (
                 <a href={a.url} target="_blank" rel="noreferrer">

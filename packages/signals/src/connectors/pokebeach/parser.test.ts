@@ -113,8 +113,10 @@ describe("canonical URLs and discovery feeds", () => {
         title: "Fixture Storm Elite Trainer Box Revealed!",
         author: null,
         publishedAt: "2026-10-02T18:14:00.000Z",
+        imageUrl: "https://www.pokebeach.com/news/2026/10/fixture-storm-etb.jpg",
       },
-      { canonicalUrl: "https://www.pokebeach.com/2026/09/fixture-missed-article", title: "Fixture Missed Article", author: null, publishedAt: "2026-09-30T16:00:00.000Z" },
+      // An http image is not kept.
+      { canonicalUrl: "https://www.pokebeach.com/2026/09/fixture-missed-article", title: "Fixture Missed Article", author: null, publishedAt: "2026-09-30T16:00:00.000Z", imageUrl: null },
     ]);
     // Winter time is PST (UTC-8); a missing or odd date is null, never a guess.
     expect(feedPubDateToUtc("Tue, 08 Dec 2026 00:30:00 GMT")).toBe("2026-12-08T08:30:00.000Z");

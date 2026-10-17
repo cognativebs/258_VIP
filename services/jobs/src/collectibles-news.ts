@@ -23,6 +23,9 @@ export const COLLECTIBLES_SOURCE_KEYS = [
   "psa_news",
   "tag_news",
   "alpha_investments_youtube",
+  // Official Pokémon channels (operator 2026-10-17): first-party confirmation of reveals.
+  "pokemon_official_youtube",
+  "pokemon_card_jp_youtube",
 ] as const;
 export type CollectiblesSourceKey = (typeof COLLECTIBLES_SOURCE_KEYS)[number];
 
