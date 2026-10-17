@@ -22,7 +22,7 @@ endpoint reports `scoringEnabled: false` until then. The manual intelligence
 store still writes JSON (`VIP_INTELLIGENCE_STATE`); moving it onto the new
 Postgres tables is the next step.
 
-**Progress checklist (2026-10-04):** POC / Testing / Production percentages per task — [`docs/status/2026-10-04_vip_progress_checklist.md`](status/2026-10-04_vip_progress_checklist.md).
+**Progress checklist (2026-10-17, latest):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
 
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
@@ -89,7 +89,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Contribution stats per source (signal count, quarantine rate, evidence count)
 - [x] Basic Signals output on `/signals` (bucket-aware Hold / Review / Churn — never a price) — Week 1 · 2026-08-29
 - [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
-- [ ] Prediction ledger / Brier calibration visible on Signals page
+- [x] Prediction ledger / Brier calibration on the Signal Desk (`/signals/desk`, "Calls to score"; operator marks each due measurement held / did not hold) — 2026-10-17
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
 
@@ -99,12 +99,14 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 
 - [x] **Sports**: ESPN NFL, college football, soccer, NBA, MLB; daily list 80/10/5/5, NBA + MLB framed as exit sports (`daily-sports`)
 - [x] **Collectibles news**: ComicsBeat, PokeBeach, PSA, TAG, Alpha Investments (YouTube, opinion) wired on fixtures; `collectibles-headline` classifier; `daily-collectibles` list (comics 40 / Pokémon 35 / grading 15 / creator 10, starting shares · unverified)
-  - [ ] Operator: enable the feeds found 2026-10-10 — TAG `https://taggrading.com/blogs/news.atom` (official Atom, robots allow), Alpha Investments `https://www.youtube.com/feeds/videos.xml?channel_id=UCTp-iVOtTrKau0skmfZlo5Q` (@AlphaInvestments69, opinion). PSA publishes no feed: stays blocked (no scraping)
+  - [x] TAG and Alpha Investments enabled by the operator (2026-10-11)
+  - [ ] Operator: enable PSA from its official YouTube channel feed, found 2026-10-17 (no scraping): `npm run news-source -- enable psa_news --endpoint "https://www.youtube.com/feeds/videos.xml?channel_id=UCUVfCsjCXyyUDAK7VDnXh2Q" --confirm-operator` ("PSA Official", verified live)
 - **PokéBeach hybrid connector** *(operator build spec 2026-10-03; mapped onto ADR 0013: three stored scores, read-time priority, no 0–100 strength column)*
   - [x] 1. Official homepage ingestion (`pokebeach official`, every 30 min + jitter; identity and UTC time from each article page; polite fetching, conditional GET, backoff; parser-degraded ingests nothing)
   - [x] 2. Canonical dedupe (`source_item` per canonical URL + WordPress post id; `source_item_revision` history; daily 48h `reconcile`; `backfill --days 90`; community feed + forum RSS are discovery only)
   - [x] 3. Tracked-member configuration (8 members, per-specialty weights in `signals_source_author`; `pokebeach members set|check`)
   - [ ] PokéBeach official is behind a Cloudflare bot challenge since 2026-10-05 (403 to VIP; never worked around). VIP re-checks once a day and resumes on its own if allowed. Operator option: ask PokéBeach for feed access
+  - [x] Work-around (2026-10-17): while article pages are off, discovery stores articles the homepage never listed straight from the community front-page feed (title, author, Pacific time read from the feed's GMT label; discovered · inferred). The homepage or an article page supersedes them by URL. `VIP_POKEBEACH_FEED_ITEMS=off` stops it. First run: 9 articles (Oct 4–16) and 2 new Pokémon events
   - [ ] 4. Public member activity ingestion: blocked — forum member pages 403 (2026-10-03) and the site now challenges all automated clients; never bypass
   - [x] 5. Pokémon entity extraction (`pokebeach extract`, also after each scheduled poll): species → national Dex, sets → `vault_pokemon.set` / Binder names, cards by suffix/Mega, products by pattern; quoted set names learned without an identity; text placeholders until the entity layer (P7)
   - Homepage-only mode since 2026-10-03 (article pages answered 403): titles only, inferred Pacific times; `VIP_POKEBEACH_ARTICLE_PAGES=on` restores article pages
@@ -119,11 +121,15 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] **Markets & business news (GDELT lane)**: GDELT `business` lane (collectibles companies, marketplaces, markets); `daily-markets` list
   - [x] GDELT enabled; one lane per hourly run in rotation, back-off 1 → 12 h after a 429 (2026-10-10)
   - [ ] SEC EDGAR filings lane (row exists): needs a contact email for the SEC User-Agent and a confirmed company list
+  - [ ] GDELT answers 429 to every request (checked again 2026-10-17, single request): the job backs off 1 → 12 h and resumes on its own. If it stays down, the operator could approve an alternative headline source (e.g. publisher RSS); none is enabled
   - [ ] Finance newsletters lane (rows exist): needs Gmail access for the job (Google OAuth, read-only label), or a forwarded-email inbox folder
 - [x] `news-source list | enable <key> [--endpoint] --confirm-operator | disable` operator command; collectibles-news and macro-news run hourly in the scheduler (blocked until enabled)
 - [x] Rules-only classification runs after every ESPN, collectibles and GDELT ingest (operator 2026-10-10; no LLM)
 - [x] Jobs scheduler stays up: timers keep the process alive, failures are logged, a supervisor restarts it and logs to `scripts\logs\jobs.log` (it had exited quietly 2026-10-07)
-- [ ] Re-classify command (a document once `extracted` is not re-read when rules or the LLM choice change)
+- [x] Stack restarts at logon (2026-10-17): Windows task "VIP IQVault Stack at Logon" (`scripts/register_iqvault_logon_task.ps1`), 2 min after logon, fast-forwards the runner first so a merged PR goes live. A Windows Update restart on 2026-10-14 had stopped every feed for 3 days. The PC still sleeps when idle (operator choice): feeds pause and catch up on wake
+- [x] **SIGNALS → Thesis → Orchestr8** (2026-10-17, ADR 0013 amendment): daily Orchestr8 brief (Signal Hunter → Thesis Manager → Critic → Synthesizer, gpt-4o-mini, $1/day cap) over the curated daily lists + Pokémon signals + open theses; gated drafts in `vault_signals.thesis` with linked signals and a prediction each; open theses in `/api/signals/context` for councils; `/theses` shows real theses
+- [x] **Signal Desk** `/signals/desk`: latest and earlier briefs, theses with Activate / Retire / Invalidate, filterable 72 h article feed (group, search, Pokémon noise), calls to score with Brier, feed health. APIs: `/api/signals/{articles,briefs,briefs/run,health,predictions}`, `/api/theses` (+ PATCH)
+- [x] Re-classify command (2026-10-17): `npm run job:espn-sports -- classify --reclassify [--days 14] [--dry-run]` (also `collectibles-news` / `macro-news`). Re-reads the last N days of snapshots and classifies, with the current rules, only headlines that never produced an event; existing events and signals are never touched (`…+reclassify` in the rule version)
 - [ ] **Retail drops (Pokémon Center, Target) and Whatnot**: no public feed and scraping is forbidden; news reports (PokeBeach) + operator manual entries, both labeled by source
 - [ ] **Market data (separate track, outside the SIGNALS spine)**: stock indices from FRED; gold/silver wait for a licensed free source (FRED no longer carries LBMA metals); eBay asks exist, sold access restricted; TCGplayer API closed (no adapter); PSA/TAG population reports
 
