@@ -56,6 +56,11 @@ export function DeskArticles({ articles }: { articles: DeskArticle[] }) {
               <span className="badge">{a.typeName}</span>
               {a.band ? <span className={`badge ${a.band === "strong" || a.band === "high_conviction" ? "badge-ok" : ""}`}>{BAND_LABEL[a.band] ?? a.band}</span> : null}
               {a.proposal ? <span className="badge badge-ok">Proposed: {a.proposal}</span> : null}
+              {a.reporting ? (
+                <span className={`badge ${a.reporting === "corroborated" ? "badge-ok" : ""}`} title="Two or more independent outlets = corroborated; PokéBeach alone = specialist primary reporting">
+                  {a.reporting === "specialist_primary" ? "specialist primary" : a.reporting.replace("_", " ")}
+                </span>
+              ) : null}
               {a.direction === "up" || a.direction === "down" ? <span className="badge">{a.direction === "up" ? "↑ up" : "↓ down"}</span> : null}
               {a.method === "opinion" ? <span className="badge badge-warn">opinion</span> : null}
               {a.thesisCount ? <span className="badge badge-warn">in {a.thesisCount} thesis</span> : null}

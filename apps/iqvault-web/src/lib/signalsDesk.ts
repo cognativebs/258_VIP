@@ -11,6 +11,7 @@ export type DeskArticle = {
   direction: string;
   band: string | null;
   proposal: string | null;
+  reporting: string | null;
   attribution: string;
   sourceKey: string;
   url: string | null;

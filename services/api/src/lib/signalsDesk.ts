@@ -85,6 +85,8 @@ export type SignalArticle = {
   direction: string;
   band: string | null;
   proposal: string | null;
+  /** Pokémon clusters: corroborated, specialist_primary (PokéBeach alone) or single_source. */
+  reporting: string | null;
   attribution: string;
   sourceKey: string;
   url: string | null;
@@ -136,10 +138,10 @@ export async function signalArticles(
   );
 
   // Pokémon clusters carry a read-time band and a proposal; noise stays listed but marked.
-  const pokemon = new Map<string, { band: string; proposal: string }>();
+  const pokemon = new Map<string, { band: string; proposal: string; reporting: string }>();
   if (rows.some((r) => String(r.created_by_version).startsWith("pokebeach-cluster@"))) {
     const s = await buildSynthesized(db, { at, includeNoise: true, hunts: opts.hunts }).catch(() => null);
-    for (const x of s?.signals ?? []) pokemon.set(x.signalId, { band: x.band, proposal: x.proposal.action });
+    for (const x of s?.signals ?? []) pokemon.set(x.signalId, { band: x.band, proposal: x.proposal.action, reporting: x.reporting });
   }
 
   const articles = rows
@@ -156,6 +158,7 @@ export async function signalArticles(
         direction: r.direction,
         band: p?.band ?? null,
         proposal: p?.proposal ?? null,
+        reporting: p?.reporting ?? null,
         attribution: attributionFor(r.source_id, r.source_name, r.source_item_url),
         sourceKey: r.source_id,
         url: r.source_item_url,
@@ -216,7 +219,7 @@ export async function buildBriefContext(
       group: "Pokémon",
       domain: "collectibles",
       title: s.title,
-      summary: `${s.themeName}; ${s.independentSourceCount} independent source(s); ${s.proposal.reasons.join("; ")}`,
+      summary: `${s.themeName}; ${s.reporting.replace("_", " ")} (${s.independentSourceCount} independent source(s)); ${s.proposal.reasons.join("; ")}`,
       type: s.theme,
       direction: s.direction,
       band: s.band,

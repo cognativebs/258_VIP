@@ -25,6 +25,16 @@ const CLUSTER_JOB = "pokebeach-cluster@%";
 /** Exposure matches the most specific entity first. */
 const ENTITY_KIND_ORDER = "CASE se.entity_kind WHEN 'set' THEN 0 WHEN 'product' THEN 1 WHEN 'card' THEN 2 WHEN 'pokemon' THEN 3 ELSE 9 END";
 
+/**
+ * How the claim stands: two or more independent outlets = corroborated; PokéBeach alone =
+ * specialist primary reporting (credible trade press, not yet confirmed by a second source);
+ * anything else alone = single source. Read-time, never stored.
+ */
+export function reportingFor(independent: number, sourceKeys: ReadonlyArray<string>): "corroborated" | "specialist_primary" | "single_source" {
+  if (independent >= 2) return "corroborated";
+  return sourceKeys.length > 0 && sourceKeys.every((k) => k.startsWith("pokebeach")) ? "specialist_primary" : "single_source";
+}
+
 export async function buildSynthesized(
   db: Queryable,
   opts: { at?: Date; includeNoise?: boolean; hunts?: ReadonlyArray<HuntForSignals> } = {},
@@ -135,6 +145,7 @@ export async function buildSynthesized(
         influence: Number(r.influence),
         scores: { baseConfidence: r.conf, baseImpact: r.impact, noiseProbability: r.noise },
         independentSourceCount: independent,
+        reporting: reportingFor(independent, r.source_keys ?? []),
         firstSeenAt: new Date(r.first_seen_at).toISOString(),
         lastUpdatedAt: new Date(r.last_updated_at).toISOString(),
         evidence: evidence.rows

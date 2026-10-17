@@ -520,10 +520,12 @@ async function main() {
         },
         {
           name: "pokebeach",
-          everyMs: 30 * 60 * 1000,
+          // Every 15 minutes (operator 2026-10-17). Conditional GETs keep an unchanged feed cheap, and a
+          // homepage refusal is re-checked once a day, so the shorter cadence asks no more of a block.
+          everyMs: 15 * 60 * 1000,
           run: () => {
             // Blocked until an operator enables pokebeach_official; jittered so polls never land on the same second.
-            void jitter(5 * 60 * 1000)
+            void jitter(3 * 60 * 1000)
               .then(() =>
                 inPokebeachTransaction(async (db) => {
                   const reports = [await runPokebeachOfficial(db), await runPokebeachDiscovery(db)];
@@ -649,7 +651,7 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (gdelt-radar every 10m; pokebeach every 30m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {
