@@ -6,8 +6,9 @@
  * Official news: the homepage lists articles; each new article page is fetched
  * once for its identity (canonical URL, WordPress post id) and its UTC publish
  * time (article:published_time). Discovery feeds (community front-page feed,
- * forum RSS) only point at articles or link their comment threads; their
- * timestamps are never used. A page that no longer parses marks the URL
+ * forum RSS) point at articles or link their comment threads. While article
+ * pages are off, a feed article the homepage never listed is stored from the
+ * feed itself (discovered · inferred time; VIP_POKEBEACH_FEED_ITEMS=off stops it). A page that no longer parses marks the URL
  * parser-degraded and ingests nothing.
  *
  * Fetching is polite: descriptive User-Agent, one request at a time with a
@@ -20,6 +21,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  FEED_TIME_SOURCE,
   HOMEPAGE_TIME_SOURCE,
   MemberWeightsSchema,
   POKEBEACH_PARSER_VERSION,
@@ -27,6 +29,7 @@ import {
   pacificDisplayTimeToUtc,
   newsAdapterMayRun,
   parseArticlePage,
+  parseDiscoveryFeedArticles,
   parseDiscoveryFeedUrls,
   parseForumThreads,
   parseHomepage,
@@ -284,6 +287,9 @@ export function articleFromHomepage(a: HomepageArticle): ArticlePage | null {
     description: null,
   };
 }
+
+/** Feed-only items are on unless VIP_POKEBEACH_FEED_ITEMS=off (homepage behind a Cloudflare challenge since 2026-10-05). */
+export const feedItemsEnabled = (env: NodeJS.ProcessEnv = process.env) => env.VIP_POKEBEACH_FEED_ITEMS !== "off";
 
 /** Article pages are off unless VIP_POKEBEACH_ARTICLE_PAGES=on (PokéBeach refused them on 2026-10-03). */
 export const articlePagesEnabled = (env: NodeJS.ProcessEnv = process.env) => env.VIP_POKEBEACH_ARTICLE_PAGES === "on";
@@ -567,12 +573,33 @@ export async function runPokebeachDiscovery(db: Queryable, client: ClientOptions
     if (got.kind === "ok") {
       report.pagesFetched += 1;
       const feedRun = await startRun(db, FRONTPAGE_FEED);
-      await recordRawDocument(db, feedRun, FRONTPAGE_FEED, community.endpoint!, got.body, { kind: "feed", ext: "xml", mediaType: "application/rss+xml", httpStatus: got.status, fetchedAt: now });
+      const feedRawId = await recordRawDocument(db, feedRun, FRONTPAGE_FEED, community.endpoint!, got.body, { kind: "feed", ext: "xml", mediaType: "application/rss+xml", httpStatus: got.status, fetchedAt: now });
       await finishRun(db, feedRun, "succeeded", 1, 0, null);
+      const feedArticles = new Map(parseDiscoveryFeedArticles(got.body).map((a) => [a.canonicalUrl, a]));
       for (const url of parseDiscoveryFeedUrls(got.body)) {
         if (await touchArticle(db, url, null, "community_feed", now)) report.seen += 1;
         else if (articlePagesEnabled()) await ingestArticle(db, runId, url, "community_feed", report, client);
-        else report.notOnHomepage += 1;
+        else if (feedItemsEnabled() && feedArticles.has(url)) {
+          // Homepage blocked (Cloudflare challenge since 2026-10-05): the feed's own title, author and
+          // Pacific time, discovered · inferred. The homepage or an article page supersedes it by URL.
+          const a = feedArticles.get(url)!;
+          const fields = { title: a.title, author: a.author, publishedAt: a.publishedAt, description: null };
+          const result = await upsertSourceItem(
+            db,
+            OFFICIAL,
+            { externalId: null, canonicalUrl: a.canonicalUrl, authorSlug: null, modifiedAt: null, ...fields },
+            {
+              via: "community_feed",
+              rawDocumentId: feedRawId,
+              now,
+              timeSource: FEED_TIME_SOURCE,
+              status: "discovered",
+              parserVersion: POKEBEACH_PARSER_VERSION,
+              hash: articleContentHash(fields as Parameters<typeof articleContentHash>[0]),
+            },
+          );
+          report[result] += 1;
+        } else report.notOnHomepage += 1;
       }
     } else if (got.kind !== "not_modified") {
       reasons.push(`${FRONTPAGE_FEED}: ${got.kind === "backoff" ? `backing off until ${got.until}` : got.message}`);

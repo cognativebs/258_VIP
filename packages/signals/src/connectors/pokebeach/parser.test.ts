@@ -5,7 +5,9 @@ import {
   articleContentHash,
   canonicalArticleUrl,
   parseArticlePage,
+  parseDiscoveryFeedArticles,
   parseDiscoveryFeedUrls,
+  feedPubDateToUtc,
   parseForumThreads,
   pacificDisplayTimeToUtc,
   parseHomepage,
@@ -102,6 +104,21 @@ describe("canonical URLs and discovery feeds", () => {
       "https://www.pokebeach.com/2026/10/fixture-storm-elite-trainer-box-revealed",
       "https://www.pokebeach.com/2026/09/fixture-missed-article",
     ]);
+  });
+
+  it("homepage-blocked fallback reads feed articles with the Pacific wall clock as UTC", () => {
+    expect(parseDiscoveryFeedArticles(fixture("community-feed.xml"))).toEqual([
+      {
+        canonicalUrl: "https://www.pokebeach.com/2026/10/fixture-storm-elite-trainer-box-revealed",
+        title: "Fixture Storm Elite Trainer Box Revealed!",
+        author: null,
+        publishedAt: "2026-10-02T18:14:00.000Z",
+      },
+      { canonicalUrl: "https://www.pokebeach.com/2026/09/fixture-missed-article", title: "Fixture Missed Article", author: null, publishedAt: "2026-09-30T16:00:00.000Z" },
+    ]);
+    // Winter time is PST (UTC-8); a missing or odd date is null, never a guess.
+    expect(feedPubDateToUtc("Tue, 08 Dec 2026 00:30:00 GMT")).toBe("2026-12-08T08:30:00.000Z");
+    expect(feedPubDateToUtc("yesterday")).toBeNull();
   });
 
   it("forum RSS threads match their article by title despite quote style", () => {

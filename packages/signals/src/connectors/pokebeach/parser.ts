@@ -200,6 +200,38 @@ export function parseDiscoveryFeedUrls(xml: string): string[] {
   return [...out];
 }
 
+export const FEED_TIME_SOURCE = "community_feed_pubDate:Pacific wall clock labeled GMT (inferred)";
+
+/** "Tue, 13 Oct 2026 10:00:00 GMT" from the community feed is a Pacific wall-clock time; returns UTC ISO or null. */
+export function feedPubDateToUtc(pubDate: string | null | undefined): string | null {
+  const m = /^\w{3},\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{1,2}):(\d{2})/.exec((pubDate ?? "").trim());
+  if (!m) return null;
+  const hour = Number(m[4]);
+  const display = `${m[2]} ${Number(m[1])}, ${m[3]} at ${hour % 12 || 12}:${m[5]} ${hour < 12 ? "AM" : "PM"}`;
+  return pacificDisplayTimeToUtc(display);
+}
+
+export type FeedArticle = { canonicalUrl: string; title: string; author: string | null; publishedAt: string };
+
+/**
+ * Homepage-blocked fallback (operator 2026-10-17: find work-arounds): the community
+ * feed's article title, author and Pacific time. Discovered · inferred, never confirmed;
+ * an item without a parsable time is skipped.
+ */
+export function parseDiscoveryFeedArticles(xml: string): FeedArticle[] {
+  const out = new Map<string, FeedArticle>();
+  const strip = (s: string | undefined) => (s ? text(s.replace(/<!\[CDATA\[|\]\]>/g, "")) : "");
+  for (const [, block] of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const url = canonicalArticleUrl(/<link>([\s\S]*?)<\/link>/.exec(block!)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, ""));
+    const title = strip(/<title>([\s\S]*?)<\/title>/.exec(block!)?.[1]);
+    const publishedAt = feedPubDateToUtc(/<pubDate>([\s\S]*?)<\/pubDate>/.exec(block!)?.[1]);
+    if (!url || !title || !publishedAt || out.has(url)) continue;
+    const author = strip(/<dc:creator>([\s\S]*?)<\/dc:creator>/.exec(block!)?.[1]) || null;
+    out.set(url, { canonicalUrl: url, title, author, publishedAt });
+  }
+  return [...out.values()];
+}
+
 export type ForumThread = { threadId: string; title: string; url: string };
 
 /** Forum RSS: each article has a comment thread with the same title. Used to link threads, never to create articles. */

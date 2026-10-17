@@ -302,7 +302,7 @@ describe.skipIf(!DSN)("pokebeach connector, homepage-only mode (the default; IQV
     });
   });
 
-  it("discovery counts community-feed articles the homepage never listed, without fetching them", async () => {
+  it("discovery stores a community-feed article the homepage never listed from the feed itself, without fetching it", async () => {
     await inTransaction(async (db) => {
       await enable(db, "pokebeach_official");
       await enable(db, "pokebeach_frontpage_feed");
@@ -312,9 +312,34 @@ describe.skipIf(!DSN)("pokebeach connector, homepage-only mode (the default; IQV
       });
       await runPokebeachOfficial(db, client(site.impl));
       const d = await runPokebeachDiscovery(db, client(site.impl));
-      expect(d).toMatchObject({ created: 0, seen: 1, notOnHomepage: 1 });
+      expect(d).toMatchObject({ created: 1, seen: 1, notOnHomepage: 0 });
       expect(site.calls.map((c) => c.url)).toEqual([HOME, COMMUNITY]);
+      const missed = await db.query(
+        `SELECT status, published_at, published_at_source, discovered_via FROM vault_signals.source_item
+          WHERE source_id = 'pokebeach_official' AND canonical_url LIKE '%fixture-missed-article'`,
+      );
+      expect(missed.rows.map((r) => [r.status, new Date(r.published_at).toISOString(), r.published_at_source, r.discovered_via])).toEqual([
+        ["discovered", "2026-09-30T16:00:00.000Z", "community_feed_pubDate:Pacific wall clock labeled GMT (inferred)", ["community_feed"]],
+      ]);
     });
+  });
+
+  it("with VIP_POKEBEACH_FEED_ITEMS=off discovery only counts feed articles the homepage never listed", async () => {
+    process.env.VIP_POKEBEACH_FEED_ITEMS = "off";
+    try {
+      await inTransaction(async (db) => {
+        await enable(db, "pokebeach_official");
+        await enable(db, "pokebeach_frontpage_feed");
+        const site = fakeSite({
+          [HOME]: { status: 200, body: fixture("homepage.html") },
+          [COMMUNITY]: { status: 200, body: fixture("community-feed.xml") },
+        });
+        await runPokebeachOfficial(db, client(site.impl));
+        expect(await runPokebeachDiscovery(db, client(site.impl))).toMatchObject({ created: 0, seen: 1, notOnHomepage: 1 });
+      });
+    } finally {
+      delete process.env.VIP_POKEBEACH_FEED_ITEMS;
+    }
   });
 
   it("reconcile re-lists the front page only", async () => {
