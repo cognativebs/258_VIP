@@ -59,24 +59,26 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Always-visible Council Strip (roles · provider · model; click for skill blurb)
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [x] Gateway shows what is running — superseded by heartbeats every 5 s with the in-flight model calls (2026-10-04)
+- [x] Live check on a paid run (2026-10-17): a 3-role `gpt-4o-mini` stream sent a heartbeat at 5 s and its first step at 7.4 s; dropping the stream stopped the job before the next role ("stopped by operator before critic was called")
+- [x] Model catalog current (2026-10-17): Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1 and Opus 4.8 with prices; the adapter raises the output cap for always-thinking models (thinking counts against it), opts Opus 5.5 / 5 / Fable 5.1 / Sonnet 5.5 into the server-side refusal fallback (`fallbacks: "default"`), and names refusals and empty capped answers. Live: Haiku 5.5 $0.0002, Opus 5.5 $0.012
 - [x] Create an agent role from the Team panel (name / description / skills → live card; `POST /v1/agents`, auto contract, unverified provenance) — 2026-08-21
 - [x] Edit name / description / skills on any Team-panel card (`PATCH /v1/agents/:id`; shipped roles overlay into `custom_agents/`) — 2026-08-21
 - [x] Delete custom roles from the Team panel (2026-10-10): **Delete / reset role** — a role you made moves to `custom_agents/.trash/`; an edited shipped role resets to shipped; refused while a saved council uses it (`DELETE /v1/agents/:id`)
 - [x] Save a named custom council from the team panel (prompt on Save team → selection button + edit/delete; `POST/PATCH/DELETE /v1/councils`) — 2026-08-23
-- [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
+- [x] Promote a custom role to a shipped agent (2026-10-17): Team panel **Promote to shipped…** → `POST /v1/agents/:id/promote` (operator names shipped councils and confirms the review; contract must pass its schema). Files move to `orchestr8/agents/<id>/`, the role joins those councils + Full Council and the pipeline order (YAML edited in place, comments kept), provenance becomes `operator_reviewed` with who and when; the Console copy is archived under `custom_agents/.promoted/`. Commit the new files so the role ships
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
 - [x] Build Spec attach files / repo paths + council chat transcript + copy .md / JSON / Cursor prompt (2026-08-23)
 - [x] Credit/billing pause mid-council: detailed alert, persist completed steps, resume retries only the failed role (2026-08-23)
 - [x] Fix `scripts/start_iqvault_ecosystem.ps1` — parse failure rewritten 2026-08-09; retarget VIP `:8787` + collector `:3000` (2026-08-13)
 
-### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
+### C. Orchestr8 — Phase O2 Diff review loop *(done 2026-10-17)*
 
-Seeded but not executed as product workflow.
+Rule precheck (spec file plan + tests) plus the Challenge Council; verdict approve / conditional / reject; reviews saved under `docs/specs/reviews/` with provenance.
 
-- [ ] Paste implemented diff → Challenge Council scores vs spec acceptance criteria
-- [ ] O2 gate: council catches a deliberately spec-violating diff
-- [ ] Execute seed work order: [`docs/specs/o2-diff-review.md`](specs/o2-diff-review.md) in Cursor
-- [ ] Wire optional “review this diff” panel in Console (was out of Console v1 scope)
+- [x] Paste implemented diff → Challenge Council scores vs spec acceptance criteria (Console **Diff Review** tab, `POST /v1/diff-review`, `python orchestr8/scripts/review_diff.py --spec-id <id> [--offline]`)
+- [x] O2 gate: `python orchestr8/demo_diff_review.py` (13/13 offline) and a live council review of the O2 diff itself (2026-10-17)
+- [x] Execute seed work order: [`docs/specs/o2-diff-review.md`](specs/o2-diff-review.md) — schema, service, CLI, demo, tests
+- [x] Wire optional “review this diff” panel in Console (Diff Review tab; precheck-only mode costs nothing)
 
 ### D. Signals → IQVault (partial wire done)
 

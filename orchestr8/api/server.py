@@ -16,13 +16,20 @@ sys.path.insert(0, ROOT)
 from providers.billing import accounts_snapshot  # noqa: E402
 from api.runs_routes import handle_get_run, handle_list_runs  # noqa: E402
 from api.specs_routes import handle_get_spec, handle_list_specs  # noqa: E402
-from services.custom_agents import CustomAgentError, create_custom_agent, delete_custom_agent, update_custom_agent  # noqa: E402
+from services.custom_agents import (  # noqa: E402
+    CustomAgentError,
+    create_custom_agent,
+    delete_custom_agent,
+    promote_custom_agent,
+    update_custom_agent,
+)
 from services.custom_councils import (  # noqa: E402
     CustomCouncilError,
     create_custom_council,
     delete_custom_council,
     update_custom_council,
 )
+from services.diff_review import DiffReviewError, list_reviews, review_diff, write_review  # noqa: E402
 from services.job_monitor import JobCancelled, JobMonitor  # noqa: E402
 from services.orchestrator import resume_job, run_job  # noqa: E402
 from services.planner import plan_job  # noqa: E402
@@ -184,6 +191,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
             json_response(self, status, body)
             return
 
+        if path == "/v1/diff-reviews":
+            json_response(self, 200, {"reviews": list_reviews()})
+            return
+
         if path.startswith("/v1/specs/"):
             spec_id = path[len("/v1/specs/") :]
             if not spec_id or "/" in spec_id:
@@ -289,6 +300,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 json_response(self, 500, {"error": str(e)})
             return
 
+        if path.startswith("/v1/agents/") and path.endswith("/promote"):
+            # Operator review gate: a Console role becomes a shipped agent (councils + pipeline order).
+            promote_id = _id_from_path(path[: -len("/promote")], "/v1/agents/")
+            try:
+                if not promote_id:
+                    raise CustomAgentError("expected /v1/agents/<id>/promote")
+                json_response(self, 200, {"ok": True, **promote_custom_agent(promote_id, read_json(self))})
+            except CustomAgentError as e:
+                json_response(self, 400, {"error": "invalid_promotion", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
+            return
+
         agent_id = _agent_id_from_path(path)
         if agent_id:
             self._update_agent(agent_id)
@@ -318,6 +342,25 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
         if path == "/v1/jobs/stream":
             self._handle_job_stream()
+            return
+
+        if path == "/v1/diff-review":
+            # O2 (ADR 0003): rule precheck, then the Challenge Council unless offline. Never writes code.
+            try:
+                body = read_json(self)
+                overrides = body.get("model_overrides") or body.get("modelOverrides") or {}
+                bundle = review_diff(
+                    str(body.get("spec_id") or body.get("specId") or ""),
+                    str(body.get("diff_text") or body.get("diffText") or ""),
+                    offline=bool(body.get("offline")),
+                    model_overrides=overrides if isinstance(overrides, dict) else {},
+                )
+                saved = write_review(bundle)
+                json_response(self, 200, {"ok": True, "review": bundle, "path": str(saved)})
+            except DiffReviewError as e:
+                json_response(self, 400, {"error": "invalid_diff_review", "detail": str(e)})
+            except Exception as e:  # noqa: BLE001
+                json_response(self, 500, {"error": str(e)})
             return
 
         if path != "/v1/jobs":

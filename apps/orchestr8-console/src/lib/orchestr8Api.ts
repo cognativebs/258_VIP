@@ -112,7 +112,7 @@ export async function fetchAgents() {
 async function agentWrite<T>(
   path: string,
   method: "POST" | "PATCH",
-  input: { name: string; description: string; skill: string }
+  input: object
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -171,6 +171,15 @@ export async function deleteAgent(id: string) {
     throw new Error(err.detail || err.error || `Role delete failed (${res.status})`);
   }
   return data as { id: string; deleted?: boolean; reset?: boolean; movedTo?: string };
+}
+
+/** Operator review gate: a Console role becomes a shipped agent in the named councils (+ Full Council). */
+export async function promoteAgent(id: string, input: { councils: string[]; reviewer?: string; note?: string }) {
+  return agentWrite<{ id: string; councils: string[]; path: string; archivedTo: string; commit: string[] }>(
+    `/v1/agents/${encodeURIComponent(id)}/promote`,
+    "POST",
+    { ...input, reviewed: true },
+  );
 }
 
 export type Council = {
@@ -400,4 +409,37 @@ export async function streamJob(
     throw e;
   }
   return result;
+}
+
+export type DiffReviewFinding = { severity: "critical" | "major" | "minor"; criterion: string; detail: string; source: "precheck" | "council" };
+export type DiffReview = {
+  id: string;
+  spec_id: string;
+  created_at: string;
+  verdict: "approve" | "conditional" | "reject";
+  findings: DiffReviewFinding[];
+  precheck: {
+    required_paths: string[];
+    missing_paths: string[];
+    test_paths: string[];
+    diff_stats: { files: string[]; additions: number; deletions: number; chars: number; truncated: boolean };
+  };
+  council: { run_id: string | null; roles: string[]; vetoed: boolean; verdict: string; summary: string } | null;
+  provenance: { source: string; method: string; rule_version: string; confidence: number; verification: string };
+};
+
+export async function fetchDiffReviews() {
+  return getJson<{ reviews: Array<{ id: string; spec_id: string; created_at: string; verdict: string; findings: number; method: string }> }>("/v1/diff-reviews");
+}
+
+/** O2 review. A council review can take minutes, so it goes to the gateway directly (rewrites time out). */
+export async function runDiffReview(input: { specId: string; diffText: string; offline: boolean; modelOverrides?: Record<string, string> }) {
+  const res = await fetch(`${STREAM_BASE}/v1/diff-review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ spec_id: input.specId, diff_text: input.diffText, offline: input.offline, model_overrides: input.modelOverrides ?? {} }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { review?: DiffReview; path?: string; error?: string; detail?: string };
+  if (!res.ok || !data.review) throw new Error(data.detail || data.error || `Diff review ${res.status}`);
+  return { review: data.review, path: data.path ?? "" };
 }

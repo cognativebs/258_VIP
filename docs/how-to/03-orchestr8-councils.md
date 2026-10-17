@@ -49,7 +49,7 @@ Steps:
 6. Outcomes:
    - **VETOED** — click **Revise from veto (1×)** (loads Critic notes into the goal). Review, then Run once. If still blocked → park or fill by hand — **no second revision loop**.
    - **emit / path under `docs/specs/`** — **Copy .md / JSON / Cursor prompt** from the chat or Specs tab, then paste `cursor_prompt` into Cursor and build.
-7. Optional second pass: Team → **Challenge Council**, paste the implemented diff + acceptance criteria (Phase O2).
+7. After Cursor builds it: **Diff Review** tab → pick the spec, paste the diff (`git diff main...HEAD`) → **Review with Challenge Council** (or tick *Precheck only* for a free check). The precheck checks the spec's planned files and that a test or demo was added; the Challenge Council (critic · tester · domain expert) judges the code against the acceptance tests. Verdict **approve / conditional / reject**, findings with their source, saved under `docs/specs/reviews/`. Same from a terminal: `git diff main...HEAD | python orchestr8/scripts/review_diff.py --spec-id <id>` (exit 0 approve, 1 conditional, 2 reject; `--offline` for the precheck only).
 
 **Credit / billing pause:** if a provider rejects a role for quota, prepaid balance, or HTTP 402, the council **stops**. Later roles are not called. A detailed alert names the role, provider, model, exact error, spend so far, and which steps are kept. Top up that provider, then **Resume after top-off**. Resume retries only the failed role, then the remaining ones — completed calls are not re-run. The paused bundle is under **Runs** as `PAUSED`.
 
@@ -134,11 +134,15 @@ Limits worth knowing before you rely on one:
   The id never changes. Shipped roles are copied into `custom_agents/<id>/` so
   git-tracked files stay clean; delete that folder to revert. Custom roles are
   rewritten in place.
-- No delete in the UI yet. Delete the folder under `custom_agents/<id>/` and
-  `POST /v1/reload`.
+- **Delete / reset role** on the card: a role you made moves to `custom_agents/.trash/`;
+  an edited shipped role resets to shipped.
 
-To make one permanent and reviewed, promote it: run a Build Spec for it (below),
-then move the files into `agents/<id>/` so it ships with the repo.
+To make one permanent and reviewed: read its mission, skill and contract, then
+**Promote to shipped…** on its card. Name the shipped council(s) it belongs in; it also
+joins the Full Council and the pipeline order. Its files move to `orchestr8/agents/<id>/`
+(`councils.yaml` and `agents/registry.yaml` are edited in place, comments kept), its
+provenance becomes `operator_reviewed` with who and when, and the Console copy is archived
+under `custom_agents/.promoted/`. Commit the listed files so the role ships with the repo.
 
 ### Custom team without editing YAML
 

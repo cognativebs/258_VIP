@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://258labs.local/orchestr8/diff_review.schema.json",
+  "title": "Orchestr8 diff review bundle (O2, ADR 0003)",
+  "description": "A Cursor diff scored against its build spec's file plan and acceptance tests: a rule precheck plus the Challenge Council (critic, tester, domain expert). Orchestr8 never writes or runs the code it reviews. Validated in Orchestr8 by services/contracts.validate_instance (type, enum, required, properties, items, minLength, minimum/maximum); pattern and additionalProperties are for standard JSON Schema tools.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "spec_id",
+    "created_at",
+    "verdict",
+    "findings",
+    "precheck",
+    "council",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": [
+        "diff_review_v1"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^review_[0-9]{8}T[0-9]{6}_[0-9a-f]{8}$"
+    },
+    "spec_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "approve",
+        "conditional",
+        "reject"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "criterion",
+          "detail",
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor"
+            ]
+          },
+          "criterion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "enum": [
+              "precheck",
+              "council"
+            ]
+          }
+        }
+      }
+    },
+    "precheck": {
+      "type": "object",
+      "required": [
+        "required_paths",
+        "missing_paths",
+        "test_paths",
+        "diff_stats"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "test_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "diff_stats": {
+          "type": "object",
+          "required": [
+            "files",
+            "additions",
+            "deletions",
+            "chars",
+            "truncated"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "additions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deletions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "chars": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "council": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "run_id",
+        "roles",
+        "vetoed",
+        "verdict",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vetoed": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "conditional",
+            "reject",
+            "unparsed"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "source",
+        "method",
+        "rule_version",
+        "confidence",
+        "verification"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "rule_precheck",
+            "rule_precheck+challenge_council"
+          ]
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "verification": {
+          "enum": [
+            "unverified",
+            "council_reviewed"
+          ]
+        }
+      }
+    }
+  }
+}

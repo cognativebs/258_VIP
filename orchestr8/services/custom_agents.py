@@ -393,3 +393,153 @@ def delete_custom_agent(agent_id: str) -> dict:
     shutil.move(str(target), str(trash))
     clear_agent_cache()
     return {"id": agent_id, "deleted": not shipped, "reset": shipped, "movedTo": _display_path(trash)}
+
+
+# --- promotion: a reviewed custom role becomes a shipped agent ---------------------------------
+
+SHIPPED_AGENTS_DIR = ROOT / "agents"
+COUNCILS_PATH = ROOT / "config" / "councils.yaml"
+REGISTRY_PATH = ROOT / "agents" / "registry.yaml"
+FULL_COUNCIL = "full"
+
+
+def _insert_list_item(text: str, *, block_header: re.Pattern, list_key: str | None, item: str) -> str:
+    """Append ``- item`` to a YAML list in place, keeping comments and layout.
+
+    block_header matches the line that opens the block (``  analysis:`` or ``pipeline_order:``);
+    list_key names the list inside it (``agents``), or None when the header is the list itself.
+    """
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, ln in enumerate(lines) if block_header.match(ln)), None)
+    if start is None:
+        raise CustomAgentError(f"block {block_header.pattern!r} not found")
+    i = start
+    if list_key:
+        header_indent = len(lines[start]) - len(lines[start].lstrip())
+        i = next(
+            (
+                j
+                for j in range(start + 1, len(lines))
+                if lines[j].strip() == f"{list_key}:"
+                and len(lines[j]) - len(lines[j].lstrip()) > header_indent
+            ),
+            None,
+        )
+        if i is None:
+            raise CustomAgentError(f"no '{list_key}:' list under {block_header.pattern!r}")
+    last = None
+    for j in range(i + 1, len(lines)):
+        stripped = lines[j].strip()
+        if stripped.startswith("- "):
+            last = j
+        elif stripped and not stripped.startswith("#"):
+            break
+    if last is None:
+        raise CustomAgentError(f"list under {block_header.pattern!r} is empty; add the first item by hand")
+    indent = lines[last][: len(lines[last]) - len(lines[last].lstrip())]
+    newline = "\n" if lines[last].endswith("\n") else ""
+    if not newline:
+        lines[last] += "\n"
+    lines.insert(last + 1, f"{indent}- {item}\n")
+    return "".join(lines)
+
+
+def promote_custom_agent(agent_id: str, payload: dict) -> dict:
+    """Ship an operator-reviewed custom role: agents/<id>/, council membership, pipeline order.
+
+    The operator names one or more shipped councils and confirms the review. The contract must
+    pass config/contract.schema.json. Provenance moves from ``unverified`` to ``operator_reviewed``
+    with who and when; the custom folder is archived under custom_agents/.promoted/. The new files
+    are git-tracked: commit them so the role ships with the code.
+    """
+    import shutil
+
+    from services.contracts import validate_contract
+    from services.registry import clear_agent_cache, load_councils
+
+    source = custom_agent_dir(agent_id)
+    if not (source / "agent.yaml").exists():
+        raise CustomAgentError(f"Unknown custom role: {agent_id}")
+    if (SHIPPED_AGENTS_DIR / agent_id / "agent.yaml").exists():
+        raise CustomAgentError(f"{agent_id} is a shipped role (or an edit of one); only roles made in the Console can be promoted")
+    if not payload.get("reviewed"):
+        raise CustomAgentError("Confirm that you reviewed the role's mission, skill and contract (reviewed: true)")
+    reviewer = str(payload.get("reviewer") or "operator").strip()[:80] or "operator"
+    note = str(payload.get("note") or "").strip()[:600]
+
+    with open(source / "agent.yaml", encoding="utf-8") as f:
+        agent = yaml.safe_load(f) or {}
+    with open(source / "contract.yaml", encoding="utf-8") as f:
+        contract = yaml.safe_load(f) or {}
+    errs = validate_contract(contract)
+    if errs:
+        raise CustomAgentError("Contract does not pass its schema: " + "; ".join(errs[:5]))
+
+    shipped_councils = {
+        cid: meta for cid, meta in (load_councils().get("councils") or {}).items() if not meta.get("custom")
+    }
+    wanted = [c for c in dict.fromkeys(payload.get("councils") or []) if c != FULL_COUNCIL]
+    if not wanted:
+        raise CustomAgentError("Name at least one shipped council for the role (council membership)")
+    unknown = [c for c in wanted if c not in shipped_councils]
+    if unknown:
+        raise CustomAgentError(f"Unknown or custom council(s): {', '.join(unknown)}")
+
+    # Edit councils.yaml and registry.yaml as text (comments survive), then prove the result parses.
+    councils_text = COUNCILS_PATH.read_text(encoding="utf-8")
+    for cid in [*wanted, FULL_COUNCIL]:
+        if agent_id in ((shipped_councils.get(cid) or {}).get("agents") or []):
+            continue
+        councils_text = _insert_list_item(councils_text, block_header=re.compile(rf"^  {re.escape(cid)}:\s*$"), list_key="agents", item=agent_id)
+    registry_text = REGISTRY_PATH.read_text(encoding="utf-8")
+    if agent_id not in ((yaml.safe_load(registry_text) or {}).get("pipeline_order") or []):
+        registry_text = _insert_list_item(registry_text, block_header=re.compile(r"^pipeline_order:\s*$"), list_key=None, item=agent_id)
+    parsed_councils = (yaml.safe_load(councils_text) or {}).get("councils") or {}
+    for cid in [*wanted, FULL_COUNCIL]:
+        if agent_id not in (parsed_councils.get(cid) or {}).get("agents", []):
+            raise CustomAgentError(f"Could not add {agent_id} to council {cid}; nothing was changed")
+    if agent_id not in ((yaml.safe_load(registry_text) or {}).get("pipeline_order") or []):
+        raise CustomAgentError("Could not add the role to the pipeline order; nothing was changed")
+
+    reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    agent.pop("custom", None)
+    agent["councils"] = [*wanted, FULL_COUNCIL]
+    agent["skill"] = f"agents/{agent_id}/skill.md"
+    agent["provenance"] = {
+        **(agent.get("provenance") or {}),
+        "method": "operator_authored_then_reviewed",
+        "verification_status": "operator_reviewed",
+        "reviewed_at": reviewed_at,
+        "reviewed_by": reviewer,
+        **({"review_note": note} if note else {}),
+    }
+    target = SHIPPED_AGENTS_DIR / agent_id
+    target.mkdir(parents=True, exist_ok=False)
+    label = agent.get("label") or agent_id
+    _write_yaml(
+        target / "agent.yaml",
+        agent,
+        header=f"# Orchestr8 agent — {label}\n# Promoted from a Console role on {reviewed_at}; reviewed by {reviewer}.\n",
+    )
+    _write_yaml(
+        target / "contract.yaml",
+        contract,
+        header=f"# Orchestr8 contract — {label}\n# Schema: config/contract.schema.json · reviewed by {reviewer} on {reviewed_at}\n",
+    )
+    shutil.copyfile(source / "skill.md", target / "skill.md")
+    COUNCILS_PATH.write_text(councils_text, encoding="utf-8")
+    REGISTRY_PATH.write_text(registry_text, encoding="utf-8")
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    archive = CUSTOM_AGENTS_DIR / ".promoted" / f"{agent_id}-{stamp}"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(archive))
+    clear_agent_cache()
+    return {
+        "id": agent_id,
+        "promoted": True,
+        "councils": agent["councils"],
+        "path": _display_path(target),
+        "archivedTo": _display_path(archive),
+        "commit": [f"orchestr8/agents/{agent_id}/", "orchestr8/config/councils.yaml", "orchestr8/agents/registry.yaml"],
+    }

@@ -7,6 +7,7 @@ import { BuildSpecPanel } from "@/components/BuildSpecPanel";
 import { TeamPanel } from "@/components/TeamPanel";
 import { RunsPanel } from "@/components/RunsPanel";
 import { SpecsPanel } from "@/components/SpecsPanel";
+import { DiffReviewPanel } from "@/components/DiffReviewPanel";
 import { CouncilStrip } from "@/components/CouncilStrip";
 import { ProgressDock } from "@/components/ProgressDock";
 import {
@@ -38,6 +39,7 @@ function ConsoleShell() {
     { id: "build", label: "Build Spec" },
     { id: "runs", label: "Runs" },
     { id: "specs", label: "Specs" },
+    { id: "review", label: "Diff Review" },
   ];
 
   return (
@@ -88,6 +90,9 @@ function ConsoleShell() {
         </div>
         <div className={`tab-pane ${tab === "specs" ? "visible" : ""}`}>
           <SpecsPanel />
+        </div>
+        <div className={`tab-pane ${tab === "review" ? "visible" : ""}`}>
+          <DiffReviewPanel />
         </div>
       </main>
 

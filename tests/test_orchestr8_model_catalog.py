@@ -341,7 +341,8 @@ def test_anthropic_sonnet5_request_omits_temperature(
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-EXAMPLE")
     llm.chat_anthropic(model="claude-sonnet-5", system="s", user="u", max_tokens=256)
     assert "temperature" not in captured
-    assert captured["max_tokens"] == 256
+    # Sonnet 5 always thinks; a small role cap is raised so thinking cannot use it all.
+    assert captured["max_tokens"] == llm.ANTHROPIC_THINKING_MAX_TOKENS_FLOOR
 
 
 def test_anthropic_retries_without_temperature_when_api_rejects(

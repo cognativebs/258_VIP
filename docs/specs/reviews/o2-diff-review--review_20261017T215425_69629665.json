@@ -1,0 +1,86 @@
+{
+  "schema": "diff_review_v1",
+  "id": "review_20261017T215425_69629665",
+  "spec_id": "o2-diff-review",
+  "created_at": "2026-10-17T21:54:25.302641+00:00",
+  "verdict": "reject",
+  "findings": [
+    {
+      "severity": "minor",
+      "criterion": "file plan",
+      "detail": "The spec plans docs/backlog.md; the diff does not touch it.",
+      "source": "precheck"
+    },
+    {
+      "severity": "critical",
+      "criterion": "missing paths",
+      "detail": "tester: The required path 'docs/backlog.md' is missing from the diff.",
+      "source": "council"
+    },
+    {
+      "severity": "critical",
+      "criterion": "missing paths",
+      "detail": "domain_expert: The required path 'docs/backlog.md' is missing from the diff.",
+      "source": "council"
+    },
+    {
+      "severity": "critical",
+      "criterion": "missing paths",
+      "detail": "critic: The required path 'docs/backlog.md' is missing from the diff.",
+      "source": "council"
+    },
+    {
+      "severity": "critical",
+      "criterion": "acceptance tests",
+      "detail": "critic: The absence of 'docs/backlog.md' violates the requirement for at least one test or demo file when acceptance tests are listed.",
+      "source": "council"
+    }
+  ],
+  "precheck": {
+    "required_paths": [
+      "orchestr8/config/diff_review.schema.json",
+      "orchestr8/services/diff_review.py",
+      "orchestr8/scripts/review_diff.py",
+      "orchestr8/demo_diff_review.py",
+      "docs/backlog.md"
+    ],
+    "missing_paths": [
+      "docs/backlog.md"
+    ],
+    "test_paths": [
+      "orchestr8/demo_diff_review.py",
+      "tests/test_orchestr8_diff_review.py"
+    ],
+    "diff_stats": {
+      "files": [
+        "orchestr8/config/diff_review.schema.json",
+        "orchestr8/demo_diff_review.py",
+        "orchestr8/scripts/review_diff.py",
+        "orchestr8/services/diff_review.py",
+        "tests/test_orchestr8_diff_review.py"
+      ],
+      "additions": 794,
+      "deletions": 0,
+      "chars": 31692,
+      "truncated": false
+    }
+  },
+  "council": {
+    "run_id": "run_20261017T215425_928549b4",
+    "roles": [
+      "critic",
+      "tester",
+      "domain_expert"
+    ],
+    "vetoed": true,
+    "verdict": "reject",
+    "summary": "Challenge Council VETO — 4 critical issues and a reject verdict from the challenge panel must be resolved before acting. Conditions: Include the missing 'docs/backlog.md' file in the diff.; Include the missing 'docs/backlog.md' file in the diff.; Include the missing 'docs/backlog.md' file in the diff."
+  },
+  "provenance": {
+    "source": "orchestr8.diff_review",
+    "method": "rule_precheck+challenge_council",
+    "rule_version": "diff_review_v1",
+    "confidence": 0.7,
+    "verification": "council_reviewed"
+  }
+}
