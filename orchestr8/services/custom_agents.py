@@ -252,6 +252,8 @@ def create_custom_agent(payload: dict) -> dict:
         catalog = load_models().get("models") or {}
         if model_id not in catalog:
             raise CustomAgentError(f"Unknown model in catalog: {model_id}")
+        if catalog[model_id].get("retired"):
+            raise CustomAgentError(f"{model_id} is retired; use {catalog[model_id].get('superseded_by')}")
         provider = catalog[model_id]["provider"]
     else:
         model_id, provider = default_model_for_new_agent()

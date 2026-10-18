@@ -80,10 +80,10 @@ export const FALLBACK_AGENTS: AgentInfo[] = [
     provider: "anthropic",
     providerLabel: "Anthropic",
     description: "Deep collection analysis grounded in data",
-    defaultModel: "claude-sonnet-4-6",
+    defaultModel: "claude-sonnet-5-5",
     allowedModels: [
-      { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "anthropic" },
-      { id: "claude-opus-4-6", label: "Claude Opus 4.6", provider: "anthropic" },
+      { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", provider: "anthropic" },
+      { id: "claude-opus-5-5", label: "Claude Opus 5.5", provider: "anthropic" },
     ],
     councils: ["discovery"],
     tier: 1,
@@ -97,7 +97,7 @@ export const FALLBACK_AGENTS: AgentInfo[] = [
     defaultModel: "grok-4.6",
     allowedModels: [
       { id: "grok-4.6", label: "Grok 4.6", provider: "grok" },
-      { id: "grok-4.5", label: "Grok 4.5", provider: "grok" },
+      { id: "grok-4.3", label: "Grok 4.3", provider: "grok" },
     ],
     councils: ["challenge"],
     tier: 1,

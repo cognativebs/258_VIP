@@ -8,9 +8,8 @@ provider_label: OpenAI
 default_model: gpt-4.1
 allowed_models:
 - gpt-4.1
-- gpt-4o
 - gpt-4o-mini
-- claude-haiku-4-5
+- claude-haiku-5-5
 councils:
 - execution
 temperature: 0.2

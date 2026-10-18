@@ -110,7 +110,7 @@ decisions. Percentages are estimates. *Unmerged* = lives on a branch not in
 | Delete custom roles | 100 | 90 | 75 | |
 | Promote a custom role to a shipped agent | 100 | 90 | 40 | No custom role exists yet to promote |
 | Diff review loop (O2) | 100 | 95 | 50 | Offline gate 13/13; live council reject + approve 2026-10-17 |
-| Model catalog current (Claude 5.5 family) + refusal fallback | 100 | 95 | 50 | Live Haiku 5.5 / Opus 5.5 calls 2026-10-17; role defaults unchanged (your call) |
+| Model catalog current (Claude 5.5 family) + refusal fallback; superseded models retired | 100 | 95 | 60 | 13 models retired; role defaults on Sonnet 5.5 / Opus 5.5 (operator 2026-10-17) |
 | Daily SIGNALS brief council (Signal Hunter → Thesis Manager → Critic → Synthesizer) | 100 | 90 | 60 | Runs once a day |
 
 ## 7. Decisions, valuation & intelligence

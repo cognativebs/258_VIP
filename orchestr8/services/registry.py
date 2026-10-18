@@ -181,10 +181,21 @@ def validate_model_catalog() -> list[str]:
             errs.append(f"models.{mid}: provider {provider!r} has no providers entry")
 
     catalog = set(cfg.get("models") or {})
+    models = cfg.get("models") or {}
     for pid, chain in (cfg.get("fallbacks") or {}).items():
         for mid in chain or []:
             if mid not in catalog:
                 errs.append(f"fallbacks.{pid}: {mid!r} is not in the catalog")
+            elif (models.get(mid) or {}).get("retired"):
+                errs.append(f"fallbacks.{pid}: {mid!r} is retired")
+    for mid, meta in models.items():
+        if not (meta or {}).get("retired"):
+            continue
+        succ = meta.get("superseded_by")
+        if succ not in models:
+            errs.append(f"models.{mid}: retired without a catalog superseded_by ({succ!r})")
+        elif models[succ].get("retired"):
+            errs.append(f"models.{mid}: superseded_by {succ!r} is itself retired")
 
     return errs
 
@@ -201,10 +212,24 @@ def usd_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
     return round((input_tokens / 1_000_000) * p["in"] + (output_tokens / 1_000_000) * p["out"], 6)
 
 
+def current_model_id(model_id: str) -> str:
+    """Follow superseded_by from a retired model to the model the gateway runs instead."""
+    models = load_models().get("models") or {}
+    seen: set[str] = set()
+    while model_id in models and models[model_id].get("retired") and models[model_id].get("superseded_by") and model_id not in seen:
+        seen.add(model_id)
+        model_id = models[model_id]["superseded_by"]
+    return model_id
+
+
+def retired_model_ids() -> set[str]:
+    return {mid for mid, m in (load_models().get("models") or {}).items() if m.get("retired")}
+
+
 def recommended_models(agent_id: str) -> list[str]:
-    """The agent's curated short list — surfaced first in pickers, not a gate."""
+    """The agent's curated short list — surfaced first in pickers, not a gate. Never a retired model."""
     meta = get_agent(agent_id)
-    return list(meta.get("allowed_models") or [meta["default_model"]])
+    return list(dict.fromkeys(current_model_id(m) for m in (meta.get("allowed_models") or [meta["default_model"]])))
 
 
 def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
@@ -220,12 +245,14 @@ def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
     models_cfg = load_models()
     models = models_cfg.get("models") or {}
     provider_meta = models_cfg.get("providers") or {}
-    model_id = override or meta["default_model"]
-    if model_id not in models:
+    requested = override or meta["default_model"]
+    if requested not in models:
         raise ValueError(
-            f"Unknown model in catalog: {model_id}. "
+            f"Unknown model in catalog: {requested}. "
             f"Add it to config/models.yaml, then POST /v1/reload."
         )
+    # A retired model (an old saved team, an old run being resumed) runs as its successor.
+    model_id = current_model_id(requested)
     recommended = recommended_models(agent_id)
     catalog = models[model_id]
     provider = catalog["provider"]
@@ -239,9 +266,10 @@ def resolve_model(agent_id: str, override: str | None = None) -> dict[str, Any]:
         "model_label": catalog.get("label", model_id),
         "temperature": meta.get("temperature", 0.3),
         "max_tokens": meta.get("max_tokens", 2048),
-        "default_model": meta["default_model"],
+        "default_model": current_model_id(meta["default_model"]),
         "allowed_models": recommended,
         "recommended": model_id in recommended,
+        **({"remapped_from": requested} if requested != model_id else {}),
         "home_provider": meta["provider"],
         "price_in": float(catalog.get("price_in", 0.0)),
         "price_out": float(catalog.get("price_out", 0.0)),
@@ -264,7 +292,7 @@ def agents_public_list() -> list[dict]:
     for aid, meta in load_agents().items():
         if meta.get("enabled") is False:
             continue
-        recommended = meta.get("allowed_models") or [meta["default_model"]]
+        recommended = list(dict.fromkeys(current_model_id(m) for m in (meta.get("allowed_models") or [meta["default_model"]])))
         selectable = [
             {
                 "id": mid,
@@ -277,6 +305,7 @@ def agents_public_list() -> list[dict]:
                 "configured": providers.get(m.get("provider"), False),
             }
             for mid, m in models.items()
+            if not m.get("retired")
         ]
         out.append(
             {
@@ -286,7 +315,7 @@ def agents_public_list() -> list[dict]:
                 "description": meta.get("description", ""),
                 "provider": meta["provider"],
                 "providerLabel": meta.get("provider_label", meta["provider"]),
-                "defaultModel": meta["default_model"],
+                "defaultModel": current_model_id(meta["default_model"]),
                 "allowedModels": selectable,
                 "recommendedModels": list(recommended),
                 "councils": meta.get("councils") or [],
@@ -354,6 +383,8 @@ def models_public_list() -> dict:
                 "priceIn": float(meta.get("price_in", 0.0)),
                 "priceOut": float(meta.get("price_out", 0.0)),
                 "strengths": meta.get("strengths") or [],
+                "retired": bool(meta.get("retired")),
+                "supersededBy": meta.get("superseded_by"),
             }
         )
     return {

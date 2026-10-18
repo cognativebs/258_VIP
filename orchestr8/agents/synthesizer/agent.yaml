@@ -8,9 +8,8 @@ provider_label: OpenAI
 default_model: gpt-4.1
 allowed_models:
 - gpt-4.1
-- gpt-4o
-- claude-sonnet-4-6
-- claude-opus-4-6
+- claude-sonnet-5-5
+- claude-opus-5-5
 councils:
 - execution
 - board

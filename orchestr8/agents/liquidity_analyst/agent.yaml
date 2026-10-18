@@ -5,12 +5,12 @@ tier: 9
 description: Exit speed, venue fit, and sell-queue ordering by friction
 provider: anthropic
 provider_label: Anthropic
-default_model: claude-sonnet-4-6
+default_model: claude-sonnet-5-5
 allowed_models:
-- claude-sonnet-4-6
+- claude-sonnet-5-5
 - gpt-4.1
 - grok-4.6
-- claude-haiku-4-5
+- claude-haiku-5-5
 councils:
 - analysis
 temperature: 0.25

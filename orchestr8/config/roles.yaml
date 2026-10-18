@@ -32,7 +32,7 @@ roles:
 
   researcher:
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-5-5
     label: Researcher
     provider_label: Anthropic
     description: Deep analysis grounded in collection data and market context
@@ -43,7 +43,7 @@ roles:
 
   code_writer:
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-sonnet-5-5
     label: Code Writer
     provider_label: Anthropic
     description: Structured outputs, schemas, scripts, and technical artifacts
