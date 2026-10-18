@@ -49,6 +49,7 @@ def main() -> None:
         roles=result["roles"],
         vote=result["vote"],
         confidence=0.9,
+        trace=result["trace"],
     )
     # Note conditional critic approval in provenance notes
     stamped["provenance"]["notes"] = (

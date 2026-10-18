@@ -2,7 +2,7 @@
 
 **Operator:** Gregory Williamson  
 **Runner:** Claude Managed Agent `agent_01B8ziCmNADfRwKexa969qQg`  
-**Environment:** `env_01HgSHypqTtC6hNjRwYEucLs`  
+**Environment:** `env_01D8Du4whd8zzNbZe5TGG2Vs` (`o8-workstation`, self-hosted; worker workdir is this repo). Old cloud env `env_01HgSHypqTtC6hNjRwYEucLs` / session `sesn_01FzmMs9o11xf3tNh232zK61` is disconnected — do not reuse.  
 **Out of scope:** VITURE / XR glasses / Luma Ultra. That is later, after Orchestr8 can emit a critic-passed build spec for Cursor.
 
 Send the fenced block in §2 as the `user.message` to the MA session.

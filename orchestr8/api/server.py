@@ -42,7 +42,7 @@ from services.registry import (  # noqa: E402
     models_public_list,
     pipeline_order as registry_pipeline_order,
 )
-from services.provider_env import configured_providers, provider_key_warnings  # noqa: E402
+from services.provider_env import configured_providers, env_file_present, provider_key_warnings  # noqa: E402
 from services.roles import load_config  # noqa: E402
 
 PORT = int(os.environ.get("ORCHESTR8_PORT", "5210"))
@@ -482,7 +482,22 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), GatewayHandler)
+    # Without this the banner and the WARN lines below sit in a block buffer
+    # whenever stdout is redirected to a launcher log, so an operator debugging
+    # "gateway offline" sees an empty log file and no missing-key warning.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, OSError):  # pragma: no cover - non-standard stdout
+        pass
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", PORT), GatewayHandler)
+    except OSError as e:
+        print(f"Bind failed on 127.0.0.1:{PORT}: {e}")
+        print("Usually a stale gateway is still listening (HealthBar shows gateway offline).")
+        print(f"  netstat -ano | findstr :{PORT}")
+        print("  taskkill /PID <pid> /F")
+        print("Or: start_orchestr8.bat after killing that PID.")
+        raise SystemExit(1) from e
     print(f"Orchestr8 AI Gateway on http://127.0.0.1:{PORT}")
     print("  GET  /v1/health")
     print("  GET  /v1/roles")
@@ -491,6 +506,7 @@ def main() -> None:
     print("  POST /v1/agents")
     print("  PATCH /v1/agents/:id")
     print("  DELETE /v1/agents/:id (custom: to .trash; edited shipped: reset)")
+    print("  POST /v1/agents/:id/promote (operator review: ship a Console role)")
     print("  GET  /v1/models")
     print("  GET  /v1/councils")
     print("  GET  /v1/pricing")
@@ -499,12 +515,15 @@ def main() -> None:
     print("  GET  /v1/runs/:id")
     print("  GET  /v1/specs")
     print("  GET  /v1/specs/:id")
+    print("  POST /v1/diff-review · GET /v1/diff-reviews (O2)")
     print("  POST /v1/jobs")
     print("  POST /v1/jobs/stream (SSE; resumeFromRunId to continue a credit pause)")
     print("  POST /v1/plan")
     print("  POST /v1/reload")
     print(f"  Providers: {configured_providers()}")
     print(f"  Agents: {len(agents_public_list())}")
+    if not env_file_present():
+        print("  WARN: orchestr8/.env is missing — copy orchestr8/.env.example and add keys.")
     for warn in provider_key_warnings():
         print(f"  WARN: {warn}")
     server.serve_forever()

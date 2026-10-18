@@ -1,5 +1,7 @@
 /**
  * Read cached Browse listing observations as a LIVE range chip.
+ * Only the latest walk for each holding counts — leftover lots and
+ * mismatched titles from older queries must not keep widening the range.
  * Never writes vault_market.sale or current_price_snapshot.
  */
 import { sql } from "drizzle-orm";
@@ -72,21 +74,29 @@ export async function loadLiveRangeMap(
     sql`, `,
   );
   const result = await db.execute(sql`
+    WITH latest AS (
+      SELECT holding_source_row_id, MAX(observed_at) AS latest_observed
+      FROM vault_market.listing_observation
+      WHERE holding_source_row_id IN (${idList})
+      GROUP BY holding_source_row_id
+    )
     SELECT
-      holding_source_row_id,
+      o.holding_source_row_id,
       COUNT(*) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS listing_count,
-      MIN(ask_price) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+      MIN(o.ask_price) FILTER (
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS live_low,
-      MAX(ask_price) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+      MAX(o.ask_price) FILTER (
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS live_high,
-      MAX(observed_at) AS latest_observed
-    FROM vault_market.listing_observation
-    WHERE holding_source_row_id IN (${idList})
-    GROUP BY holding_source_row_id
+      MAX(o.observed_at) AS latest_observed
+    FROM vault_market.listing_observation o
+    JOIN latest l
+      ON l.holding_source_row_id = o.holding_source_row_id
+     AND o.observed_at = l.latest_observed
+    GROUP BY o.holding_source_row_id
   `);
 
   for (const raw of result.rows as LiveRangeRow[]) {
@@ -99,20 +109,28 @@ export async function loadLiveRangeMap(
 export async function loadAllLiveRanges(): Promise<Map<string, LiveRangeChip>> {
   const db = getDb();
   const result = await db.execute(sql`
+    WITH latest AS (
+      SELECT holding_source_row_id, MAX(observed_at) AS latest_observed
+      FROM vault_market.listing_observation
+      GROUP BY holding_source_row_id
+    )
     SELECT
-      holding_source_row_id,
+      o.holding_source_row_id,
       COUNT(*) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS listing_count,
-      MIN(ask_price) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+      MIN(o.ask_price) FILTER (
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS live_low,
-      MAX(ask_price) FILTER (
-        WHERE observation_kind = 'browse_listing' AND ask_price IS NOT NULL
+      MAX(o.ask_price) FILTER (
+        WHERE o.observation_kind = 'browse_listing' AND o.ask_price IS NOT NULL
       ) AS live_high,
-      MAX(observed_at) AS latest_observed
-    FROM vault_market.listing_observation
-    GROUP BY holding_source_row_id
+      MAX(o.observed_at) AS latest_observed
+    FROM vault_market.listing_observation o
+    JOIN latest l
+      ON l.holding_source_row_id = o.holding_source_row_id
+     AND o.observed_at = l.latest_observed
+    GROUP BY o.holding_source_row_id
   `);
   const out = new Map<string, LiveRangeChip>();
   for (const raw of result.rows as LiveRangeRow[]) {

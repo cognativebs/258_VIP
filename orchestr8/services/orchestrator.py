@@ -26,6 +26,45 @@ def sort_agent_ids(agent_ids: list[str]) -> list[str]:
     return sorted(agent_ids, key=lambda r: rank.get(r, 999))
 
 
+def build_spec_phase(agent_id: str) -> int:
+    """Author before review. Global pipeline_order ranks critic before architect."""
+    if agent_id == "architect":
+        return 10
+    if agent_id in ("domain_expert", "innovator"):
+        return 20
+    if agent_id == "tester":
+        return 30
+    if agent_id == "critic":
+        return 40
+    if agent_id == "synthesizer":
+        return 50
+    return 25
+
+
+def order_build_spec_roles(agent_ids: list[str]) -> list[str]:
+    """Stable phase sort for build_spec. Does not drop roles."""
+    return sorted(agent_ids, key=lambda r: (build_spec_phase(r), agent_ids.index(r)))
+
+
+def _drop_unknown_roles(agent_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Split ids into (registered, unknown). Never raises.
+
+    A console team is persisted in localStorage, so it outlives the custom role
+    it names. Returning the unknown ids lets the caller keep the council running
+    and still tell the operator which roles were skipped.
+    """
+    keep: list[str] = []
+    dropped: list[str] = []
+    for aid in agent_ids:
+        try:
+            get_agent(aid)
+        except Exception:  # noqa: BLE001 — unknown / unloadable role
+            dropped.append(aid)
+        else:
+            keep.append(aid)
+    return keep, dropped
+
+
 def _build_system(agent_id: str, task: str) -> str:
     skill = load_skill_text(agent_id, brief=False) or load_skill_text(agent_id, brief=True)
     meta = get_agent(agent_id)
@@ -274,6 +313,8 @@ def _is_retryable_provider_error(exc: BaseException) -> bool:
             "empty openai response",
             "empty anthropic response",
             "empty grok response",
+            "provider http failed",
+            "connection refused",
         )
     )
 
@@ -369,6 +410,7 @@ def _finalize(
     paused: bool = False,
     pause: dict | None = None,
     resume: dict | None = None,
+    dropped_roles: list[str] | None = None,
 ) -> dict:
     council_meta = get_council(council) if council else None
     vote = evaluate_votes(trace, council_meta)
@@ -383,6 +425,10 @@ def _finalize(
         "council": council,
         "vote": vote,
     }
+    # Stale ids from a leftover console team. Surfaced so the operator can see
+    # the roster actually run, instead of silently getting a smaller council.
+    if dropped_roles:
+        out["droppedRoles"] = list(dropped_roles)
     if paused and pause:
         out["paused"] = True
         out["pause"] = pause
@@ -712,6 +758,20 @@ def _execute_job(
         if resolved not in seen:
             seen.add(resolved)
             unique.append(resolved)
+    # A leftover console team can still name a custom role that has since been
+    # deleted. Before this filter a single stale id raised "Unknown agent" out of
+    # _build_system and killed the whole council, so the operator got no spec at
+    # all. Drop the stale ids, keep the run, and report them on the result.
+    unique, dropped_roles = _drop_unknown_roles(unique)
+    if not unique:
+        fallback = list((get_council(council) or {}).get("agents") or []) if council else []
+        unique, _ = _drop_unknown_roles(fallback)
+        if not unique:
+            raise ValueError(
+                "No usable roles: "
+                + ", ".join(dropped_roles)
+                + " are not in the registry. Pick a team again in the console."
+            )
     # Prefer the council's declared agent order (e.g. build_spec: architect → … → critic).
     # Fall back to the global pipeline_order when no council is set.
     council_meta_early = get_council(council) if council else None
@@ -720,6 +780,9 @@ def _execute_job(
         unique = sorted(unique, key=lambda r: rank.get(r, 999))
     else:
         unique = sort_agent_ids(unique)
+    # Full Council YAML and global pipeline_order both list critic before architect.
+    if task == "build_spec":
+        unique = order_build_spec_roles(unique)
     from services.credit_pause import seed_trace, step_is_credit_pause
 
     resume = resume or {}
@@ -767,6 +830,7 @@ def _execute_job(
             roles=unique,
             overrides={k: v for k, v in overrides.items() if resolve_agent_id(k) in unique},
             council=council,
+            dropped_roles=dropped_roles,
         )
 
     coordinator = _coordinator_id(unique)
@@ -854,6 +918,7 @@ def _execute_job(
             roles=unique,
             overrides=overrides,
             council=council,
+            dropped_roles=dropped_roles,
         )
 
     # pipeline
@@ -909,6 +974,7 @@ def _execute_job(
                     roles=unique,
                     overrides=overrides,
                     council=council,
+                    dropped_roles=dropped_roles,
                 )
 
     done_workers = {s.get("role") for s in seed_trace(trace) if s.get("role") != coordinator}
@@ -955,6 +1021,7 @@ def _execute_job(
                 roles=unique,
                 overrides=overrides,
                 council=council,
+                dropped_roles=dropped_roles,
             )
 
     final_done = bool(
@@ -997,4 +1064,5 @@ def _execute_job(
         roles=unique,
         overrides=overrides,
         council=council,
+        dropped_roles=dropped_roles,
     )

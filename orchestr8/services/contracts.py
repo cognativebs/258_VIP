@@ -5,11 +5,13 @@ Loads per-agent ``contract.yaml`` and validates it against the canonical
 allowed tools, IO schema, confidence rules, failure behavior, escalation.
 
 The validator is a small draft-07 subset (type / required / properties / items /
-enum / minLength / minimum / maximum) so Orchestr8 keeps zero extra dependencies.
+enum / minLength / maxLength / pattern / minimum / maximum) so Orchestr8 keeps
+zero extra dependencies.
 """
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -83,6 +85,12 @@ def validate_instance(instance: Any, schema: dict, path: str = "") -> list[str]:
         min_len = schema.get("minLength")
         if min_len is not None and len(instance) < min_len:
             errs.append(f"{where}: string shorter than minLength {min_len}")
+        max_len = schema.get("maxLength")
+        if max_len is not None and len(instance) > max_len:
+            errs.append(f"{where}: string longer than maxLength {max_len}")
+        pattern = schema.get("pattern")
+        if pattern is not None and re.fullmatch(pattern, instance) is None:
+            errs.append(f"{where}: {instance!r} does not match pattern {pattern}")
 
     if isinstance(instance, (int, float)) and not isinstance(instance, bool):
         if "minimum" in schema and instance < schema["minimum"]:

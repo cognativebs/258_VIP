@@ -61,7 +61,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        # requirements-dev.txt is the comics ingest stack. Orchestr8 tests
+        # import PyYAML (and dotenv) from orchestr8/requirements.txt; without
+        # it, pytest dies at collection or skips those modules.
+        run: pip install -r requirements-dev.txt -r orchestr8/requirements.txt
 
       - name: Byte-compile ingest + API scripts
         run: python -m compileall -q clz_comic_parser.py load_comics.py api scripts

@@ -148,39 +148,59 @@ def _looks_like_spec(obj: dict) -> bool:
     return keys.issubset(obj.keys()) or {"id", "title", "goal", "cursor_prompt"}.issubset(obj.keys())
 
 
+def _contract_field(item: dict, *keys: str) -> str:
+    for key in keys:
+        val = item.get(key)
+        if isinstance(val, dict):
+            nested = _contract_field(val, *keys)
+            if nested:
+                return nested
+            val = json.dumps(val)[:240]
+        if val is None or val == "":
+            continue
+        text = str(val).strip()
+        if text:
+            return text
+    return ""
+
+
+def _normalize_contract_item(item: Any) -> dict[str, str]:
+    """Coerce one contracts_first entry to {path, change}.
+
+    Architects routinely emit location/description, file/name, a bare string,
+    or a non-empty list of objects missing the required keys. A populated but
+    malformed list used to skip this branch and fail schema validation at emit.
+    """
+    if isinstance(item, str):
+        return {"path": "n/a", "change": item.strip() or "see goal"}
+    if not isinstance(item, dict):
+        return {"path": "n/a", "change": str(item)[:240] or "see goal"}
+    path = _contract_field(item, "path", "location", "file", "schema", "target")
+    change = _contract_field(item, "change", "description", "notes", "name", "summary")
+    if not path and not change:
+        leftover = {k: v for k, v in item.items() if k not in {"path", "change"}}
+        change = json.dumps(leftover)[:240] if leftover else "see goal"
+    return {"path": path or "n/a", "change": change or "see goal"}
+
+
 def normalize_build_spec(spec: dict) -> dict:
     """Coerce common Architect shape drift so schema validation can pass."""
     out = dict(spec)
 
-    # contracts_first sometimes arrives as a single object or {schemas:[...]}
+    # contracts_first sometimes arrives as a single object, {schemas:[...]},
+    # or a non-empty list of objects that omit path/change.
     cf = out.get("contracts_first")
     if isinstance(cf, dict):
         if isinstance(cf.get("schemas"), list):
-            items = []
-            for s in cf["schemas"]:
-                if isinstance(s, dict):
-                    items.append(
-                        {
-                            "path": str(s.get("location") or s.get("path") or "packages/…"),
-                            "change": str(
-                                s.get("description")
-                                or s.get("change")
-                                or s.get("name")
-                                or json.dumps(s)[:200]
-                            ),
-                        }
-                    )
+            items = [_normalize_contract_item(s) for s in cf["schemas"]]
             out["contracts_first"] = items or [
                 {"path": "n/a", "change": str(cf.get("description") or "see goal")}
             ]
         else:
-            out["contracts_first"] = [
-                {
-                    "path": str(cf.get("path") or cf.get("location") or "n/a"),
-                    "change": str(cf.get("change") or cf.get("description") or json.dumps(cf)[:240]),
-                }
-            ]
-    elif not isinstance(cf, list) or not cf:
+            out["contracts_first"] = [_normalize_contract_item(cf)]
+    elif isinstance(cf, list) and cf:
+        out["contracts_first"] = [_normalize_contract_item(item) for item in cf]
+    else:
         out["contracts_first"] = [{"path": "n/a", "change": "No new contracts — UI-only change"}]
 
     # file_plan: ensure notes + allowed actions
@@ -316,18 +336,59 @@ def render_markdown(spec: dict) -> str:
     return "\n".join(lines)
 
 
+def safe_spec_id(raw: str) -> str:
+    """Filename-safe slug that always satisfies build_spec.schema.json.
+
+    Rejects path segments (``../x``, ``specs/x``). The schema requires
+    ``minLength: 3`` and ``^[a-z0-9][a-z0-9-]{1,79}$``, so a degenerate question
+    ("AI", "?") must not produce a 1-2 char slug: the council would run to
+    completion and only then die in write_spec on a schema error. Fall back to
+    the generic id instead of losing the emit.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", (raw or "spec").lower()).strip("-")[:80]
+    if len(slug) < 3:
+        return f"build-spec-{slug}" if slug else "build-spec"
+    return slug
+
+
 def write_spec(spec: dict) -> Path:
     spec = normalize_build_spec(spec)
+    spec["id"] = safe_spec_id(str(spec.get("id") or "build-spec"))
     errs = validate_build_spec(spec)
     if errs:
         raise ValueError("Build spec failed schema: " + "; ".join(errs[:6]))
     SPECS_DIR.mkdir(parents=True, exist_ok=True)
-    path = SPECS_DIR / f"{spec['id']}.md"
+    specs_root = SPECS_DIR.resolve()
+    path = (SPECS_DIR / f"{spec['id']}.md").resolve()
+    if path.parent != specs_root:
+        raise ValueError(f"spec id escaped docs/specs: {spec['id']}")
     path.write_text(render_markdown(spec), encoding="utf-8")
-    # Also keep the machine-readable JSON beside it for O2 diff review.
-    json_path = SPECS_DIR / f"{spec['id']}.json"
+    json_path = (SPECS_DIR / f"{spec['id']}.json").resolve()
+    if json_path.parent != specs_root:
+        raise ValueError(f"spec id escaped docs/specs: {spec['id']}")
     json_path.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def critic_review_state(trace: list[dict] | None) -> str:
+    """Where Critic sat relative to Architect: none | pre_author | post_author | critic_failed."""
+    arch_idx: int | None = None
+    critic_idx: int | None = None
+    critic_error = False
+    for i, step in enumerate(trace or []):
+        if step.get("role") == "architect" and arch_idx is None:
+            arch_idx = i
+        if step.get("role") == "critic":
+            critic_idx = i
+            if step.get("error"):
+                critic_error = True
+    if critic_idx is None:
+        return "none"
+    if critic_error:
+        return "critic_failed"
+    if arch_idx is None or critic_idx < arch_idx:
+        return "pre_author"
+    return "post_author"
 
 
 def attach_provenance(
@@ -338,18 +399,17 @@ def attach_provenance(
     roles: list[str],
     vote: dict | None,
     confidence: float | None = None,
+    trace: list[dict] | None = None,
 ) -> dict:
     """Stamp provenance from the orchestration run onto a extracted/drafted spec."""
     vetoed = bool((vote or {}).get("vetoed"))
-    status = "critic_vetoed" if vetoed else "critic_passed"
-    # If no vote / no challenge members, stay unverified until human.
-    if not vote or vote.get("effectivePolicy") in (None, "none"):
-        if not vetoed and (vote or {}).get("verdict") in (None, "approve", "conditional"):
-            # Pipeline with critic present → treat non-veto as critic_passed when critic ran.
-            if "critic" in roles and not vetoed:
-                status = "critic_passed"
-            else:
-                status = "unverified"
+    review = critic_review_state(trace)
+    if vetoed:
+        status = "critic_vetoed"
+    elif review == "post_author":
+        status = "critic_passed"
+    else:
+        status = "unverified"
     out = dict(spec)
     out["provenance"] = {
         "source": "orchestr8.build_spec_council",
@@ -357,6 +417,7 @@ def attach_provenance(
         "rule_or_model_version": "build_spec_v1",
         "confidence": confidence if confidence is not None else 0.0,
         "verification_status": status,
+        "critic_review": review,
         "run_id": run_id,
         "council": council,
         "roles": list(roles),
@@ -424,9 +485,7 @@ def build_spec_from_committee_result(result: dict, *, question: str) -> dict:
         )
 
     # Fill id/title from question if agents omitted them.
-    if not spec.get("id"):
-        slug = re.sub(r"[^a-z0-9]+", "-", (question or "spec").lower()).strip("-")[:48]
-        spec["id"] = slug or "build-spec"
+    spec["id"] = safe_spec_id(str(spec.get("id") or question or "build-spec"))
     if not spec.get("title"):
         spec["title"] = (question or "Build spec")[:120]
 
@@ -446,5 +505,6 @@ def build_spec_from_committee_result(result: dict, *, question: str) -> dict:
         roles=result.get("roles") or [],
         vote=result.get("vote"),
         confidence=avg_conf,
+        trace=result.get("trace") or [],
     )
     return stamped
