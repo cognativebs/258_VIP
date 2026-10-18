@@ -20,8 +20,8 @@ from services.operator_attachments import (  # noqa: E402
     summarize_for_collection_json,
 )
 
-# Heavy imports (registry → PyYAML) stay inside tests so the ingest CI job
-# can collect this module without orchestr8/requirements.txt.
+# Heavy imports (registry → PyYAML) stay inside tests so collection succeeds
+# when orchestr8/requirements.txt is not installed.
 
 
 def test_normalize_drops_empty_and_caps_count():

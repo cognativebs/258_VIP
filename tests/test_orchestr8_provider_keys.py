@@ -11,8 +11,8 @@ ORCH_ROOT = os.path.join(REPO_ROOT, "orchestr8")
 if ORCH_ROOT not in sys.path:
     sys.path.insert(0, ORCH_ROOT)
 
-# Import the lightweight module (no PyYAML) so the ingest CI job can run these
-# checks without installing orchestr8/requirements.txt.
+# Import the lightweight module (no PyYAML) so these checks run even when
+# orchestr8/requirements.txt is not installed.
 from services.provider_env import provider_key_warnings, provider_keys  # noqa: E402
 
 

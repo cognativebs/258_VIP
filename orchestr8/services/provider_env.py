@@ -24,8 +24,8 @@ if not DOTENV_SKIPPED:
 
         load_dotenv(ROOT / ".env")
     except ImportError:
-        # CI ingest job installs requirements-dev.txt only; gateway runtime still
-        # has python-dotenv via orchestr8/requirements.txt.
+        # python-dotenv ships in orchestr8/requirements.txt. Ingest-only installs
+        # that omit it still load keys from the process environment.
         pass
 
 

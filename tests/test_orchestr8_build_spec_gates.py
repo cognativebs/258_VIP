@@ -11,7 +11,8 @@ ORCH_ROOT = os.path.join(REPO_ROOT, "orchestr8")
 if ORCH_ROOT not in sys.path:
     sys.path.insert(0, ORCH_ROOT)
 
-# CI's Python job installs requirements-dev.txt only (no PyYAML); the Orchestr8 services need it.
+# Orchestr8 services import PyYAML. Skip when orchestr8/requirements.txt is absent
+# (local ingest-only installs) so collection does not die on ModuleNotFoundError.
 pytest.importorskip("yaml", reason="orchestr8/requirements.txt not installed")
 
 from providers.llm import _canonical_model, _is_openai_reasoning, _repair_openai_body  # noqa: E402
