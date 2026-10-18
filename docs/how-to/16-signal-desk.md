@@ -34,7 +34,7 @@ npm run signals-brief -w @vip/jobs -- --force     # run now even if today's is d
 ```
 
 Settings (in `services\api\.env`): `VIP_SIGNALS_BRIEF_HOUR` (default 7),
-`VIP_SIGNALS_BRIEF_CAP_USD` (default 1), `VIP_SIGNALS_BRIEF_MODEL` (default `gpt-4o-mini`).
+`VIP_SIGNALS_BRIEF_CAP_USD` (default 1), `VIP_SIGNALS_BRIEF_MODEL` (default `claude-haiku-5-5`).
 Sent to the model: headline titles, links, source names and our own fields; never article bodies.
 
 ## Rules it keeps
