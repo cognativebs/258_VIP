@@ -12,6 +12,8 @@ volume suffix stripped). Returned titles must name that series and issue;
 lots, omnibuses, and TPBs are dropped. LIVE uses only the latest walk for
 each holding so older mismatched asks cannot keep widening the range.
 
+**Owner decision (2026-10-18):** LIVE keeps showing current eBay asks, labelled asks · unverified and kept separate from the PriceCharting guide range. Asks are never sales and never a price for Buy / Sell / Grade. A Sept 14 proposal to drop asks from LIVE (PriceCharting only) was not adopted.
+
 Do **not** put eBay keys in `orchestr8/.env` (LLM keys only).
 
 ## 1. Create the eBay app (once)

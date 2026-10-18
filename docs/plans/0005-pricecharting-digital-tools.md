@@ -7,6 +7,8 @@
 **Migrations reserved:** `31` – `34`
 **New service:** `services/edge/` (FastAPI, deployed Railway or Render)
 
+**Status (owner, 2026-10-18): ShopVault is ON HOLD.** Do not design or scaffold ShopVault, and the PriceCharting vendor terms email waits with it, until the owner lifts the hold. The other Digital Tools are unaffected by this note.
+
 ---
 
 ## 0. The one rule this entire plan is built around

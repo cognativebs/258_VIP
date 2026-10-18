@@ -76,6 +76,7 @@ These stop a thread. Report the finding and continue only with work that does no
 - STOP and report before any destructive operation (DROP, TRUNCATE, destructive ALTER,
   data delete). Never merge or force-push without being asked.
 - Do not add tables, columns, or features not named in the request. Report the gap.
+- ShopVault (plan 0005) is on hold (owner, 2026-10-18): do not design or scaffold it; the PriceCharting vendor terms email waits with it.
 - If a prompt conflicts with a design doc or with this file, STOP and report the
   conflict rather than picking one side.
 - Multi-game TCG work follows `docs/proposals/2026-08-19_vault_tcg_schema_plan_v2.md`,
