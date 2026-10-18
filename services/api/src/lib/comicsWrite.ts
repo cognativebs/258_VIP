@@ -268,7 +268,7 @@ export async function updateComicHolding(
       SET ${sql.join(setFragments, sql`, `)},
           clz_metadata = COALESCE(clz_metadata, '{}'::jsonb) || ${metaJson}::jsonb,
           updated_at = now()
-      WHERE source = 'clz_import' AND source_row_id = ${sourceRowId}
+      WHERE source IN ('clz_import', 'comicbase_export') AND source_row_id = ${sourceRowId}
       RETURNING source_row_id
     `);
 
@@ -316,7 +316,7 @@ export async function updateComicHolding(
       JOIN vault_comic.variant v ON v.asset_id = a.id
       JOIN vault_comic.issue i ON i.id = v.issue_id
       JOIN vault_comic.series s ON s.id = i.series_id
-      WHERE h.source = 'clz_import' AND h.source_row_id = ${sourceRowId}
+      WHERE h.source IN ('clz_import', 'comicbase_export') AND h.source_row_id = ${sourceRowId}
     `);
 
     const rec = (loaded.rows as Record<string, unknown>[])[0];

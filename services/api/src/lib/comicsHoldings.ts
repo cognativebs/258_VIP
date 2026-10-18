@@ -10,6 +10,12 @@ import { loadAllLiveRanges } from "./liveRange.js";
  * columns carry anything edited since. We overlay the columns onto the stored
  * row and hand the result to the same mapper the seed files use, so there is
  * one holding shape in the platform rather than one per data source.
+ *
+ * ComicBase is the inventory (ADR 0016, 2026-10-18): once a ComicBase report
+ * is imported, the collection is `vault_collection.v_comics_inventory` — the
+ * holdings standing for items in the latest report, quantity from ComicBase.
+ * CLZ holdings ComicBase does not list stay in the database and drop out of
+ * this payload. Before any ComicBase import the CLZ holdings load as before.
  */
 
 export type SnapshotInfo = {
@@ -25,6 +31,8 @@ export type SnapshotInfo = {
 export type ComicsPayload = {
   available: boolean;
   holdings: ApiHolding[];
+  /** Where the list of books comes from: the latest ComicBase report, or CLZ before any ComicBase import. */
+  inventorySource?: "comicbase" | "clz";
   snapshot: SnapshotInfo | null;
   error: string | null;
   dsn: string;
@@ -60,6 +68,9 @@ const HOLDINGS_SQL = sql`
       h.current_price_snapshot,
       h.clz_metadata,
       h.raw_snapshot_id,
+      h.source AS holding_source,
+      inv.quantity AS inventory_quantity,
+      inv.needs_review AS inventory_needs_review,
       a.canonical_name,
       a.primary_image_url,
       a.release_year,
@@ -78,18 +89,23 @@ const HOLDINGS_SQL = sql`
         '[]'::json
       ) AS external_ids
   FROM vault_collection.holding h
+  LEFT JOIN vault_collection.v_comics_inventory inv ON inv.holding_id = h.id
   JOIN vault_core.asset a   ON a.id = h.asset_id
   JOIN vault_comic.variant v ON v.asset_id = a.id
   JOIN vault_comic.issue i   ON i.id = v.issue_id
   JOIN vault_comic.series s  ON s.id = i.series_id
-  WHERE h.source = 'clz_import'
+  WHERE CASE WHEN EXISTS (SELECT 1 FROM vault_collection.v_comics_inventory)
+             THEN inv.holding_id IS NOT NULL
+             ELSE h.source = 'clz_import' END
   ORDER BY s.title, i.issue_number, v.cover_label
 `;
 
+/** The ComicBase report behind the inventory when there is one, else the latest CLZ export. */
 const SNAPSHOT_SQL = sql`
-  SELECT id, content_hash, ingested_at, record_count, storage_ref
+  SELECT id, content_hash, ingested_at, record_count, storage_ref, source
   FROM vault_evidence.raw_snapshots
-  WHERE source = 'clz_xml'
+  WHERE id IN (SELECT raw_snapshot_id FROM vault_collection.v_comics_inventory)
+     OR (source = 'clz_xml' AND NOT EXISTS (SELECT 1 FROM vault_collection.v_comics_inventory))
   ORDER BY ingested_at DESC
   LIMIT 1
 `;
@@ -116,7 +132,15 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   base["Edition / Variant"] = row.cover_label ?? base["Edition / Variant"] ?? "";
   base["Cover Image URL"] = row.primary_image_url ?? base["Cover Image URL"] ?? "";
 
-  base["Quantity"] = num(row.quantity) ?? base["Quantity"] ?? 1;
+  // ComicBase's count is the inventory; the holding column keeps what CLZ said.
+  base["Quantity"] = num(row.inventory_quantity) ?? num(row.quantity) ?? base["Quantity"] ?? 1;
+  base["Holding Source"] = row.holding_source ?? base["Holding Source"] ?? "clz_import";
+  if (row.inventory_quantity != null) {
+    base["Inventory Source"] = "ComicBase";
+    base["ComicBase Review"] = yn(row.inventory_needs_review);
+  } else {
+    base["Inventory Source"] = base["Inventory Source"] ?? "CLZ";
+  }
   base["Location"] = row.location ?? base["Location"] ?? "";
   base["Purchase Price"] = num(row.purchase_price) ?? base["Purchase Price"] ?? 0;
   base["Current Price"] = num(row.current_price_snapshot) ?? base["Current Price"] ?? 0;
@@ -168,7 +192,14 @@ function toSnapshot(row: Record<string, unknown> | undefined): SnapshotInfo | nu
     ingestedAt: ingestedAt.toISOString(),
     recordCount: num(row.record_count),
     ageDays: Math.max(0, Math.floor(ageMs / 86_400_000)),
-    label: storageRef ? `CLZ export ${storageRef}` : "CLZ export",
+    label:
+      row.source === "comicbase_export"
+        ? storageRef
+          ? `ComicBase report ${storageRef}`
+          : "ComicBase report"
+        : storageRef
+          ? `CLZ export ${storageRef}`
+          : "CLZ export",
   };
 }
 
@@ -195,10 +226,12 @@ export async function loadComicsHoldings(): Promise<ComicsPayload> {
       return mapInventoryRow(clz, index);
     });
 
+    const snapshotRow = (snapshotRows.rows as Record<string, unknown>[])[0];
     return {
       available: true,
       holdings,
-      snapshot: toSnapshot((snapshotRows.rows as Record<string, unknown>[])[0]),
+      inventorySource: snapshotRow?.source === "comicbase_export" ? "comicbase" : "clz",
+      snapshot: toSnapshot(snapshotRow),
       error: null,
       dsn,
     };

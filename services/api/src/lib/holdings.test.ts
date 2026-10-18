@@ -73,3 +73,29 @@ describe("mapInventoryRow inventory buckets", () => {
     expect(h.ebaySku).toBeNull();
   });
 });
+
+describe("mapInventoryRow ComicBase holdings", () => {
+  it("labels a holding VIP created from ComicBase as inferred, never NM-assumed", () => {
+    const h = mapInventoryRow(
+      {
+        "CLZ Hash": "cb-0123456789abcdef",
+        "Holding Source": "comicbase_export",
+        Series: "Gun Honey",
+        Issue: "1",
+        "Edition / Variant": "ComicBase /H",
+        Quantity: 2,
+      },
+      0,
+    );
+    expect(h.provenance.source).toBe("comicbase_export");
+    expect(h.provenance.ruleOrModelVersion).toBe("comicbase-report-match@0.2.0");
+    expect(h.provenance.verificationStatus).toBe("unverified");
+    expect(h.provenance.notes).toContain("CLZ fields inferred");
+    expect(h.quantity).toBe(2);
+  });
+
+  it("keeps a matched CLZ holding as clz_import", () => {
+    const h = mapInventoryRow({ "CLZ Hash": "clz-1", "Holding Source": "clz_import", Series: "X-Men" }, 0);
+    expect(h.provenance.source).toBe("clz_import");
+  });
+});

@@ -908,7 +908,13 @@ export function createApp(deps: AppDeps = {}) {
     // Durable Binder wishlist first; attention-derived comics rows fill the rest.
     const derived =
       comics.available
-        ? watchlistFrom(holdings.filter((h) => h.provenance.source === "clz_import"))
+        ? watchlistFrom(
+            holdings.filter(
+              (h) =>
+                h.provenance.source === "clz_import" ||
+                h.provenance.source === "comicbase_export",
+            ),
+          )
         : [];
     res.json({
       comicsSource,

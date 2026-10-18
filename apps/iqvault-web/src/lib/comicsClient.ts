@@ -80,7 +80,7 @@ function isComicHolding(h: Holding): boolean {
   if (h.externalIds?.some((e) => ["pokemontcg", "tcgdex", "tcgplayer"].includes(e.source))) {
     return false;
   }
-  return h.provenance?.source === "clz_import";
+  return h.provenance?.source === "clz_import" || h.provenance?.source === "comicbase_export";
 }
 
 /**

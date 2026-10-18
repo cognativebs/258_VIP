@@ -42,7 +42,7 @@ function isPricedByBrowse(holding: ApiHolding): boolean {
   if (holding.id.startsWith("binder-slot-")) return false;
   if (holding.externalIds?.some((e) => e.source === "pokemontcg")) return false;
   if (isSports(holding)) return true;
-  if (holding.provenance.source === "clz_import") return true;
+  if (holding.provenance.source === "clz_import" || holding.provenance.source === "comicbase_export") return true;
   return Boolean(holding.series && holding.publisher);
 }
 

@@ -51,7 +51,10 @@ export function isTcgHolding(h: Holding): boolean {
 }
 
 export function isComicHolding(h: Holding): boolean {
-  return !isTcgHolding(h) && h.provenance?.source === "clz_import";
+  return (
+    !isTcgHolding(h) &&
+    (h.provenance?.source === "clz_import" || h.provenance?.source === "comicbase_export")
+  );
 }
 
 export type TcgSplit = {

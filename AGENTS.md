@@ -125,6 +125,10 @@ and root `package.json` scripts. The startup-time update script only runs
   (`generatedAt` + random `snapshotId`) — that churn is transient; do not commit it.
   The CI byte-identity gate only covers `iqvault_comics_parser_package` and
   `iqvault/public/comics/inventory.json`.
+- ComicBase is the comics inventory (ADR 0016, 2026-10-18). Once a ComicBase report
+  is imported (`npm run import:comicbase`), the collection is
+  `vault_collection.v_comics_inventory` and CLZ only supplies metadata. Before any
+  ComicBase import (CI, a fresh VM) the APIs show the CLZ holdings.
 - Tests need Postgres up + migrated (some Python/TS tests hit live Postgres).
   TS: `npm run typecheck` and `npm test`. Python: `python -m pytest`.
 - Orchestr8 Ask (`:5210`) and eBay/Pokémon-API features need provider keys and

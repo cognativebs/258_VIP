@@ -147,8 +147,11 @@ export async function loadWalkHoldings(): Promise<WalkHolding[]> {
     JOIN vault_comic.variant v ON v.asset_id = a.id
     JOIN vault_comic.issue i ON i.id = v.issue_id
     JOIN vault_comic.series s ON s.id = i.series_id
-    WHERE h.source = 'clz_import'
-      AND (h.dropped_at IS NULL)
+    WHERE h.dropped_at IS NULL
+      -- The comics inventory: the latest ComicBase report once imported (ADR 0016), else CLZ.
+      AND CASE WHEN EXISTS (SELECT 1 FROM vault_collection.v_comics_inventory)
+               THEN h.id IN (SELECT holding_id FROM vault_collection.v_comics_inventory)
+               ELSE h.source = 'clz_import' END
     ORDER BY h.source_row_id
   `);
 

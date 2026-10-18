@@ -101,12 +101,29 @@ def test_matching_pairs_only_what_is_unambiguous():
     assert by[("Fixture Spawn", None, "200", None)].holding_id == "h-sp200"
     assert by[("Fixture Spawn", "Anl", "1", None)].status == "needs_review"
     assert by[("Fixture Spawn", None, "10.1", None)].status == "unmatched"
-    # One copy each side but the counts disagree → review, the holding offered.
+    # Unmatched and annual items carry a CLZ copy from the same series to borrow series metadata from.
+    assert by[("Fixture Spawn", None, "10.1", None)].series_holding_id == "h-sp200"
+    assert by[("Fixture Spawn", "Anl", "1", None)].series_holding_id == "h-sp200"
+    # ComicBase is the inventory: one entry each side matches even when the counts disagree.
     sx = by[("Sex Criminals", None, "1", None)]
-    assert (sx.status, sx.holding_id) == ("needs_review", "h-sx1")
-    assert "quantity differs (ComicBase 1, VIP 2)" in sx.reason
+    assert (sx.status, sx.holding_id) == ("matched", "h-sx1")
+    assert "quantity from ComicBase (1), CLZ had 2" in sx.reason
     matched = [m.holding_id for m in by.values() if m.status == "matched"]
     assert len(matched) == len(set(matched)) and "h-other" not in matched
+
+
+def test_a_year_apart_does_not_join_two_numbered_volumes():
+    items = parse_report(
+        block("The Flash (3rd Series)", "DC (2010&ndash;2012)", "1", 1)
+        + block("The Flash (4th Series)", "DC (2011&ndash;2016)", "1", 1)
+    )
+    holdings = [
+        h("h-v3", "Flash, Vol. 3", "DC Comics", 2010, "1", "Francis Manapul Regular Cover"),
+        h("h-v4", "Flash, Vol. 4", "DC Comics", 2011, "1", "Francis Manapul Regular Cover"),
+    ]
+    by = {m.item.start_year: m for m in match_items(items, holdings)}
+    assert (by[2010].status, by[2010].holding_id) == ("matched", "h-v3")
+    assert (by[2011].status, by[2011].holding_id) == ("matched", "h-v4")
 
 
 DSN = os.environ.get("IQVAULT_TEST_DSN")
@@ -159,7 +176,33 @@ def test_import_snapshots_matches_and_keeps_operator_decisions(tmp_path):
         status, review, ids = cur.fetchone()
         assert (status, review) == ("matched", False) and "action comics|2011|dc|5||p1" in ids
 
+        # ComicBase is the inventory: every item has a holding in the collection, ComicBase's counts.
+        cur.execute("SELECT count(*) FROM vault_collection.comicbase_item WHERE inventory_holding_id IS NULL AND last_raw_snapshot_id = (SELECT last_raw_snapshot_id FROM vault_collection.comicbase_item WHERE item_key = 'action comics|2011|dc|5||p1')")
+        assert cur.fetchone()[0] == 0
+        assert first["collection"]["copies"] == 10
+        cur.execute(
+            """SELECT ci.inventory_holding_id = ci.matched_holding_id FROM vault_collection.comicbase_item ci
+                WHERE ci.item_key = 'action comics|2011|dc|5||p1'"""
+        )
+        assert cur.fetchone() == (True,)
+        # An unmatched item becomes a ComicBase holding: flagged for verification, never graded or priced.
+        cur.execute(
+            """SELECT h.source, h.quantity, h.needs_verification, h.assumed_grade, h.current_price_snapshot,
+                      h.clz_metadata->>'Inventory Source', h.provider_ids->'comicbase'
+                 FROM vault_collection.comicbase_item ci JOIN vault_collection.holding h ON h.id = ci.inventory_holding_id
+                WHERE ci.item_key LIKE 'fixture spawn|%%|10.1||p1'"""
+        )
+        src, qty, verify, grade, price, inv_src, cb_ids = cur.fetchone()
+        assert (src, qty, verify, grade, price, inv_src) == ("comicbase_export", 2, True, None, None, "ComicBase")
+        assert len(cb_ids) == 1
+        cur.execute("SELECT count(*) FROM vault_collection.holding WHERE source = 'comicbase_export'")
+        created = cur.fetchone()[0]
+
         assert ic.import_file(wrapped, str(report), dry_run=False, force=False)["skipped"].startswith("already imported")
+        again = ic.import_file(wrapped, str(report), dry_run=False, force=True)
+        assert again["collection"] == first["collection"]
+        cur.execute("SELECT count(*) FROM vault_collection.holding WHERE source = 'comicbase_export'")
+        assert cur.fetchone()[0] == created
 
         # Operator confirms a reviewed item; a later import never moves it.
         cur.execute("SELECT candidate_holding_ids[1]::text FROM vault_collection.comicbase_item WHERE item_key = 'absolute catwoman|2026|dc|1|A|p1'")
@@ -168,9 +211,9 @@ def test_import_snapshots_matches_and_keeps_operator_decisions(tmp_path):
             ic.confirm(wrapped, "absolute catwoman|2026|dc|1|A|p1", cand)
             ic.import_file(wrapped, str(report), dry_run=False, force=True)
             cur.execute(
-                "SELECT match_status, match_method, matched_holding_id::text, needs_review FROM vault_collection.comicbase_item WHERE item_key = 'absolute catwoman|2026|dc|1|A|p1'"
+                "SELECT match_status, match_method, matched_holding_id::text, needs_review, inventory_holding_id::text FROM vault_collection.comicbase_item WHERE item_key = 'absolute catwoman|2026|dc|1|A|p1'"
             )
-            assert cur.fetchone() == ("matched", "manual", cand, False)
+            assert cur.fetchone() == ("matched", "manual", cand, False, cand)
         cur.execute("SELECT needs_review FROM vault_collection.comicbase_item WHERE item_key LIKE 'fixture spawn|%%Anl 1%%'")
         assert cur.fetchone() == (True,)
     finally:

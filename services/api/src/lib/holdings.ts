@@ -146,11 +146,19 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
   const isNmAssumed =
     assumed.toLowerCase().includes("nm") ||
     (gradeRating === 0 && String(row["Slab Status"] ?? "").toLowerCase() === "raw");
-  const source = isPokemonSeed ? "vip_pokemon_seed" : "clz_import";
+  // A holding VIP created from a ComicBase item (ADR 0016): its CLZ fields are borrowed, so inferred.
+  const fromComicBase = !isPokemonSeed && row["Holding Source"] === "comicbase_export";
+  const source = isPokemonSeed
+    ? "vip_pokemon_seed"
+    : fromComicBase
+      ? "comicbase_export"
+      : "clz_import";
   // ADR 0006 — Python owns CLZ ingest; keep the seed tag distinct.
   const ruleOrModelVersion = isPokemonSeed
     ? "pokemon-seed@0.1.0"
-    : "clz-python-ingest@0.2.0";
+    : fromComicBase
+      ? "comicbase-report-match@0.2.0"
+      : "clz-python-ingest@0.2.0";
 
   const pillar = row["Collection Pillar"] != null ? String(row["Collection Pillar"]) : null;
   const recommendation =
@@ -233,7 +241,13 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     }),
     rarity: String(row["Rarity"] ?? "").trim() || null,
     externalIds,
-    provenance: isNmAssumed
+    provenance: fromComicBase
+      ? markInferred({
+          source,
+          ruleOrModelVersion,
+          notes: "Added from ComicBase · CLZ fields inferred · unverified",
+        })
+      : isNmAssumed
       ? markInferred({
           source,
           ruleOrModelVersion,

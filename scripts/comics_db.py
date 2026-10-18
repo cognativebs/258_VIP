@@ -59,8 +59,12 @@ SELECT
     live.live_listing_count,
     live.live_low,
     live.live_high,
-    live.live_observed_at
+    live.live_observed_at,
+    h.source,
+    inv.quantity AS inventory_quantity,
+    inv.needs_review AS inventory_needs_review
 FROM vault_collection.holding h
+LEFT JOIN vault_collection.v_comics_inventory inv ON inv.holding_id = h.id
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
 JOIN vault_comic.issue i ON i.id = v.issue_id
@@ -82,6 +86,11 @@ LEFT JOIN LATERAL (
     WHERE lo.holding_source_row_id = h.source_row_id
 ) live ON TRUE
 WHERE h.dropped_at IS NULL
+  -- ComicBase is the comics inventory once a report is imported (ADR 0016, 2026-10-18): CLZ and
+  -- ComicBase holdings show only while the latest report lists them. Before any import, CLZ as before.
+  AND (inv.holding_id IS NOT NULL
+       OR h.source NOT IN ('clz_import', 'comicbase_export')
+       OR NOT EXISTS (SELECT 1 FROM vault_collection.v_comics_inventory))
 ORDER BY s.title, i.issue_number, v.cover_label
 """
 
@@ -172,7 +181,13 @@ def row_from_holding(rec: dict) -> dict:
     row["Needs Photo"] = _yn(rec.get("needs_photo"))
     row["Needs Verification"] = _yn(rec.get("needs_verification"))
     row["Verification Notes"] = rec.get("verification_notes") or row.get("Verification Notes", "")
-    row["Quantity"] = int(rec.get("quantity") or row.get("Quantity") or 1)
+    if rec.get("inventory_quantity") is not None:
+        row["Quantity"] = int(rec["inventory_quantity"])
+        row["Inventory Source"] = "ComicBase"
+        row["ComicBase Review"] = _yn(rec.get("inventory_needs_review"))
+    else:
+        row["Quantity"] = int(rec.get("quantity") or row.get("Quantity") or 1)
+        row["Inventory Source"] = "CLZ" if rec.get("source") == "clz_import" else (rec.get("source") or "")
     row["Location"] = rec.get("location") or row.get("Location", "")
     row["Current Price"] = _num(rec.get("current_price_snapshot"), row.get("Current Price", 0))
     row["Purchase Price"] = _num(rec.get("purchase_price"), row.get("Purchase Price", 0))
@@ -238,8 +253,24 @@ def build_meta(rows: list[dict], *, snapshot_label: str | None = None) -> dict:
 
 
 def _snapshot_label(conn, rows: list[dict]) -> str:
-    """Prefer latest raw CLZ snapshot ingest, else MAX(holding.updated_at)."""
+    """Prefer the ComicBase report behind the inventory, then the latest raw CLZ snapshot ingest,
+    else MAX(holding.updated_at)."""
     cur = conn.cursor()
+    comicbase = None
+    try:
+        cur.execute(
+            """
+            SELECT MAX(rs.ingested_at)
+              FROM vault_evidence.raw_snapshots rs
+              JOIN vault_collection.v_comics_inventory inv ON inv.raw_snapshot_id = rs.id
+            """
+        )
+        comicbase = cur.fetchone()[0]
+    except Exception:
+        conn.rollback()
+    if comicbase is not None:
+        cur.close()
+        return f"PostgreSQL · ComicBase {comicbase.date().isoformat()}"
     ingested = None
     try:
         cur.execute(
@@ -370,8 +401,12 @@ SELECT
     live.live_listing_count,
     live.live_low,
     live.live_high,
-    live.live_observed_at
+    live.live_observed_at,
+    h.source,
+    inv.quantity AS inventory_quantity,
+    inv.needs_review AS inventory_needs_review
 FROM vault_collection.holding h
+LEFT JOIN vault_collection.v_comics_inventory inv ON inv.holding_id = h.id
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
 JOIN vault_comic.issue i ON i.id = v.issue_id
@@ -439,7 +474,7 @@ def update_holding(conn, source_row_id: str, fields: dict) -> dict:
     sql = f"""
         UPDATE vault_collection.holding
         SET {", ".join(sets)}
-        WHERE source = 'clz_import' AND source_row_id = %s
+        WHERE source IN ('clz_import', 'comicbase_export') AND source_row_id = %s
     """
     cur = conn.cursor()
     cur.execute(sql, params)

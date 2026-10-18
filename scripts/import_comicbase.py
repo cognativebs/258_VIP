@@ -3,13 +3,21 @@
 
 Each new ComicBase Collection Report (.htm) in the watched folder is stored as
 an immutable raw snapshot (source 'comicbase_export'), parsed into items, and
-matched to comics holdings. Matches add the ComicBase item key to the
-holding's provider_ids; nothing else on a holding changes. Doubtful and
-unmatched items go to the review list (vault_collection.comicbase_item,
-needs_review), which only an operator confirm clears. A confirmed match is
-never overwritten by a later import. While ComicBase is still being filled in,
-holdings missing from ComicBase are not flagged, and unmatched ComicBase items
-do not become new holdings.
+matched to the CLZ comics holdings. ComicBase is the inventory (2026-10-18):
+the comics collection is the items in the latest report
+(vault_collection.v_comics_inventory), with ComicBase's quantities.
+
+- Matched item → the CLZ holding stands for it (provider_ids gains the key;
+  nothing else on the holding changes).
+- Item in review or unmatched → a holding of its own (source
+  'comicbase_export'), with CLZ fields from a copy of the same issue, or else
+  the same series, copied in as inferred · unverified; needs_verification set.
+- Doubtful and unmatched items stay on the review list (needs_review), which
+  only an operator confirm clears. A confirm repoints the item at the CLZ
+  holding; the created holding is kept, not deleted. A confirmed match is never
+  overwritten by a later import.
+- CLZ holdings that ComicBase does not list leave the collection view. They are
+  not deleted and dropped_at is not set.
 
 Usage:
   python scripts/import_comicbase.py                  # every new file in the watched folder
@@ -21,15 +29,17 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
+import re
 import sys
 from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
-from comicbase_report import RULE_VERSION, SOURCE, VipHolding, match_items, parse_report  # noqa: E402
+from comicbase_report import RULE_VERSION, SOURCE, ComicBaseItem, Match, VipHolding, match_items, parse_report  # noqa: E402
 
 DEFAULT_DSN = os.environ.get("IQVAULT_DATABASE_DSN", "dbname=iqvault user=postgres password=vault host=localhost")
 DEFAULT_INBOX = os.path.join(ROOT, "data", "imports", "comicbase")
@@ -40,8 +50,19 @@ SELECT h.id::text, s.title, s.publisher, s.year_began, i.issue_number, v.cover_l
   JOIN vault_comic.variant v ON v.asset_id = h.asset_id
   JOIN vault_comic.issue i   ON i.id = v.issue_id
   JOIN vault_comic.series s  ON s.id = i.series_id
- WHERE h.dropped_at IS NULL
+ WHERE h.dropped_at IS NULL AND h.source = 'clz_import'
 """
+
+HOLDING_SOURCE = "comicbase_export"
+# CLZ fields that describe the issue (any copy of it) or the series (any issue of it). Copy-specific
+# fields (price, grade, location, barcode, purchase) are never borrowed.
+ISSUE_FIELDS = (
+    "Cover Date", "Release Date", "Publication Date", "Is Key Comic", "Key Categories", "Key Comic Reason",
+    "Story Arc", "Crossover", "Title", "Age",
+)
+SERIES_FIELDS = ("Genres", "Format", "Language", "Country", "Series Group", "BP Series ID")
+COVER_FIELDS = ("Cover Image URL", "Cover Price")
+_REGULAR = re.compile(r"^(A|.*\bRegular\b.*|Direct Edition)$", re.I)
 
 
 def inbox_dir() -> str:
@@ -56,6 +77,154 @@ def add_provider_id(cur, holding_id: str, item_key: str) -> None:
             WHERE id = %s::uuid AND NOT COALESCE(provider_ids->'comicbase', '[]'::jsonb) ? %s""",
         (item_key, holding_id, item_key),
     )
+
+
+def _clz_source(cur, holding_ids: list) -> list[tuple]:
+    """(holding id, clz_metadata, series id, issue id, cover label, series title, publisher), in the given order."""
+    ids = [h for h in holding_ids if h]
+    if not ids:
+        return []
+    cur.execute(
+        """SELECT h.id::text, h.clz_metadata, i.series_id, i.id, v.cover_label, s.title, s.publisher
+             FROM vault_collection.holding h
+             JOIN vault_comic.variant v ON v.asset_id = h.asset_id
+             JOIN vault_comic.issue i   ON i.id = v.issue_id
+             JOIN vault_comic.series s  ON s.id = i.series_id
+            WHERE h.id = ANY(%s::uuid[])""",
+        (ids,),
+    )
+    order = {hid: n for n, hid in enumerate(ids)}
+    return sorted(cur.fetchall(), key=lambda r: order.get(r[0], len(ids)))
+
+
+def _year(value) -> int | None:
+    m = re.search(r"\d{4}", str(value or ""))
+    return int(m.group(0)) if m else None
+
+
+def create_inventory_holding(cur, m: Match, snapshot_id: str) -> str:
+    """A holding for a ComicBase item linked to no CLZ holding. A re-run finds it by source row id and only
+    refreshes its quantity and snapshot, so operator edits stay."""
+    it: ComicBaseItem = m.item
+    key = it.item_key
+    row_id = "cb-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+    cur.execute(
+        """UPDATE vault_collection.holding SET quantity = %s, raw_snapshot_id = %s, updated_at = now()
+            WHERE source = %s AND source_row_id = %s
+        RETURNING id::text""",
+        (it.quantity, snapshot_id, HOLDING_SOURCE, row_id),
+    )
+    existing = cur.fetchone()
+    if existing:
+        return existing[0]
+    issue = f"{it.issue_prefix} {it.issue_number}" if it.issue_prefix else it.issue_number
+    cands = _clz_source(cur, m.candidates)
+    src = cands[0] if cands else next(iter(_clz_source(cur, [m.series_holding_id])), None)
+
+    meta: dict = {}
+    copied: list[str] = []
+    if src:
+        for f in SERIES_FIELDS + (ISSUE_FIELDS if cands else ()):
+            if (src[1] or {}).get(f) not in (None, ""):
+                meta[f] = src[1][f]
+                copied.append(f)
+        # A cover image only when both sides are the regular cover: a variant's art is not the regular's.
+        regular = next((c for c in cands if _REGULAR.match((c[4] or "").strip())), None)
+        if it.variant_letter is None and regular:
+            for f in COVER_FIELDS:
+                if (regular[1] or {}).get(f) not in (None, ""):
+                    meta[f] = regular[1][f]
+                    copied.append(f)
+
+    if src:
+        series_id, series_title, publisher = src[2], src[5], src[6]
+    else:
+        series_title, publisher = it.series_title, it.publisher or "Unknown"
+        cur.execute(
+            """INSERT INTO vault_comic.series (title, publisher, volume, year_began)
+               VALUES (%s,%s,%s,%s)
+               ON CONFLICT (title, publisher, volume, year_began) DO UPDATE SET title = EXCLUDED.title
+               RETURNING id""",
+            (series_title, publisher, it.volume or 1, it.start_year),
+        )
+        series_id = cur.fetchone()[0]
+    if cands:
+        issue_id = cands[0][3]
+    else:
+        cur.execute(
+            """INSERT INTO vault_comic.issue (series_id, issue_number)
+               VALUES (%s,%s)
+               ON CONFLICT (series_id, issue_number) DO UPDATE SET issue_number = EXCLUDED.issue_number
+               RETURNING id""",
+            (series_id, issue),
+        )
+        issue_id = cur.fetchone()[0]
+
+    cover_label = f"ComicBase /{it.variant_letter}" if it.variant_letter else "Regular"
+    if it.printing > 1:
+        cover_label += f" · printing {it.printing}"
+    canonical = f"{series_title} #{issue}" + ("" if cover_label == "Regular" else f" ({cover_label})")
+    # Issue + printing + cover is unique; a re-run (or a second ComicBase item on the same cover) reuses it.
+    cur.execute(
+        "SELECT asset_id FROM vault_comic.variant WHERE issue_id = %s AND printing = %s AND cover_label = %s",
+        (issue_id, it.printing, cover_label),
+    )
+    found = cur.fetchone()
+    if found:
+        asset_id = found[0]
+    else:
+        cur.execute(
+            """INSERT INTO vault_core.asset (category_id, format, canonical_name, slug, release_year, tags, primary_image_url)
+               VALUES (4,'single',%s,%s,%s,%s,%s)
+               ON CONFLICT (slug) DO UPDATE SET canonical_name = EXCLUDED.canonical_name
+               RETURNING id""",
+            (
+                canonical,
+                "comicbase-" + re.sub(r"[^a-z0-9]+", "-", key.lower()).strip("-")[:180],
+                _year(meta.get("Release Date")) or _year(meta.get("Cover Date")),
+                ["source:comicbase"],
+                meta.get("Cover Image URL") or None,
+            ),
+        )
+        asset_id = cur.fetchone()[0]
+        cur.execute(
+            """INSERT INTO vault_comic.variant (asset_id, issue_id, printing, cover_label, is_variant_cover)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (asset_id, issue_id, it.printing, cover_label, it.variant_letter is not None),
+        )
+
+    src_note = (
+        f"CLZ fields ({', '.join(copied)}) copied from holding {src[0]} "
+        f"({'same issue' if cands else 'same series'}) — inferred · unverified"
+        if copied else "no CLZ copy to borrow metadata from"
+    )
+    meta.update(
+        {
+            "Series": series_title,
+            "Publisher": publisher,
+            "Issue": issue,
+            "Issue Full": issue,
+            "Edition / Variant": cover_label,
+            "Quantity": it.quantity,
+            "Inventory Source": "ComicBase",
+            "ComicBase Item Key": key,
+            "ComicBase Series": it.series_title,
+            "ComicBase Years": it.year_label,
+            "Metadata Source": src_note,
+        }
+    )
+    cur.execute(
+        """INSERT INTO vault_collection.holding
+               (asset_id, quantity, needs_verification, verification_notes, source, source_row_id,
+                clz_metadata, raw_snapshot_id, provider_ids)
+           VALUES (%s,%s,true,%s,%s,%s,%s::jsonb,%s,%s::jsonb)
+           RETURNING id::text""",
+        (
+            asset_id, it.quantity, f"Added from ComicBase ({m.reason}). {src_note}.", HOLDING_SOURCE, row_id,
+            json.dumps(meta, default=str), snapshot_id, json.dumps({"comicbase": [key]}),
+        ),
+    )
+    return cur.fetchone()[0]
 
 
 def upsert_items(cur, matches, snapshot_id: str) -> Counter:
@@ -113,6 +282,16 @@ def upsert_items(cur, matches, snapshot_id: str) -> Counter:
         )
         if status == "matched" and holding:
             add_provider_id(cur, holding, key)
+        # The holding that shows this item in the collection: the CLZ holding it is linked to, else its own.
+        if holding:
+            inventory = holding
+        else:
+            inventory = create_inventory_holding(cur, m, snapshot_id)
+            stats["holdings_from_comicbase"] += 1
+        cur.execute(
+            "UPDATE vault_collection.comicbase_item SET inventory_holding_id = %s::uuid WHERE item_key = %s",
+            (inventory, key),
+        )
         stats[status] += 1
         stats["copies_" + status] += it.quantity
     return stats
@@ -136,6 +315,8 @@ def import_file(conn, path: str, *, dry_run: bool, force: bool) -> dict:
     }
     if dry_run:
         report["would"] = dict(Counter(m.status for m in matches))
+        linked = {m.holding_id for m in matches if m.holding_id}
+        report["clz_holdings_not_in_comicbase"] = len({h.holding_id for h in holdings} - linked)
         return report
     snap = record_file_snapshot(
         conn, path=path, source=SOURCE, rule_version=RULE_VERSION, record_count=len(items), content_type="text/html"
@@ -147,6 +328,8 @@ def import_file(conn, path: str, *, dry_run: bool, force: bool) -> dict:
         return report
     report["snapshot"] = snap.short_hash
     report["result"] = dict(upsert_items(cur, matches, snap.id))
+    cur.execute("SELECT count(*), COALESCE(sum(quantity), 0) FROM vault_collection.v_comics_inventory")
+    report["collection"] = dict(zip(("holdings", "copies"), map(int, cur.fetchone())))
     conn.commit()
     return report
 
@@ -180,10 +363,10 @@ def confirm(conn, item_key: str, holding_id: str) -> None:
               SET match_status = 'matched', match_method = 'manual', matched_holding_id = %s::uuid,
                   match_confidence = 1.0, needs_review = false, confirmed_at = now(), confirmed_by = 'operator',
                   prov_method = 'manual', prov_verification = 'verified',
-                  match_reason = 'confirmed by operator'
+                  match_reason = 'confirmed by operator', inventory_holding_id = %s::uuid
             WHERE item_key = %s
         RETURNING item_key""",
-        (holding_id, item_key),
+        (holding_id, holding_id, item_key),
     )
     if not cur.fetchone():
         raise SystemExit(f"no ComicBase item {item_key!r}")

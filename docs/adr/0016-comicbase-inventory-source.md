@@ -1,7 +1,7 @@
 # ADR 0016 — ComicBase is the comics inventory source
 
-**Status:** Accepted for matching (2026-10-06). CLZ retirement (decision 3) waits until ComicBase holds the whole collection.
-**Date:** 2026-10-04 · amended 2026-10-06
+**Status:** Accepted (2026-10-18): ComicBase is the comics inventory. CLZ is a metadata source only. Removing the CLZ importer (decision 3) is still open.
+**Date:** 2026-10-04 · amended 2026-10-06, 2026-10-18
 **Renumbered:** filed as ADR 0014 on 2026-10-04; renumbered 2026-10-06 because the
 uncommitted shell ADR 0014 (2026-09-22) and Ingest ADR 0015 (2026-09-23) predate it.
 **Owner:** Gregory Williamson / 258 Services
@@ -77,6 +77,42 @@ and value. 211 series, 820 copies — ComicBase is still being filled in (VIP ho
   95 unmatched (59 issues VIP does not hold, 36 series VIP does not hold).
 - ComicBase's value column is not imported (open: it would be a vendor-guide
   observation, never a holding's market price — rule 4).
+
+## Amendment — 2026-10-18: ComicBase is the inventory
+
+Operator: "rebuild the comics collection with the inventory from ComicBase 2026
+instead of CLZ uploads. Cross reference CLZ to collect missing metadata … The CLZ
+inventory is out of date." This replaces the 2026-10-06 "while ComicBase is
+partial" rule.
+
+- **The collection is the latest ComicBase report.** `vault_collection.v_comics_inventory`
+  (migration `20261018_01`) lists one holding per ComicBase item in the latest
+  imported report, with ComicBase's quantity. Both comics APIs (VIP `:8787` and the
+  Python Comics API `:5200`) and the eBay comps walk read it. Before any ComicBase
+  import (a fresh or CI database) they fall back to the CLZ holdings.
+- **Matched item → the CLZ holding.** It keeps its id, scans, comps, sell-queue
+  links and CLZ metadata. ComicBase's count stands; a different CLZ count no longer
+  sends the item to review (rule `comicbase-report-match@0.2.0`).
+- **Unmatched or in-review item → a holding of its own** (`source = 'comicbase_export'`).
+  It borrows CLZ fields from a copy of the same issue (issue-level fields: dates, key
+  info, story arc; the cover image only when both sides are the regular cover) or
+  else from the same series (genres, format, language, series group). Copy-specific
+  fields (price, grade, location, barcode, purchase) are never borrowed. Its
+  provenance says which CLZ holding the fields came from, inferred · unverified, and
+  `needs_verification` is set. No grade is assumed and no price is set.
+- **The review list stays.** `needs_review` is still cleared only by an operator
+  confirm. A confirm repoints the item at the confirmed CLZ holding; the holding VIP
+  created is kept, not deleted, and leaves the collection.
+- **CLZ-only holdings leave the collection view.** They are not deleted and
+  `dropped_at` is not set, so a book that comes back in a later ComicBase report
+  (or is confirmed to one) reappears with its history.
+- **Series matching tightened.** A start year one apart no longer joins two
+  numbered volumes ("The Flash (3rd Series)" 2010 is not CLZ "Flash, Vol. 4" 2011).
+  Same year, or volumes agreeing, still decide.
+- First rebuild, on a copy of the live data with the 2026-10-06 report: 687
+  holdings, 820 copies (480 CLZ holdings, 207 made from ComicBase). 2,220 CLZ holdings
+  are not listed by that report. A newer ComicBase report replaces it in the
+  collection on the next hourly import.
 
 ## Open
 
