@@ -1,5 +1,7 @@
 # Orchestr8 dogfood: start the gateway + console and confirm health
 
+> Normally the IQVault launcher (desktop **IQVault** shortcut, or the logon task) starts the gateway and console with the rest of the stack. Use this page to run Orchestr8 on its own or to debug it. Current status lives in [`docs/status/`](../status/) and the backlog.
+
 Goal: from a cold Windows machine, get the gateway on `:5210` and the console on
 `:3001`, confirm both are healthy, and run a Build Spec council that writes a
 critic-passed spec into `docs/specs/`.

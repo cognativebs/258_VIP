@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://258labs.local/orchestr8/diff_review.schema.json",
   "title": "Orchestr8 diff review bundle (O2, ADR 0003)",
-  "description": "A Cursor diff scored against its build spec's file plan and acceptance tests: a rule precheck plus the Challenge Council (critic, tester, domain expert). Orchestr8 never writes or runs the code it reviews. Validated in Orchestr8 by services/contracts.validate_instance (type, enum, required, properties, items, minLength, minimum/maximum); pattern and additionalProperties are for standard JSON Schema tools.",
+  "description": "A Cursor diff scored against its build spec's file plan and acceptance tests: a rule precheck plus the Challenge Council (critic, tester, domain expert). Orchestr8 never writes or runs the code it reviews. Validated in Orchestr8 by services/contracts.validate_instance (type, enum, required, properties, items, minLength/maxLength, pattern, minimum/maximum); additionalProperties is for standard JSON Schema tools.",
   "type": "object",
   "required": [
     "schema",
