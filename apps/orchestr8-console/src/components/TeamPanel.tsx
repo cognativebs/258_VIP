@@ -25,6 +25,7 @@ import {
   fetchCouncils,
   updateAgent,
   deleteAgent,
+  promoteAgent,
   updateCouncil,
   type Council,
   type Health,
@@ -301,6 +302,35 @@ export function TeamPanel({
       setEditingId(null);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : "Could not delete this role");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const promoteEditedRole = async () => {
+    if (!editingId) return;
+    const shipped = councils.filter((c) => !c.custom && c.id !== "full").map((c) => c.id);
+    const answer = window.prompt(
+      `Promote "${editDraft.name || editingId}" to a shipped agent?
+
+It joins the councils you name (comma-separated) plus the Full Council, ` +
+        `and its files move to orchestr8/agents/${editingId}/ (commit them so it ships).
+
+Shipped councils: ${shipped.join(", ")}`,
+      shipped[0] ?? "",
+    );
+    if (answer === null) return;
+    const chosen = answer.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!window.confirm(`I reviewed this role's mission, skill and contract, and it should ship in: ${chosen.join(", ")}.`)) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const out = await promoteAgent(editingId, { councils: chosen, reviewer: "operator" });
+      await loadRegistry();
+      setEditingId(null);
+      window.alert(`Promoted to ${out.councils.join(", ")}. Commit: ${out.commit.join(", ")}`);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Could not promote this role");
     } finally {
       setSavingEdit(false);
     }
@@ -619,6 +649,18 @@ export function TeamPanel({
                               title="Custom role: delete. Edited shipped role: reset to shipped. Files go to custom_agents/.trash."
                             >
                               Delete / reset role
+                            </button>
+                          ) : null}
+                          {agent.custom ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ marginLeft: 8 }}
+                              disabled={savingEdit}
+                              onClick={promoteEditedRole}
+                              title="Operator review: ship this role in named councils (it leaves unverified)."
+                            >
+                              Promote to shipped…
                             </button>
                           ) : null}
                         </div>

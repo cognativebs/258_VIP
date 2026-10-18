@@ -52,11 +52,11 @@ def test_catalog_matches_schema():
         ("gpt-5.6-sol", "openai"),
         ("gpt-5.6-terra", "openai"),
         ("gpt-5.6-luna", "openai"),
-        ("claude-fable-5", "anthropic"),
-        ("claude-opus-5", "anthropic"),
-        ("claude-sonnet-5", "anthropic"),
+        ("claude-fable-5-1", "anthropic"),
+        ("claude-opus-5-5", "anthropic"),
+        ("claude-sonnet-5-5", "anthropic"),
+        ("claude-haiku-5-5", "anthropic"),
         ("grok-4.6", "grok"),
-        ("grok-4.5", "grok"),
         ("grok-4.3", "grok"),
     ],
 )
@@ -79,9 +79,35 @@ def test_every_agent_model_reference_exists():
     assert unknown == [], f"agent.yaml references models missing from the catalog: {unknown}"
 
 
-# Still in the catalog so old run bundles and saved team settings resolve, but
-# xAI no longer publishes them — nothing should route to one by default.
-RETIRED_MODEL_IDS = {"grok-3", "grok-3-mini", "grok-4"}
+# Retired models stay in the catalog so old run bundles and saved team settings resolve,
+# but nothing defaults to or recommends one (operator 2026-10-17: always the current,
+# cost-effective model). The set comes from the catalog's own `retired` flags.
+RETIRED_MODEL_IDS = {mid for mid, m in (load_models().get("models") or {}).items() if m.get("retired")}
+
+
+def test_superseded_models_are_retired():
+    for mid in ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5", "claude-fable-5", "claude-opus-5", "claude-sonnet-5", "gpt-4o", "grok-4.5", "grok-3", "grok-4"]:
+        assert mid in RETIRED_MODEL_IDS, mid
+
+
+def test_retired_model_runs_as_its_successor_and_is_never_offered():
+    from services.registry import current_model_id
+
+    assert current_model_id("claude-sonnet-4-6") == "claude-sonnet-5-5"
+    assert current_model_id("claude-opus-4-6") == "claude-opus-5-5"
+    assert current_model_id("gpt-4.1") == "gpt-4.1"
+    r = resolve_model("critic", "claude-sonnet-4-5")
+    assert (r["model"], r["remapped_from"]) == ("claude-sonnet-5-5", "claude-sonnet-4-5")
+    for agent in agents_public_list():
+        offered = {m["id"] for m in agent["allowedModels"]}
+        assert not offered & RETIRED_MODEL_IDS, agent["id"]
+        assert not set(agent["recommendedModels"]) & RETIRED_MODEL_IDS, agent["id"]
+        assert agent["defaultModel"] not in RETIRED_MODEL_IDS
+
+
+def test_fallback_chains_hold_only_current_models():
+    for pid, chain in (load_models().get("fallbacks") or {}).items():
+        assert not set(chain) & RETIRED_MODEL_IDS, pid
 
 
 def test_no_agent_defaults_to_or_recommends_a_retired_model():
@@ -100,14 +126,17 @@ def test_no_agent_defaults_to_or_recommends_a_retired_model():
 # --- open selection -----------------------------------------------------------
 
 def test_any_model_can_be_assigned_to_any_role():
-    """The whole catalog resolves for every enabled agent, cross-provider included."""
+    """The whole catalog resolves for every enabled agent, cross-provider included;
+    a retired model resolves to its successor."""
+    from services.registry import current_model_id
+
     known = sorted(catalog_ids())
     for aid, meta in load_agents().items():
         if meta.get("enabled") is False:
             continue
         for mid in known:
             resolved = resolve_model(aid, mid)
-            assert resolved["model"] == mid
+            assert resolved["model"] == current_model_id(mid)
 
 
 def test_override_dispatches_to_the_model_provider_not_the_agent_home():
@@ -142,12 +171,12 @@ def test_unknown_model_is_still_rejected():
 
 
 def test_agents_api_offers_the_whole_catalog_per_agent():
-    known = catalog_ids()
+    known = catalog_ids() - RETIRED_MODEL_IDS
     agents = agents_public_list()
     assert agents
     for agent in agents:
         offered = {m["id"] for m in agent["allowedModels"]}
-        assert offered == known, f"{agent['id']} cannot reach the full catalog"
+        assert offered == known, f"{agent['id']} cannot reach every current model"
         assert agent["defaultModel"] in agent["recommendedModels"] or agent[
             "recommendedModels"
         ]
@@ -163,7 +192,7 @@ def test_agents_api_marks_models_whose_provider_has_no_key(
 
     by_id = {m["id"]: m for m in agents_public_list()[0]["allowedModels"]}
     assert by_id["gpt-5.6-sol"]["configured"] is True
-    assert by_id["claude-fable-5"]["configured"] is False
+    assert by_id["claude-fable-5-1"]["configured"] is False
 
 
 # --- provider parameter shape -------------------------------------------------
@@ -341,7 +370,8 @@ def test_anthropic_sonnet5_request_omits_temperature(
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-EXAMPLE")
     llm.chat_anthropic(model="claude-sonnet-5", system="s", user="u", max_tokens=256)
     assert "temperature" not in captured
-    assert captured["max_tokens"] == 256
+    # Sonnet 5 always thinks; a small role cap is raised so thinking cannot use it all.
+    assert captured["max_tokens"] == llm.ANTHROPIC_THINKING_MAX_TOKENS_FLOOR
 
 
 def test_anthropic_retries_without_temperature_when_api_rejects(

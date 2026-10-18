@@ -5,10 +5,10 @@ tier: 1
 description: Quantitative stats, rankings, and distributions on holdings
 provider: anthropic
 provider_label: Anthropic
-default_model: claude-sonnet-4-6
+default_model: claude-sonnet-5-5
 allowed_models:
-- claude-sonnet-4-6
-- claude-opus-4-6
+- claude-sonnet-5-5
+- claude-opus-5-5
 - gpt-4.1
 - o3-mini
 councils:

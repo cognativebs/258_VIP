@@ -37,6 +37,58 @@ _ANTHROPIC_NO_TEMPERATURE_MARKERS = (
 )
 
 
+# Models that always think (adaptive) when `thinking` is omitted. Thinking tokens count against
+# max_tokens, so a role's small cap (2048) can be spent before any answer text is written.
+_ANTHROPIC_ALWAYS_THINKING_MARKERS = ("claude-fable", "claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "mythos")
+ANTHROPIC_THINKING_MAX_TOKENS_FLOOR = 16000
+
+# Server-side refusal fallback (`fallbacks: "default"`, Claude API): on a safety decline the API
+# re-runs the same request on a model chosen by refusal category, inside the same call.
+_ANTHROPIC_FALLBACK_MODELS = ("claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5")
+ANTHROPIC_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+
+def _anthropic_always_thinks(model: str) -> bool:
+    mid = model.lower()
+    return any(marker in mid for marker in _ANTHROPIC_ALWAYS_THINKING_MARKERS)
+
+
+def _anthropic_supports_fallback(model: str) -> bool:
+    return model.lower() in _ANTHROPIC_FALLBACK_MODELS
+
+
+def anthropic_request(model: str, system: str, user: str, temperature: float, max_tokens: int) -> tuple[dict, dict]:
+    """(extra headers, body) for one Messages API call, shaped for the model's rules."""
+    headers: dict = {}
+    body: dict = {
+        "model": model,
+        "max_tokens": max(int(max_tokens), ANTHROPIC_THINKING_MAX_TOKENS_FLOOR) if _anthropic_always_thinks(model) else int(max_tokens),
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+    }
+    if not _anthropic_omits_temperature(model):
+        body["temperature"] = temperature
+    if _anthropic_supports_fallback(model):
+        headers["anthropic-beta"] = ANTHROPIC_FALLBACK_BETA
+        body["fallbacks"] = "default"
+    return headers, body
+
+
+def anthropic_text(data: dict, model: str) -> str:
+    """Visible answer text, or a clear error for a refusal or a cap hit before any text."""
+    stop = data.get("stop_reason")
+    if stop == "refusal":
+        details = data.get("stop_details") or {}
+        category = details.get("category") or "unspecified"
+        raise RuntimeError(f"Anthropic declined the request (refusal: {category}) on {data.get('model', model)}")
+    text = "\n\n".join(b.get("text", "") for b in (data.get("content") or []) if b.get("type") == "text").strip()
+    if not text:
+        if stop == "max_tokens":
+            raise RuntimeError(f"Empty Anthropic response: max_tokens reached before any answer text on {model}")
+        raise RuntimeError("Empty Anthropic response")
+    return text
+
+
 def _http_timeout_for(max_tokens: int) -> int:
     """Scale socket timeout with requested completion size."""
     # ~0.04s per output token budget, floor 120s, cap 480s.
@@ -195,25 +247,19 @@ def chat_anthropic(
     key = provider_keys().get("anthropic")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not configured in orchestr8/.env")
+    extra, body = anthropic_request(model, system, user, temperature, max_tokens)
     headers = {
         "Content-Type": "application/json",
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
+        **extra,
     }
-    body: dict = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-    }
-    if not _anthropic_omits_temperature(model):
-        body["temperature"] = temperature
     try:
         data = _post_json(
             "https://api.anthropic.com/v1/messages",
             headers,
             body,
-            timeout=_http_timeout_for(max_tokens),
+            timeout=_http_timeout_for(body["max_tokens"]),
         )
     except RuntimeError as e:
         if "temperature" in body and _is_temperature_rejected(e):
@@ -222,14 +268,11 @@ def chat_anthropic(
                 "https://api.anthropic.com/v1/messages",
                 headers,
                 body,
-                timeout=_http_timeout_for(max_tokens),
+                timeout=_http_timeout_for(body["max_tokens"]),
             )
         else:
             raise
-    blocks = data.get("content") or []
-    text = next((b.get("text", "") for b in blocks if b.get("type") == "text"), "").strip()
-    if not text:
-        raise RuntimeError("Empty Anthropic response")
+    text = anthropic_text(data, model)
     usage = data.get("usage") or {}
     return {
         "text": text,

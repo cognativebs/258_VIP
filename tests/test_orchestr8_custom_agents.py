@@ -193,10 +193,15 @@ def test_unknown_model_is_rejected():
 
 
 def test_explicit_model_is_honoured():
-    create_custom_agent({**VALID, "defaultModel": "claude-fable-5"})
+    create_custom_agent({**VALID, "defaultModel": "claude-fable-5-1"})
     resolved = resolve_model("reprint_scout")
-    assert resolved["model"] == "claude-fable-5"
+    assert resolved["model"] == "claude-fable-5-1"
     assert resolved["provider"] == "anthropic"
+
+
+def test_a_retired_model_is_refused_with_its_successor_named():
+    with pytest.raises(CustomAgentError, match="retired.*claude-sonnet-5-5"):
+        create_custom_agent({**VALID, "defaultModel": "claude-sonnet-4-6"})
 
 
 def test_default_model_prefers_a_provider_that_has_a_key(

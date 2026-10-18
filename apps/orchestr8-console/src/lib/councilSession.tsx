@@ -29,7 +29,7 @@ import {
 import { defaultTeamSettings, loadTeamSettings, saveTeamSettings } from "@/lib/teamSettings";
 import { HEARTBEAT_SILENT_MS, type Heartbeat } from "@/lib/jobHealth";
 
-export type ConsoleTab = "analysis" | "build" | "runs" | "specs";
+export type ConsoleTab = "analysis" | "build" | "runs" | "specs" | "review";
 export type SessionKind = "analysis" | "build";
 
 export type Highlight = {

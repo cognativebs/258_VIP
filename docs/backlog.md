@@ -59,24 +59,27 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] Always-visible Council Strip (roles · provider · model; click for skill blurb)
 - [x] Progress dock: role status bar, elapsed, live highlights, Stop
 - [x] Gateway shows what is running — superseded by heartbeats every 5 s with the in-flight model calls (2026-10-04)
+- [x] Live check on a paid run (2026-10-17): a 3-role `gpt-4o-mini` stream sent a heartbeat at 5 s and its first step at 7.4 s; dropping the stream stopped the job before the next role ("stopped by operator before critic was called")
+- [x] Model catalog current (2026-10-17): Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1 and Opus 4.8 with prices; the adapter raises the output cap for always-thinking models (thinking counts against it), opts Opus 5.5 / 5 / Fable 5.1 / Sonnet 5.5 into the server-side refusal fallback (`fallbacks: "default"`), and names refusals and empty capped answers. Live: Haiku 5.5 $0.0002, Opus 5.5 $0.012
+- [x] Superseded models retired (operator 2026-10-17: always the current, cost-effective model): a model is retired when a newer model from the same provider, in the same or a higher tier, costs the same or less. Retired: Claude Fable 5, Opus 5, Opus 4.8, Opus 4.6, Sonnet 5, Sonnet 4.6, Sonnet 4.5, Haiku 4.5; GPT-4o; Grok 4.5, 3, 3 mini, 4. They stay in `models.yaml` (`retired`, `superseded_by`) so old runs resolve, run as their successor, and are never offered. Role defaults: 10 roles Sonnet 4.6 → Sonnet 5.5 ($3/$15 → $2/$10), 1 role Opus 4.6 → Opus 5.5 ($5/$25 → $4/$20); fallback chains and console fallback lists updated. Kept because nothing newer is as cheap: GPT-4o mini, GPT-4.1, o3-mini, Grok 4.3
 - [x] Create an agent role from the Team panel (name / description / skills → live card; `POST /v1/agents`, auto contract, unverified provenance) — 2026-08-21
 - [x] Edit name / description / skills on any Team-panel card (`PATCH /v1/agents/:id`; shipped roles overlay into `custom_agents/`) — 2026-08-21
 - [x] Delete custom roles from the Team panel (2026-10-10): **Delete / reset role** — a role you made moves to `custom_agents/.trash/`; an edited shipped role resets to shipped; refused while a saved council uses it (`DELETE /v1/agents/:id`)
 - [x] Save a named custom council from the team panel (prompt on Save team → selection button + edit/delete; `POST/PATCH/DELETE /v1/councils`) — 2026-08-23
-- [ ] Promote a custom role to a shipped agent (council membership + reviewed contract, so it leaves `unverified`)
+- [x] Promote a custom role to a shipped agent (2026-10-17): Team panel **Promote to shipped…** → `POST /v1/agents/:id/promote` (operator names shipped councils and confirms the review; contract must pass its schema). Files move to `orchestr8/agents/<id>/`, the role joins those councils + Full Council and the pipeline order (YAML edited in place, comments kept), provenance becomes `operator_reviewed` with who and when; the Console copy is archived under `custom_agents/.promoted/`. Commit the new files so the role ships
 - [x] Surface `buildSpecPath` / Specs link prominently after approved Build Spec emits — Open Specs + Revise from veto (1×) (2026-08-02)
 - [x] Build Spec attach files / repo paths + council chat transcript + copy .md / JSON / Cursor prompt (2026-08-23)
 - [x] Credit/billing pause mid-council: detailed alert, persist completed steps, resume retries only the failed role (2026-08-23)
 - [x] Fix `scripts/start_iqvault_ecosystem.ps1` — parse failure rewritten 2026-08-09; retarget VIP `:8787` + collector `:3000` (2026-08-13)
 
-### C. Orchestr8 — Phase O2 Diff review loop *(never started)*
+### C. Orchestr8 — Phase O2 Diff review loop *(done 2026-10-17)*
 
-Seeded but not executed as product workflow.
+Rule precheck (spec file plan + tests) plus the Challenge Council; verdict approve / conditional / reject; reviews saved under `docs/specs/reviews/` with provenance.
 
-- [ ] Paste implemented diff → Challenge Council scores vs spec acceptance criteria
-- [ ] O2 gate: council catches a deliberately spec-violating diff
-- [ ] Execute seed work order: [`docs/specs/o2-diff-review.md`](specs/o2-diff-review.md) in Cursor
-- [ ] Wire optional “review this diff” panel in Console (was out of Console v1 scope)
+- [x] Paste implemented diff → Challenge Council scores vs spec acceptance criteria (Console **Diff Review** tab, `POST /v1/diff-review`, `python orchestr8/scripts/review_diff.py --spec-id <id> [--offline]`)
+- [x] O2 gate: `python orchestr8/demo_diff_review.py` (13/13 offline) and a live council review of the O2 diff itself (2026-10-17)
+- [x] Execute seed work order: [`docs/specs/o2-diff-review.md`](specs/o2-diff-review.md) — schema, service, CLI, demo, tests
+- [x] Wire optional “review this diff” panel in Console (Diff Review tab; precheck-only mode costs nothing)
 
 ### D. Signals → IQVault (partial wire done)
 
@@ -133,7 +136,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Rules-only classification runs after every ESPN, collectibles and GDELT ingest (operator 2026-10-10; no LLM)
 - [x] Jobs scheduler stays up: timers keep the process alive, failures are logged, a supervisor restarts it and logs to `scripts\logs\jobs.log` (it had exited quietly 2026-10-07)
 - [x] Stack restarts at logon (2026-10-17): Windows task "VIP IQVault Stack at Logon" (`scripts/register_iqvault_logon_task.ps1`), 2 min after logon, fast-forwards the runner first so a merged PR goes live. A Windows Update restart on 2026-10-14 had stopped every feed for 3 days. The PC still sleeps when idle (operator choice): feeds pause and catch up on wake
-- [x] **SIGNALS → Thesis → Orchestr8** (2026-10-17, ADR 0013 amendment): daily Orchestr8 brief (Signal Hunter → Thesis Manager → Critic → Synthesizer, gpt-4o-mini, $1/day cap) over the curated daily lists + Pokémon signals + open theses; gated drafts in `vault_signals.thesis` with linked signals and a prediction each; open theses in `/api/signals/context` for councils; `/theses` shows real theses
+- [x] **SIGNALS → Thesis → Orchestr8** (2026-10-17, ADR 0013 amendment): daily Orchestr8 brief (Signal Hunter → Thesis Manager → Critic → Synthesizer, Claude Haiku 5.5 since 2026-10-17, $1/day cap) over the curated daily lists + Pokémon signals + open theses; gated drafts in `vault_signals.thesis` with linked signals and a prediction each; open theses in `/api/signals/context` for councils; `/theses` shows real theses
 - [x] **Signal Desk** `/signals/desk`: latest and earlier briefs, theses with Activate / Retire / Invalidate, filterable 72 h article feed (group, search, Pokémon noise), calls to score with Brier, feed health. APIs: `/api/signals/{articles,briefs,briefs/run,health,predictions}`, `/api/theses` (+ PATCH)
 - [x] Re-classify command (2026-10-17): `npm run job:espn-sports -- classify --reclassify [--days 14] [--dry-run]` (also `collectibles-news` / `macro-news`). Re-reads the last N days of snapshots and classifies, with the current rules, only headlines that never produced an event; existing events and signals are never touched (`…+reclassify` in the rule version)
 - [ ] **Retail drops (Pokémon Center, Target) and Whatnot**: no public feed and scraping is forbidden; news reports (PokeBeach) + operator manual entries, both labeled by source

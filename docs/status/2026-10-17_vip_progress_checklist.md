@@ -96,17 +96,22 @@ decisions. Percentages are estimates. *Unmerged* = lives on a branch not in
 | Market data track (FRED indices; metals) | 0 | 0 | 0 | Outside the spine; needs a storage decision (HS-2/HS-3) |
 
 ## 6. Orchestr8
+*Re-scored 2026-10-17 after the Orchestr8 completion pass (branch `cursor/orchestr8-complete`).*
+
 | Task | POC | Testing | Prod | Note |
 |---|---|---|---|---|
-| Gateway, 22 agents, councils, saved runs | 100 | 90 | 80 | |
-| Console: Team, Build Spec, Runs, Specs, custom roles and councils | 100 | 80 | 70 | |
-| Live run health (heartbeats) + a Stop that really stops | 100 | 80 | 30 | Unmerged; not yet checked on a real paid run |
-| Analysis tab sign-off (operator verifies one saved run) | 100 | 60 | 30 | |
+| Gateway, 22 agents, councils, saved runs | 100 | 95 | 85 | |
+| Console: Team, Build Spec, Runs, Specs, Diff Review, custom roles and councils | 100 | 90 | 75 | |
+| Live run health (heartbeats) + a Stop that really stops | 100 | 95 | 85 | Verified on a paid run 2026-10-17 |
+| Analysis tab sign-off (operator verifies one saved run) | 100 | 80 | 50 | Needs your own run from the Analysis tab |
 | Credit pause / resume | 100 | 90 | 70 | |
-| Challenge Council second pass on high-dollar picks | 0 | 0 | 0 | |
-| Richer inventory filters in Analysis | 0 | 0 | 0 | |
-| Delete / promote custom roles | 0 | 0 | 0 | |
-| Diff review loop (O2) | 5 | 0 | 0 | |
+| Challenge Council second pass on high-dollar picks | 100 | 80 | 70 | Offered, never automatic (2026-10-10) |
+| Richer inventory filters in Analysis | 100 | 80 | 70 | Pillar, publisher, min value (2026-10-10) |
+| Delete custom roles | 100 | 90 | 75 | |
+| Promote a custom role to a shipped agent | 100 | 90 | 40 | No custom role exists yet to promote |
+| Diff review loop (O2) | 100 | 95 | 50 | Offline gate 13/13; live council reject + approve 2026-10-17 |
+| Model catalog current (Claude 5.5 family) + refusal fallback; superseded models retired | 100 | 95 | 60 | 13 models retired; role defaults on Sonnet 5.5 / Opus 5.5 (operator 2026-10-17) |
+| Daily SIGNALS brief council (Signal Hunter → Thesis Manager → Critic → Synthesizer) | 100 | 90 | 60 | Runs once a day |
 
 ## 7. Decisions, valuation & intelligence
 | Task | POC | Testing | Prod | Note |

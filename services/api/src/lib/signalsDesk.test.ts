@@ -146,7 +146,7 @@ describe("runSignalsBrief", () => {
     expect(db.writes).toEqual([]);
   });
 
-  it("sends the brief pipeline on the cheap model and stores the gated thesis", async () => {
+  it("sends the brief pipeline on Claude Haiku 5.5 and stores the gated thesis", async () => {
     const db = contextDb(true);
     let sent: Record<string, any> = {};
     const fetchImpl: FetchLike = async (_url, init) => {
@@ -165,7 +165,7 @@ describe("runSignalsBrief", () => {
     expect(r).toMatchObject({ status: "succeeded", runId: "run_brief", costUsd: 0.004, signals: 1, stored: { created: 1, predictions: 1, linked: 1 } });
     expect(sent.task).toBe("signals_brief");
     expect(sent.roles).toEqual(["signal_hunter", "thesis_manager", "critic", "synthesizer"]);
-    expect(new Set(Object.values(sent.model_overrides))).toEqual(new Set(["gpt-4o-mini"]));
+    expect(new Set(Object.values(sent.model_overrides))).toEqual(new Set(["claude-haiku-5-5"]));
     expect(JSON.parse(sent.input.contextJson).signals[0]).toMatchObject({ ref: "S1", signalId: S1, group: "Headlines", url: "https://example.com/tariff" });
   });
 

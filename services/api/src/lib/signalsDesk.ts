@@ -42,7 +42,8 @@ export const DAILY_FOR_BRIEF = [
   { name: "daily-markets", group: "Markets", domain: "macro" },
 ] as const;
 const BRIEF_PROV_SOURCE = "orchestr8:signals-brief";
-const DEFAULT_BRIEF_MODEL = "gpt-4o-mini";
+// Operator 2026-10-17: Haiku 5.5 judged open theses better than gpt-4o-mini (~$0.019 vs $0.012 a brief).
+const DEFAULT_BRIEF_MODEL = "claude-haiku-5-5";
 const ORCHESTR8_TIMEOUT_MS = 15 * 60 * 1000;
 const POKEMON_BRIEF_DAYS = 7;
 const RADAR_BRIEF_MAX = 10;
