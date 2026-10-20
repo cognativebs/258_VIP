@@ -268,7 +268,9 @@ third-party-access licence limit).
   - [x] Watched-folder import of ComicBase Collection Reports (`npm run import:comicbase`; hourly in the launcher's jobs): raw snapshot (`comicbase_export`), parse, match to holdings, ComicBase key in `holding.provider_ids` (migration `20261006_01`)
   - [x] Review list `vault_collection.comicbase_item`: `npm run import:comicbase -- --review [--unmatched]`, `-- --confirm <item_key> <holding_id> --confirm-operator`; confirmed matches never move
   - [ ] Burn down the review list (176 items on 2026-10-06) and the 95 unmatched
-  - [ ] When ComicBase holds the whole collection: flag CLZ-only holdings, create holdings for confirmed new ComicBase items, then retire CLZ (ADR 0016 decision 3)
+  - [x] ~~Retire CLZ~~: superseded 2026-10-19, CLZ stays the inventory; ComicBase is retired (ADR 0016)
+  - [x] CLZ reconcile from a ComicBase report: `python scripts/clz_reconcile_comicbase.py --report <htm>` → add / check-for-removal / quantity CSVs in `D:\VIP\exports` (prune, never wipe without an explicit say-so)
+  - [ ] Operator: final ComicBase Collection Report before cancelling the subscription; re-run the reconcile; add books in CLZ; decide removals in CLZ; export CLZ into VIP
   - [ ] Optional: a detailed ComicBase export (item id, grade, cost) to replace the report key
 - [ ] Schema review (Opus) before treating Phase 1 as fully closed
 - [ ] Live comps adapters — **code shipped** (auth on `main` via PR #69). Leftover is the vault walk + Collection LIVE column ([plan 0003](plans/0003-comics-comps-vault-ingest.md)), not an Analysis uncap. `vault_market.sale` persist stays blocked until sold (Insights) data exists.
