@@ -1,4 +1,7 @@
-"""ComicBase Collection Report → items, and items → VIP holdings (pure; no database).
+"""ComicBase exports → items, and items → VIP holdings (pure; no database).
+
+Two ComicBase exports are read: the Collection Report (HTML, parse_report) and the item export
+(CSV: Title, Item #, Qty In Stock, Item Description, Cover Date…; parse_export_csv).
 
 A ComicBase "Collection Report" (HTML) lists, per series, the issues in stock:
   <h2>Action Comics (2nd Series)</h2><h3>DC (2011&ndash;2017)</h3>
@@ -10,8 +13,8 @@ An issue token is  [prefix ]number[/variant letter][-printing][(quantity)]:
 ComicBase variant letters are not CLZ cover labels (ComicBase "5" is CLZ "A",
 ComicBase "5/A" is often CLZ "B" or a named cover), so letters are never
 matched blindly: one copy on each side matches; anything else is reviewed.
-ComicBase is the inventory (ADR 0016, 2026-10-18), so a quantity difference
-does not stop a match: ComicBase's count stands and the CLZ count is noted.
+A quantity difference does not stop a match: ComicBase holds the newer count,
+and the CLZ count is noted beside it.
 """
 from __future__ import annotations
 
@@ -79,12 +82,14 @@ def clean_title(title: str) -> str:
 
 def series_key(title: str) -> str:
     """'Action Comics, Vol. 2', 'Action Comics (2nd Series)' and 'G.I. Joe (Image)' lose their
-    volume / publisher tags; case, punctuation, '&' and a leading 'The' are ignored."""
+    volume / publisher tags; case, punctuation, '&' and a leading (or ComicBase's inverted
+    'Flash, The') 'The' are ignored."""
     t = clean_title(title)
     t = _SERIES_NO.sub("", t)
     t = _VOL.sub("", t)
     while _TRAILING_PAREN.search(t):
         t = _TRAILING_PAREN.sub("", t)
+    t = re.sub(r",\s*The\b", "", t, flags=re.I)
     t = t.lower().replace("&", " and ")
     t = re.sub(r"[^a-z0-9]+", " ", t).strip()
     t = re.sub(r"^the ", "", t)
@@ -147,6 +152,66 @@ def parse_report(text: str) -> list[ComicBaseItem]:
         if total != int(b.group("qty")):
             raise ReportFormatError(f"{title}: issues add up to {total}, report says {b.group('qty')}")
     return items
+
+
+EXPORT_COLUMNS = ("Title", "Item #", "Qty In Stock")
+
+
+def parse_export_csv(text: str, series_info: Optional[dict] = None) -> tuple[list[ComicBaseItem], dict[str, dict]]:
+    """ComicBase item export (CSV) → items, plus per-item details (cover description, artist, dates, prices).
+
+    The export has no publisher or series years. series_info maps (series_key, volume) to
+    (publisher, year_label, start_year), e.g. from a Collection Report of the same database; a title it
+    does not know gets its earliest cover-date year as start year (CLZ's year_began is likewise the year
+    of the earliest copy owned). Rows with no stock are skipped. "Condition" is ComicBase's default
+    ("NM" on every row), not a grade, so it is not carried over."""
+    import csv
+    import io
+
+    reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
+    missing = [c for c in EXPORT_COLUMNS if c not in (reader.fieldnames or [])]
+    if missing:
+        raise ReportFormatError(f"not a ComicBase item export: missing column(s) {', '.join(missing)}")
+    rows = [r for r in reader if int((r.get("Qty In Stock") or "0").strip() or 0) > 0]
+    first_year: dict[str, int] = {}
+    for r in rows:
+        y = re.search(r"\d{4}", r.get("Cover Date") or "")
+        if y:
+            t = r["Title"].strip()
+            first_year[t] = min(first_year.get(t, 9999), int(y.group(0)))
+    items: list[ComicBaseItem] = []
+    details: dict[str, dict] = {}
+    for r in rows:
+        title = clean_title(r["Title"])
+        token = (r["Item #"] or "").strip()
+        m = _TOKEN.fullmatch(token)
+        if not m or m.group("qty"):
+            raise ReportFormatError(f"unreadable item number {token!r} in {title}")
+        known = (series_info or {}).get((series_key(title), series_volume(title)))
+        publisher, year_label, start = known or ("", "", first_year.get(r["Title"].strip()))
+        it = ComicBaseItem(
+            series_title=title,
+            publisher=publisher,
+            year_label=year_label,
+            start_year=start,
+            volume=series_volume(title),
+            issue_number=m.group("num"),
+            issue_prefix=m.group("prefix"),
+            variant_letter=m.group("var"),
+            printing=int(m.group("printing") or 1),
+            quantity=int(r["Qty In Stock"]),
+        )
+        items.append(it)
+        details[it.item_key] = {
+            k: (r.get(k) or "").strip()
+            for k in ("Item Description", "Cover Artist", "Cover Date", "Cover Price", "Box #", "Cost", "Purchase Date")
+        }
+    return items, details
+
+
+def series_info_from_report(items: Iterable[ComicBaseItem]) -> dict:
+    """(series_key, volume) → (publisher, year_label, start_year) from Collection Report items."""
+    return {(series_key(it.series_title), it.volume): (it.publisher, it.year_label, it.start_year) for it in items}
 
 
 @dataclass(frozen=True)
