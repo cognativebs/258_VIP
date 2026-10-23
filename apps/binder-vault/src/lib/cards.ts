@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { getCardIndex, indexHitToResult, indexSets, searchCardIndex } from "./cardIndex";
 import type { CardResult } from "./contracts";
 import { raritiesForKeys, type SetOption } from "./filters";
 import { mergeSets, SEED_SETS } from "./set-catalog";
@@ -353,6 +354,31 @@ async function enrichMissingPrices(
   return cards;
 }
 
+/** Search must not wait on prices: fill what arrives within budgetMs; the rest keeps filling the cache. */
+async function enrichWithinBudget(cards: CardResult[], budgetMs: number): Promise<CardResult[]> {
+  const work = enrichMissingPrices(cards).catch(() => cards);
+  await Promise.race([work, sleep(budgetMs)]);
+  return cards;
+}
+
+/** Local index first. null = no index yet (the caller falls back to the live APIs). */
+async function searchLocalIndex(
+  query: string,
+  limit: number,
+  filters: SearchFilters,
+): Promise<CardResult[] | null> {
+  // First run builds the index (~176 set files); wait a little, then fall back to live search.
+  const index = await getCardIndex(4000);
+  if (!index) return null;
+  const rarities = filters.rarityKeys.length ? raritiesForKeys(filters.rarityKeys) : [];
+  const hits = searchCardIndex(index, query, { setId: filters.setId, rarities }, limit);
+  // Prices for a full set browse would be hundreds of lookups — budget them like name search.
+  return enrichWithinBudget(hits.map(indexHitToResult), PRICE_BUDGET_MS);
+}
+
+// Prices are a nice-to-have on results (placing a card fetches its own); never hold search up long.
+const PRICE_BUDGET_MS = 800;
+
 async function fetchTcgplayerMarketViaRedirect(externalId: string): Promise<number | null> {
   const cached = cachedMarketPrice(externalId);
   if (cached !== undefined) return cached;
@@ -702,6 +728,26 @@ export async function searchCards(
 
   const errors: string[] = [];
 
+  // Local index (pokemontcg.io ids) answers name / number / set searches without the flaky API.
+  // TCGdex only fills in when the index finds nothing (a set newer than the dataset).
+  if (source !== "tcgdex") {
+    const local = await searchLocalIndex(q, filters.setId ? Math.max(limit, 500) : limit, filters).catch(
+      () => null,
+    );
+    if (local && (local.length || filters.setId || filters.rarityKeys.length)) {
+      const payload = { results: local, errors, queryUsed: `index:${q}` };
+      if (local.length) searchCache.set(cacheKey, { at: Date.now(), payload });
+      return payload;
+    }
+    if (local && q && source === "all") {
+      const fresh = await searchTcgdex(q, limit, filters).catch((e) => {
+        errors.push(friendlySearchError(e, "TCGdex"));
+        return [] as CardResult[];
+      });
+      return { results: fresh, errors, queryUsed: `index:${q} tcgdex:${q}` };
+    }
+  }
+
   // Set IDs + rarity chips both need pokemontcg — TCGdex set ids don't match.
   const effectiveSource: CardSource =
     filters.rarityKeys.length || filters.setId ? "pokemontcg" : source;
@@ -832,6 +878,8 @@ async function fetchPokemonSetsPage(pageSize: number): Promise<SetOption[]> {
  * expand it when pokemontcg cooperates (their /sets endpoint 500s often).
  */
 export async function listSets(limit = 250): Promise<SetOption[]> {
+  const index = await getCardIndex().catch(() => null);
+  if (index) return mergeSets(indexSets(index), readSetsCache(), SEED_SETS).slice(0, Math.min(limit, 400));
   const cached = readSetsCache();
   let remote: SetOption[] = [];
   try {

@@ -938,7 +938,8 @@ export function BinderVault() {
   // ---- card search (debounced, stale responses ignored) ----
   useEffect(() => {
     const q = query.trim();
-    const canSearch = q.length >= 2 || hasSearchFilters;
+    // A card number can be one digit ("4"); names still need two letters.
+    const canSearch = q.length >= 2 || /^\d$/.test(q) || hasSearchFilters;
     if (!canSearch) {
       setResults([]);
       setSearchNote("");
@@ -994,7 +995,7 @@ export function BinderVault() {
       } finally {
         if (!ac.signal.aborted) setSearching(false);
       }
-    }, 450);
+    }, 250);
     return () => {
       ac.abort();
       window.clearTimeout(handle);
@@ -1541,7 +1542,7 @@ export function BinderVault() {
               <div className="search-title">Card Search</div>
               <input
                 className="search-input"
-                placeholder="Search Pokémon cards… e.g. Charizard"
+                placeholder="Name, number or set… e.g. Charizard 4/102, Pikachu 151, 25"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />

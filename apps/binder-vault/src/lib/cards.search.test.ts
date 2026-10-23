@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchPokemonPage, searchCards } from "./cards";
+
+// These cases cover the live-API fallback; the local index has its own tests (cardIndex.test.ts).
+beforeEach(() => {
+  vi.stubEnv("BINDER_CARD_INDEX", "off");
+});
 
 const CHARIZARD = {
   id: "base1-4",
@@ -19,6 +24,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
