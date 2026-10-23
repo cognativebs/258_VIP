@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { getCardIndex, indexHitToResult, indexSets, searchCardIndex } from "./cardIndex";
 import type { CardResult } from "./contracts";
 import { raritiesForKeys, type SetOption } from "./filters";
+import { withGuidePrices } from "./guidePrices";
 import { mergeSets, SEED_SETS } from "./set-catalog";
 
 /**
@@ -319,48 +320,6 @@ export async function fetchCardMarketPrice(
   };
 }
 
-/**
- * Fill null priceMarket on search results via TCGPlayer (cached, concurrent).
- * Skips pokemontcg /cards/{id} — search already proved embedded prices are absent,
- * and that endpoint 500s often on Mega sets.
- */
-async function enrichMissingPrices(
-  cards: CardResult[],
-  concurrency = 8,
-): Promise<CardResult[]> {
-  const need = cards.filter(
-    (c) => c.source === "pokemontcg" && c.priceMarket == null && c.externalId,
-  );
-  if (!need.length) return cards;
-
-  for (let i = 0; i < need.length; i += concurrency) {
-    const batch = need.slice(i, i + concurrency);
-    await Promise.all(
-      batch.map(async (card) => {
-        const price = await fetchTcgplayerMarketViaRedirect(card.externalId);
-        if (price == null) return;
-        card.priceMarket = price;
-        card.priceCurrency = "USD";
-        card.provenance = {
-          ...card.provenance,
-          source: "tcgplayer.com",
-          method: "api",
-          verificationStatus: "verified",
-          confidence: 0.85,
-        };
-      }),
-    );
-  }
-  return cards;
-}
-
-/** Search must not wait on prices: fill what arrives within budgetMs; the rest keeps filling the cache. */
-async function enrichWithinBudget(cards: CardResult[], budgetMs: number): Promise<CardResult[]> {
-  const work = enrichMissingPrices(cards).catch(() => cards);
-  await Promise.race([work, sleep(budgetMs)]);
-  return cards;
-}
-
 /** Local index first. null = no index yet (the caller falls back to the live APIs). */
 async function searchLocalIndex(
   query: string,
@@ -372,12 +331,9 @@ async function searchLocalIndex(
   if (!index) return null;
   const rarities = filters.rarityKeys.length ? raritiesForKeys(filters.rarityKeys) : [];
   const hits = searchCardIndex(index, query, { setId: filters.setId, rarities }, limit);
-  // Prices for a full set browse would be hundreds of lookups — budget them like name search.
-  return enrichWithinBudget(hits.map(indexHitToResult), PRICE_BUDGET_MS);
+  // PriceCharting guide prices VIP already holds: one local call, never a vendor lookup per result.
+  return withGuidePrices(hits.map(indexHitToResult));
 }
-
-// Prices are a nice-to-have on results (placing a card fetches its own); never hold search up long.
-const PRICE_BUDGET_MS = 800;
 
 async function fetchTcgplayerMarketViaRedirect(externalId: string): Promise<number | null> {
   const cached = cachedMarketPrice(externalId);
@@ -663,8 +619,8 @@ async function searchPokemonTcg(
     return [];
   }
 
-  // Mega / new sets return tcgplayer.url with no prices — fill via TCGPlayer.
-  return enrichMissingPrices(rows.slice(0, limit).map(toCardResult));
+  // pokemontcg.io's embedded TCGplayer prices, else the PriceCharting guide VIP holds.
+  return withGuidePrices(rows.slice(0, limit).map(toCardResult));
 }
 
 export type CardSource = "all" | "tcgdex" | "pokemontcg";

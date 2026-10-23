@@ -1,8 +1,8 @@
 /**
  * Pokémon fair-market value from PriceCharting (ADR 0012 amendment 2026-10-04).
  *
- * Cards: Binder slots you own or wishlist, plus Binder cards named by
- * synthesized signals. Each card is matched once to a PriceCharting product in
+ * Cards: every card placed in a Binder pocket (Binder's prices come from here
+ * since 2026-10-22). Each card is matched once to a PriceCharting product in
  * vault_market.vendor_product_map; only an exact English set + number + name
  * match is priced without review. Each run writes one card_price_history row
  * per priced condition per day (upsert), and keeps every PriceCharting
@@ -67,30 +67,30 @@ export type PokemonPricesReport = {
   errors: { externalId: string; reason: string }[];
 };
 
-export async function selectCards(db: Queryable, limit: number): Promise<BinderCard[]> {
+/**
+ * Every card placed in a Binder pocket (owned, wishlisted or just placed: Binder prices them all, and
+ * signal cards are Binder cards). onlyNew keeps cards with no PriceCharting price in the last 30 days and
+ * no match waiting for review: the hourly pass for freshly placed cards.
+ */
+export async function selectCards(
+  db: Queryable,
+  limit: number,
+  opts: { onlyNew?: boolean; today?: string } = {},
+): Promise<BinderCard[]> {
   const { rows } = await db.query(
-    `WITH signal_cards AS (
-       SELECT DISTINCT substring(entity_ref from 'binder_card:(.*)') AS card_key
-         FROM vault_signals.signal_entity WHERE entity_ref LIKE 'binder_card:%'
-     )
-     SELECT DISTINCT ON (b.external_id) b.external_id, b.card_name, b.set_name, b.number
+    `SELECT DISTINCT ON (b.external_id) b.external_id, b.card_name, b.set_name, b.number
        FROM vault_tcg.binder_slot b
       WHERE b.source = $1 AND b.external_id IS NOT NULL AND b.card_name IS NOT NULL AND b.set_name IS NOT NULL
-        AND (b.owned OR b.on_wishlist
-             OR lower(regexp_replace(b.card_name, '[^A-Za-z0-9]+', '-', 'g')) IN (SELECT card_key FROM signal_cards))
+        AND (NOT $3::boolean OR (
+              NOT EXISTS (SELECT 1 FROM vault_market.card_price_history h
+                           WHERE h.source = $1 AND h.external_id = b.external_id AND h.price_source = $4
+                             AND h.observed_on > $5::date - 30)
+          AND NOT EXISTS (SELECT 1 FROM vault_market.vendor_product_map m
+                           WHERE m.provider_ids->'pokemontcg' ? b.external_id AND m.needs_review)))
       ORDER BY b.external_id
       LIMIT $2`,
-    [CARD_SOURCE, limit],
-  ).catch(async (e) => {
-    // vault_signals may not exist in an old database; Binder wants alone still work.
-    if (!/signal_entity/.test(String(e))) throw e;
-    return db.query(
-      `SELECT DISTINCT ON (external_id) external_id, card_name, set_name, number FROM vault_tcg.binder_slot
-        WHERE source = $1 AND external_id IS NOT NULL AND card_name IS NOT NULL AND set_name IS NOT NULL AND (owned OR on_wishlist)
-        ORDER BY external_id LIMIT $2`,
-      [CARD_SOURCE, limit],
-    );
-  });
+    [CARD_SOURCE, limit, Boolean(opts.onlyNew), PRICECHARTING_PRICE_SOURCE, opts.today ?? new Date().toISOString().slice(0, 10)],
+  );
   return rows.map((r) => ({ externalId: r.external_id, name: r.card_name, setName: r.set_name, number: r.number }));
 }
 
@@ -108,7 +108,7 @@ async function snapshot(db: Queryable, raw: string | undefined, records: number)
 
 export async function runPokemonPrices(
   db: Queryable,
-  opts: { dryRun?: boolean; limit?: number; now?: Date; lookup?: Lookup; minGapMs?: number; token?: string | null } = {},
+  opts: { dryRun?: boolean; limit?: number; onlyNew?: boolean; now?: Date; lookup?: Lookup; minGapMs?: number; token?: string | null } = {},
 ): Promise<PokemonPricesReport> {
   const now = opts.now ?? new Date();
   const today = now.toISOString().slice(0, 10);
@@ -148,7 +148,7 @@ export async function runPokemonPrices(
   if (!ds.rows[0]) return { ...report, status: "blocked", reason: "vault_market.data_source has no pricecharting row" };
   const dataSourceId = ds.rows[0].data_source_id;
 
-  const cards = await selectCards(db, opts.limit ?? 500);
+  const cards = await selectCards(db, opts.limit ?? 500, { onlyNew: opts.onlyNew, today });
   report.cards = cards.length;
   for (const card of cards) {
     try {

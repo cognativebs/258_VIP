@@ -205,6 +205,18 @@ export function indexHitToResult({ card, set }: IndexedCardHit): CardResult {
   };
 }
 
+const byId = new WeakMap<CardIndex, Map<string, IndexedCard>>();
+
+/** One card by its pokemontcg id (rarity, number) without a network call. */
+export function findIndexedCard(index: CardIndex, externalId: string): IndexedCard | null {
+  let map = byId.get(index);
+  if (!map) {
+    map = new Map(index.cards.map((c) => [c.id, c]));
+    byId.set(index, map);
+  }
+  return map.get(externalId) ?? null;
+}
+
 export function indexSets(index: CardIndex): SetOption[] {
   return [...index.sets]
     .sort((a, b) => b.releaseDate.localeCompare(a.releaseDate))
