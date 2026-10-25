@@ -212,7 +212,7 @@ async function main() {
   }
 
   if (cmd === "pokemon-prices") {
-    // pokemon-prices [--dry-run] [--limit N] | review | confirm <externalId> [productId] --confirm-operator
+    // pokemon-prices [--dry-run] [--limit N] [--new] | review | confirm <externalId> [productId] --confirm-operator
     loadApiEnv();
     const args = process.argv.slice(3);
     if (args[0] === "review") {
@@ -233,7 +233,11 @@ async function main() {
     }
     const i = args.indexOf("--limit");
     const report = await inPokebeachTransaction((db) =>
-      runPokemonPrices(db, { dryRun: args.includes("--dry-run"), limit: i >= 0 ? Number(args[i + 1]) : undefined }),
+      runPokemonPrices(db, {
+        dryRun: args.includes("--dry-run"),
+        limit: i >= 0 ? Number(args[i + 1]) : undefined,
+        onlyNew: args.includes("--new"),
+      }),
     );
     console.log(formatPokemonPricesReport(report));
     return;
@@ -577,12 +581,25 @@ async function main() {
           name: "pokemon-prices",
           everyMs: 24 * 60 * 60 * 1000,
           run: () => {
-            // Daily PriceCharting guide for Binder wants and signal cards; idle without a token.
+            // Daily PriceCharting guide for every Binder pocket card; idle without a token.
             loadApiEnv();
             void jitter(30 * 60 * 1000)
               .then(() => inPokebeachTransaction((db) => runPokemonPrices(db)))
               .then((r) => console.log(formatPokemonPricesReport(r)))
               .catch((e) => console.error(`pokemon-prices failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
+        {
+          name: "pokemon-prices-new",
+          everyMs: 60 * 60 * 1000,
+          run: () => {
+            // Cards placed since the last run get a guide price within the hour (at most 25 lookups).
+            loadApiEnv();
+            void inPokebeachTransaction((db) => runPokemonPrices(db, { onlyNew: true, limit: 25 }))
+              .then((r) => {
+                if (r.cards) console.log(formatPokemonPricesReport(r));
+              })
+              .catch((e) => console.error(`pokemon-prices-new failed: ${e instanceof Error ? e.message : e}`));
           },
         },
         {

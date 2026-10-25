@@ -41,8 +41,8 @@ async function inTransaction(fn: (db: PoolClient) => Promise<void>) {
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    // Only this test's fixture slots count as owned/wishlisted inside the rolled-back transaction.
-    await db.query(`UPDATE vault_tcg.binder_slot SET owned = false, on_wishlist = false`);
+    // Every placed card is priced: inside the rolled-back transaction only this test's fixture slots hold a card.
+    await db.query(`UPDATE vault_tcg.binder_slot SET external_id = NULL`);
     await db.query(`INSERT INTO vault_tcg.binder (id, name, created_at, updated_at) VALUES ('px-test', 'PriceCharting test', 0, 0)`);
     await db.query(`INSERT INTO vault_tcg.binder_page (id, binder_id, page_index, created_at) VALUES ('px-test-p1', 'px-test', 0, 0)`);
     await fn(db);
@@ -97,6 +97,10 @@ describe.skipIf(!DSN)("pokemon-prices (IQVAULT_TEST_DSN, rolled back)", () => {
       expect(again).toMatchObject({ matchedNow: 0, priced: 1, rowsWritten: 2 });
       const count = await db.query(`SELECT count(*)::int AS n, max(market_price)::float AS nm FROM vault_market.card_price_history WHERE external_id = 'fx1-12' AND condition = 'NM'`);
       expect(count.rows[0]).toEqual({ n: 1, nm: 18 });
+
+      // The hourly pass only looks at cards with no recent price and no match in review.
+      const fresh = await runPokemonPrices(db, { now: NOW, lookup: pc, minGapMs: 0, onlyNew: true });
+      expect(fresh).toMatchObject({ cards: 1, unmatched: 1, rowsWritten: 0 });
 
       expect((await listReview(db)).map((r) => [r.externalId, r.productId])).toEqual([["fx1-7", "900002"]]);
       expect(await confirmMatch(db, "fx1-7")).toBe(true);

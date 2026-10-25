@@ -83,3 +83,54 @@ export async function buildPokemonFmv(
     },
   };
 }
+
+export const PokemonGuideQuerySchema = z
+  .object({
+    /** Comma-separated pokemontcg ids, at most 500. */
+    ids: z
+      .string()
+      .transform((s) => [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))])
+      .pipe(z.array(z.string().regex(/^[a-z0-9.-]+$/i)).min(1).max(500)),
+    windowDays: z.coerce.number().int().min(1).max(365).optional(),
+  })
+  .strict();
+
+/**
+ * PriceCharting guide ranges for any catalog ids (Binder search results, pockets): the same ranges as
+ * buildPokemonFmv, without requiring the card to be owned or wishlisted. Ids with no stored guide are
+ * returned with ranges: [] — never a guessed price.
+ */
+export async function buildPokemonGuide(
+  db: Queryable,
+  opts: { ids: ReadonlyArray<string>; windowDays?: number; asOf?: Date },
+) {
+  const asOf = opts.asOf ?? new Date();
+  const windowDays = opts.windowDays ?? 30;
+  const history = await db.query(
+    `SELECT external_id, condition, condition_assumed, observed_on::text AS observed_on, market_price::float AS price
+       FROM vault_market.card_price_history
+      WHERE source = 'pokemontcg' AND price_source = $1 AND external_id = ANY($2::text[])
+        AND observed_on > ($3::date - make_interval(days => $4))`,
+    [PRICECHARTING_PRICE_SOURCE, [...opts.ids], asOf.toISOString().slice(0, 10), windowDays],
+  );
+  const byId = new Map<string, { condition: string; conditionAssumed: boolean; observedOn: string; price: number }[]>();
+  for (const h of history.rows) {
+    const list = byId.get(h.external_id) ?? [];
+    list.push({ condition: h.condition, conditionAssumed: h.condition_assumed, observedOn: h.observed_on, price: h.price });
+    byId.set(h.external_id, list);
+  }
+  return {
+    asOf: asOf.toISOString(),
+    windowDays,
+    cards: opts.ids.map((externalId) => ({
+      externalId,
+      ranges: fmvFromHistory(byId.get(externalId) ?? [], { asOf, windowDays }),
+    })),
+    provenance: {
+      method: "read_time_range",
+      evidenceClass: "vendor_guide",
+      verificationStatus: "unverified",
+      notes: "PriceCharting guide values (sale-derived), not sold comps; NM for ungraded is assumed · unverified (ADR 0012).",
+    },
+  };
+}

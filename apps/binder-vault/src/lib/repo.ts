@@ -1,7 +1,8 @@
 import { asc, eq } from "drizzle-orm";
-import { getDb, query, schema } from "@/db/client";
+import { getDb, schema } from "@/db/client";
 import { eraByKey, CENTER_INDEX_3x3 } from "./templates";
-import { fetchCardMarketPrice } from "./cards";
+import { findIndexedCard, getCardIndex } from "./cardIndex";
+import { fetchGuidePrices, GUIDE_RULE, guideProvenance } from "./guidePrices";
 import type {
   ApiBinder,
   ApiPage,
@@ -499,34 +500,32 @@ export async function writeSlot(
 
   if (input.kind === "card") {
     const c = input.card;
-    // Search payloads often lack embedded TCGPlayer prices (new Mega sets).
-    // Resolve market value on place so pockets don't land with a blank $—.
-    let priceMarket = c.priceMarket;
-    let priceCurrency = c.priceCurrency;
+    // Price = the PriceCharting guide VIP holds (vendor guide, NM assumed · unverified). A card VIP has
+    // not priced yet lands unpriced; the hourly pokemon-prices pass picks it up, then Sync Prices fills it.
+    let priceMarket: number | null = null;
+    let priceCurrency: string | null = null;
     let rarity = c.rarity;
     let provenanceSource = c.provenance.source;
     let provenanceMethod = c.provenance.method;
     let confidence = c.provenance.confidence;
     let verificationStatus = c.provenance.verificationStatus;
+    let provenanceModelVersion = c.provenance.modelVersion;
 
-    if (priceMarket == null && c.source === "pokemontcg" && c.externalId) {
-      try {
-        const fresh = await fetchCardMarketPrice(c.externalId);
-        if (fresh.priceMarket != null) {
-          priceMarket = fresh.priceMarket;
-          priceCurrency = fresh.priceCurrency;
-          if (fresh.rarity) rarity = fresh.rarity;
-          if (fresh.priceSource !== "none") {
-            provenanceSource = fresh.priceSource;
-            provenanceMethod = "api";
-            verificationStatus = "verified";
-            confidence = fresh.priceSource === "tcgplayer.com" ? 0.85 : 0.92;
-          }
-        } else if (fresh.rarity && !rarity) {
-          rarity = fresh.rarity;
-        }
-      } catch {
-        // Keep the card; price can be filled later via Sync Prices.
+    if (c.source === "pokemontcg" && c.externalId) {
+      if (!rarity) {
+        const index = await getCardIndex().catch(() => null);
+        rarity = (index && findIndexedCard(index, c.externalId)?.rarity) || null;
+      }
+      const guide = (await fetchGuidePrices([c.externalId])).get(c.externalId);
+      if (guide) {
+        const p = guideProvenance(guide);
+        priceMarket = guide.latest;
+        priceCurrency = "USD";
+        provenanceSource = p.source;
+        provenanceMethod = p.method;
+        confidence = p.confidence;
+        verificationStatus = p.verificationStatus;
+        provenanceModelVersion = p.modelVersion;
       }
     }
 
@@ -547,7 +546,7 @@ export async function writeSlot(
         priceUpdatedAt: priceMarket != null ? now : null,
         provenanceMethod,
         provenanceSource,
-        provenanceModelVersion: c.provenance.modelVersion,
+        provenanceModelVersion,
         confidence,
         verificationStatus,
         addedAt: now,
@@ -825,19 +824,16 @@ export type PriceSyncReport = {
 };
 
 /**
- * Refresh TCGplayer market prices for cards in a binder, and record the day in
- * price history while we are already holding the data.
+ * Refresh pocket prices from the PriceCharting guide VIP holds (owner decision 2026-10-22; TCGplayer's
+ * price API now refuses Binder). Each priced pocket also gets a price_snapshot row for the day.
  *
  * - `pageId`: sync that page only
  * - else first `firstPages` pages (default 5)
- * `force` is kept for the existing Sync Prices / Refresh All callers; both now
- * fetch every TCGplayer-linked card in scope so a priced page still writes
- * today's history instead of no-oping.
+ * `force` is kept for the existing Sync Prices / Refresh All callers.
  *
- * Delegates to the shared @vip/pricing sync so this button, the CLI job, and the
- * daily schedule cannot drift. That also buys explicit Near Mint selection and
- * honest provenance: a market price published on a day with no sales is
- * recorded as normalized, not as a verified observation.
+ * VIP's pokemon-prices job matches cards to PriceCharting and stores the guide (daily for every pocket
+ * card, hourly for new ones); this reads what it stored, so it never calls the vendor itself. A card VIP
+ * has not priced yet keeps its pocket unchanged and counts as unchanged.
  */
 export async function syncBinderPrices(
   binderId: string,
@@ -882,47 +878,49 @@ export async function syncBinderPrices(
   }
 
   if (targets.size > 0) {
-    // Loaded here, not at module top, so GET /api/binders still works when
-    // @vip/pricing has not been built after a git pull.
-    const { syncPriceHistory } = await import("@vip/pricing");
-    const priced = await syncPriceHistory({
-      runner: query,
-      cards: [...targets.keys()],
-      range: "daily",
-      condition: "NM",
-      concurrency: 4,
-      triggeredBy: opts.force
-        ? "binder-refresh"
-        : opts.pageId
-          ? "binder-sync-page"
-          : "binder-sync",
-    });
-
-    report.historyRowsNew = priced.rowsWritten;
-    report.historyRowsUpdated = priced.rowsUpdated;
-    report.newestObservedOn = priced.newestObservedOn;
-    // slotsRefreshed counts pockets actually written, which is what "updated"
-    // has always meant to the caller.
-    report.updated = priced.slotsRefreshed;
-    report.failed = priced.cardsFailed + priced.cardsEmpty;
-    const untouched = report.slotsChecked - report.updated;
-    if (untouched > 0) report.unchanged += untouched;
-
-    // Rarity is catalog metadata, not price, so the price adapter does not carry
-    // it. Top it up only where it is still missing rather than on every sync.
-    const needRarity = [...targets.entries()].filter(([, v]) => v.rarity == null);
-    for (const [externalId, { slotIds }] of needRarity) {
-      try {
-        const fresh = await fetchCardMarketPrice(externalId);
-        if (!fresh.rarity) continue;
-        for (const slotId of slotIds) {
-          await db
-            .update(schema.slots)
-            .set({ rarity: fresh.rarity })
-            .where(eq(schema.slots.id, slotId));
+    const guide = await fetchGuidePrices([...targets.keys()], { timeoutMs: 5000 });
+    const index = await getCardIndex().catch(() => null);
+    const now = Date.now();
+    for (const [externalId, { slotIds, rarity }] of targets) {
+      const g = guide.get(externalId);
+      // Rarity is catalog metadata: top it up from the local card index where it is missing.
+      const indexRarity = !rarity && index ? findIndexedCard(index, externalId)?.rarity ?? null : null;
+      if (!g) {
+        report.unchanged += slotIds.length;
+        if (indexRarity) {
+          for (const slotId of slotIds) {
+            await db.update(schema.slots).set({ rarity: indexRarity }).where(eq(schema.slots.id, slotId));
+          }
         }
-      } catch {
-        /* rarity is a nicety; never fail a price sync over it */
+        continue;
+      }
+      const p = guideProvenance(g);
+      if (!report.newestObservedOn || g.latestOn > report.newestObservedOn) report.newestObservedOn = g.latestOn;
+      for (const slotId of slotIds) {
+        await db
+          .update(schema.slots)
+          .set({
+            priceMarket: g.latest,
+            priceCurrency: "USD",
+            priceUpdatedAt: Date.parse(`${g.latestOn}T00:00:00Z`) || now,
+            provenanceMethod: p.method,
+            provenanceSource: p.source,
+            provenanceModelVersion: p.modelVersion,
+            confidence: p.confidence,
+            verificationStatus: p.verificationStatus,
+            ...(indexRarity ? { rarity: indexRarity } : {}),
+          })
+          .where(eq(schema.slots.id, slotId));
+        await db.insert(schema.priceSnapshots).values({
+          slotId,
+          priceMarket: g.latest,
+          priceCurrency: "USD",
+          observedAt: now,
+          source: "pricecharting",
+          ruleVersion: GUIDE_RULE,
+        });
+        report.updated++;
+        report.historyRowsNew++;
       }
     }
   }

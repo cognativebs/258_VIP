@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PokemonFmvQuerySchema, buildPokemonFmv, type Queryable } from "./pokemonFmv.js";
+import {
+  PokemonFmvQuerySchema,
+  PokemonGuideQuerySchema,
+  buildPokemonFmv,
+  buildPokemonGuide,
+  type Queryable,
+} from "./pokemonFmv.js";
 
 function stubDb(registry: boolean): Queryable & { sql: string[] } {
   const sql: string[] = [];
@@ -57,5 +63,22 @@ describe("buildPokemonFmv", () => {
     expect(PokemonFmvQuerySchema.safeParse({ externalId: "me1-133", windowDays: "60" }).success).toBe(true);
     expect(PokemonFmvQuerySchema.safeParse({ externalId: "x'; drop" }).success).toBe(false);
     expect(PokemonFmvQuerySchema.safeParse({ windowDays: "0" }).success).toBe(false);
+  });
+});
+
+describe("buildPokemonGuide", () => {
+  it("returns guide ranges for any ids, owned or not, and an empty list for unpriced ids", async () => {
+    const out = await buildPokemonGuide(stubDb(true), { ids: ["me1-133", "sv3pt5-25"], asOf: new Date("2026-10-04T15:00:00Z") });
+    expect(out.cards.map((c) => [c.externalId, c.ranges.map((r) => [r.condition, r.latest, r.conditionAssumed])])).toEqual([
+      ["me1-133", [["NM", 17, true], ["PSA_10", 107.3, false]]],
+      ["sv3pt5-25", []],
+    ]);
+    expect(out.provenance.verificationStatus).toBe("unverified");
+  });
+
+  it("validates and de-duplicates ids", () => {
+    expect(PokemonGuideQuerySchema.parse({ ids: "a-1, a-1,b-2" }).ids).toEqual(["a-1", "b-2"]);
+    expect(PokemonGuideQuerySchema.safeParse({ ids: "" }).success).toBe(false);
+    expect(PokemonGuideQuerySchema.safeParse({ ids: "x;drop" }).success).toBe(false);
   });
 });

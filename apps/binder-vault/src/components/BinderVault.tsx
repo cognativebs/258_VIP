@@ -938,7 +938,8 @@ export function BinderVault() {
   // ---- card search (debounced, stale responses ignored) ----
   useEffect(() => {
     const q = query.trim();
-    const canSearch = q.length >= 2 || hasSearchFilters;
+    // A card number can be one digit ("4"); names still need two letters.
+    const canSearch = q.length >= 2 || /^\d$/.test(q) || hasSearchFilters;
     if (!canSearch) {
       setResults([]);
       setSearchNote("");
@@ -994,7 +995,7 @@ export function BinderVault() {
       } finally {
         if (!ac.signal.aborted) setSearching(false);
       }
-    }, 450);
+    }, 250);
     return () => {
       ac.abort();
       window.clearTimeout(handle);
@@ -1215,7 +1216,7 @@ export function BinderVault() {
                   className="btn"
                   disabled={syncingPrices}
                   onClick={() => void syncPagePrices(false)}
-                  title="Fetch Near Mint TCGplayer prices for this page and record them in price history"
+                  title="Fill this page from the PriceCharting guide VIP stores (ungraded, NM assumed · unverified)"
                 >
                   {syncingPrices ? "Syncing…" : "Sync Prices"}
                 </button>
@@ -1223,7 +1224,7 @@ export function BinderVault() {
                   className="btn btn-ghost"
                   disabled={syncingPrices}
                   onClick={() => void syncPagePrices(true)}
-                  title="Re-fetch Near Mint prices for every TCGplayer-linked card on this page and record today's history"
+                  title="Re-read the PriceCharting guide for every card on this page and record today in price history"
                 >
                   Refresh All
                 </button>
@@ -1541,7 +1542,7 @@ export function BinderVault() {
               <div className="search-title">Card Search</div>
               <input
                 className="search-input"
-                placeholder="Search Pokémon cards… e.g. Charizard"
+                placeholder="Name, number or set… e.g. Charizard 4/102, Pikachu 151, 25"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -1795,7 +1796,7 @@ function ValueRail({
 
       <div className="value-calc">
         <div className="value-calc-row">
-          <span>Total market</span>
+          <span>Total (guide)</span>
           <strong>{formatUsd(totals.totalMarket)}</strong>
         </div>
         <div className="value-calc-row owned">
@@ -2173,7 +2174,9 @@ function Pocket({
               referrerPolicy="no-referrer"
             />
             {slot.card?.priceMarket != null && (
-              <span className="pocket-price">${slot.card.priceMarket.toFixed(2)}</span>
+              <span className="pocket-price" title={slot.card.provenance.source ?? undefined}>
+                ${slot.card.priceMarket.toFixed(2)}
+              </span>
             )}
             <div
               className="pocket-actions"
@@ -2601,7 +2604,7 @@ function WishlistPrintSheet({
       </table>
 
       <footer className="wishlist-print-foot">
-        Generated from Binder Vault · prices are market references, not offers · unverified grades
+        Generated from Binder Vault · prices are PriceCharting guide values, not offers · NM assumed · unverified grades
         never assumed
         <button type="button" className="btn no-print" onClick={onDone}>
           Close preview

@@ -1,7 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { getCardIndex, indexHitToResult, indexSets, searchCardIndex } from "./cardIndex";
 import type { CardResult } from "./contracts";
 import { raritiesForKeys, type SetOption } from "./filters";
+import { withGuidePrices } from "./guidePrices";
 import { mergeSets, SEED_SETS } from "./set-catalog";
 
 /**
@@ -318,39 +320,19 @@ export async function fetchCardMarketPrice(
   };
 }
 
-/**
- * Fill null priceMarket on search results via TCGPlayer (cached, concurrent).
- * Skips pokemontcg /cards/{id} — search already proved embedded prices are absent,
- * and that endpoint 500s often on Mega sets.
- */
-async function enrichMissingPrices(
-  cards: CardResult[],
-  concurrency = 8,
-): Promise<CardResult[]> {
-  const need = cards.filter(
-    (c) => c.source === "pokemontcg" && c.priceMarket == null && c.externalId,
-  );
-  if (!need.length) return cards;
-
-  for (let i = 0; i < need.length; i += concurrency) {
-    const batch = need.slice(i, i + concurrency);
-    await Promise.all(
-      batch.map(async (card) => {
-        const price = await fetchTcgplayerMarketViaRedirect(card.externalId);
-        if (price == null) return;
-        card.priceMarket = price;
-        card.priceCurrency = "USD";
-        card.provenance = {
-          ...card.provenance,
-          source: "tcgplayer.com",
-          method: "api",
-          verificationStatus: "verified",
-          confidence: 0.85,
-        };
-      }),
-    );
-  }
-  return cards;
+/** Local index first. null = no index yet (the caller falls back to the live APIs). */
+async function searchLocalIndex(
+  query: string,
+  limit: number,
+  filters: SearchFilters,
+): Promise<CardResult[] | null> {
+  // First run builds the index (~176 set files); wait a little, then fall back to live search.
+  const index = await getCardIndex(4000);
+  if (!index) return null;
+  const rarities = filters.rarityKeys.length ? raritiesForKeys(filters.rarityKeys) : [];
+  const hits = searchCardIndex(index, query, { setId: filters.setId, rarities }, limit);
+  // PriceCharting guide prices VIP already holds: one local call, never a vendor lookup per result.
+  return withGuidePrices(hits.map(indexHitToResult));
 }
 
 async function fetchTcgplayerMarketViaRedirect(externalId: string): Promise<number | null> {
@@ -637,8 +619,8 @@ async function searchPokemonTcg(
     return [];
   }
 
-  // Mega / new sets return tcgplayer.url with no prices — fill via TCGPlayer.
-  return enrichMissingPrices(rows.slice(0, limit).map(toCardResult));
+  // pokemontcg.io's embedded TCGplayer prices, else the PriceCharting guide VIP holds.
+  return withGuidePrices(rows.slice(0, limit).map(toCardResult));
 }
 
 export type CardSource = "all" | "tcgdex" | "pokemontcg";
@@ -701,6 +683,26 @@ export async function searchCards(
   }
 
   const errors: string[] = [];
+
+  // Local index (pokemontcg.io ids) answers name / number / set searches without the flaky API.
+  // TCGdex only fills in when the index finds nothing (a set newer than the dataset).
+  if (source !== "tcgdex") {
+    const local = await searchLocalIndex(q, filters.setId ? Math.max(limit, 500) : limit, filters).catch(
+      () => null,
+    );
+    if (local && (local.length || filters.setId || filters.rarityKeys.length)) {
+      const payload = { results: local, errors, queryUsed: `index:${q}` };
+      if (local.length) searchCache.set(cacheKey, { at: Date.now(), payload });
+      return payload;
+    }
+    if (local && q && source === "all") {
+      const fresh = await searchTcgdex(q, limit, filters).catch((e) => {
+        errors.push(friendlySearchError(e, "TCGdex"));
+        return [] as CardResult[];
+      });
+      return { results: fresh, errors, queryUsed: `index:${q} tcgdex:${q}` };
+    }
+  }
 
   // Set IDs + rarity chips both need pokemontcg — TCGdex set ids don't match.
   const effectiveSource: CardSource =
@@ -832,6 +834,8 @@ async function fetchPokemonSetsPage(pageSize: number): Promise<SetOption[]> {
  * expand it when pokemontcg cooperates (their /sets endpoint 500s often).
  */
 export async function listSets(limit = 250): Promise<SetOption[]> {
+  const index = await getCardIndex().catch(() => null);
+  if (index) return mergeSets(indexSets(index), readSetsCache(), SEED_SETS).slice(0, Math.min(limit, 400));
   const cached = readSetsCache();
   let remote: SetOption[] = [];
   try {
