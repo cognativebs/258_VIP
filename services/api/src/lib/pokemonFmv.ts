@@ -92,17 +92,20 @@ export const PokemonGuideQuerySchema = z
       .transform((s) => [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))])
       .pipe(z.array(z.string().regex(/^[a-z0-9.-]+$/i)).min(1).max(500)),
     windowDays: z.coerce.number().int().min(1).max(365).optional(),
+    /** history=1 adds each card's stored daily ungraded (NM-assumed) guide values in the window. */
+    history: z.enum(["1", "true"]).optional().transform((v) => v != null),
   })
   .strict();
 
 /**
  * PriceCharting guide ranges for any catalog ids (Binder search results, pockets): the same ranges as
  * buildPokemonFmv, without requiring the card to be owned or wishlisted. Ids with no stored guide are
- * returned with ranges: [] — never a guessed price.
+ * returned with ranges: [] — never a guessed price. With history, each card also carries its stored
+ * daily NM guide values (what VIP's pokemon-prices job recorded; PriceCharting itself has no history API).
  */
 export async function buildPokemonGuide(
   db: Queryable,
-  opts: { ids: ReadonlyArray<string>; windowDays?: number; asOf?: Date },
+  opts: { ids: ReadonlyArray<string>; windowDays?: number; asOf?: Date; history?: boolean },
 ) {
   const asOf = opts.asOf ?? new Date();
   const windowDays = opts.windowDays ?? 30;
@@ -125,6 +128,14 @@ export async function buildPokemonGuide(
     cards: opts.ids.map((externalId) => ({
       externalId,
       ranges: fmvFromHistory(byId.get(externalId) ?? [], { asOf, windowDays }),
+      ...(opts.history
+        ? {
+            nmHistory: (byId.get(externalId) ?? [])
+              .filter((h) => h.condition === "NM")
+              .map((h) => ({ observedOn: h.observedOn, price: h.price }))
+              .sort((a, b) => a.observedOn.localeCompare(b.observedOn)),
+          }
+        : {}),
     })),
     provenance: {
       method: "read_time_range",

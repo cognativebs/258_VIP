@@ -1,8 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db/client";
 import { eraByKey, CENTER_INDEX_3x3 } from "./templates";
 import { findIndexedCard, getCardIndex } from "./cardIndex";
-import { fetchGuidePrices, GUIDE_RULE, guideProvenance } from "./guidePrices";
+import { fetchGuideHistory, fetchGuidePrices, GUIDE_RULE, guideProvenance } from "./guidePrices";
 import type {
   ApiBinder,
   ApiPage,
@@ -823,6 +823,118 @@ export type PriceSyncReport = {
   newestObservedOn: string | null;
 };
 
+const GUIDE_SNAPSHOT_SOURCE = "pricecharting";
+
+function guideDayMs(observedOn: string): number {
+  return Date.parse(`${observedOn}T00:00:00Z`);
+}
+
+/** One price_snapshot row per pocket per guide day; a second write of the same day is a no-op (false). */
+async function insertGuideSnapshot(slotId: string, observedOn: string, price: number): Promise<boolean> {
+  const db = await getDb();
+  const observedAt = guideDayMs(observedOn);
+  const existing = await db
+    .select({ id: schema.priceSnapshots.id })
+    .from(schema.priceSnapshots)
+    .where(
+      and(
+        eq(schema.priceSnapshots.slotId, slotId),
+        eq(schema.priceSnapshots.source, GUIDE_SNAPSHOT_SOURCE),
+        eq(schema.priceSnapshots.observedAt, observedAt),
+      ),
+    )
+    .limit(1);
+  if (existing.length) return false;
+  await db.insert(schema.priceSnapshots).values({
+    slotId,
+    priceMarket: price,
+    priceCurrency: "USD",
+    observedAt,
+    source: GUIDE_SNAPSHOT_SOURCE,
+    ruleVersion: GUIDE_RULE,
+  });
+  return true;
+}
+
+export type GuideBackfillReport = {
+  cardsConsidered: number;
+  cardsPriced: number;
+  cardsEmpty: number;
+  cardsFailed: number;
+  rowsWritten: number;
+  rowsUpdated: number;
+  newestObservedOn: string | null;
+};
+
+/**
+ * Ledger "Backfill history": copy the daily PriceCharting guide VIP has stored (up to a year) into this
+ * binder's price history, one row per pocket per day, then set each pocket to the latest guide value.
+ * PriceCharting has no per-product history API, so history starts when VIP began pricing the card.
+ */
+export async function backfillBinderGuideHistory(
+  binderId: string,
+  opts: { windowDays?: number } = {},
+): Promise<GuideBackfillReport | null> {
+  const binder = await assembleBinder(binderId);
+  if (!binder) return null;
+  const slotsByCard = new Map<string, string[]>();
+  for (const page of binder.pages) {
+    for (const slot of page.slots) {
+      const card = slot.card;
+      if (!card || card.source !== "pokemontcg" || !card.externalId) continue;
+      slotsByCard.set(card.externalId, [...(slotsByCard.get(card.externalId) ?? []), slot.id]);
+    }
+  }
+  const report: GuideBackfillReport = {
+    cardsConsidered: slotsByCard.size,
+    cardsPriced: 0,
+    cardsEmpty: 0,
+    cardsFailed: 0,
+    rowsWritten: 0,
+    rowsUpdated: 0,
+    newestObservedOn: null,
+  };
+  if (!slotsByCard.size) return report;
+  const history = await fetchGuideHistory([...slotsByCard.keys()], { windowDays: opts.windowDays ?? 365 });
+  const latest = await fetchGuidePrices([...slotsByCard.keys()], { timeoutMs: 10_000 });
+  const db = await getDb();
+  for (const [externalId, slotIds] of slotsByCard) {
+    const days = history.get(externalId) ?? [];
+    if (!days.length) {
+      report.cardsEmpty++;
+      continue;
+    }
+    report.cardsPriced++;
+    for (const slotId of slotIds) {
+      for (const d of days) {
+        if (await insertGuideSnapshot(slotId, d.observedOn, d.price)) report.rowsWritten++;
+        else report.rowsUpdated++;
+      }
+    }
+    const last = days[days.length - 1]!;
+    if (!report.newestObservedOn || last.observedOn > report.newestObservedOn) report.newestObservedOn = last.observedOn;
+    const g = latest.get(externalId);
+    if (g) {
+      const p = guideProvenance(g);
+      await db
+        .update(schema.slots)
+        .set({
+          priceMarket: g.latest,
+          priceCurrency: "USD",
+          priceUpdatedAt: guideDayMs(g.latestOn),
+          provenanceMethod: p.method,
+          provenanceSource: p.source,
+          provenanceModelVersion: p.modelVersion,
+          confidence: p.confidence,
+          verificationStatus: p.verificationStatus,
+        })
+        .where(inArray(schema.slots.id, slotIds));
+    }
+  }
+  await db.update(schema.binders).set({ updatedAt: Date.now() }).where(eq(schema.binders.id, binderId));
+  return report;
+}
+
 /**
  * Refresh pocket prices from the PriceCharting guide VIP holds (owner decision 2026-10-22; TCGplayer's
  * price API now refuses Binder). Each priced pocket also gets a price_snapshot row for the day.
@@ -911,16 +1023,9 @@ export async function syncBinderPrices(
             ...(indexRarity ? { rarity: indexRarity } : {}),
           })
           .where(eq(schema.slots.id, slotId));
-        await db.insert(schema.priceSnapshots).values({
-          slotId,
-          priceMarket: g.latest,
-          priceCurrency: "USD",
-          observedAt: now,
-          source: "pricecharting",
-          ruleVersion: GUIDE_RULE,
-        });
         report.updated++;
-        report.historyRowsNew++;
+        if (await insertGuideSnapshot(slotId, g.latestOn, g.latest)) report.historyRowsNew++;
+        else report.historyRowsUpdated++;
       }
     }
   }
