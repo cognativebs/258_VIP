@@ -8,12 +8,13 @@ this time explicitly". A destructive, one-off operator action: dry run by defaul
 Deleted:
   - every comics holding imported from CLZ (vault_collection.holding, source = 'clz_import')
   - the eBay ask observations tied to them (vault_market.listing_observation)
-  - the guide-price rows keyed to their CLZ ids (vault_market.guide_price_observation)
+  - non-PriceCharting guide-price rows keyed to their CLZ ids (vault_market.guide_price_observation)
   - the ComicBase review list (vault_collection.comicbase_item): it linked ComicBase items to these
     holdings; ComicBase prices are re-matched to the new holdings by comics_guide_prices.py
 Unlinked, not deleted (the foreign key sets holding_id to NULL):
   - eBay listings that pointed at one of these holdings (vault_collection.marketplace_listing)
-Kept:
+Kept (operator, 2026-10-25: "store the pricecharting matches"):
+  - every PriceCharting guide row (holding_id goes NULL; the asset and CLZ id stay on the row)
   - the comics catalog (vault_core.asset, vault_comic.*) and its PriceCharting product matches: a fresh
     import reuses the same catalog rows, so those matches carry over
   - raw CLZ export snapshots (raw imports are immutable, AGENTS rule 3)
@@ -42,7 +43,10 @@ COUNTS = {
     "listing_observation": f"""SELECT count(*) FROM vault_market.listing_observation
         WHERE holding_id IN (SELECT id FROM ({OLD}) o) OR holding_source_row_id IN (SELECT source_row_id FROM ({OLD}) o)""",
     "guide_price_observation": f"""SELECT count(*) FROM vault_market.guide_price_observation
-        WHERE holding_source_row_id IN (SELECT source_row_id FROM ({OLD}) o)""",
+        WHERE source <> 'pricecharting' AND holding_source_row_id IN (SELECT source_row_id FROM ({OLD}) o)""",
+    "pricecharting_guide_rows_kept": "SELECT count(*) FROM vault_market.guide_price_observation WHERE source = 'pricecharting'",
+    "pricecharting_matches_kept": """SELECT count(*) FROM vault_market.vendor_product_map m
+        JOIN vault_market.data_source d ON d.data_source_id = m.data_source_id AND d.source_key = 'pricecharting'""",
     "comicbase_item": "SELECT count(*) FROM vault_collection.comicbase_item",
     "marketplace_listing_unlinked": f"""SELECT count(*) FROM vault_collection.marketplace_listing
         WHERE holding_id IN (SELECT id FROM ({OLD}) o)""",
@@ -58,7 +62,7 @@ DELETES = [
     (
         "guide_price_observation",
         f"""DELETE FROM vault_market.guide_price_observation
-             WHERE holding_source_row_id IN (SELECT source_row_id FROM ({OLD}) o)""",
+             WHERE source <> 'pricecharting' AND holding_source_row_id IN (SELECT source_row_id FROM ({OLD}) o)""",
     ),
     ("holdings", "DELETE FROM vault_collection.holding WHERE source = 'clz_import'"),
 ]
@@ -111,6 +115,11 @@ def main(argv=None) -> int:
         conn.commit()
         report["deleted"] = deleted
         report["marketplace_listing_unlinked"] = before["marketplace_listing_unlinked"]
+        after = counts(cur)
+        report["kept"] = {k: after[k] for k in ("pricecharting_guide_rows_kept", "pricecharting_matches_kept")}
+        if after["pricecharting_guide_rows_kept"] != before["pricecharting_guide_rows_kept"] or                 after["pricecharting_matches_kept"] != before["pricecharting_matches_kept"]:
+            report["warning"] = "PriceCharting counts changed — check the backup"
+
         print(json.dumps(report))
         return 0
     finally:
