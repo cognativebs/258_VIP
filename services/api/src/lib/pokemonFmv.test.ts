@@ -82,3 +82,15 @@ describe("buildPokemonGuide", () => {
     expect(PokemonGuideQuerySchema.safeParse({ ids: "x;drop" }).success).toBe(false);
   });
 });
+
+describe("buildPokemonGuide history", () => {
+  it("adds the stored daily NM guide values only when asked", async () => {
+    const asOf = new Date("2026-10-04T15:00:00Z");
+    const plain = await buildPokemonGuide(stubDb(true), { ids: ["me1-133"], asOf });
+    expect("nmHistory" in plain.cards[0]!).toBe(false);
+    const withHistory = await buildPokemonGuide(stubDb(true), { ids: ["me1-133"], asOf, history: true });
+    expect((withHistory.cards[0] as { nmHistory?: unknown }).nmHistory).toEqual([{ observedOn: "2026-10-04", price: 17 }]);
+    expect(PokemonGuideQuerySchema.parse({ ids: "a-1", history: "1" }).history).toBe(true);
+    expect(PokemonGuideQuerySchema.parse({ ids: "a-1" }).history).toBe(false);
+  });
+});

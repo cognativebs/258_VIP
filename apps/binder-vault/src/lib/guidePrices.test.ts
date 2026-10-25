@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CardResult } from "./contracts";
-import { fetchGuidePrices, guideProvenance, withGuidePrices } from "./guidePrices";
+import { fetchGuideHistory, fetchGuidePrices, guideProvenance, withGuidePrices } from "./guidePrices";
 
 const NM = {
   condition: "NM",
@@ -60,5 +60,28 @@ describe("withGuidePrices", () => {
     } finally {
       globalThis.fetch = realFetch;
     }
+  });
+});
+
+describe("fetchGuideHistory", () => {
+  it("asks VIP for a year of stored daily NM values and keeps only cards that have some", async () => {
+    let url = "";
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      url = String(input);
+      return new Response(
+        JSON.stringify({
+          cards: [
+            { externalId: "me1-133", nmHistory: [{ observedOn: "2026-10-04", price: 17 }, { observedOn: "2026-10-05", price: 18 }] },
+            { externalId: "me1-200", nmHistory: [] },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    const out = await fetchGuideHistory(["me1-133", "me1-200"], { fetchImpl });
+    expect(url).toContain("history=1");
+    expect(url).toContain("windowDays=365");
+    expect(out.get("me1-133")).toHaveLength(2);
+    expect(out.has("me1-200")).toBe(false);
   });
 });

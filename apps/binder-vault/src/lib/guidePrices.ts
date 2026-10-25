@@ -105,3 +105,36 @@ export async function withGuidePrices(cards: CardResult[], timeoutMs = 1500): Pr
   }
   return cards;
 }
+
+/** Stored daily ungraded (NM-assumed) guide values per id over windowDays (VIP keeps them; the vendor has no history API). */
+export async function fetchGuideHistory(
+  ids: ReadonlyArray<string>,
+  opts: { windowDays?: number; timeoutMs?: number; fetchImpl?: typeof fetch } = {},
+): Promise<Map<string, { observedOn: string; price: number }[]>> {
+  const out = new Map<string, { observedOn: string; price: number }[]>();
+  const unique = [...new Set(ids.filter(Boolean))];
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  for (let i = 0; i < unique.length; i += 200) {
+    const chunk = unique.slice(i, i + 200);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), opts.timeoutMs ?? 10_000);
+    try {
+      const params = new URLSearchParams({
+        ids: chunk.join(","),
+        windowDays: String(opts.windowDays ?? 365),
+        history: "1",
+      });
+      const res = await fetchImpl(`${VIP_API}/api/pokemon/guide?${params}`, { cache: "no-store", signal: ac.signal });
+      if (!res.ok) continue;
+      const body = (await res.json()) as { cards?: { externalId: string; nmHistory?: { observedOn: string; price: number }[] }[] };
+      for (const card of body.cards ?? []) {
+        if (card.nmHistory?.length) out.set(card.externalId, card.nmHistory);
+      }
+    } catch {
+      /* VIP down: nothing to backfill, nothing guessed */
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return out;
+}

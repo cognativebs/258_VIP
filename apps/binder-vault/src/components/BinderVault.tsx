@@ -496,7 +496,7 @@ export function BinderVault() {
         }>("/api/prices/history", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ binderId: activeBinder.id, range: "annual" }),
+          body: JSON.stringify({ binderId: activeBinder.id, windowDays: 365 }),
         });
 
         const { binder } = await jsonFetch<{ binder: ApiBinder }>(
@@ -507,12 +507,12 @@ export function BinderVault() {
         if (report.cardsPriced === 0) {
           flash(
             report.cardsConsidered === 0
-              ? "No TCGplayer-linked cards in this binder"
-              : `No prices returned for ${report.cardsConsidered} card(s)`,
+              ? "No catalog cards in this binder"
+              : `No PriceCharting guide stored yet for ${report.cardsConsidered} card(s) — VIP prices new cards within the hour`,
           );
         } else {
           flash(
-            `Backfilled ${report.cardsPriced} card(s) — ` +
+            `Backfilled ${report.cardsPriced} card(s) from the PriceCharting guide — ` +
               `${report.rowsWritten} new day(s), ${report.rowsUpdated} refreshed` +
               (report.cardsFailed ? `, ${report.cardsFailed} failed` : "") +
               (report.newestObservedOn ? ` · through ${report.newestObservedOn}` : ""),
@@ -1232,7 +1232,7 @@ export function BinderVault() {
                   className="btn btn-ghost"
                   disabled={updatingHistory}
                   onClick={() => void backfillPriceHistory()}
-                  title="One-time: pull about a year of weekly price history for every card in this binder"
+                  title="Copy the daily PriceCharting guide VIP has stored (up to a year) into this binder's price history"
                 >
                   {updatingHistory ? "Backfilling…" : "Backfill 1 yr History"}
                 </button>
@@ -1833,7 +1833,7 @@ function ValueRail({
             className="btn btn-ghost value-tool-btn"
             disabled={updatingHistory}
             onClick={() => onBackfillHistory()}
-            title="One-time: pull about a year of weekly price history for every card in this binder. Day-to-day prices come from Sync Prices / Refresh All."
+            title="Copy the daily PriceCharting guide VIP has stored (up to a year) into this binder's price history. Day-to-day prices come from Sync Prices / Refresh All."
           >
             {updatingHistory ? "Backfilling…" : "Backfill 1 yr History"}
           </button>
