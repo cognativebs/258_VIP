@@ -59,7 +59,9 @@ SELECT
     live.live_listing_count,
     live.live_low,
     live.live_high,
-    live.live_observed_at
+    live.live_observed_at,
+    cb.guide_price AS comicbase_price,
+    cb.snapshot_on AS comicbase_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -81,6 +83,15 @@ LEFT JOIN LATERAL (
     FROM vault_market.listing_observation lo
     WHERE lo.holding_source_row_id = h.source_row_id
 ) live ON TRUE
+-- ComicBase's price as a second opinion (vendor guide; scripts/comics_guide_prices.py comicbase).
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.holding_source_row_id = h.source_row_id
+      AND g.source = 'comicbase' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) cb ON TRUE
 WHERE h.dropped_at IS NULL
 ORDER BY s.title, i.issue_number, v.cover_label
 """
@@ -175,6 +186,9 @@ def row_from_holding(rec: dict) -> dict:
     row["Quantity"] = int(rec.get("quantity") or row.get("Quantity") or 1)
     row["Location"] = rec.get("location") or row.get("Location", "")
     row["Current Price"] = _num(rec.get("current_price_snapshot"), row.get("Current Price", 0))
+    # Second opinion: ComicBase's guide price for this copy, never blended into Current Price (CLZ's value).
+    row["ComicBase Price"] = _num(rec.get("comicbase_price"), 0) if rec.get("comicbase_price") is not None else None
+    row["ComicBase Date"] = _date_str(rec.get("comicbase_on")) or None
     row["Purchase Price"] = _num(rec.get("purchase_price"), row.get("Purchase Price", 0))
     row["Purchase Date"] = _date_str(rec.get("purchase_date")) or row.get("Purchase Date", "")
     row["Slab Status"] = rec.get("slab_status") or row.get("Slab Status", "")
@@ -246,7 +260,7 @@ def _snapshot_label(conn, rows: list[dict]) -> str:
             """
             SELECT MAX(ingested_at)
               FROM vault_evidence.raw_snapshots
-             WHERE source = 'clz_xml'
+             WHERE source IN ('clz_xml', 'clz_csv')
             """
         )
         ingested = cur.fetchone()[0]
@@ -370,7 +384,9 @@ SELECT
     live.live_listing_count,
     live.live_low,
     live.live_high,
-    live.live_observed_at
+    live.live_observed_at,
+    cb.guide_price AS comicbase_price,
+    cb.snapshot_on AS comicbase_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -392,6 +408,15 @@ LEFT JOIN LATERAL (
     FROM vault_market.listing_observation lo
     WHERE lo.holding_source_row_id = h.source_row_id
 ) live ON TRUE
+-- ComicBase's price as a second opinion (vendor guide; scripts/comics_guide_prices.py comicbase).
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.holding_source_row_id = h.source_row_id
+      AND g.source = 'comicbase' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) cb ON TRUE
 WHERE h.source_row_id = %s
 """
 

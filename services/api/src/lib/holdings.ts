@@ -66,6 +66,8 @@ export type ApiHolding = {
   needsVerification: boolean;
   verificationNotes: string | null;
   currentPrice: number | null;
+  /** ComicBase's guide price for this copy (second opinion, vendor guide · unverified); null when unmatched. */
+  comicbasePrice?: number | null;
   assumedGrade: string | null;
   gradeRating: number | null;
   /** CLZ / catalog cover URL when present — never invented. */
@@ -219,6 +221,7 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
     verificationNotes:
       row["Verification Notes"] != null ? String(row["Verification Notes"]) : null,
     currentPrice: num(row["Current Price"]),
+    comicbasePrice: num(row["ComicBase Price"]),
     assumedGrade: isNmAssumed ? "NM" : assumed || null,
     gradeRating: isNmAssumed || gradeRating === 0 ? null : gradeRating,
     coverImageUrl: resolveTcgCover({

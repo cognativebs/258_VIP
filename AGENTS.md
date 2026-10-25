@@ -125,6 +125,10 @@ and root `package.json` scripts. The startup-time update script only runs
   (`generatedAt` + random `snapshotId`) — that churn is transient; do not commit it.
   The CI byte-identity gate only covers `iqvault_comics_parser_package` and
   `iqvault/public/comics/inventory.json`.
+- CLZ uploads may be the desktop XML or a CLZ Cloud CSV/TXT export:
+  `python scripts/import_clz.py --file <export>` (headers matched by name; a CSV with no CLZ
+  hash gets a stable synthetic id). The live comics inventory was deleted on 2026-10-25
+  (operator) ahead of a fresh CLZ upload; PriceCharting matches and guide rows were kept.
 - Tests need Postgres up + migrated (some Python/TS tests hit live Postgres).
   TS: `npm run typecheck` and `npm test`. Python: `python -m pytest`.
 - Orchestr8 Ask (`:5210`) and eBay/Pokémon-API features need provider keys and

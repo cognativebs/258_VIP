@@ -76,7 +76,16 @@ const HOLDINGS_SQL = sql`
           WHERE e.asset_id = a.id
         ),
         '[]'::json
-      ) AS external_ids
+      ) AS external_ids,
+      (
+        -- ComicBase's price as a second opinion (vendor guide; scripts/comics_guide_prices.py comicbase).
+        SELECT g.guide_price
+        FROM vault_market.guide_price_observation g
+        WHERE g.holding_source_row_id = h.source_row_id
+          AND g.source = 'comicbase' AND g.observation_kind = 'guide_quote'
+        ORDER BY g.snapshot_on DESC
+        LIMIT 1
+      ) AS comicbase_price
   FROM vault_collection.holding h
   JOIN vault_core.asset a   ON a.id = h.asset_id
   JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -89,7 +98,7 @@ const HOLDINGS_SQL = sql`
 const SNAPSHOT_SQL = sql`
   SELECT id, content_hash, ingested_at, record_count, storage_ref
   FROM vault_evidence.raw_snapshots
-  WHERE source = 'clz_xml'
+  WHERE source IN ('clz_xml', 'clz_csv')
   ORDER BY ingested_at DESC
   LIMIT 1
 `;
@@ -120,6 +129,7 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   base["Location"] = row.location ?? base["Location"] ?? "";
   base["Purchase Price"] = num(row.purchase_price) ?? base["Purchase Price"] ?? 0;
   base["Current Price"] = num(row.current_price_snapshot) ?? base["Current Price"] ?? 0;
+  base["ComicBase Price"] = num(row.comicbase_price);
   base["Slab Status"] = row.slab_status ?? base["Slab Status"] ?? "";
   base["Assumed Grade"] = row.assumed_grade ?? base["Assumed Grade"] ?? "";
   base["Grade Rating"] = num(row.grade_rating) ?? base["Grade Rating"] ?? 0;
