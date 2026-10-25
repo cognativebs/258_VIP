@@ -337,6 +337,194 @@ def parse_clz_xml(path: str) -> List[Dict[str, Any]]:
     return add_intelligence(rows)
 
 
+# CLZ Cloud "Export to CSV/TXT": the operator picks the columns, so headers are matched by name
+# (case, spaces and punctuation ignored) to the same row keys the XML export produces.
+CSV_COLUMN_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "Series": ("series", "seriesname", "seriestitle"),
+    "Issue": ("issue", "issuenr", "issuenumber", "issueno"),
+    "Issue Ext": ("issueext", "issueextension"),
+    "Issue Full": ("issuefull",),
+    "Title": ("title", "issuetitle"),
+    "Edition / Variant": ("editionvariant", "variant", "variantdescription", "edition"),
+    "Publisher": ("publisher",),
+    "Series Group": ("seriesgroup",),
+    "Cover Date": ("coverdate",),
+    "Release Date": ("releasedate",),
+    "Publication Date": ("publicationdate",),
+    "Added Date": ("addeddate", "dateadded"),
+    "Modified Date": ("modifieddate", "datemodified"),
+    "Barcode": ("barcode", "upc"),
+    "Format": ("format",),
+    "Quantity": ("quantity", "qty"),
+    "Location": ("location", "storagebox", "box"),
+    "Collection Status": ("collectionstatus", "status"),
+    "Collection": ("collection",),
+    "Crossover": ("crossover",),
+    "Story Arc": ("storyarc",),
+    "Age": ("age",),
+    "Current Price": ("currentprice", "currentvalue", "value", "mycurrentvalue"),
+    "Cover Price": ("coverprice",),
+    "Purchase Price": ("purchaseprice", "pricepaid"),
+    "Purchase Date": ("purchasedate",),
+    "Read It": ("readit", "read"),
+    "Tags": ("tags",),
+    "Is Key Comic": ("iskeycomic", "keycomic", "key"),
+    "Key Comic Reason": ("keycomicreason", "keyreason", "keynotes"),
+    "Key Categories": ("keycategories", "keycategory"),
+    "Grade Rating": ("graderating", "grade"),
+    "Slab Status": ("slabstatus", "rawslabbed", "isslabbed", "slabbed", "slab"),
+    "Country": ("country",),
+    "Language": ("language",),
+    "Signees": ("signees", "signedby", "signee"),
+    "Genres": ("genres", "genre"),
+    "Cover Image URL": ("coverimageurl", "coverimage", "coverurl", "frontcover", "coverfrontdefault"),
+    "Value Locked": ("valuelocked", "valueislocked"),
+    "CLZ Hash": ("clzhash", "hash"),
+    "BP Comic ID": ("bpcomicid", "comicid", "coreid"),
+    "BP Series ID": ("bpseriesid", "seriesid"),
+    "Raw XML Index": ("index", "clzindex", "itemindex"),
+}
+
+
+class ClzCsvError(ValueError):
+    """The CSV is not a CLZ comics export we can read (no Series / Issue column)."""
+
+
+def _header_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def csv_column_map(headers: Iterable[str]) -> Dict[str, str]:
+    """Row key -> CSV header, for every known column present."""
+    by_key = {_header_key(h): h for h in headers if h}
+    out: Dict[str, str] = {}
+    for field, aliases in CSV_COLUMN_ALIASES.items():
+        for alias in aliases:
+            if alias in by_key:
+                out[field] = by_key[alias]
+                break
+    return out
+
+
+def _slab_status(value: str) -> str:
+    v = value.strip().lower()
+    if v in ("slabbed", "yes", "true", "1", "y"):
+        return "Slabbed"
+    return "Raw" if v in ("", "raw", "no", "false", "0", "n") else value.strip()
+
+
+def _grade_rating(value: str) -> float:
+    """'9.8', 'NM 9.4', '9.4 NM' -> the number; a word-only grade ('NM') -> 0 (not a fake number)."""
+    m = re.search(r"\d+(?:\.\d+)?", value or "")
+    return float(m.group(0)) if m else 0.0
+
+
+def parse_clz_csv(path: str) -> List[Dict[str, Any]]:
+    """CLZ Cloud CSV/TXT export -> the same rows parse_clz_xml makes.
+
+    A CLZ Cloud export may carry no CLZ hash. Then the row gets a stable synthetic one from series,
+    issue, variant, barcode and publisher (plus a counter for repeated copies), so re-uploading the
+    same collection gives every book the same id. Grades: a numeric grade is kept; a raw copy with no
+    number stays "NM assumed", as with the XML export.
+    """
+    import hashlib
+
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        sample = f.read(65536)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+        reader = csv.DictReader(f, dialect=dialect)
+        cols = csv_column_map(reader.fieldnames or [])
+        if "Series" not in cols or "Issue" not in cols and "Issue Full" not in cols:
+            raise ClzCsvError(
+                f"not a CLZ comics export: need Series and Issue columns, found {reader.fieldnames}"
+            )
+        raw_rows = list(reader)
+
+    seen: Counter = Counter()
+    rows: List[Dict[str, Any]] = []
+    for raw in raw_rows:
+        get = lambda field: (raw.get(cols[field]) or "").strip() if field in cols else ""  # noqa: E731
+        if not get("Series"):
+            continue
+        issue = get("Issue")
+        issue_ext = get("Issue Ext")
+        issue_full = get("Issue Full") or (f"{issue}{issue_ext}" if issue_ext else issue)
+        if "Issue" not in cols:
+            issue = issue_full
+        grade_rating = _grade_rating(get("Grade Rating"))
+        slab_status = _slab_status(get("Slab Status"))
+        assumed_grade = "NM assumed" if slab_status == "Raw" and grade_rating == 0 else (str(grade_rating) if grade_rating else "")
+        clz_hash = get("CLZ Hash")
+        if not clz_hash:
+            ident = "|".join(get(k).lower() for k in ("Series", "Issue Full", "Edition / Variant", "Barcode", "Publisher"))
+            if not get("Issue Full"):
+                ident = "|".join([get("Series").lower(), issue_full.lower()] + [get(k).lower() for k in ("Edition / Variant", "Barcode", "Publisher")])
+            seen[ident] += 1
+            clz_hash = "csv" + hashlib.sha1(f"{ident}#{seen[ident]}".encode("utf-8")).hexdigest()[:13]
+        rows.append(
+            {
+                "CLZ Hash": clz_hash,
+                "BP Comic ID": get("BP Comic ID"),
+                "BP Series ID": get("BP Series ID"),
+                "Series": get("Series"),
+                "Series Group": get("Series Group"),
+                "Title": get("Title"),
+                "Issue": issue,
+                "Issue Ext": issue_ext,
+                "Issue Full": issue_full,
+                "Edition / Variant": get("Edition / Variant"),
+                "Publisher": get("Publisher"),
+                "Cover Date": get("Cover Date"),
+                "Release Date": get("Release Date"),
+                "Publication Date": get("Publication Date"),
+                "Added Date": get("Added Date"),
+                "Modified Date": get("Modified Date"),
+                "Barcode": get("Barcode"),
+                "Format": get("Format"),
+                "Quantity": int(parse_float(get("Quantity") or "1") or 1),
+                "Location": get("Location"),
+                "Collection Status": get("Collection Status"),
+                "Collection": get("Collection"),
+                "Crossover": get("Crossover"),
+                "Story Arc": get("Story Arc"),
+                "Age": get("Age"),
+                "Current Price": parse_float(get("Current Price")),
+                "Cover Price": parse_float(get("Cover Price")),
+                "Purchase Price": parse_float(get("Purchase Price")),
+                "Purchase Date": get("Purchase Date"),
+                "Read It": get("Read It"),
+                "Tags": get("Tags"),
+                "Is Key Comic": get("Is Key Comic"),
+                "Key Comic Reason": get("Key Comic Reason"),
+                "Key Categories": get("Key Categories"),
+                "Grade Rating": grade_rating,
+                "Assumed Grade": assumed_grade,
+                "Slab Status": slab_status,
+                "Country": get("Country"),
+                "Language": get("Language"),
+                "Signees": get("Signees"),
+                "Genres": get("Genres"),
+                "Cover Image URL": get("Cover Image URL"),
+                "Value Locked": get("Value Locked"),
+                "Raw XML Index": get("Raw XML Index"),
+            }
+        )
+    return add_intelligence(rows)
+
+
+def is_clz_csv(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in (".csv", ".txt", ".tsv")
+
+
+def parse_clz_file(path: str) -> List[Dict[str, Any]]:
+    """CLZ desktop XML or CLZ Cloud CSV/TXT, by extension."""
+    return parse_clz_csv(path) if is_clz_csv(path) else parse_clz_xml(path)
+
+
 def write_csv(path: str, rows: List[Dict[str, Any]], fieldnames: List[str]) -> None:
     # Fixed "\n" rather than the csv default "\r\n": derived files must be
     # byte-identical when regenerated from the same snapshot on any platform.
@@ -366,11 +554,11 @@ def summarize(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("xml_path")
+    parser.add_argument("xml_path", help="CLZ desktop XML or CLZ Cloud CSV/TXT export")
     parser.add_argument("--outdir", default=".")
     args = parser.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
-    rows = parse_clz_xml(args.xml_path)
+    rows = parse_clz_file(args.xml_path)
 
     preferred_order = [
         "Collection Pillar", "Recommendation", "Sell Priority", "Museum Score", "Investment Score", "Liquidity Score",
