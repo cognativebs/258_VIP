@@ -16,6 +16,9 @@ export type ComicRow = {
   "Live High"?: number | null;
   "Live Listings"?: number | null;
   "Current Price"?: number | null;
+  /** ComicBase's guide price for this copy: second opinion beside CLZ's value, never blended. */
+  "ComicBase Price"?: number | null;
+  "ComicBase Date"?: string | null;
   "Cover Price"?: number | null;
   "Purchase Price"?: number | null;
   "Museum Score"?: number | null;

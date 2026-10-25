@@ -101,12 +101,87 @@ def test_matching_pairs_only_what_is_unambiguous():
     assert by[("Fixture Spawn", None, "200", None)].holding_id == "h-sp200"
     assert by[("Fixture Spawn", "Anl", "1", None)].status == "needs_review"
     assert by[("Fixture Spawn", None, "10.1", None)].status == "unmatched"
-    # One copy each side but the counts disagree → review, the holding offered.
+    # One entry each side matches even when the counts disagree; the difference is reported.
     sx = by[("Sex Criminals", None, "1", None)]
-    assert (sx.status, sx.holding_id) == ("needs_review", "h-sx1")
-    assert "quantity differs (ComicBase 1, VIP 2)" in sx.reason
+    assert (sx.status, sx.holding_id) == ("matched", "h-sx1")
+    assert "quantity from ComicBase (1), CLZ had 2" in sx.reason
     matched = [m.holding_id for m in by.values() if m.status == "matched"]
     assert len(matched) == len(set(matched)) and "h-other" not in matched
+
+
+def test_a_year_apart_does_not_join_two_numbered_volumes():
+    items = parse_report(
+        block("The Flash (3rd Series)", "DC (2010&ndash;2012)", "1", 1)
+        + block("The Flash (4th Series)", "DC (2011&ndash;2016)", "1", 1)
+    )
+    holdings = [
+        h("h-v3", "Flash, Vol. 3", "DC Comics", 2010, "1", "Francis Manapul Regular Cover"),
+        h("h-v4", "Flash, Vol. 4", "DC Comics", 2011, "1", "Francis Manapul Regular Cover"),
+    ]
+    by = {m.item.start_year: m for m in match_items(items, holdings)}
+    assert (by[2010].status, by[2010].holding_id) == ("matched", "h-v3")
+    assert (by[2011].status, by[2011].holding_id) == ("matched", "h-v4")
+
+
+def test_reconcile_splits_add_check_removal_and_counts():
+    from clz_reconcile_comicbase import reconcile
+
+    items = parse_report(REPORT)
+
+    def row(hid, title, pub, year, issue, label, qty=1):
+        return (hid, title, pub, year, issue, label, 1, qty, f"clz-{hid}", "BOX-1", "", issue)
+
+    clz = [
+        row("h-5a", "Action Comics, Vol. 2", "DC Comics", 2011, "5", "A"),
+        row("h-5b", "Action Comics, Vol. 2", "DC Comics", 2011, "5", "B"),
+        row("h-cat1", "Absolute Catwoman", "DC Comics", 2026, "1", "Cover A"),
+        row("h-cat2", "Absolute Catwoman", "DC Comics", 2026, "1", "Cover B"),
+        row("h-sx1", "Sex Criminals", "Image Comics", 2013, "1", "A", qty=2),
+        row("h-gone", "Old Series", "Marvel", 1990, "7", "A"),
+        row("h-sx9", "Sex Criminals", "Image Comics", 2013, "9", "A"),
+    ]
+    add, removal, qty, summary = reconcile(items, clz)
+    # Already in CLZ: Action 5 regular + variant, Sex Criminals (count differs).
+    assert summary["already_in_clz"] == 3
+    assert qty == [["Sex Criminals #1 (A) [CLZ clz-h-sx1]", 2, 1, "clz-h-sx1"]]
+    # Catwoman letters vs named covers: "check", naming the CLZ copies; Spawn 10.1 has no copy: "add".
+    actions = {(a[0], a[1], a[-1].split(":")[0]): a[6] for a in add}
+    assert actions[("Absolute Catwoman", "1", "ComicBase variant /A")] == "check"
+    assert any(a[0] == "Fixture Spawn" and a[1] == "10.1" and a[6] == "add" for a in add)
+    assert all("CLZ clz-h-cat1" in a[-1] for a in add if a[0] == "Absolute Catwoman")
+    # Removal candidates only: never the linked books; Catwoman copies are flagged as possible matches.
+    why = {r[7]: r[8] for r in removal}
+    assert why["clz-h-gone"] == "whole series not in ComicBase (not entered yet?)"
+    assert why["clz-h-cat1"].startswith("possible match")
+    assert why["clz-h-sx9"] == "issue missing from a series ComicBase has"
+    assert removal[0][7] == "clz-h-sx9"  # most likely gone first
+    assert "clz-h-5a" not in why and "clz-h-sx1" not in why
+
+
+def test_item_export_reads_variants_and_borrows_series_years():
+    from comicbase_report import parse_export_csv, series_info_from_report
+
+    export = "\n".join(
+        [
+            '"Title","Item #","Condition","Qty In Stock","Cost","Notes","Item Description","Cover Date","Cover Price"',
+            '"Flash, The (3rd Series)","1/A","NM","2","0","","Variant by Somebody","4/1/2010","3.99"',
+            '"Flash, The (3rd Series)","2","NM","1","0","","","5/1/2010","2.99"',
+            '"New Book","5-2","NM","1","0","","","3/1/2021","3.99"',
+            '"Sold Book","1","NM","0","0","","","1/1/2000","1.00"',
+        ]
+    )
+    info = series_info_from_report(parse_report(block("The Flash (3rd Series)", "DC (2010&ndash;2012)", "1", 1)))
+    items, details = parse_export_csv(export, info)
+    assert [(i.series_title, i.issue_number, i.variant_letter, i.printing, i.quantity) for i in items] == [
+        ("Flash, The (3rd Series)", "1", "A", 1, 2),
+        ("Flash, The (3rd Series)", "2", None, 1, 1),
+        ("New Book", "5", None, 2, 1),
+    ]
+    assert (items[0].publisher, items[0].start_year, items[0].volume) == ("DC", 2010, 3)
+    assert (items[2].publisher, items[2].start_year) == ("", 2021)  # earliest cover date
+    assert details[items[0].item_key]["Item Description"] == "Variant by Somebody"
+    with pytest.raises(ReportFormatError, match="missing column"):
+        parse_export_csv('"Series","Issue"\n"X","1"\n')
 
 
 DSN = os.environ.get("IQVAULT_TEST_DSN")

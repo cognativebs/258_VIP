@@ -163,6 +163,8 @@ export type Holding = {
   needsVerification: boolean;
   verificationNotes: string | null;
   currentPrice: number | null;
+  /** ComicBase's guide price (second opinion, vendor guide · unverified). */
+  comicbasePrice?: number | null;
   assumedGrade: string | null;
   gradeRating: number | null;
   coverImageUrl?: string | null;

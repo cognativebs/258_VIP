@@ -1,7 +1,7 @@
 # ADR 0016 — ComicBase is the comics inventory source
 
-**Status:** Accepted for matching (2026-10-06). CLZ retirement (decision 3) waits until ComicBase holds the whole collection.
-**Date:** 2026-10-04 · amended 2026-10-06
+**Status:** Superseded (2026-10-19). CLZ stays the comics inventory source (ADR 0006); ComicBase is being retired.
+**Date:** 2026-10-04 · amended 2026-10-06 · superseded 2026-10-19
 **Renumbered:** filed as ADR 0014 on 2026-10-04; renumbered 2026-10-06 because the
 uncommitted shell ADR 0014 (2026-09-22) and Ingest ADR 0015 (2026-09-23) predate it.
 **Owner:** Gregory Williamson / 258 Services
@@ -77,6 +77,42 @@ and value. 211 series, 820 copies — ComicBase is still being filled in (VIP ho
   95 unmatched (59 issues VIP does not hold, 36 series VIP does not hold).
 - ComicBase's value column is not imported (open: it would be a vendor-guide
   observation, never a holding's market price — rule 4).
+
+## Superseded — 2026-10-19: back to CLZ
+
+ComicBase's only API posts sales; it cannot read a collection (checked 2026-10-18), and
+its report export carries no item id, grade or cost. CLZ's export does. Operator
+decision: CLZ stays the inventory; the books added in ComicBase are re-entered in CLZ,
+then the ComicBase subscription is cancelled.
+
+- **Prune, don't wipe.** CLZ is not wiped unless the operator says so explicitly: books
+  already in CLZ keep their CLZ id and their history in VIP (scans, comps, sell queue).
+- `scripts/clz_reconcile_comicbase.py` compares a ComicBase report with the CLZ holdings
+  (read only) and writes three CSVs: books to add to CLZ (or check first, naming the CLZ
+  copies that may already be the same book), CLZ copies ComicBase does not list
+  (removal candidates for the operator to decide in CLZ), and count differences.
+- The matcher fixes made for the rebuild stay (`comicbase-report-match@0.2.0`): a count
+  difference no longer forces review, and a start year one apart no longer joins two
+  numbered volumes.
+- The 2026-10-18 rebuild (ComicBase as the collection; branch
+  `cursor/comicbase-inventory-rebuild`) was not merged.
+- ComicBase snapshots and the review list stay as history. The watched-folder import
+  keeps running until the last export is in.
+
+## Amendment — 2026-10-25: ComicBase stays as a pricing second opinion
+
+Operator: "back to using a CLZ upload for inventory and pricing … and stay connected to comicbase for
+pricing too (2nd opinion)". CLZ stays the inventory (ADR 0006); ComicBase is kept for its prices.
+
+- `vault_market.data_source` gains `clz` and `comicbase` (migration `20261025_01`, rows only).
+- `scripts/comics_guide_prices.py clz` writes each CLZ holding's CLZ value as a dated
+  `guide_price_observation` row (import_clz.py runs it after every load);
+  `scripts/comics_guide_prices.py comicbase --file <export>` writes ComicBase's price for every
+  ComicBase item that matches exactly one CLZ holding, keeps the export as a raw snapshot, and lists
+  the rest in `not_priced.csv`. Both are vendor guides (vendor_derived), unverified, NM as catalogued
+  or exported (not a grade), `baseline_eligible = false` so the PriceCharting baseline is unchanged.
+- The comics grid shows CLZ's value (VALUE) and ComicBase's price (CB) side by side, never blended.
+- First run on a copy of the live data: 797 CLZ values; 543 of 812 ComicBase items priced, 269 listed.
 
 ## Open
 
