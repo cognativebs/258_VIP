@@ -98,7 +98,7 @@ const HOLDINGS_SQL = sql`
 const SNAPSHOT_SQL = sql`
   SELECT id, content_hash, ingested_at, record_count, storage_ref
   FROM vault_evidence.raw_snapshots
-  WHERE source = 'clz_xml'
+  WHERE source IN ('clz_xml', 'clz_csv')
   ORDER BY ingested_at DESC
   LIMIT 1
 `;

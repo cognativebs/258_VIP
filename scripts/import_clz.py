@@ -15,6 +15,9 @@ idempotent upsert on derived rows.
 Usage:
   python scripts/import_clz.py --xml comic_2026-07-04_19-11-11-export.xml
   python scripts/import_clz.py --xml export.xml --derive-only
+  python scripts/import_clz.py --file "CLZ Cloud export.csv"      # CLZ Cloud CSV/TXT export
+
+--file takes either format (by extension: .xml = desktop XML, .csv/.txt/.tsv = CLZ Cloud CSV).
 """
 from __future__ import annotations
 
@@ -29,7 +32,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
-from clz_comic_parser import parse_clz_xml  # noqa: E402
+from clz_comic_parser import is_clz_csv, parse_clz_file  # noqa: E402
 
 DEFAULT_DSN = os.environ.get(
     "IQVAULT_DATABASE_DSN", "dbname=iqvault user=postgres password=vault host=localhost"
@@ -40,6 +43,7 @@ DEFAULT_OUTDIR = os.path.join(ROOT, "iqvault_comics_parser_package", "ComicArchi
 # which version of the rules produced the derived rows.
 INGEST_RULE_VERSION = "clz-python-ingest@0.2.0"
 SNAPSHOT_SOURCE = "clz_xml"
+SNAPSHOT_SOURCE_CSV = "clz_csv"
 
 
 def snapshot_label(xml_path: str, content_hash: str | None) -> str:
@@ -61,7 +65,9 @@ def run(cmd: list[str]) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--xml", required=True, help="CLZ Comics XML export")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--xml", help="CLZ Comics desktop XML export")
+    src.add_argument("--file", help="CLZ desktop XML or CLZ Cloud CSV/TXT export")
     ap.add_argument("--dsn", default=DEFAULT_DSN)
     ap.add_argument("--outdir", default=DEFAULT_OUTDIR)
     ap.add_argument(
@@ -73,11 +79,12 @@ def main() -> int:
 
     sys.stdout.reconfigure(line_buffering=True)
 
-    xml_path = os.path.abspath(args.xml)
+    xml_path = os.path.abspath(args.xml or args.file)
+    csv_export = is_clz_csv(xml_path)
     if not os.path.isfile(xml_path):
         raise SystemExit(f"No such export: {xml_path}")
 
-    record_count = len(parse_clz_xml(xml_path))
+    record_count = len(parse_clz_file(xml_path))
     print(f"Export: {xml_path}")
     print(f"Records in export: {record_count}")
 
@@ -94,9 +101,10 @@ def main() -> int:
             snapshot = record_file_snapshot(
                 conn,
                 path=xml_path,
-                source=SNAPSHOT_SOURCE,
+                source=SNAPSHOT_SOURCE_CSV if csv_export else SNAPSHOT_SOURCE,
                 rule_version=INGEST_RULE_VERSION,
                 record_count=record_count,
+                content_type="text/csv" if csv_export else "application/xml",
             )
             conn.commit()
         finally:

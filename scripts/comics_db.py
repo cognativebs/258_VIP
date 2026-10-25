@@ -260,7 +260,7 @@ def _snapshot_label(conn, rows: list[dict]) -> str:
             """
             SELECT MAX(ingested_at)
               FROM vault_evidence.raw_snapshots
-             WHERE source = 'clz_xml'
+             WHERE source IN ('clz_xml', 'clz_csv')
             """
         )
         ingested = cur.fetchone()[0]
