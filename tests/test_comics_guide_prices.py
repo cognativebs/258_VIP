@@ -1,6 +1,9 @@
 """Comics guide prices: CLZ values and ComicBase second-opinion prices as dated vendor-guide rows.
 
 DB test needs IQVAULT_TEST_DSN with the CLZ import; it runs in one transaction and rolls back.
+CI imports that export before pytest, and import_clz.py already seeds the CLZ guide rows.
+This test deletes those rows inside the transaction so the first write is still observable,
+then checks a same-day second write is a no-op. The rollback restores the import's rows.
 """
 from __future__ import annotations
 
@@ -62,10 +65,16 @@ def test_prices_are_dated_vendor_guide_rows_written_once(tmp_path):
         if not cur.fetchone():
             pytest.skip("needs the CLZ import (Action Comics, Vol. 2 #5)")
         wrapped = _NoCommit(conn)
+        # Import already wrote today's CLZ guide rows (ON CONFLICT DO NOTHING).
+        # Drop them in this transaction so the first call below is a real write.
+        # finally rolls the connection back, so the committed import rows stay.
+        cur.execute("DELETE FROM vault_market.guide_price_observation WHERE source = 'clz'")
 
         first = g.run_clz(wrapped, dry_run=False)
         assert first["rows_written"] == first["holdings_priced"] > 0
         assert g.run_clz(wrapped, dry_run=False)["rows_written"] == 0  # same export, same day: nothing new
+        cur.execute("SELECT count(*) FROM vault_market.guide_price_observation WHERE source = 'clz'")
+        assert cur.fetchone()[0] == first["holdings_priced"]
 
         export = tmp_path / "Exported Comic Books.txt"
         export.write_text(
