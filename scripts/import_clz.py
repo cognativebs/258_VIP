@@ -134,6 +134,9 @@ def main() -> int:
         ]
     )
 
+    # CLZ's values as dated vendor-guide rows (comics pricing, operator 2026-10-25); re-runs add nothing.
+    run([sys.executable, os.path.join("scripts", "comics_guide_prices.py"), "clz", "--dsn", args.dsn])
+
     meta_path = os.path.join(ROOT, "iqvault", "public", "comics", "meta.json")
     with open(meta_path, encoding="utf-8") as handle:
         meta = json.load(handle)

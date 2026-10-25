@@ -99,6 +99,21 @@ then the ComicBase subscription is cancelled.
 - ComicBase snapshots and the review list stay as history. The watched-folder import
   keeps running until the last export is in.
 
+## Amendment — 2026-10-25: ComicBase stays as a pricing second opinion
+
+Operator: "back to using a CLZ upload for inventory and pricing … and stay connected to comicbase for
+pricing too (2nd opinion)". CLZ stays the inventory (ADR 0006); ComicBase is kept for its prices.
+
+- `vault_market.data_source` gains `clz` and `comicbase` (migration `20261025_01`, rows only).
+- `scripts/comics_guide_prices.py clz` writes each CLZ holding's CLZ value as a dated
+  `guide_price_observation` row (import_clz.py runs it after every load);
+  `scripts/comics_guide_prices.py comicbase --file <export>` writes ComicBase's price for every
+  ComicBase item that matches exactly one CLZ holding, keeps the export as a raw snapshot, and lists
+  the rest in `not_priced.csv`. Both are vendor guides (vendor_derived), unverified, NM as catalogued
+  or exported (not a grade), `baseline_eligible = false` so the PriceCharting baseline is unchanged.
+- The comics grid shows CLZ's value (VALUE) and ComicBase's price (CB) side by side, never blended.
+- First run on a copy of the live data: 797 CLZ values; 543 of 812 ComicBase items priced, 269 listed.
+
 ## Open
 
 - A detailed ComicBase export (File → Export with item id, grade, cost) would let

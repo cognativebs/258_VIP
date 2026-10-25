@@ -204,7 +204,7 @@ def parse_export_csv(text: str, series_info: Optional[dict] = None) -> tuple[lis
         items.append(it)
         details[it.item_key] = {
             k: (r.get(k) or "").strip()
-            for k in ("Item Description", "Cover Artist", "Cover Date", "Cover Price", "Box #", "Cost", "Purchase Date")
+            for k in ("Item Description", "Cover Artist", "Cover Date", "Cover Price", "Price", "Condition", "Box #", "Cost", "Purchase Date")
         }
     return items, details
 
