@@ -61,7 +61,9 @@ SELECT
     live.live_high,
     live.live_observed_at,
     cb.guide_price AS comicbase_price,
-    cb.snapshot_on AS comicbase_on
+    cb.snapshot_on AS comicbase_on,
+    pc.guide_price AS pricecharting_price,
+    pc.snapshot_on AS pricecharting_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -92,6 +94,15 @@ LEFT JOIN LATERAL (
     ORDER BY g.snapshot_on DESC
     LIMIT 1
 ) cb ON TRUE
+-- PriceCharting's ungraded guide for the catalog item: VALUE's last fallback.
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.asset_id = h.asset_id
+      AND g.source = 'pricecharting' AND g.condition_key = 'raw_ungraded' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) pc ON TRUE
 WHERE h.dropped_at IS NULL
 ORDER BY s.title, i.issue_number, v.cover_label
 """
@@ -146,9 +157,11 @@ def _date_str(val: Any) -> str:
     return str(val)
 
 
-def value_and_source(clz_value, comicbase_price, locked: bool, comicbase_on=None) -> tuple[float, str]:
-    """The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value.
-    All are vendor guides (unverified), never sold comps."""
+def value_and_source(
+    clz_value, comicbase_price, locked: bool, comicbase_on=None, pricecharting_price=None, pricecharting_on=None
+) -> tuple[float, str]:
+    """The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value; else
+    PriceCharting's ungraded guide. All are vendor guides (unverified), never sold comps."""
     clz = float(clz_value or 0)
     if locked and clz > 0:
         return clz, "Locked value"
@@ -156,6 +169,8 @@ def value_and_source(clz_value, comicbase_price, locked: bool, comicbase_on=None
         return float(comicbase_price), f"ComicBase{f' · {comicbase_on}' if comicbase_on else ''}"
     if clz > 0:
         return clz, "CLZ"
+    if pricecharting_price:
+        return float(pricecharting_price), f"PriceCharting{f' · {pricecharting_on}' if pricecharting_on else ''}"
     return 0.0, ""
 
 
@@ -204,8 +219,11 @@ def row_from_holding(rec: dict) -> dict:
     row["CLZ Value"] = clz_value
     row["Value Locked"] = _yn(rec.get("value_locked"))
     # VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
+    pc_price = _num(rec.get("pricecharting_price"), 0) if rec.get("pricecharting_price") is not None else None
+    row["PriceCharting Price"] = pc_price
     row["Current Price"], row["Value Source"] = value_and_source(
-        clz_value, row["ComicBase Price"], row["Value Locked"] == "Yes", row["ComicBase Date"]
+        clz_value, row["ComicBase Price"], row["Value Locked"] == "Yes", row["ComicBase Date"],
+        pc_price, _date_str(rec.get("pricecharting_on")) or None,
     )
     row["Purchase Price"] = _num(rec.get("purchase_price"), row.get("Purchase Price", 0))
     row["Purchase Date"] = _date_str(rec.get("purchase_date")) or row.get("Purchase Date", "")
@@ -403,7 +421,9 @@ SELECT
     live.live_high,
     live.live_observed_at,
     cb.guide_price AS comicbase_price,
-    cb.snapshot_on AS comicbase_on
+    cb.snapshot_on AS comicbase_on,
+    pc.guide_price AS pricecharting_price,
+    pc.snapshot_on AS pricecharting_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -434,6 +454,15 @@ LEFT JOIN LATERAL (
     ORDER BY g.snapshot_on DESC
     LIMIT 1
 ) cb ON TRUE
+-- PriceCharting's ungraded guide for the catalog item: VALUE's last fallback.
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.asset_id = h.asset_id
+      AND g.source = 'pricecharting' AND g.condition_key = 'raw_ungraded' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) pc ON TRUE
 WHERE h.source_row_id = %s
 """
 

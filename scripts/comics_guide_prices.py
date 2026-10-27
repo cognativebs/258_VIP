@@ -32,6 +32,7 @@ DEFAULT_DSN = os.environ.get("IQVAULT_DATABASE_DSN", "dbname=iqvault user=postgr
 DEFAULT_OUT = os.environ.get("VIP_EXPORTS_DIR", r"D:\VIP\exports")
 RULE_VERSION = "comics-guide-prices@0.1.0"
 CONFIDENCE = 0.6  # vendor guide, below the 0.75 cap (ADR 0012)
+CATALOGUE_CONFIDENCE = 0.5  # same guide, paired to the copy by cover description only
 
 INSERT_SQL = """
 INSERT INTO vault_market.guide_price_observation
@@ -96,11 +97,17 @@ def run_clz(conn, *, dry_run: bool) -> dict:
 
 
 def run_comicbase(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
+    """Two passes. In-stock ComicBase items match CLZ holdings with comicbase-report-match (as the review
+    list does). Catalogue items the export lists with no stock (the operator does not own them in
+    ComicBase) price only CLZ holdings still unpriced, paired by cover description; they are never
+    inventory. Both are vendor-guide rows, unverified."""
     from clz_reconcile_comicbase import read_comicbase
-    from comicbase_report import SOURCE, VipHolding, match_items
+    from comicbase_report import SOURCE, VipHolding, match_by_cover_description, match_items
     from raw_snapshots import record_file_snapshot
 
-    items, details = read_comicbase(path)
+    items, details = read_comicbase(path, include_unstocked=True)
+    stocked = [i for i in items if i.quantity > 0]
+    catalogue = [i for i in items if i.quantity <= 0]
     cur = conn.cursor()
     cur.execute(
         """SELECT h.id::text, s.title, s.publisher, s.year_began, i.issue_number, v.cover_label, v.printing, h.quantity,
@@ -113,7 +120,8 @@ def run_comicbase(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
     )
     rows = cur.fetchall()
     by_id = {r[0]: r for r in rows}
-    matches = match_items(items, [VipHolding(*r[:8]) for r in rows])
+    vip = [VipHolding(*r[:8]) for r in rows]
+    matches = match_items(stocked, vip)
 
     snap = None
     if not dry_run:
@@ -122,37 +130,52 @@ def run_comicbase(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
             conn, path=path, source=SOURCE, rule_version=RULE_VERSION, record_count=len(items),
             content_type="text/html" if html else "text/csv",
         )
-    priced = written = 0
-    not_priced: list[list] = []
-    for m in matches:
-        it = m.item
-        d = details.get(it.item_key, {})
-        price = price_of(d.get("Price"))
+
+    def label_of(it) -> str:
         issue = f"{it.issue_prefix} {it.issue_number}" if it.issue_prefix else it.issue_number
-        label = f"{it.series_title} #{issue}{'/' + it.variant_letter if it.variant_letter else ''}"
-        if price is None:
-            not_priced.append([label, it.quantity, "", "ComicBase export has no price for this item"])
-            continue
-        if m.status != "matched" or not m.holding_id:
-            not_priced.append([label, it.quantity, price, f"{m.status}: {m.reason}"])
-            continue
-        priced += 1
-        if dry_run:
-            continue
-        h = by_id[m.holding_id]
+        return f"{it.series_title} #{issue}{'/' + it.variant_letter if it.variant_letter else ''}"
+
+    def write(it, holding_id: str, reason: str, confidence: float, kind: str) -> int:
+        d = details.get(it.item_key, {})
+        h = by_id[holding_id]
         cur.execute(
             INSERT_SQL,
             (
                 h[8], h[0], h[9], condition_key_for_comicbase(d.get("Condition", "")), snap.ingested_at.date(),
-                snap.ingested_at, "comicbase", "comicbase", price, snap.id,
+                snap.ingested_at, "comicbase", "comicbase", price_of(d.get("Price")), snap.id,
                 json.dumps({"comicbase": it.item_key, "clz_hash": h[9]}),
-                "comicbase_export", RULE_VERSION, CONFIDENCE,
-                f"ComicBase price (second opinion) for {label}, condition {d.get('Condition') or 'NM'} as exported "
-                f"(ComicBase default, not a grade) · unverified. Matched: {m.reason}. Vendor guide, not a sold comp.",
+                "comicbase_export", RULE_VERSION, confidence,
+                f"ComicBase price (second opinion, {kind}) for {label_of(it)}, condition {d.get('Condition') or 'NM'} "
+                f"as exported (ComicBase default, not a grade) · unverified. Matched: {reason}. Vendor guide, not a sold comp.",
                 f"comicbase:{snap.short_hash}",
             ),
         )
-        written += cur.rowcount
+        return cur.rowcount
+
+    priced = priced_catalogue = written = 0
+    priced_holdings: set[str] = set()
+    not_priced: list[list] = []
+    for m in matches:
+        it = m.item
+        price = price_of(details.get(it.item_key, {}).get("Price"))
+        if price is None:
+            not_priced.append([label_of(it), it.quantity, "", "ComicBase export has no price for this item"])
+            continue
+        if m.status != "matched" or not m.holding_id:
+            not_priced.append([label_of(it), it.quantity, price, f"{m.status}: {m.reason}"])
+            continue
+        priced += 1
+        priced_holdings.add(m.holding_id)
+        if not dry_run:
+            written += write(it, m.holding_id, m.reason, CONFIDENCE, "in stock in ComicBase")
+
+    # Catalogue items: only for copies the in-stock pass left unpriced; never listed as not priced.
+    priceable = [i for i in catalogue if price_of(details.get(i.item_key, {}).get("Price")) is not None]
+    descriptions = {k: d.get("Item Description", "") for k, d in details.items()}
+    for it, holding_id, reason in match_by_cover_description(priceable, descriptions, vip, priced_holdings):
+        priced_catalogue += 1
+        if not dry_run:
+            written += write(it, holding_id, reason, CATALOGUE_CONFIDENCE, "ComicBase catalogue item, not owned there")
     if not dry_run:
         conn.commit()
 
@@ -170,7 +193,10 @@ def run_comicbase(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
         "file": os.path.basename(path),
         "raw_snapshot": snap.short_hash if snap else None,
         "items": len(items),
+        "items_in_stock": len(stocked),
+        "catalogue_items": len(catalogue),
         "priced": priced,
+        "priced_from_catalogue": priced_catalogue,
         "rows_written": written,
         "not_priced": len(not_priced),
         "not_priced_csv": os.path.join(out, "not_priced.csv"),

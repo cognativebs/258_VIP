@@ -86,7 +86,16 @@ const HOLDINGS_SQL = sql`
           AND g.source = 'comicbase' AND g.observation_kind = 'guide_quote'
         ORDER BY g.snapshot_on DESC
         LIMIT 1
-      ) AS comicbase_price
+      ) AS comicbase_price,
+      (
+        -- PriceCharting's ungraded guide for the catalog item: VALUE's last fallback.
+        SELECT g.guide_price
+        FROM vault_market.guide_price_observation g
+        WHERE g.asset_id = h.asset_id
+          AND g.source = 'pricecharting' AND g.condition_key = 'raw_ungraded' AND g.observation_kind = 'guide_quote'
+        ORDER BY g.snapshot_on DESC
+        LIMIT 1
+      ) AS pricecharting_price
   FROM vault_collection.holding h
   JOIN vault_core.asset a   ON a.id = h.asset_id
   JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -114,16 +123,23 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value. Vendor guides, unverified. */
+/**
+ * The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value; else
+ * PriceCharting's ungraded guide. Vendor guides, unverified.
+ */
 export function comicsValue(
   clzValue: number | null,
   comicbasePrice: number | null,
   locked: boolean,
-): { price: number; source: "Locked value" | "ComicBase" | "CLZ" | "" } {
+  pricechartingPrice: number | null = null,
+): { price: number; source: "Locked value" | "ComicBase" | "CLZ" | "PriceCharting" | "" } {
   const clz = clzValue ?? 0;
   if (locked && clz > 0) return { price: clz, source: "Locked value" };
   if (comicbasePrice != null && comicbasePrice > 0) return { price: comicbasePrice, source: "ComicBase" };
   if (clz > 0) return { price: clz, source: "CLZ" };
+  if (pricechartingPrice != null && pricechartingPrice > 0) {
+    return { price: pricechartingPrice, source: "PriceCharting" };
+  }
   return { price: 0, source: "" };
 }
 
@@ -147,7 +163,9 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   base["ComicBase Price"] = comicbase;
   base["CLZ Value"] = clzValue;
   // VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
-  const value = comicsValue(clzValue, comicbase, Boolean(row.value_locked));
+  const pricecharting = num(row.pricecharting_price);
+  base["PriceCharting Price"] = pricecharting;
+  const value = comicsValue(clzValue, comicbase, Boolean(row.value_locked), pricecharting);
   base["Current Price"] = value.price;
   base["Value Source"] = value.source;
   base["Slab Status"] = row.slab_status ?? base["Slab Status"] ?? "";
