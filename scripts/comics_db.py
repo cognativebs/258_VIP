@@ -146,6 +146,19 @@ def _date_str(val: Any) -> str:
     return str(val)
 
 
+def value_and_source(clz_value, comicbase_price, locked: bool, comicbase_on=None) -> tuple[float, str]:
+    """The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value.
+    All are vendor guides (unverified), never sold comps."""
+    clz = float(clz_value or 0)
+    if locked and clz > 0:
+        return clz, "Locked value"
+    if comicbase_price:
+        return float(comicbase_price), f"ComicBase{f' · {comicbase_on}' if comicbase_on else ''}"
+    if clz > 0:
+        return clz, "CLZ"
+    return 0.0, ""
+
+
 def row_from_holding(rec: dict) -> dict:
     """Map a DB holding row to the CLZ inventory.json shape the terminal expects."""
     meta = rec.get("clz_metadata") or {}
@@ -185,16 +198,20 @@ def row_from_holding(rec: dict) -> dict:
     row["Verification Notes"] = rec.get("verification_notes") or row.get("Verification Notes", "")
     row["Quantity"] = int(rec.get("quantity") or row.get("Quantity") or 1)
     row["Location"] = rec.get("location") or row.get("Location", "")
-    row["Current Price"] = _num(rec.get("current_price_snapshot"), row.get("Current Price", 0))
-    # Second opinion: ComicBase's guide price for this copy, never blended into Current Price (CLZ's value).
+    clz_value = _num(rec.get("current_price_snapshot"), row.get("Current Price", 0))
     row["ComicBase Price"] = _num(rec.get("comicbase_price"), 0) if rec.get("comicbase_price") is not None else None
     row["ComicBase Date"] = _date_str(rec.get("comicbase_on")) or None
+    row["CLZ Value"] = clz_value
+    row["Value Locked"] = _yn(rec.get("value_locked"))
+    # VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
+    row["Current Price"], row["Value Source"] = value_and_source(
+        clz_value, row["ComicBase Price"], row["Value Locked"] == "Yes", row["ComicBase Date"]
+    )
     row["Purchase Price"] = _num(rec.get("purchase_price"), row.get("Purchase Price", 0))
     row["Purchase Date"] = _date_str(rec.get("purchase_date")) or row.get("Purchase Date", "")
     row["Slab Status"] = rec.get("slab_status") or row.get("Slab Status", "")
     row["Assumed Grade"] = rec.get("assumed_grade") or row.get("Assumed Grade", "")
     row["Grade Rating"] = _num(rec.get("grade_rating"), row.get("Grade Rating", 0))
-    row["Value Locked"] = _yn(rec.get("value_locked"))
     row["Cover Image URL"] = rec.get("primary_image_url") or row.get("Cover Image URL", "")
 
     if rec.get("is_key_issue"):

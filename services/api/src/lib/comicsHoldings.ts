@@ -58,6 +58,7 @@ const HOLDINGS_SQL = sql`
       h.needs_verification,
       h.verification_notes,
       h.current_price_snapshot,
+      h.value_locked,
       h.clz_metadata,
       h.raw_snapshot_id,
       a.canonical_name,
@@ -113,6 +114,19 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value. Vendor guides, unverified. */
+export function comicsValue(
+  clzValue: number | null,
+  comicbasePrice: number | null,
+  locked: boolean,
+): { price: number; source: "Locked value" | "ComicBase" | "CLZ" | "" } {
+  const clz = clzValue ?? 0;
+  if (locked && clz > 0) return { price: clz, source: "Locked value" };
+  if (comicbasePrice != null && comicbasePrice > 0) return { price: comicbasePrice, source: "ComicBase" };
+  if (clz > 0) return { price: clz, source: "CLZ" };
+  return { price: 0, source: "" };
+}
+
 /** Rebuild the CLZ-shaped row: stored import first, live columns on top. */
 function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   const stored = (row.clz_metadata ?? {}) as Record<string, unknown>;
@@ -128,8 +142,14 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   base["Quantity"] = num(row.quantity) ?? base["Quantity"] ?? 1;
   base["Location"] = row.location ?? base["Location"] ?? "";
   base["Purchase Price"] = num(row.purchase_price) ?? base["Purchase Price"] ?? 0;
-  base["Current Price"] = num(row.current_price_snapshot) ?? base["Current Price"] ?? 0;
-  base["ComicBase Price"] = num(row.comicbase_price);
+  const clzValue = num(row.current_price_snapshot) ?? num(base["Current Price"]) ?? 0;
+  const comicbase = num(row.comicbase_price);
+  base["ComicBase Price"] = comicbase;
+  base["CLZ Value"] = clzValue;
+  // VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
+  const value = comicsValue(clzValue, comicbase, Boolean(row.value_locked));
+  base["Current Price"] = value.price;
+  base["Value Source"] = value.source;
   base["Slab Status"] = row.slab_status ?? base["Slab Status"] ?? "";
   base["Assumed Grade"] = row.assumed_grade ?? base["Assumed Grade"] ?? "";
   base["Grade Rating"] = num(row.grade_rating) ?? base["Grade Rating"] ?? 0;

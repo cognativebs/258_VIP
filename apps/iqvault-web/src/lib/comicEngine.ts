@@ -51,7 +51,6 @@ export const TABLE_COLUMNS = [
   { id: "Collection Pillar", label: "PILLAR", minWidth: 110 },
   { id: "Inventory Bucket", label: "BUCKET", minWidth: 88 },
   { id: "Current Price", label: "VALUE", minWidth: 72, numeric: true },
-  { id: "ComicBase Price", label: "CB", minWidth: 64, numeric: true },
   { id: "Live Range", label: "LIVE", minWidth: 168 },
   { id: "Museum Score", label: "MUS", minWidth: 44, numeric: true },
   { id: "Investment Score", label: "INV", minWidth: 44, numeric: true },
