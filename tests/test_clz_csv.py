@@ -42,6 +42,13 @@ def test_headers_match_by_name_whatever_the_case_or_punctuation():
     }
 
 
+def test_cloud_names_prefer_the_cover_description_and_read_my_value():
+    cols = csv_column_map(["Issue", "Full Title", "Variant Description", "Storage Box", "Variant", "My Value"])
+    assert cols["Edition / Variant"] == "Variant Description"  # the text, not the bare A/B letter
+    assert cols["Current Price"] == "My Value"
+    assert "Series" not in cols  # "Full Title" is the story title, never the series
+
+
 def test_rows_get_stable_ids_grades_and_prices(tmp_path):
     header = ["Series", "Issue", "Variant", "Publisher", "Quantity", "Value", "Grade", "Raw / Slabbed"]
     rows = [
