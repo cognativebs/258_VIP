@@ -95,3 +95,13 @@ def test_prices_are_dated_vendor_guide_rows_written_once(tmp_path):
     finally:
         conn.rollback()
         conn.close()
+
+
+def test_comics_value_prefers_a_locked_value_then_comicbase_then_clz():
+    from comics_db import value_and_source
+
+    assert value_and_source(40.0, 95.0, False, "Oct 20, 2026") == (95.0, "ComicBase · Oct 20, 2026")
+    assert value_and_source(40.0, 95.0, True) == (40.0, "Locked value")
+    assert value_and_source(40.0, None, False) == (40.0, "CLZ")
+    assert value_and_source(0, None, False) == (0.0, "")
+    assert value_and_source(0, 12.5, True) == (12.5, "ComicBase")  # a lock on an empty value does not hide ComicBase

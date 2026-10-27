@@ -772,18 +772,17 @@ export function ComicsTerminal({
                   <div>{String(selected["Collection Pillar"] || "—")}</div>
                 </div>
                 <div>
-                  <span className="bb-dim">VALUE (CLZ snapshot)</span>
+                  <span className="bb-dim">
+                    {isPokemon
+                      ? "VALUE (catalog snapshot)"
+                      : `VALUE (${selected["Value Source"] || "no price yet"} · vendor guide · NM as exported · unverified)`}
+                  </span>
                   <div>{formatCell("Current Price", selected["Current Price"])}</div>
                 </div>
-                {!isPokemon ? (
+                {!isPokemon && Number(selected["CLZ Value"]) > 0 && selected["Value Source"] !== "CLZ" ? (
                   <div>
-                    <span className="bb-dim">
-                      ComicBase (second opinion · vendor guide · NM as exported · unverified)
-                    </span>
-                    <div>
-                      {formatCell("ComicBase Price", selected["ComicBase Price"])}
-                      {selected["ComicBase Date"] ? ` · ${selected["ComicBase Date"]}` : ""}
-                    </div>
+                    <span className="bb-dim">CLZ value (for comparison)</span>
+                    <div>{formatCell("Current Price", selected["CLZ Value"])}</div>
                   </div>
                 ) : null}
                 {isPokemon && Array.isArray(selected["FMV Detail"]) ? (

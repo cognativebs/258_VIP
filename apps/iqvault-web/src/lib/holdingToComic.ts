@@ -19,6 +19,7 @@ export function holdingToComicRow(h: Holding): ComicRow {
     "Live Listings": h.liveListingCount ?? null,
     "Current Price": h.currentPrice,
     "ComicBase Price": h.comicbasePrice ?? null,
+    "Value Source": h.valueSource ?? null,
     "Museum Score": h.museumScore,
     "Investment Score": h.investmentScore,
     "Liquidity Score": h.liquidityScore,
