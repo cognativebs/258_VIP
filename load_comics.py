@@ -199,25 +199,37 @@ def load_inventory(
             if pillar:
                 tags.append(f"pillar:{pillar}")
 
+            # The catalog already has this cover (issue + printing + cover label are unique): reuse it.
+            # CLZ can re-letter an issue (17B -> 17A) between exports; a new slug must not leave the
+            # holding on an asset with no variant, invisible to every comics query.
             cur.execute(
-                """INSERT INTO vault_core.asset
-                       (category_id, format, canonical_name, slug, release_year,
-                        tags, primary_image_url)
-                   VALUES (4,'single',%s,%s,%s,%s,%s)
-                   ON CONFLICT (slug) DO UPDATE SET canonical_name=EXCLUDED.canonical_name
-                   RETURNING id""",
-                (canonical, slug, parse_year(r.get("Release Date")),
-                 tags, norm(r.get("Cover Image URL")) or None),
+                """SELECT asset_id FROM vault_comic.variant
+                    WHERE issue_id = %s AND printing = 1 AND cover_label = %s""",
+                (issue_id, cover_label),
             )
-            asset_id = cur.fetchone()[0]
+            existing = cur.fetchone()
+            if existing:
+                asset_id = existing[0]
+            else:
+                cur.execute(
+                    """INSERT INTO vault_core.asset
+                           (category_id, format, canonical_name, slug, release_year,
+                            tags, primary_image_url)
+                       VALUES (4,'single',%s,%s,%s,%s,%s)
+                       ON CONFLICT (slug) DO UPDATE SET canonical_name=EXCLUDED.canonical_name
+                       RETURNING id""",
+                    (canonical, slug, parse_year(r.get("Release Date")),
+                     tags, norm(r.get("Cover Image URL")) or None),
+                )
+                asset_id = cur.fetchone()[0]
 
-            cur.execute(
-                """INSERT INTO vault_comic.variant
-                       (asset_id, issue_id, printing, cover_label, is_variant_cover)
-                   VALUES (%s,%s,1,%s,%s)
-                   ON CONFLICT DO NOTHING""",
-                (asset_id, issue_id, cover_label, cover_label not in ("A", "Regular")),
-            )
+                cur.execute(
+                    """INSERT INTO vault_comic.variant
+                           (asset_id, issue_id, printing, cover_label, is_variant_cover)
+                       VALUES (%s,%s,1,%s,%s)
+                       ON CONFLICT DO NOTHING""",
+                    (asset_id, issue_id, cover_label, cover_label not in ("A", "Regular")),
+                )
             asset_cache[akey] = asset_id
             stats["assets"] += 1
         asset_id = asset_cache[akey]
@@ -248,6 +260,7 @@ def load_inventory(
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                        'clz_import',%s,%s::jsonb,%s)
                ON CONFLICT (source, source_row_id) DO UPDATE SET
+                    asset_id=EXCLUDED.asset_id,
                     quantity=EXCLUDED.quantity,
                     purchase_price=EXCLUDED.purchase_price,
                     purchase_date=EXCLUDED.purchase_date,
