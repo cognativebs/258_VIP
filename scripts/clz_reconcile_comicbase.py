@@ -61,8 +61,9 @@ SELECT h.id::text, s.title, s.publisher, s.year_began, i.issue_number, v.cover_l
 """
 
 
-def read_comicbase(path: str):
-    """(items, details) from a Collection Report or an item export."""
+def read_comicbase(path: str, *, include_unstocked: bool = False):
+    """(items, details) from a Collection Report or an item export (include_unstocked: keep catalogue
+    items with no stock, quantity 0, for prices only)."""
     with open(path, encoding="utf-8-sig") as fh:
         text = fh.read()
     if path.lower().endswith((".htm", ".html")):
@@ -72,7 +73,7 @@ def read_comicbase(path: str):
     if reports:
         with open(reports[-1], encoding="utf-8-sig") as fh:
             info = series_info_from_report(parse_report(fh.read()))
-    return parse_export_csv(text, info)
+    return parse_export_csv(text, info, include_unstocked=include_unstocked)
 
 
 def reconcile(items, clz_rows, details=None):

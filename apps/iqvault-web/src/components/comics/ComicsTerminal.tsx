@@ -775,7 +775,7 @@ export function ComicsTerminal({
                   <span className="bb-dim">
                     {isPokemon
                       ? "VALUE (catalog snapshot)"
-                      : `VALUE (${selected["Value Source"] || "no price yet"} · vendor guide · NM as exported · unverified)`}
+                      : `VALUE (${selected["Value Source"] || "no price yet"} · vendor guide · raw, NM assumed · unverified)`}
                   </span>
                   <div>{formatCell("Current Price", selected["Current Price"])}</div>
                 </div>

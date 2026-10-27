@@ -105,3 +105,39 @@ def test_comics_value_prefers_a_locked_value_then_comicbase_then_clz():
     assert value_and_source(40.0, None, False) == (40.0, "CLZ")
     assert value_and_source(0, None, False) == (0.0, "")
     assert value_and_source(0, 12.5, True) == (12.5, "ComicBase")  # a lock on an empty value does not hide ComicBase
+    assert value_and_source(0, None, False, None, 30.0, "Oct 27, 2026") == (30.0, "PriceCharting · Oct 27, 2026")
+    assert value_and_source(8.0, None, False, None, 30.0) == (8.0, "CLZ")
+
+
+def test_catalogue_items_pair_with_a_copy_only_by_a_clear_cover_description():
+    from comicbase_report import ComicBaseItem, VipHolding, match_by_cover_description
+
+    def item(letter, qty=0):
+        return ComicBaseItem("Guardians Special", "Marvel", "2014", 2014, None, "1", None, letter, 1, qty)
+
+    items = [item(None), item("A"), item("B"), item("C")]
+    desc = {
+        items[0].item_key: "Regular Cover",
+        items[1].item_key: "Cover A by Alexander Lozano",
+        items[2].item_key: "Wizard World Chicago Exclusive Cover B by Greg Horn",
+        items[3].item_key: "Faded Convention Exclusive Cover C by Greg Horn",
+    }
+    copies = [
+        VipHolding("h-lozano", "Guardians Special", "Marvel Comics", 2014, "1", "Alexander Lozano Regular", 1, 1),
+        VipHolding("h-horn", "Guardians Special", "Marvel Comics", 2014, "1", "Greg Horn Variant", 1, 1),
+        VipHolding("h-done", "Guardians Special", "Marvel Comics", 2014, "1", "A", 1, 1),
+    ]
+    pairs = {h: it.variant_letter for it, h, _ in match_by_cover_description(items, desc, copies, skip_holding_ids=["h-done"])}
+    assert pairs == {"h-lozano": "A"}  # Greg Horn names two covers equally: a tie is never guessed
+
+
+def test_unstocked_rows_are_kept_only_when_asked():
+    from comicbase_report import parse_export_csv
+
+    text = "\n".join([
+        '"Title","Item #","Qty In Stock","Price","Item Description","Cover Date"',
+        '"X-Men","1","1","5","","1/1/1991"',
+        '"X-Men","1/A","0","40","Jim Lee","1/1/1991"',
+    ])
+    assert [i.quantity for i in parse_export_csv(text)[0]] == [1]
+    assert [i.quantity for i in parse_export_csv(text, include_unstocked=True)[0]] == [1, 0]

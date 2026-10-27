@@ -157,14 +157,17 @@ def parse_report(text: str) -> list[ComicBaseItem]:
 EXPORT_COLUMNS = ("Title", "Item #", "Qty In Stock")
 
 
-def parse_export_csv(text: str, series_info: Optional[dict] = None) -> tuple[list[ComicBaseItem], dict[str, dict]]:
+def parse_export_csv(
+    text: str, series_info: Optional[dict] = None, *, include_unstocked: bool = False
+) -> tuple[list[ComicBaseItem], dict[str, dict]]:
     """ComicBase item export (CSV) → items, plus per-item details (cover description, artist, dates, prices).
 
     The export has no publisher or series years. series_info maps (series_key, volume) to
     (publisher, year_label, start_year), e.g. from a Collection Report of the same database; a title it
     does not know gets its earliest cover-date year as start year (CLZ's year_began is likewise the year
-    of the earliest copy owned). Rows with no stock are skipped. "Condition" is ComicBase's default
-    ("NM" on every row), not a grade, so it is not carried over."""
+    of the earliest copy owned). Rows with no stock are skipped unless include_unstocked: catalogue items
+    the operator does not own in ComicBase, kept (quantity 0) for their prices only, never as inventory.
+    "Condition" is ComicBase's default ("NM" on every row), not a grade, so it is not carried over."""
     import csv
     import io
 
@@ -172,7 +175,8 @@ def parse_export_csv(text: str, series_info: Optional[dict] = None) -> tuple[lis
     missing = [c for c in EXPORT_COLUMNS if c not in (reader.fieldnames or [])]
     if missing:
         raise ReportFormatError(f"not a ComicBase item export: missing column(s) {', '.join(missing)}")
-    rows = [r for r in reader if int((r.get("Qty In Stock") or "0").strip() or 0) > 0]
+    min_qty = 0 if include_unstocked else 1
+    rows = [r for r in reader if int(float((r.get("Qty In Stock") or "0").strip() or 0)) >= min_qty]
     first_year: dict[str, int] = {}
     for r in rows:
         y = re.search(r"\d{4}", r.get("Cover Date") or "")
@@ -199,7 +203,7 @@ def parse_export_csv(text: str, series_info: Optional[dict] = None) -> tuple[lis
             issue_prefix=m.group("prefix"),
             variant_letter=m.group("var"),
             printing=int(m.group("printing") or 1),
-            quantity=int(r["Qty In Stock"]),
+            quantity=int(float((r["Qty In Stock"] or "0").strip() or 0)),
         )
         items.append(it)
         details[it.item_key] = {
@@ -336,4 +340,69 @@ def match_items(items: Iterable[ComicBaseItem], holdings: Iterable[VipHolding]) 
         for it in entries:
             label = f"/{it.variant_letter}" if it.variant_letter else " (regular)"
             out.append(Match(it, "needs_review", "review", 0.4, f"{len(entries)} ComicBase variant(s) vs {len(cands)} VIP copies — pick the cover for {it.issue_number}{label}", None, ids))
+    return out
+
+
+# Words that say nothing about which cover it is.
+_COVER_STOPWORDS = {
+    "cover", "covers", "variant", "regular", "edition", "direct", "newsstand", "by", "the", "and", "of", "a",
+    "printing", "print", "incentive", "exclusive", "ltd", "limited", "virgin", "connecting", "homage",
+    "1st", "2nd", "3rd", "4th", "5th", "first", "second", "third", "card", "stock", "foil", "retailer",
+}
+
+
+def cover_tokens(text: str) -> set[str]:
+    """Distinctive words of a cover description ('Cover A by Alexander Lozano' -> {'alexander', 'lozano'})."""
+    words = re.sub(r"[^a-z0-9]+", " ", html.unescape(text or "").lower()).split()
+    return {w for w in words if len(w) >= 3 and w not in _COVER_STOPWORDS and not w.isdigit()}
+
+
+def match_by_cover_description(
+    items: Iterable[ComicBaseItem],
+    descriptions: dict[str, str],
+    holdings: Iterable[VipHolding],
+    skip_holding_ids: Iterable[str] = (),
+) -> list[tuple[ComicBaseItem, str, str]]:
+    """Pair ComicBase catalogue items (often every cover of an issue) with VIP copies by cover description.
+
+    For each VIP copy still unpriced, among the ComicBase items for the same series, issue and printing,
+    the one whose description shares the most distinctive words with the copy's cover label wins, but only
+    when it is the single best (no tie) and shares at least one word; a regular-looking CLZ label also
+    accepts the one ComicBase item with no variant letter. Each item and each copy is used once.
+    Returns (item, holding_id, reason)."""
+    holdings = [h for h in holdings if h.holding_id not in set(skip_holding_ids)]
+    groups: dict[tuple, list[ComicBaseItem]] = {}
+    for it in items:
+        if it.issue_prefix:
+            continue
+        groups.setdefault((series_key(it.series_title), it.start_year, it.printing, _issue_key(it.issue_number)), []).append(it)
+
+    out: list[tuple[ComicBaseItem, str, str]] = []
+    used_items: set[str] = set()
+    for (_, _, printing, issue), entries in groups.items():
+        first = entries[0]
+        copies = [
+            h for h in holdings
+            if _series_ok(first, h) and _issue_key(h.issue_number) == issue and h.effective_printing == printing
+        ]
+        for h in copies:
+            label = (h.cover_label or "").strip()
+            label_tokens = cover_tokens(label)
+            scored = []
+            for it in entries:
+                if it.item_key in used_items:
+                    continue
+                shared = label_tokens & cover_tokens(descriptions.get(it.item_key, ""))
+                score = len(shared)
+                if not score and it.variant_letter is None and _REGULAR_LABEL.match(label):
+                    score = 0.5  # the plain ComicBase item for a regular-looking CLZ cover
+                if score:
+                    scored.append((score, it, shared))
+            scored.sort(key=lambda s: -s[0])
+            if not scored or (len(scored) > 1 and scored[1][0] == scored[0][0]):
+                continue
+            score, it, shared = scored[0]
+            used_items.add(it.item_key)
+            why = f"cover words {', '.join(sorted(shared))}" if shared else "regular cover"
+            out.append((it, h.holding_id, f"catalogue item matched by {why} → VIP '{label}'"))
     return out
