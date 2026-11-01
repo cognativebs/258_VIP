@@ -109,6 +109,14 @@ def test_comics_value_prefers_a_locked_value_then_comicbase_then_clz():
     assert value_and_source(8.0, None, False, None, 30.0) == (8.0, "CLZ")
 
 
+def test_comics_value_puts_covrprice_after_a_lock_and_before_comicbase():
+    from comics_db import value_and_source
+
+    assert value_and_source(40.0, 12.5, False, None, 30.0, None, 24.0, "Oct 31, 2026") == (24.0, "CovrPrice · Oct 31, 2026")
+    assert value_and_source(40.0, 12.5, True, None, None, None, 24.0) == (40.0, "Locked value")
+    assert value_and_source(0, 12.5, False, None, None, None, None) == (12.5, "ComicBase")
+
+
 def test_catalogue_items_pair_with_a_copy_only_by_a_clear_cover_description():
     from comicbase_report import ComicBaseItem, VipHolding, match_by_cover_description
 

@@ -63,7 +63,9 @@ SELECT
     cb.guide_price AS comicbase_price,
     cb.snapshot_on AS comicbase_on,
     pc.guide_price AS pricecharting_price,
-    pc.snapshot_on AS pricecharting_on
+    pc.snapshot_on AS pricecharting_on,
+    cp.guide_price AS covrprice_price,
+    cp.snapshot_on AS covrprice_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -103,6 +105,15 @@ LEFT JOIN LATERAL (
     ORDER BY g.snapshot_on DESC
     LIMIT 1
 ) pc ON TRUE
+-- CovrPrice's value via the CLZ Cloud export (vendor guide; scripts/comics_guide_prices.py covrprice).
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.holding_source_row_id = h.source_row_id
+      AND g.source = 'covrprice' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) cp ON TRUE
 WHERE h.dropped_at IS NULL
 ORDER BY s.title, i.issue_number, v.cover_label
 """
@@ -158,13 +169,16 @@ def _date_str(val: Any) -> str:
 
 
 def value_and_source(
-    clz_value, comicbase_price, locked: bool, comicbase_on=None, pricecharting_price=None, pricecharting_on=None
+    clz_value, comicbase_price, locked: bool, comicbase_on=None, pricecharting_price=None, pricecharting_on=None,
+    covrprice_price=None, covrprice_on=None,
 ) -> tuple[float, str]:
-    """The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value; else
-    PriceCharting's ungraded guide. All are vendor guides (unverified), never sold comps."""
+    """The comics VALUE: a locked value stands; else CovrPrice; else ComicBase's guide price; else CLZ's
+    value; else PriceCharting's ungraded guide. All are vendor guides (unverified), never sold comps."""
     clz = float(clz_value or 0)
     if locked and clz > 0:
         return clz, "Locked value"
+    if covrprice_price:
+        return float(covrprice_price), f"CovrPrice{f' · {covrprice_on}' if covrprice_on else ''}"
     if comicbase_price:
         return float(comicbase_price), f"ComicBase{f' · {comicbase_on}' if comicbase_on else ''}"
     if clz > 0:
@@ -218,12 +232,15 @@ def row_from_holding(rec: dict) -> dict:
     row["ComicBase Date"] = _date_str(rec.get("comicbase_on")) or None
     row["CLZ Value"] = clz_value
     row["Value Locked"] = _yn(rec.get("value_locked"))
-    # VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
+    # VALUE (operator, 2026-10-31 E4): locked > CovrPrice > ComicBase > CLZ > PriceCharting.
+    row["CovrPrice Price"] = _num(rec.get("covrprice_price"), 0) if rec.get("covrprice_price") is not None else None
+    row["CovrPrice Date"] = _date_str(rec.get("covrprice_on")) or None
     pc_price = _num(rec.get("pricecharting_price"), 0) if rec.get("pricecharting_price") is not None else None
     row["PriceCharting Price"] = pc_price
     row["Current Price"], row["Value Source"] = value_and_source(
         clz_value, row["ComicBase Price"], row["Value Locked"] == "Yes", row["ComicBase Date"],
         pc_price, _date_str(rec.get("pricecharting_on")) or None,
+        row["CovrPrice Price"], row["CovrPrice Date"],
     )
     row["Purchase Price"] = _num(rec.get("purchase_price"), row.get("Purchase Price", 0))
     row["Purchase Date"] = _date_str(rec.get("purchase_date")) or row.get("Purchase Date", "")
@@ -423,7 +440,9 @@ SELECT
     cb.guide_price AS comicbase_price,
     cb.snapshot_on AS comicbase_on,
     pc.guide_price AS pricecharting_price,
-    pc.snapshot_on AS pricecharting_on
+    pc.snapshot_on AS pricecharting_on,
+    cp.guide_price AS covrprice_price,
+    cp.snapshot_on AS covrprice_on
 FROM vault_collection.holding h
 JOIN vault_core.asset a ON a.id = h.asset_id
 JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -463,6 +482,15 @@ LEFT JOIN LATERAL (
     ORDER BY g.snapshot_on DESC
     LIMIT 1
 ) pc ON TRUE
+-- CovrPrice's value via the CLZ Cloud export (vendor guide; scripts/comics_guide_prices.py covrprice).
+LEFT JOIN LATERAL (
+    SELECT g.guide_price, g.snapshot_on
+    FROM vault_market.guide_price_observation g
+    WHERE g.holding_source_row_id = h.source_row_id
+      AND g.source = 'covrprice' AND g.observation_kind = 'guide_quote'
+    ORDER BY g.snapshot_on DESC
+    LIMIT 1
+) cp ON TRUE
 WHERE h.source_row_id = %s
 """
 

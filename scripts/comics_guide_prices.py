@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comics guide prices from CLZ (primary) and ComicBase (second opinion) → vault_market.guide_price_observation.
+"""Comics guide prices from CLZ, ComicBase (second opinion) and CovrPrice → vault_market.guide_price_observation.
 
 Operator, 2026-10-25: CLZ uploads are the comics inventory and pricing; ComicBase stays connected for
 pricing as a second opinion. Both are vendor guides (evidence class vendor_derived), never sold comps,
@@ -11,15 +11,22 @@ baseline_eligible is false on these rows, so the PriceCharting baseline is uncha
   comicbase  ComicBase's price for each ComicBase item that matches exactly one CLZ holding
              (comicbase-report-match). The export file is kept as a raw snapshot. Items that do not
              match exactly are written to not_priced.csv in the exports folder, never guessed.
+  covrprice  The "CovrPrice Value" column of the operator's CLZ Cloud CSV export (operator 2026-10-31, E4).
+             Rows match CLZ holdings on series + issue + variant + storage box; a group of identical rows
+             prices the same number of identical copies. Anything else goes to not_priced.csv. CLZ does
+             not quote fields, so a title holding ';' splits one row: when there is exactly one extra
+             column it is rejoined into Full Title, otherwise the row is listed, never guessed.
 
 Usage:
   python scripts/comics_guide_prices.py clz [--dry-run]
   python scripts/comics_guide_prices.py comicbase --file "D:/VIP/imports/comicbase/Exported Comic Books.txt" [--dry-run]
+  python scripts/comics_guide_prices.py covrprice --file "D:/VIP/imports/export_comics.csv" [--dry-run]
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import os
 import re
@@ -203,10 +210,163 @@ def run_comicbase(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
     }
 
 
+# --- CovrPrice (values exported through CLZ Cloud) -------------------------------------------------
+
+COVRPRICE_SOURCE = "covrprice_export"
+COVRPRICE_REQUIRED = ("Series", "Issue", "Variant Description", "Storage Box", "CovrPrice Value")
+
+
+def _norm(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def read_covrprice_csv(path: str) -> tuple[list[dict], list[list]]:
+    """Rows of a CLZ Cloud CSV export, plus the rows that could not be read: [line, text, why].
+
+    CLZ separates with ';' and does not quote, so a title holding ';' gives one extra column. When the header
+    has Full Title and a row has exactly one extra column, the two pieces are rejoined there (the title is the
+    free-text field). Any other column count is reported, never guessed; a wrong rejoin would also fail to
+    match, since Series and the other key columns would then be shifted."""
+    with open(path, encoding="utf-8-sig", newline="") as fh:
+        text = fh.read()
+    first = text.split("\n", 1)[0]
+    delimiter = ";" if first.count(";") >= first.count(",") else ","
+    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+    header = [h.strip() for h in next(reader, [])]
+    missing = [c for c in COVRPRICE_REQUIRED if c not in header]
+    if missing:
+        raise SystemExit(f"CLZ export is missing column(s) {', '.join(missing)}; re-export with them added")
+    title_at = header.index("Full Title") if "Full Title" in header else None
+    rows: list[dict] = []
+    broken: list[list] = []
+    for line, fields in enumerate(reader, start=2):
+        if not any(f.strip() for f in fields):
+            continue
+        rejoined = False
+        if len(fields) == len(header) + 1 and title_at is not None:
+            fields = fields[:title_at] + [fields[title_at] + delimiter + fields[title_at + 1]] + fields[title_at + 2 :]
+            rejoined = True
+        if len(fields) != len(header):
+            broken.append([line, delimiter.join(fields), f"{len(fields)} columns, header has {len(header)}"])
+            continue
+        row = dict(zip(header, fields))
+        row["_line"] = line
+        row["_rejoined"] = rejoined
+        rows.append(row)
+    return rows, broken
+
+
+def covrprice_key(series, issue, variant, box) -> tuple:
+    return (_norm(series), _norm(issue), _norm(variant), _norm(box))
+
+
+def covrprice_label(row: dict) -> str:
+    variant = row.get("Variant Description") or ""
+    return f"{row.get('Series')} #{row.get('Issue')}{f' ({variant})' if variant else ''} · {row.get('Storage Box') or 'no box'}"
+
+
+def match_covrprice(rows: list[dict], holdings: list[tuple]) -> tuple[list[tuple[dict, tuple]], list[list]]:
+    """Pair export rows with CLZ copies. holdings: (holding_id, asset_id, source_row_id, series, issue_full,
+    variant, location). A key group prices only when the export and VIP hold the same number of copies, all
+    ungraded and at one CovrPrice value; the copies are then the same book and each gets that value."""
+    by_key: dict[tuple, list[tuple]] = {}
+    for h in holdings:
+        by_key.setdefault(covrprice_key(h[3], h[4], h[5], h[6]), []).append(h)
+    groups: dict[tuple, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(covrprice_key(r["Series"], r["Issue"], r["Variant Description"], r["Storage Box"]), []).append(r)
+
+    pairs: list[tuple[dict, tuple]] = []
+    not_priced: list[list] = []
+    for key, group in groups.items():
+        prices = {price_of(r["CovrPrice Value"]) for r in group}
+        copies = sorted(by_key.get(key, []), key=lambda h: h[2] or "")
+        if prices == {None}:
+            reason = "no CovrPrice value in the export"
+        elif any((r.get("Grade") or "").strip() or (r.get("Grading Company") or "").strip() for r in group):
+            reason = "graded copy: CovrPrice grade values are not mapped to a condition yet"
+        elif not copies:
+            reason = "no VIP copy with this series, issue, variant and storage box"
+        elif len(copies) != len(group):
+            reason = f"{len(group)} export row(s) vs {len(copies)} VIP copies"
+        elif len(prices) != 1 or None in prices:
+            reason = "identical copies carry different CovrPrice values"
+        else:
+            pairs.extend(zip(group, copies))
+            continue
+        shown = ", ".join(r["CovrPrice Value"] or "-" for r in group)
+        not_priced.append([covrprice_label(group[0]), len(group), shown, reason])
+    return pairs, not_priced
+
+
+def run_covrprice(conn, path: str, *, dry_run: bool, out_dir: str) -> dict:
+    from raw_snapshots import record_file_snapshot
+
+    rows, broken = read_covrprice_csv(path)
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT h.id::text, h.asset_id::text, h.source_row_id, h.clz_metadata->>'Series',
+                  h.clz_metadata->>'Issue Full', h.clz_metadata->>'Edition / Variant', h.clz_metadata->>'Location'
+             FROM vault_collection.holding h
+            WHERE h.dropped_at IS NULL AND h.source = 'clz_import' AND h.source_row_id IS NOT NULL"""
+    )
+    pairs, not_priced = match_covrprice(rows, cur.fetchall())
+
+    written = 0
+    snap = None
+    if not dry_run:
+        snap = record_file_snapshot(
+            conn, path=path, source=COVRPRICE_SOURCE, rule_version=RULE_VERSION, record_count=len(rows),
+            content_type="text/csv",
+        )
+        for row, h in pairs:
+            how = "series, issue, variant and storage box"
+            if row["_rejoined"]:
+                how += "; title rejoined where an unquoted ';' split the row"
+            cur.execute(
+                INSERT_SQL,
+                (
+                    h[1], h[0], h[2], "raw_nm", snap.ingested_at.date(), snap.ingested_at,
+                    "covrprice", "covrprice", price_of(row["CovrPrice Value"]), snap.id,
+                    json.dumps({"clz_hash": h[2], "clz_cloud_line": row["_line"]}),
+                    COVRPRICE_SOURCE, RULE_VERSION, CONFIDENCE,
+                    f"CovrPrice value for {covrprice_label(row)} from CLZ Cloud export {snap.short_hash}. No grade set "
+                    f"in CLZ, so this is CovrPrice's ungraded value (shown as NM) · NM assumed, unverified. "
+                    f"Matched: {how}. Vendor guide built from sales, not a sold comp.",
+                    f"covrprice:{snap.short_hash}",
+                ),
+            )
+            written += cur.rowcount
+        conn.commit()
+
+    stem = re.sub(r"[^A-Za-z0-9]+", "-", os.path.splitext(os.path.basename(path))[0]).strip("-")
+    out = os.path.join(out_dir, f"covrprice-prices-{stem}")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "not_priced.csv"), "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh)
+        w.writerow(["Export row", "Rows", "CovrPrice value", "Why not priced"])
+        w.writerows(not_priced)
+        w.writerows([[f"line {line}: {text[:160]}", 1, "", f"unreadable row: {why}"] for line, text, why in broken])
+    return {
+        "job": "comics-guide-prices",
+        "source": "covrprice",
+        "dry_run": dry_run,
+        "file": os.path.basename(path),
+        "raw_snapshot": snap.short_hash if snap else None,
+        "rows": len(rows),
+        "rows_rejoined": sum(1 for r in rows if r["_rejoined"]),
+        "rows_unreadable": len(broken),
+        "copies_priced": len(pairs),
+        "rows_written": written,
+        "not_priced": len(not_priced) + len(broken),
+        "not_priced_csv": os.path.join(out, "not_priced.csv"),
+    }
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("source", choices=["clz", "comicbase"])
-    ap.add_argument("--file", help="ComicBase export (.txt/.csv item export or .htm report)")
+    ap.add_argument("source", choices=["clz", "comicbase", "covrprice"])
+    ap.add_argument("--file", help="ComicBase export (.txt/.csv/.htm), or CLZ Cloud CSV for covrprice")
     ap.add_argument("--dsn", default=DEFAULT_DSN)
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--dry-run", action="store_true")
@@ -218,6 +378,10 @@ def main(argv=None) -> int:
     try:
         if args.source == "clz":
             report = run_clz(conn, dry_run=args.dry_run)
+        elif args.source == "covrprice":
+            if not args.file:
+                raise SystemExit("covrprice needs --file <CLZ Cloud CSV export with a CovrPrice Value column>")
+            report = run_covrprice(conn, args.file, dry_run=args.dry_run, out_dir=args.out)
         else:
             if not args.file:
                 raise SystemExit("comicbase needs --file <ComicBase export>")

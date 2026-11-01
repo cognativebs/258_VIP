@@ -95,7 +95,16 @@ const HOLDINGS_SQL = sql`
           AND g.source = 'pricecharting' AND g.condition_key = 'raw_ungraded' AND g.observation_kind = 'guide_quote'
         ORDER BY g.snapshot_on DESC
         LIMIT 1
-      ) AS pricecharting_price
+      ) AS pricecharting_price,
+      (
+        -- CovrPrice's value via the CLZ Cloud export (vendor guide; scripts/comics_guide_prices.py covrprice).
+        SELECT g.guide_price
+        FROM vault_market.guide_price_observation g
+        WHERE g.holding_source_row_id = h.source_row_id
+          AND g.source = 'covrprice' AND g.observation_kind = 'guide_quote'
+        ORDER BY g.snapshot_on DESC
+        LIMIT 1
+      ) AS covrprice_price
   FROM vault_collection.holding h
   JOIN vault_core.asset a   ON a.id = h.asset_id
   JOIN vault_comic.variant v ON v.asset_id = a.id
@@ -124,17 +133,19 @@ function num(value: unknown): number | null {
 }
 
 /**
- * The comics VALUE: a locked value stands; else ComicBase's guide price; else CLZ's value; else
- * PriceCharting's ungraded guide. Vendor guides, unverified.
+ * The comics VALUE: a locked value stands; else CovrPrice; else ComicBase's guide price; else CLZ's
+ * value; else PriceCharting's ungraded guide. Vendor guides, unverified.
  */
 export function comicsValue(
   clzValue: number | null,
   comicbasePrice: number | null,
   locked: boolean,
   pricechartingPrice: number | null = null,
-): { price: number; source: "Locked value" | "ComicBase" | "CLZ" | "PriceCharting" | "" } {
+  covrpricePrice: number | null = null,
+): { price: number; source: "Locked value" | "CovrPrice" | "ComicBase" | "CLZ" | "PriceCharting" | "" } {
   const clz = clzValue ?? 0;
   if (locked && clz > 0) return { price: clz, source: "Locked value" };
+  if (covrpricePrice != null && covrpricePrice > 0) return { price: covrpricePrice, source: "CovrPrice" };
   if (comicbasePrice != null && comicbasePrice > 0) return { price: comicbasePrice, source: "ComicBase" };
   if (clz > 0) return { price: clz, source: "CLZ" };
   if (pricechartingPrice != null && pricechartingPrice > 0) {
@@ -162,10 +173,12 @@ function toClzRow(row: Record<string, unknown>): Record<string, unknown> {
   const comicbase = num(row.comicbase_price);
   base["ComicBase Price"] = comicbase;
   base["CLZ Value"] = clzValue;
-  // VALUE (operator, 2026-10-27): a locked value stands; else ComicBase's guide price; else CLZ's value.
+  // VALUE (operator, 2026-10-31 E4): locked > CovrPrice > ComicBase > CLZ > PriceCharting.
+  const covrprice = num(row.covrprice_price);
+  base["CovrPrice Price"] = covrprice;
   const pricecharting = num(row.pricecharting_price);
   base["PriceCharting Price"] = pricecharting;
-  const value = comicsValue(clzValue, comicbase, Boolean(row.value_locked), pricecharting);
+  const value = comicsValue(clzValue, comicbase, Boolean(row.value_locked), pricecharting, covrprice);
   base["Current Price"] = value.price;
   base["Value Source"] = value.source;
   base["Slab Status"] = row.slab_status ?? base["Slab Status"] ?? "";

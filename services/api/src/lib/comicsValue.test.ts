@@ -15,4 +15,10 @@ describe("comicsValue", () => {
     expect(comicsValue(0, 12.5, false, 30)).toEqual({ price: 12.5, source: "ComicBase" });
     expect(comicsValue(8, null, false, 30)).toEqual({ price: 8, source: "CLZ" });
   });
+
+  it("puts CovrPrice after a locked value and before ComicBase", () => {
+    expect(comicsValue(40, 12.5, false, 30, 24)).toEqual({ price: 24, source: "CovrPrice" });
+    expect(comicsValue(40, 12.5, true, 30, 24)).toEqual({ price: 40, source: "Locked value" });
+    expect(comicsValue(0, 12.5, false, 30, null)).toEqual({ price: 12.5, source: "ComicBase" });
+  });
 });

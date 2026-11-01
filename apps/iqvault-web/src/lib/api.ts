@@ -165,6 +165,7 @@ export type Holding = {
   currentPrice: number | null;
   /** ComicBase's guide price (second opinion, vendor guide · unverified). */
   comicbasePrice?: number | null;
+  covrpricePrice?: number | null;
   /** Where currentPrice came from: "Locked value", "ComicBase" or "CLZ" (comics). */
   valueSource?: string | null;
   assumedGrade: string | null;
