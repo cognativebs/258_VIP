@@ -5,6 +5,7 @@ import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
+import { registerIngestRoutes } from "./routes/ingest.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
 import { liveBinderBySlotId, overlayBinderDisplay } from "./lib/tcgOverlay.js";
 import {
@@ -780,6 +781,8 @@ export function createApp(deps: AppDeps = {}) {
    * Ricoh fi-8170 intake: scan → ID → duplicate alert → inventory confirm
    * → optional eBay listing draft (idle without developer tokens).
    */
+  registerIngestRoutes(app);
+
   app.get("/api/scan", (_req, res) => {
     const inbox = scanInboxRoot();
     res.json({

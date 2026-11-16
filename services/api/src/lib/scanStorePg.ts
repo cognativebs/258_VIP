@@ -65,10 +65,11 @@ export async function persistBatch(
 
   await db.execute(sql`
     INSERT INTO vault_media.scan_batch
-      (id, session_id, device, status, category_hint, notes)
+      (id, session_id, device, status, category_hint, notes, lifecycle)
     VALUES (
       ${batch.id}::uuid, ${batch.sessionId}::uuid, ${batch.device},
-      ${batch.status}, ${batch.categoryHint ?? null}, ${batch.notes ?? null}
+      ${batch.status}, ${batch.categoryHint ?? null}, ${batch.notes ?? null},
+      'paused'
     )
     ON CONFLICT (id) DO NOTHING
   `);

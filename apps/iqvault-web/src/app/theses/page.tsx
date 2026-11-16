@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
 export default async function ThesesPage() {
@@ -19,7 +18,7 @@ export default async function ThesesPage() {
 
   return (
     <div className="shell">
-      <><Nav active="/theses" />
+      <>
       <h1 className="page-title">Theses</h1>
       <p className="page-sub">Stated beliefs with horizon — not silent inventory notes.</p>
       {error ? <div className="error">{error}</div> : null}

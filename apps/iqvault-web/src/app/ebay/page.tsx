@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
 type Dashboard = {
@@ -78,7 +77,6 @@ function EbayDashboardInner() {
 
   return (
     <div className="shell">
-      <Nav active="/ebay" />
       <h1 className="page-title">eBay selling loop</h1>
       <p className="page-sub">
         Closed loop: recommend → human approve → official Inventory API → orders → internal sale

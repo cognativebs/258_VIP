@@ -1,5 +1,4 @@
 import { IntelligenceDesk } from "@/components/intelligence/IntelligenceDesk";
-import { Nav } from "@/components/Nav";
 import { apiGet } from "@/lib/api";
 
 type IntelligenceSnapshot = {
@@ -86,7 +85,6 @@ export default async function IntelligencePage() {
 
   return (
     <div className="shell">
-      <Nav active="/intelligence" />
       <h1 className="page-title">Intelligence</h1>
       <p className="page-sub">
         Phase 1 scoring + write desk. Phase 2 stays manual-only until Signals ingestion is live.
