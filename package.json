@@ -43,7 +43,8 @@
     "job:pricecharting-ops": "npm run pricecharting-ops -w @vip/api --",
     "job:pricecharting-map-integrity": "npm run pricecharting-map-integrity -w @vip/api --",
     "job:pricecharting-era-audit": "npm run pricecharting-era-audit -w @vip/api --",
-    "job:ebay-create-location": "npm run ebay-create-location -w @vip/api --"
+    "job:ebay-create-location": "npm run ebay-create-location -w @vip/api --",
+    "job:binder-price-refresh": "npm run binder-price-refresh -w @vip/jobs --"
   },
   "engines": {
     "node": ">=20"

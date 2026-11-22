@@ -130,6 +130,12 @@ import {
   runPriceHistoryJob,
 } from "./price-history.js";
 import { startScheduler } from "./scheduler.js";
+import {
+  binderPriceRefreshEnabled,
+  formatBinderPriceRefreshReport,
+  parseBinderPriceRefreshArgs,
+  runBinderPriceRefreshJob,
+} from "./binder-price-refresh.js";
 import { formatBriefJobReport, runSignalsBriefJob } from "./signals-brief.js";
 import { formatRadarReport, runGdeltRadar } from "./gdelt-radar.js";
 
@@ -457,6 +463,20 @@ async function main() {
     return;
   }
 
+  if (cmd === "binder-price-refresh") {
+    // binder-price-refresh [--dry-run] [--binder <id>] — manual runs work whether or not the schedule is on.
+    let args;
+    try {
+      args = parseBinderPriceRefreshArgs(process.argv.slice(3));
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : String(e));
+      process.exit(1);
+    }
+    const report = await runBinderPriceRefreshJob({ ...args, triggeredBy: "cli" });
+    console.log(formatBinderPriceRefreshReport(report));
+    return;
+  }
+
   if (cmd === "schedule" || cmd === "items" || cmd === "pokebeach") {
     // Entity extraction may learn set names from TCGdex's public set list (cached 6 h).
     process.env.VIP_ENTITY_TCGDEX_SETS ??= "1";
@@ -651,6 +671,21 @@ async function main() {
           },
         },
     ];
+    if (binderPriceRefreshEnabled()) {
+      jobs.push({
+        name: "binder-price-refresh",
+        everyMs: 24 * 60 * 60 * 1000,
+        run: () => {
+          // Every binder's pockets from the stored guide, after the daily pokemon-prices pass has had time
+          // to land (that pass waits up to 30 min). Off unless VIP_BINDER_PRICE_REFRESH=on.
+          void new Promise((r) => setTimeout(r, 45 * 60 * 1000))
+            .then(() => jitter(15 * 60 * 1000))
+            .then(() => runBinderPriceRefreshJob({ triggeredBy: "schedule" }))
+            .then((r) => console.log(formatBinderPriceRefreshReport(r)))
+            .catch((e) => console.error(`binder-price-refresh failed: ${e instanceof Error ? e.message : e}`));
+        },
+      });
+    }
     const unknown = [...skip].filter((n) => !jobs.some((j) => j.name === n));
     if (unknown.length) {
       console.error(`unknown job(s) for --skip: ${unknown.join(", ")} (jobs: ${jobs.map((j) => j.name).join(", ")})`);
@@ -669,6 +704,11 @@ async function main() {
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
       "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+    );
+    console.log(
+      binderPriceRefreshEnabled()
+        ? "binder-price-refresh: daily (VIP_BINDER_PRICE_REFRESH=on)."
+        : "binder-price-refresh: off (set VIP_BINDER_PRICE_REFRESH=on to refresh every binder daily).",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {

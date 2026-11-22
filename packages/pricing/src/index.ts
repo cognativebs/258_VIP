@@ -54,3 +54,25 @@ export {
   type ConditionPrices,
   type FmvRange,
 } from "./pricecharting-cards.js";
+
+export {
+  BINDER_GUIDE_SYNC_VERSION,
+  BinderPriceSyncReportSchema,
+  BinderSlotGuideProvenanceSchema,
+  DEFAULT_VIP_API,
+  GUIDE_RULE,
+  GUIDE_SNAPSHOT_SOURCE,
+  GUIDE_SOURCE,
+  GuidePriceSchema,
+  fetchGuidePrices,
+  guideDayMs,
+  guideProvenance,
+  guideRangeLabel,
+  insertGuideSnapshot,
+  syncBinderGuidePrices,
+  type BinderGuideSyncOptions,
+  type BinderPriceSyncReport,
+  type BinderSlotGuideProvenance,
+  type GuideFetcher,
+  type GuidePrice,
+} from "./binder-guide.js";
