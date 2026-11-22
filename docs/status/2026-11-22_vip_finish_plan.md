@@ -1,0 +1,108 @@
+# VIP finish plan — 2026-11-22
+
+The to-do list for getting VIP fully running, built from `docs/backlog.md`, the
+2026-10-17 progress checklist, every unmerged branch, and an audit of each open
+backlog item against the code. Everything Claude could finish without you is on
+branch **`claude/vip-finish-2026-11-22`** (worktree `D:\Projects\Business_Ideas\258_Labs\258_VIP-finish`).
+Nothing is merged to `main`, nothing is pushed, and the live database was not touched
+(all testing ran on a throwaway Postgres on port 5433).
+
+**Key:** ✅ done on the branch · 🔄 done, needs your review · 🧑 needs you (operator action) · ⛔ blocked on an outside party · 💤 deliberately parked
+
+---
+
+## 1. Land the work that was stranded on branches
+
+| # | Item | Status | Note |
+|---|---|---|---|
+| 1.1 | Launcher starts Docker Desktop when it is down (`fix/launcher-docker-autostart`) | ✅ | Same change that was sitting uncommitted in the signals-spine folder |
+| 1.2 | CovrPrice comics guide price, ranked first for VALUE (`cursor/comics-covrprice`, E4) | ✅ | Migration `20261101_01`. You still run the load: `python scripts/comics_guide_prices.py covrprice --file <CLZ Cloud CSV>` |
+| 1.3 | Card identification v2 Build Spec + golden set (`cursor/scan-id-v2-spec`) | ✅ | Docs only; building v2 is §4.1 |
+| 1.4 | VIP ingest v1 + five-concept shell (`cursor/vip-ingest-v1`, ADR 0014 / 0015) | 🔄 | Conflicts resolved, see §6 Q1–Q3. Migrations `20260923_01/02` |
+| 1.5 | Fix two tests that started failing on their own (dates pinned to August aged out of the comps window) | ✅ | |
+| 1.6 | `/portfolio` called a helper the ingest branch never committed | ✅ | Counts needs-verification the way the old home did |
+| 1.7 | Classic pages index (`/classic`, header link) so the old tab-bar pages stay reachable | 🔄 | See Q2 |
+| 1.8 | Already on main, branch can be deleted: `cursor/signals-espn-sports`, `cursor/hunt-midnight-universe`, `cursor/ebay-production-location-job-f536`, `cursor/analytics-team-council-9666`, `cursor/council-credit-pause-resume-058c`, `cursor/save-named-councils-058c`, `cursor/ma-finish-orchestr8-058c` | 🧑 | Delete when you're happy (Claude did not delete branches) |
+| 1.9 | Superseded, do not merge: `cursor/comicbase-inventory-rebuild` (ComicBase retired, CLZ stays — ADR 0016) | 🧑 | Delete or keep as history |
+| 1.10 | Parked idea branch: `cursor/viture-v1-orchestr8-master-prompt-058c` (AI glasses — deferred idea) | 💤 | |
+| 1.11 | Local `main` is 200+ commits behind `origin/main` (`live-main` is current) | 🧑 | `git checkout main && git merge --ff-only origin/main` when convenient |
+
+## 2. Code Claude built for this pass
+
+| # | Backlog item | Status | Branch |
+|---|---|---|---|
+| 2.1 | Intelligence manual store: JSON → `vault_core` tables (O) | TRACK-A | `claude/intel-store-pg` |
+| 2.2 | Prediction resolution workflow from `prediction_needs_scoring` (O) | TRACK-A | `claude/intel-store-pg` |
+| 2.3 | Scan bulk review: add all `auto` to confirm list, reject all `none` (F) | TRACK-B | `claude/scan-bulk-sources-ui` |
+| 2.4 | IQVault Sources editor (toggle + stats) (D) | TRACK-B | `claude/scan-bulk-sources-ui` |
+| 2.5 | Scheduled daily Binder price refresh (E) | TRACK-C | `claude/binder-refresh-evidence` |
+| 2.6 | `@vip/evidence` inside Binder (E) | TRACK-C | `claude/binder-refresh-evidence` |
+| 2.7 | Admin spend keys docs (K) | TRACK-C | `claude/binder-refresh-evidence` |
+| 2.8 | Sell-queue dogfood: top-N with provenance, shown in OPERATE → Sell (A) | TRACK-D | `claude/sellqueue-verification` |
+| 2.9 | Comics verification burn-down queue (L — 2,684 "Needs Verification") | TRACK-D | `claude/sellqueue-verification` |
+
+## 3. Backlog items that were already done (backlog was stale)
+
+| Item | Evidence |
+|---|---|
+| Hunts still seed data → Postgres | `services/api/src/lib/huntStore.ts` serves `vault_hunt` |
+| Hunt completion % vs shelf | `services/api/src/lib/huntShelf.ts` |
+| Binder price sync writes `price_snapshot` | `apps/binder-vault/src/lib/repo.ts` `insertGuideSnapshot` (the comment in migration `20260816_01` saying "never written to" is stale) |
+| Full TCG holdings in VIP, not just 5 seeds | `services/api/src/app.ts` merges every owned Binder slot; seeds only with `VIP_INCLUDE_POKEMON_SEEDS=1` |
+| Per-page binder chase | `services/api/src/lib/binderPageChase.ts` (checklist row still said 0) |
+| TCG + comics in one grid | The new shell's **VAULT** screen (`/vault`) is one grid over `/api/inventory` with Comics / Pokémon / Sealed / Other pills (lands with 1.4) |
+
+## 4. Bigger builds still open (code, no operator needed to start)
+
+| # | Item | Size | Note |
+|---|---|---|---|
+| 4.1 | Card identification v2, Pokémon first (spec `docs/specs/scan-id-v2-pokemon.md`) | L | Your decisions P1–P4 are in the spec; the 5 unconfirmed golden identities need you first (§5) |
+| 4.2 | Shell follow-ups: OPERATE sub-pages are empty states; search palette is a stub until an entity layer exists (ADR 0014) | L | Move each `/classic` page into its concept, then retire `/classic` |
+| 4.3 | GDELT radar B1.20–B1.25 (Events, GKG entities, BigQuery history, emergent phrases, attention velocity, narrative clustering) | L | B1.11 article fetch needs a terms decision (§5) |
+| 4.4 | Stock indices from FRED (market-data track, outside the SIGNALS spine) | M | |
+| 4.5 | Source weighting from member specialty + Brier calibration (PokéBeach item 7) | M | Mostly blocked: member activity is behind Cloudflare |
+| 4.6 | Phase 2 market-cycle / buy-opportunity scoring | M | Gated on `signals_raw` / `signals_normalized` confirmed live — your call |
+| 4.7 | Mobile Show Mode (≤4 taps, offline, <8 s) | L | API side exists (field sessions → underwriting); no mobile UI |
+| 4.8 | Sports catalog (CardSight, metered) + 100–250 card benchmark; parallel disambiguation | L | Needs a CardSight key |
+| 4.9 | eBay ePID as `external_id` → listing prefill | M | PriceCharting CSV carries `epid` |
+| 4.10 | VaultOS pilot: museum capture tier, store constraints, one store pilot metric | L | Product decisions first |
+| 4.11 | Multi-game TCG schema v2 | L | Blocked on the §2 D1/D2 decisions in `docs/proposals/2026-08-19_vault_tcg_schema_plan_v2.md` |
+
+## 5. Things only you can do
+
+**Quick commands (minutes):**
+- Enable the two official Pokémon channels: `npm run news-source -- enable pokemon_official_youtube --confirm-operator` and `npm run news-source -- enable pokemon_card_jp_youtube --confirm-operator`
+- Run one analysis yourself from the Orchestr8 Analysis tab (closes the Analysis gate)
+- Load CovrPrice values once 1.2 is merged (command in 1.2)
+- Retire the failing `VIP Comics Guide Snapshot` 03:00 Windows task and the branch `cursor/pricecharting-core-wiring-f536`
+
+**Reviews (an hour or so each):**
+- Pokémon identification gate: confirm / correct the 25 cards of batch `ed919c12` in Review, then `python scripts/score_scan_identification.py` (also confirms the 5 open golden identities for 4.1)
+- Comics `vendor_product_map` confirm pass (nothing below 0.90 auto-confirms)
+- Work the new verification queue (2.9) a few books a day
+- Sell-queue trust: accept / reject the top 20 (2.8) — and a 7-day dogfood vs spreadsheets
+- Schema review (Opus) before calling Phase 1 closed
+
+**Physical / data:**
+- 25 real Magic scans (Scryfall/MTGJSON gate, top-1 ≥ 85%)
+- Fresh CLZ export into VIP (the live comics inventory was emptied 2026-10-25 for a fresh upload)
+
+**Decisions / outside parties:**
+- PokéBeach: ask for feed access (Cloudflare blocks VIP; never worked around)
+- SEC EDGAR lane: a contact email for the SEC User-Agent + the company list
+- Finance newsletters lane: Gmail read-only label (Gmail connector is not authorized) or a forwarded-email folder
+- GDELT B1.11: may VIP fetch original articles (robots, excerpt only)?
+- Sold comps (comics + Pokémon): eBay Marketplace Insights application — unlocks `vault_market.sale`, withheld Buy/Sell/Grade, High Conviction, liquidation-ready valuations
+- Gold / silver: pick a licensed free source
+- SportsCardsPro licence before anything customer-facing
+- eBay Production listing: OAuth + policy IDs (Sandbox works)
+- Merge Binder into the web app or keep two apps
+- ShopVault stays on hold (owner 2026-10-18)
+
+## 6. Questions for you
+
+Filled in as each track reports; the first three come from landing ingest v1.
+
+- **Q1 — `/signals`.** ADR 0014 makes `/signals` the new shell view and moves the old feed to `/signals-feed`. Main's Signals page had grown a lot since (daily lists, Pokémon SIGNALS, Evaluate in Orchestr8), so all of that now lives at `/signals-feed`, linked from `/classic`. OK, or should the shell's SIGNALS view absorb those sections?
+- **Q2 — Classic pages.** With the old tab bar gone, `/classic` (header link "Classic") is the only way to reach Signal Desk, Scan, Tools, Hunts, eBay, etc. Keep it until each page moves into a concept (4.2)?
+- **Q3 — Batch `ed919c12` lifecycle.** Ingest v1's migration marks that batch `abandoned` (your G-1 decision, 2026-09-23). Its identification status stays `review`, and `/scan` does not filter by lifecycle, so the batch stays reviewable. Confirm that's still what you want now that it is the gate batch.
