@@ -703,7 +703,7 @@ async function main() {
         everyMs: 24 * 60 * 60 * 1000,
         run: () => {
           // Every binder's pockets from the stored guide, after the daily pokemon-prices pass has had time
-          // to land (that pass waits up to 30 min). Off unless VIP_BINDER_PRICE_REFRESH=on.
+          // to land (that pass waits up to 30 min). On by default; VIP_BINDER_PRICE_REFRESH=off stops it.
           void new Promise((r) => setTimeout(r, 45 * 60 * 1000))
             .then(() => jitter(15 * 60 * 1000))
             .then(() => runBinderPriceRefreshJob({ triggeredBy: "schedule" }))
@@ -733,8 +733,8 @@ async function main() {
     );
     console.log(
       binderPriceRefreshEnabled()
-        ? "binder-price-refresh: daily (VIP_BINDER_PRICE_REFRESH=on)."
-        : "binder-price-refresh: off (set VIP_BINDER_PRICE_REFRESH=on to refresh every binder daily).",
+        ? "binder-price-refresh: daily (set VIP_BINDER_PRICE_REFRESH=off to stop)."
+        : "binder-price-refresh: off (VIP_BINDER_PRICE_REFRESH=off).",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {

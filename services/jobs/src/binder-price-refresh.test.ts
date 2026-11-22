@@ -41,9 +41,12 @@ describe("binder-price-refresh args and flag", () => {
     expect(() => parseBinderPriceRefreshArgs(["--force"])).toThrow(/unknown argument/);
   });
 
-  it("is off unless VIP_BINDER_PRICE_REFRESH is set on", () => {
-    expect(binderPriceRefreshEnabled({})).toBe(false);
+  it("is on by default and off only when VIP_BINDER_PRICE_REFRESH says so", () => {
+    expect(binderPriceRefreshEnabled({})).toBe(true);
+    expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "" })).toBe(true);
     expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "off" })).toBe(false);
+    expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "0" })).toBe(false);
+    expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "false" })).toBe(false);
     expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "on" })).toBe(true);
     expect(binderPriceRefreshEnabled({ VIP_BINDER_PRICE_REFRESH: "1" })).toBe(true);
   });

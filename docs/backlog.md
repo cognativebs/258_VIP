@@ -168,7 +168,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
 - [x] Per-slot `price_updated_at` + Ledger “Prices as of…” + Sync Prices / Refresh All (page)
 - [x] Price history snapshots (`price_snapshot` table) — schema in ADR 0007 migration
-- [x] Scheduled / background Binder price refresh (2026-11-22): `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; daily in the scheduler only with `VIP_BINDER_PRICE_REFRESH=on` (default off). Same `@vip/pricing` `syncBinderGuidePrices` as Sync Prices; every page of every binder; reads the stored guide via the VIP API (no vendor calls)
+- [x] Scheduled / background Binder price refresh (2026-11-22): `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; daily in the scheduler by default (owner 2026-11-22; `VIP_BINDER_PRICE_REFRESH=off` stops it). Same `@vip/pricing` `syncBinderGuidePrices` as Sync Prices; every page of every binder; reads the stored guide via the VIP API (no vendor calls)
 - [x] Wire Binder price sync to insert `price_snapshot` rows on every refresh — one row per pocket per guide day (done with the PriceCharting switch; test `services/jobs/src/binder-price-refresh.test.ts`, 2026-11-22). The `20260816_01` table comment still says "Never written to" (stale; migrations re-run, left as is)
 
 ### F. Unified Bloomberg / collector terminal *(partial — owner unlock 2026-08-08)*

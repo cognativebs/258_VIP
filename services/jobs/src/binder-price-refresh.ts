@@ -7,12 +7,12 @@
  * (GET /api/pokemon/guide, 200 ids per request, one request at a time, each card id asked for once per
  * run even when it sits in several binders). The vendor calls, and their backoff, stay in pokemon-prices.
  *
- * The schedule is off unless VIP_BINDER_PRICE_REFRESH=on; a manual run works either way.
+ * The schedule is on by default (owner 2026-11-22); VIP_BINDER_PRICE_REFRESH=off stops it. A manual run works either way.
  *
  * Env:
  *   IQVAULT_DATABASE_DSN / DATABASE_URL   Postgres (libpq keywords or URL)
  *   VIP_API_URL                           VIP API base (default http://127.0.0.1:8787)
- *   VIP_BINDER_PRICE_REFRESH              on | 1 | true → the scheduler runs this daily
+ *   VIP_BINDER_PRICE_REFRESH              off | 0 | false | no → the scheduler skips it (default: daily)
  */
 import {
   BinderPriceSyncReportSchema,
@@ -57,9 +57,9 @@ export const BinderPriceRefreshReportSchema = z.object({
 });
 export type BinderPriceRefreshReport = z.infer<typeof BinderPriceRefreshReportSchema>;
 
-/** The schedule's opt-in flag. Default off (owner to decide whether it should default on). */
+/** The schedule's flag. Default on (owner 2026-11-22); off | 0 | false | no turns it off. */
 export function binderPriceRefreshEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return ["on", "1", "true", "yes"].includes(String(env.VIP_BINDER_PRICE_REFRESH ?? "").trim().toLowerCase());
+  return !["off", "0", "false", "no"].includes(String(env.VIP_BINDER_PRICE_REFRESH ?? "").trim().toLowerCase());
 }
 
 /** `[--dry-run] [--binder <id> | --binder=<id>]` */
