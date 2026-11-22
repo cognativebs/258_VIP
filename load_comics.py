@@ -277,11 +277,26 @@ def load_inventory(
                     upgrade_candidate=EXCLUDED.upgrade_candidate,
                     needs_grading=EXCLUDED.needs_grading,
                     needs_photo=EXCLUDED.needs_photo,
-                    needs_verification=EXCLUDED.needs_verification,
-                    verification_notes=EXCLUDED.verification_notes,
+                    -- A person's verification click (stamped "Verification Marked At"
+                    -- by both write paths) survives a re-import: the export never
+                    -- undoes it and never clears needs_verification on its own.
+                    needs_verification=CASE
+                        WHEN vault_collection.holding.clz_metadata ? 'Verification Marked At'
+                        THEN vault_collection.holding.needs_verification
+                        ELSE EXCLUDED.needs_verification END,
+                    verification_notes=CASE
+                        WHEN vault_collection.holding.clz_metadata ? 'Verification Marked At'
+                        THEN vault_collection.holding.verification_notes
+                        ELSE EXCLUDED.verification_notes END,
                     value_locked=EXCLUDED.value_locked,
                     current_price_snapshot=EXCLUDED.current_price_snapshot,
-                    clz_metadata=EXCLUDED.clz_metadata,
+                    clz_metadata=CASE
+                        WHEN vault_collection.holding.clz_metadata ? 'Verification Marked At'
+                        THEN EXCLUDED.clz_metadata || jsonb_strip_nulls(jsonb_build_object(
+                            'Verification Marked At', vault_collection.holding.clz_metadata->'Verification Marked At',
+                            'Needs Verification', vault_collection.holding.clz_metadata->'Needs Verification',
+                            'Verification Notes', vault_collection.holding.clz_metadata->'Verification Notes'))
+                        ELSE EXCLUDED.clz_metadata END,
                     raw_snapshot_id=COALESCE(EXCLUDED.raw_snapshot_id, vault_collection.holding.raw_snapshot_id),
                     dropped_at=NULL,
                     updated_at=now()""",

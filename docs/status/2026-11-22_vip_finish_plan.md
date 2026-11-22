@@ -103,7 +103,7 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 
 Filled in as each track reports; the first three come from landing ingest v1.
 
-- **Q13 — ⚠ most important: CLZ re-import overwrites verification.** An existing problem, not caused by this pass: re-importing CLZ (`load_comics.py`) rewrites `needs_verification` and `clz_metadata`, so it can undo your Verified clicks — or clear the flag with nobody clicking (against the "never auto-clear `needs_review`" rule). Claude did not change the importer. Recommended: re-import never touches a human verification mark. Go ahead?
+- **Q13 — CLZ re-import overwrote verification — ✅ fixed (owner said yes, 2026-11-22).** `load_comics.py` now keeps `needs_verification`, `verification_notes` and the verification keys in `clz_metadata` on any row a person has marked (it carries "Verification Marked At"); unmarked rows still take the export's values. Test: `tests/test_clz_reimport_keeps_verification.py`. Limits: clicks made before 2026-11-22 carry no stamp, so they are not protected until clicked again; the Binder push (`services/api/src/lib/binderWrite.ts`) has the same overwrite, but VIP has no Binder verification click yet.
 
 - **Q1 — `/signals`.** ADR 0014 makes `/signals` the new shell view and moves the old feed to `/signals-feed`. Main's Signals page had grown a lot since (daily lists, Pokémon SIGNALS, Evaluate in Orchestr8), so all of that now lives at `/signals-feed`, linked from `/classic`. OK, or should the shell's SIGNALS view absorb those sections?
 - **Q2 — Classic pages.** With the old tab bar gone, `/classic` (header link "Classic") is the only way to reach Signal Desk, Scan, Tools, Hunts, eBay, etc. Keep it until each page moves into a concept (4.2)?
