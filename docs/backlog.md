@@ -155,13 +155,13 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
       (`source=binder_vault`); wishlist → `vault_collection.watchlist_item`; per-toggle
       project + bulk **Push to VIP**; inventory prefers durable owned holdings
 - [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
-- [ ] Shared provenance package (`@vip/evidence`) inside Binder (today: local zod shapes)
+- [x] Shared provenance package (`@vip/evidence`) inside Binder (2026-11-22): Binder's wire/slot provenance uses the shared verification enum; `toEvidenceProvenance` maps it onto the shared `ProvenanceSchema` (api/user_upload → observed; missing version/confidence → `binder-vault:unversioned` / 0 · low with a note). Binder's own shape stays for stored rows and the UI
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
 - [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
 - [x] Per-slot `price_updated_at` + Ledger “Prices as of…” + Sync Prices / Refresh All (page)
 - [x] Price history snapshots (`price_snapshot` table) — schema in ADR 0007 migration
-- [ ] Scheduled / background Binder price refresh (cron or idle job)
-- [ ] Wire Binder price sync to insert `price_snapshot` rows on every refresh
+- [x] Scheduled / background Binder price refresh (2026-11-22): `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; daily in the scheduler only with `VIP_BINDER_PRICE_REFRESH=on` (default off). Same `@vip/pricing` `syncBinderGuidePrices` as Sync Prices; every page of every binder; reads the stored guide via the VIP API (no vendor calls)
+- [x] Wire Binder price sync to insert `price_snapshot` rows on every refresh — one row per pocket per guide day (done with the PriceCharting switch; test `services/jobs/src/binder-price-refresh.test.ts`, 2026-11-22). The `20260816_01` table comment still says "Never written to" (stale; migrations re-run, left as is)
 
 ### F. Unified Bloomberg / collector terminal *(partial — owner unlock 2026-08-08)*
 
@@ -280,7 +280,7 @@ third-party-access licence limit).
 
 - [x] Reliable one-shot VIP stack launcher (`Launch IQVault.bat` → Docker/Postgres/migrate/VIP/Comics/Orchestr8/web; restarts stale listeners) — 2026-08-09
 - [x] Double-click / Dev Environment **[A]** wait-for-`:3000` + empty-`%*` PowerShell 5.1 fix (PR #27, 2026-08-14)
-- [ ] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`)
+- [x] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`) — [05-orchestr8-env-keys.md](how-to/05-orchestr8-env-keys.md#optional-admin-spend-keys-v1accounts) (2026-11-22)
 - [x] Include `@vip/binder-vault` in monorepo `typecheck` (also `@vip/orchestr8-console`) — 2026-08-08
 - [x] CI on every PR: `build` → `typecheck` → `test` (Node) + Python ingest tests — 2026-08-08
 - [x] `npm test` / `npm run typecheck` work from a cold checkout (`build:packages` prerequisite) — 2026-08-08

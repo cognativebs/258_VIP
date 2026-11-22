@@ -173,3 +173,4 @@ Before you trust a run:
 
 `/v1/health` `providers: true` means **API keys present** for chat.  
 `/v1/accounts` admin spend keys are separate (`OPENAI_ADMIN_KEY`, etc.) and may show unavailable even when chat works.
+They are optional; what each is, what is missing without them, and why they are never committed: [05-orchestr8-env-keys.md § Optional admin spend keys](05-orchestr8-env-keys.md#optional-admin-spend-keys-v1accounts).
