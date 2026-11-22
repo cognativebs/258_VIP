@@ -31,8 +31,8 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 
 | # | Backlog item | Status | Branch |
 |---|---|---|---|
-| 2.1 | Intelligence manual store: JSON → `vault_core` tables (O) | TRACK-A | `claude/intel-store-pg` |
-| 2.2 | Prediction resolution workflow from `prediction_needs_scoring` (O) | TRACK-A | `claude/intel-store-pg` |
+| 2.1 | Intelligence store on the `vault_core` tables (O): Postgres store behind the same interface; every response names the store that answered; triggers still guard predictions. `VIP_INTELLIGENCE_STORE=json` (**default, today's behaviour**) / `auto` / `postgres`. Import: `npm run intelligence:import -w @vip/api -- [--file] [--dry-run]` (idempotent, never edits the JSON) | 🔄 merged, opt-in | `claude/intel-store-pg` · Q18–Q21 |
+| 2.2 | Prediction resolution (O): `GET /api/intelligence/predictions/due` reads `prediction_needs_scoring`; resolve form on `/intelligence` (you enter the checked price; nothing auto-resolves); read-only daily `intelligence-due` count in the jobs scheduler | 🔄 merged | |
 | 2.3 | Scan bulk review on `/scan` (F): **Add all auto to confirm list** (stages only; Approve still blocks duplicates) and **Reject all no-match** (asks first; status change, nothing deleted). Refused on `committed` batches | 🔄 merged | `claude/scan-bulk-sources-ui` · Q7–Q11 |
 | 2.4 | Sources editor on `/sources` (D): per-source toggle + signal count, quarantine rate, evidence count; banner says it changes the job-feed registry only, not news sources | 🔄 merged | Q12 |
 | 2.5 | Scheduled daily Binder price refresh (E) — shared `syncBinderGuidePrices` in `@vip/pricing`; `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; scheduler runs it daily only with `VIP_BINDER_PRICE_REFRESH=on` | 🔄 merged | `claude/binder-refresh-evidence` · Q4–Q5 |
@@ -120,4 +120,8 @@ Filled in as each track reports; the first three come from landing ingest v1.
 - **Q14 — "Verified this week".** Both verification write paths now add a "Verification Marked At" timestamp inside `clz_metadata` (no new column). OK, or a dedicated column?
 - **Q15 — Default grading cost.** Is 25 USD per book right?
 - **Q16 — Sell-queue accept / reject mark.** Not built: `disposition_history` would also move the eBay sell engine's current disposition, and `inventory_transaction.kind` only allows buy / sell / transfer. Put it in `disposition_history` (as which disposition?) or a new decision-log table?
+- **Q18 — Intelligence store switch-over.** Claude left the default on JSON, because in Postgres mode (a) rows only in the JSON file are hidden until imported and (b) predictions / cycle rows / golden cases must name a real `vault_core.asset` UUID (grading a real holding), so the desk's free-text keys like `mega-greninja-ex-sir` get a 400. Plan: run the import dry-run, then set `VIP_INTELLIGENCE_STORE=postgres`. Want an asset lookup by name/slug first, so free-text keys keep working?
+- **Q19 — `auto` vs `postgres` once switched.** `auto` writes to JSON while Postgres is down (data splits until re-import); `postgres` refuses with a 503. Recommended: `postgres`.
+- **Q20 — Field capture ↔ underwriting link.** Stored as a `[field_capture:<id>]` tag in `acquisition_underwriting.notes`. A proper column needs a migration. Want it?
+- **Q21 — Provenance on intelligence rows.** These tables have no provenance columns; provenance is rebuilt at read time (rule version shown is today's, not the one at write time). Add provenance columns?
 - **Q17 — Guide ranges in the shell.** Vendor-guide ranges show as low confidence with a "guides" label in ValueRange. OK?

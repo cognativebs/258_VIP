@@ -22,7 +22,9 @@ endpoint reports `scoringEnabled: false` until then. The manual intelligence
 store writes the `vault_core` tables since 2026-11-22; the JSON file
 (`VIP_INTELLIGENCE_STATE`) is only the fallback when Postgres is down.
 
-**Progress checklist (2026-10-17, latest):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
+**Finish plan (2026-11-22, latest):** the whole to-do list — landed branches, what was built, operator actions, open questions — is [`docs/status/2026-11-22_vip_finish_plan.md`](status/2026-11-22_vip_finish_plan.md).
+
+**Progress checklist (2026-10-17):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
 
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
@@ -160,7 +162,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Binder → VIP write path (2026-08-09) — owned → `vault_collection.holding`
       (`source=binder_vault`); wishlist → `vault_collection.watchlist_item`; per-toggle
       project + bulk **Push to VIP**; inventory prefers durable owned holdings
-- [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
+- [x] Full TCG catalog holdings in VIP (not just 5 seeds) — every owned Binder slot is merged into `/api/inventory` (`services/api/src/app.ts`); seeds only with `VIP_INCLUDE_POKEMON_SEEDS=1` (audit 2026-11-22)
 - [x] Shared provenance package (`@vip/evidence`) inside Binder (2026-11-22): Binder's wire/slot provenance uses the shared verification enum; `toEvidenceProvenance` maps it onto the shared `ProvenanceSchema` (api/user_upload → observed; missing version/confidence → `binder-vault:unversioned` / 0 · low with a note). Binder's own shape stays for stored rows and the UI
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
 - [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
@@ -176,7 +178,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Comics Terminal edits via VIP when `:5200` is down (`POST /api/comics/holding/:id`, same Postgres) — 2026-08-09
 - [x] TCG + Sports collection tabs (`/collections/pokemon`, `/collections/sports`) — Pokémon is live Binder holdings; Sports is a stub; CLZ XML drop zone live on Comics
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
-- [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
+- [x] **TCG + comics in one grid** — the shell's VAULT screen (`/vault`, ADR 0014) is one grid over `/api/inventory` with Comics / Pokémon / Sealed / Other pills (2026-11-22). Historical note ( see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Collections hub + first-class Pokémon collection page (`/collections`, `/collections/pokemon`) so comics is not the only collection — 2026-08-10
 - [x] Scan intake in IQVault (`/scan` + `POST /api/scan/import-folder`) — no curl to start/import a batch — 2026-08-10
 - [x] **ADR 0011** sports vs TCG OCR profiles + Football/Baseball/Soccer/Basketball/Pokémon/Magic/One Piece identifying mechanics — 2026-09-07
@@ -242,7 +244,7 @@ third-party-access licence limit).
 ### G. Product trial & trust
 
 - [ ] Dogfood IQVault for 7 days vs spreadsheets
-- [ ] Hunt completion % vs shelf
+- [x] Hunt completion % vs shelf — `services/api/src/lib/huntShelf.ts` (audit 2026-11-22)
 - [ ] Sell-queue trust (top 20) — operator acceptance
 
 ### H. Phase 5 — Mobile Show Mode *(not started)*
@@ -312,7 +314,7 @@ These are rule violations and wrong-data paths, not missing features.
       `VIP_USER_CONSTRAINTS_PATH`; empty defaults when unset (no invented budget).
 - [x] **Hardcoded/derived-from-nothing endpoints.** Sell-queue / watchlist / theses
       now derive from live holdings. `/api/hunts` remains a seed file (tracked below).
-- [ ] **Hunts still seed data.** `/api/hunts` reads `seeds/hunts.ts` — move to Postgres.
+- [x] **Hunts still seed data.** Done: `/api/hunts` serves `vault_hunt` (`services/api/src/lib/huntStore.ts`, audit 2026-11-22).
 - [x] **Live comps adapters.** eBay sold + TCGplayer market adapters shipped
       2026-08-09 (`services/api/src/lib/comps/`). Idle without credentials /
       network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
