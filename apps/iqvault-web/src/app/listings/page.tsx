@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { apiGet, apiPost, type Provenance } from "@/lib/api";
 
@@ -69,7 +68,6 @@ export default function ListingsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/listings" />
       <h1 className="page-title">eBay listing drafts</h1>
       <p className="page-sub">
         Legacy Browse-range drafts only. <code>submitReady</code> stays false until a human

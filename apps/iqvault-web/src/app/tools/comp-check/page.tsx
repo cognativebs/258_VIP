@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { loadCompCheck, TOOL_EXPORT } from "@/lib/toolsApi";
 
 export default async function CompCheckPage() {
@@ -12,7 +11,6 @@ export default async function CompCheckPage() {
 
   return (
     <div className="shell">
-      <Nav active="/tools" />
       <h1 className="page-title">The 90-Second Comp Check</h1>
       <p className="page-sub">
         $12 lead-magnet. Screenshot the field kit. Laminate the desk page. PriceCharting is last — it is a guide.

@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { HuntsExplorer, type Hunt } from "@/components/hunts/HuntsExplorer";
 import { apiGet } from "@/lib/api";
 
@@ -16,7 +15,6 @@ export default async function HuntsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/hunts" />
       {definedHuntsError ? (
         <div className="error">Saved hunts are unavailable (vault_hunt: {definedHuntsError}). Only Need Binder is shown.</div>
       ) : null}

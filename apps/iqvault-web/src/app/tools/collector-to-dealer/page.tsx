@@ -1,4 +1,3 @@
-import { Nav } from "@/components/Nav";
 import { TOOL_EXPORT } from "@/lib/toolsApi";
 
 const MODULES = [
@@ -15,7 +14,6 @@ const MODULES = [
 export default function CoursePage() {
   return (
     <div className="shell">
-      <Nav active="/tools" />
       <h1 className="page-title">From Collector to Dealer</h1>
       <p className="page-sub">
         $197 flagship. Syllabus only — do not film this first. The four tools above are the toolkit bonus.

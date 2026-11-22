@@ -10,6 +10,27 @@ const nextConfig: NextConfig = {
   experimental: {
     middlewareClientMaxBodySize: "50mb",
   },
+  async redirects() {
+    return [
+      { source: "/portfolio", destination: "/vault", permanent: false },
+      { source: "/collections", destination: "/vault", permanent: false },
+      { source: "/collections/:path*", destination: "/vault", permanent: false },
+      { source: "/scan", destination: "/ingest", permanent: false },
+      { source: "/batch/:path*", destination: "/ingest", permanent: false },
+      { source: "/intelligence", destination: "/advisor", permanent: false },
+      { source: "/recommendations", destination: "/advisor", permanent: false },
+      { source: "/signals-feed", destination: "/signals", permanent: false },
+      { source: "/sell-queue", destination: "/operate/sell", permanent: false },
+      { source: "/listings", destination: "/operate/listings", permanent: false },
+      { source: "/transactions", destination: "/operate/transactions", permanent: false },
+      { source: "/ebay", destination: "/operate/listings", permanent: false },
+      { source: "/ebay/:path*", destination: "/operate/listings", permanent: false },
+      { source: "/hunts", destination: "/vault", permanent: false },
+      { source: "/watchlist", destination: "/vault", permanent: false },
+      { source: "/theses", destination: "/advisor", permanent: false },
+      { source: "/sources", destination: "/operate/integrations", permanent: false },
+    ];
+  },
   async rewrites() {
     return [
       {

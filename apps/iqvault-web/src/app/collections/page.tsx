@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
 import { apiGet, type InventoryResponse } from "@/lib/api";
 import {
   COLLECTIONS,
@@ -31,7 +30,6 @@ export default async function CollectionsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/collections" />
       <h1 className="page-title">Collections</h1>
       <p className="page-sub">
         One backend, one Postgres. Each asset class gets its own terminal instead of a
