@@ -1,8 +1,14 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { getDb, schema } from "@/db/client";
+import { asc, eq, inArray } from "drizzle-orm";
+import { getDb, query, schema } from "@/db/client";
+import {
+  guideDayMs as sharedGuideDayMs,
+  insertGuideSnapshot as sharedInsertGuideSnapshot,
+  syncBinderGuidePrices,
+  type BinderPriceSyncReport,
+} from "@vip/pricing";
 import { eraByKey, CENTER_INDEX_3x3 } from "./templates";
 import { findIndexedCard, getCardIndex } from "./cardIndex";
-import { fetchGuideHistory, fetchGuidePrices, GUIDE_RULE, guideProvenance } from "./guidePrices";
+import { fetchGuideHistory, fetchGuidePrices, guideProvenance } from "./guidePrices";
 import type {
   ApiBinder,
   ApiPage,
@@ -808,52 +814,14 @@ export async function clearSlot(slotId: string): Promise<{ binderId: string } | 
   return page ? { binderId: page.binderId } : null;
 }
 
-export type PriceSyncReport = {
-  binderId: string;
-  pagesScanned: number;
-  slotsChecked: number;
-  updated: number;
-  unchanged: number;
-  failed: number;
-  skipped: number;
-  /** Daily history rows recorded by this sync. */
-  historyRowsNew: number;
-  historyRowsUpdated: number;
-  /** Newest priced day seen — the honest "prices as of". */
-  newestObservedOn: string | null;
-};
+/** Same shape as before the shared sync moved into @vip/pricing. */
+export type PriceSyncReport = BinderPriceSyncReport;
 
-const GUIDE_SNAPSHOT_SOURCE = "pricecharting";
-
-function guideDayMs(observedOn: string): number {
-  return Date.parse(`${observedOn}T00:00:00Z`);
-}
+const guideDayMs = sharedGuideDayMs;
 
 /** One price_snapshot row per pocket per guide day; a second write of the same day is a no-op (false). */
-async function insertGuideSnapshot(slotId: string, observedOn: string, price: number): Promise<boolean> {
-  const db = await getDb();
-  const observedAt = guideDayMs(observedOn);
-  const existing = await db
-    .select({ id: schema.priceSnapshots.id })
-    .from(schema.priceSnapshots)
-    .where(
-      and(
-        eq(schema.priceSnapshots.slotId, slotId),
-        eq(schema.priceSnapshots.source, GUIDE_SNAPSHOT_SOURCE),
-        eq(schema.priceSnapshots.observedAt, observedAt),
-      ),
-    )
-    .limit(1);
-  if (existing.length) return false;
-  await db.insert(schema.priceSnapshots).values({
-    slotId,
-    priceMarket: price,
-    priceCurrency: "USD",
-    observedAt,
-    source: GUIDE_SNAPSHOT_SOURCE,
-    ruleVersion: GUIDE_RULE,
-  });
-  return true;
+function insertGuideSnapshot(slotId: string, observedOn: string, price: number): Promise<boolean> {
+  return sharedInsertGuideSnapshot(query, slotId, observedOn, price);
 }
 
 export type GuideBackfillReport = {
@@ -943,97 +911,25 @@ export async function backfillBinderGuideHistory(
  * - else first `firstPages` pages (default 5)
  * `force` is kept for the existing Sync Prices / Refresh All callers.
  *
- * VIP's pokemon-prices job matches cards to PriceCharting and stores the guide (daily for every pocket
- * card, hourly for new ones); this reads what it stored, so it never calls the vendor itself. A card VIP
- * has not priced yet keeps its pocket unchanged and counts as unchanged.
+ * The sync itself is @vip/pricing's syncBinderGuidePrices, shared with the scheduled
+ * `binder-price-refresh` job (services/jobs). It reads the guide VIP stored, so it never calls the
+ * vendor itself. A card VIP has not priced yet keeps its pocket unchanged and counts as unchanged.
  */
 export async function syncBinderPrices(
   binderId: string,
   opts: { firstPages?: number; pageId?: string | null; force?: boolean } = {},
 ): Promise<{ binder: ApiBinder; report: PriceSyncReport } | null> {
-  const firstPages = opts.firstPages ?? 5;
-  const binder = await assembleBinder(binderId);
-  if (!binder) return null;
-
-  const pages = opts.pageId
-    ? binder.pages.filter((p) => p.id === opts.pageId)
-    : binder.pages.slice(0, firstPages);
-  if (opts.pageId && pages.length === 0) return null;
-  const db = await getDb();
-  const report: PriceSyncReport = {
+  const report = await syncBinderGuidePrices({
+    runner: query,
     binderId,
-    pagesScanned: pages.length,
-    slotsChecked: 0,
-    updated: 0,
-    unchanged: 0,
-    failed: 0,
-    skipped: 0,
-    historyRowsNew: 0,
-    historyRowsUpdated: 0,
-    newestObservedOn: null,
-  };
-
-  // One lookup per card, even when a card fills several pockets.
-  const targets = new Map<string, { slotIds: string[]; rarity: string | null }>();
-  for (const page of pages) {
-    for (const slot of page.slots) {
-      const card = slot.card;
-      if (!card || card.source !== "pokemontcg" || !card.externalId) {
-        report.skipped++;
-        continue;
-      }
-      report.slotsChecked++;
-      const entry = targets.get(card.externalId);
-      if (entry) entry.slotIds.push(slot.id);
-      else targets.set(card.externalId, { slotIds: [slot.id], rarity: card.rarity });
-    }
-  }
-
-  if (targets.size > 0) {
-    const guide = await fetchGuidePrices([...targets.keys()], { timeoutMs: 5000 });
-    const index = await getCardIndex().catch(() => null);
-    const now = Date.now();
-    for (const [externalId, { slotIds, rarity }] of targets) {
-      const g = guide.get(externalId);
-      // Rarity is catalog metadata: top it up from the local card index where it is missing.
-      const indexRarity = !rarity && index ? findIndexedCard(index, externalId)?.rarity ?? null : null;
-      if (!g) {
-        report.unchanged += slotIds.length;
-        if (indexRarity) {
-          for (const slotId of slotIds) {
-            await db.update(schema.slots).set({ rarity: indexRarity }).where(eq(schema.slots.id, slotId));
-          }
-        }
-        continue;
-      }
-      const p = guideProvenance(g);
-      if (!report.newestObservedOn || g.latestOn > report.newestObservedOn) report.newestObservedOn = g.latestOn;
-      for (const slotId of slotIds) {
-        await db
-          .update(schema.slots)
-          .set({
-            priceMarket: g.latest,
-            priceCurrency: "USD",
-            priceUpdatedAt: Date.parse(`${g.latestOn}T00:00:00Z`) || now,
-            provenanceMethod: p.method,
-            provenanceSource: p.source,
-            provenanceModelVersion: p.modelVersion,
-            confidence: p.confidence,
-            verificationStatus: p.verificationStatus,
-            ...(indexRarity ? { rarity: indexRarity } : {}),
-          })
-          .where(eq(schema.slots.id, slotId));
-        report.updated++;
-        if (await insertGuideSnapshot(slotId, g.latestOn, g.latest)) report.historyRowsNew++;
-        else report.historyRowsUpdated++;
-      }
-    }
-  }
-
-  await db
-    .update(schema.binders)
-    .set({ updatedAt: Date.now() })
-    .where(eq(schema.binders.id, binderId));
-
+    pageId: opts.pageId ?? null,
+    firstPages: opts.firstPages ?? 5,
+    fetchGuide: (ids) => fetchGuidePrices(ids, { timeoutMs: 5000 }),
+    loadRarity: async () => {
+      const index = await getCardIndex().catch(() => null);
+      return index ? (externalId: string) => findIndexedCard(index, externalId)?.rarity ?? null : null;
+    },
+  });
+  if (!report) return null;
   return { binder: (await assembleBinder(binderId))!, report };
 }
