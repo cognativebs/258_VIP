@@ -495,6 +495,9 @@ WHERE h.source_row_id = %s
 """
 
 
+VERIFICATION_MARKED_AT_KEY = "Verification Marked At"
+
+
 def update_holding(conn, source_row_id: str, fields: dict) -> dict:
     """Patch holding columns + merge into clz_metadata. Returns updated CLZ row."""
     if not source_row_id:
@@ -521,6 +524,11 @@ def update_holding(conn, source_row_id: str, fields: dict) -> dict:
             meta_patch[clz_key] = _yn(val) if val is not None else "No"
         elif val is not None:
             meta_patch[clz_key] = val
+
+    # Same stamp as the VIP write path (services/api/src/lib/verificationQueue.ts):
+    # an operator click on Needs Verification feeds the "verified this week" count.
+    if "Needs Verification" in fields:
+        meta_patch[VERIFICATION_MARKED_AT_KEY] = datetime.now(timezone.utc).isoformat()
 
     if "Inventory Bucket" in fields:
         sets.append("inventory_bucket_source = %s")

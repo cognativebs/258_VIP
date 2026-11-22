@@ -49,15 +49,39 @@ function SectionBody({ id, label, model }: { id: string; label: string; model: O
 }
 
 function SellList({ label, model }: { label: string; model: OperateModel }) {
+  const sell = model.sell;
   return (
     <section className="vip-stack-list" aria-label={label}>
-      {model.sellError ? <p className="vip-callout">{model.sellError}</p> : null}
-      {model.sell.length === 0 && !model.sellError ? <p className="vip-muted">The sell queue is empty.</p> : null}
-      {model.sell.map((item) => (
-        <article key={item.id} className="vip-card">
-          <h2>{item.name}</h2>
-          {item.priority ? <p className="vip-muted">Priority {item.priority}</p> : null}
-          <ValueRange {...item.range} />
+      {sell.error ? <p className="vip-callout">{sell.error}</p> : null}
+      {sell.note ? <p className="vip-muted">{sell.note}</p> : null}
+      {sell.assumption ? <p className="vip-muted">{sell.assumption}</p> : null}
+      {sell.marksNote ? <p className="vip-muted">{sell.marksNote}</p> : null}
+      {sell.items.length === 0 && !sell.error ? <p className="vip-muted">The sell queue is empty.</p> : null}
+      {sell.items.map((item, index) => (
+        <article key={item.id} className="vip-card" data-sell-item={item.id} data-action={item.action}>
+          <header>
+            <p className="vip-kicker">
+              <span className="vip-num">{index + 1}</span> · {item.action} · confidence{" "}
+              <span className="vip-num">{item.confidencePercent}%</span> ({item.confidence})
+            </p>
+            <h2>{item.name}</h2>
+            {item.priority ? <p className="vip-muted">CLZ sell priority {item.priority} · operator label</p> : null}
+          </header>
+          <div className="vip-card-flags">
+            {item.insufficient ? <span className="vip-chip vip-chip-caution">Insufficient market evidence</span> : null}
+            {item.stale && !item.insufficient ? <span className="vip-chip vip-chip-caution">Evidence stale</span> : null}
+          </div>
+          {item.range ? (
+            <ValueRange {...item.range} />
+          ) : (
+            <p className="vip-value-empty">Insufficient market evidence · no range</p>
+          )}
+          <ul className="vip-fact-list">
+            {item.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+          <p className="vip-muted">{item.provenance}</p>
         </article>
       ))}
     </section>

@@ -44,6 +44,11 @@ import {
   updateComicHolding,
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
+import {
+  VerificationQueueQuerySchema,
+  loadVerificationQueue,
+  type VerificationQueueResponse,
+} from "./lib/verificationQueue.js";
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
@@ -196,6 +201,8 @@ export type AppDeps = {
     sourceRowId: string,
     fields: Record<string, unknown>,
   ) => Promise<UpdateComicHoldingResult>;
+  /** Injectable so route tests control the verification burn-down rows. */
+  loadVerificationQueue?: (query: { limit: number; offset: number }) => Promise<VerificationQueueResponse>;
   /** Injectable so tests do not inherit whatever scans the local DB holds. */
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
   /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
@@ -1647,6 +1654,17 @@ export function createApp(deps: AppDeps = {}) {
    * Collector face uses this when :5200 is down so VIP→Postgres is not
    * stuck read-only for operator patches (e.g. Mark verified).
    */
+  /**
+   * Verification burn-down: unverified owned comics by value at risk. Read-only;
+   * each book is cleared by one operator click on POST /api/comics/holding/:id.
+   */
+  app.get("/api/comics/verification-queue", async (req, res) => {
+    const query = VerificationQueueQuerySchema.parse(req.query ?? {});
+    const load = deps.loadVerificationQueue ?? loadVerificationQueue;
+    const body = await load(query);
+    res.status(body.available ? 200 : 503).json(body);
+  });
+
   app.post("/api/comics/holding/:id", async (req, res) => {
     const parsed = comicHoldingPatchBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {

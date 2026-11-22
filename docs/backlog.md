@@ -50,7 +50,13 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **Comics LIVE query accuracy** (2026-09-13): Browse `Series #Issue` in category 63, title-match the book, drop lots/omnibus/TPB; LIVE chip uses only the latest walk. Still unverified asks — never `vault_market.sale`.
 - [x] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`. (Week 1 · 2026-08-29)
 - [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
-- [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
+- [x] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
+      (2026-11-22: `GET /api/sell-queue/dogfood?limit=N` items carry a zod-typed provenance
+      block; grading cost from `VIP_GRADING_COST_USD` / `gradingCostUsd`, default 25 USD
+      labelled assumption · unverified; shown in OPERATE → Sell.)
+- [ ] Sell-queue operator accept/reject mark. No existing table fits without a semantic
+      choice: `disposition_history` writes `current_disposition` (PC/HOLD/GRADE/SINGLE/LOT…),
+      and `inventory_transaction.kind` is buy/sell/transfer only. Needs an owner decision.
 
 ### B. Orchestr8 — Console UX polish
 
@@ -314,8 +320,13 @@ These are rule violations and wrong-data paths, not missing features.
       — not a sold ledger. Production deletion URL is live
       ([how-to 11](how-to/11-ebay-marketplace-deletion.md)). Full-vault walk is
       [plan 0003](plans/0003-comics-comps-vault-ingest.md).
-- [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
+- [x] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
+      (2026-11-22: `GET /api/comics/verification-queue` + `/vault/review`, one click per
+      book, no bulk verify. "Verified this week" counts the `Verification Marked At`
+      stamp both write paths now add to `clz_metadata`.)
+- [ ] CLZ re-import (`load_comics.py` upsert) overwrites `needs_verification` and
+      `clz_metadata` from the parser, which can undo operator verification clicks.
 - [x] **Unrecorded bulk giveaway.** July 2026 CLZ snapshot still lists ~2,700
       rows after an unrecorded ~1,000-book school-custodian gift. Collection-level
       `unknown_exit` records the fact as inferred · unverified (how-to 14). Does
