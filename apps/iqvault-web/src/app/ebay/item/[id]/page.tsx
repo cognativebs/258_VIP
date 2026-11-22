@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { apiGet, apiPost, type Holding, type Provenance } from "@/lib/api";
 
@@ -141,7 +140,6 @@ export default function EbayItemPage() {
 
   return (
     <div className="shell">
-      <Nav active="/ebay" />
       <h1 className="page-title">{detail?.holding.assetName ?? "Item"}</h1>
       <p className="page-sub">
         <Link href="/ebay">eBay dashboard</Link> · SKU{" "}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { apiGet, apiPost, type Provenance } from "@/lib/api";
 
@@ -64,7 +63,6 @@ export default function TransactionsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/transactions" />
       <h1 className="page-title">Transaction capture</h1>
       <p className="page-sub">
         Operator-captured buy / sell / bucket-transfer events. Not marketplace sold comps

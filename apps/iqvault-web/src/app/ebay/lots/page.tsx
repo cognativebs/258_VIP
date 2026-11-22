@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { apiGet, apiPost } from "@/lib/api";
 
 type Lot = {
@@ -39,7 +38,6 @@ export default function EbayLotsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/ebay" />
       <h1 className="page-title">Low-dollar lot builder</h1>
       <p className="page-sub">
         Proposals only — not auto-committed. PC / HOLD / GRADE cards are excluded. A card in an
