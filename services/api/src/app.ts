@@ -71,6 +71,7 @@ import {
   selectHoldingsForRecommendations,
 } from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
+import { SourcePatchRequestSchema } from "@vip/signals";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import {
   confirmScanFromApi,
@@ -977,12 +978,12 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ sources: loadSources() });
   });
   app.patch("/api/sources/:id", (req, res) => {
-    const active = req.body?.active;
-    if (typeof active !== "boolean") {
+    const parsed = SourcePatchRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
       res.status(400).json({ error: "body.active boolean required" });
       return;
     }
-    const updated = updateSourceActive(String(req.params.id), active);
+    const updated = updateSourceActive(String(req.params.id), parsed.data.active);
     if (!updated) {
       res.status(404).json({ error: "Source not found" });
       return;

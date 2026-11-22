@@ -562,6 +562,35 @@ describe("VIP API", () => {
     delete process.env.VIP_SOURCES_STATE;
   });
 
+  it("sources list matches the contract; unattributed sources carry no stats", async () => {
+    const { SourcesListResponseSchema } = await import("@vip/signals");
+    await withServer(async (base) => {
+      const body = SourcesListResponseSchema.parse(await (await fetch(`${base}/api/sources`)).json());
+      const clz = body.sources.find((s) => s.id === "clz-import");
+      expect(clz).toBeTruthy();
+      expect(clz?.stats).toBeUndefined();
+      const news = body.sources.find((s) => s.id === "pokemon-news-rss");
+      if (news?.stats) expect(news.stats.method).toContain("signalType=news");
+    });
+  });
+
+  it("PATCH /api/sources/:id rejects a body without a boolean active", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/sources/pokemon-news-rss`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: "yes" }),
+      });
+      expect(res.status).toBe(400);
+      const missing = await fetch(`${base}/api/sources/not-a-source`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: false }),
+      });
+      expect(missing.status).toBe(404);
+    });
+  });
+
   it("signals fall back to seeds when feed missing", async () => {
     process.env.VIP_SIGNALS_FEED = join(here, "does-not-exist-signals-feed.json");
     await withServer(async (base) => {

@@ -94,7 +94,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Mutable `active` toggle + persistence for sources (`PATCH /api/sources/:id` + `sources-state.json`)
 - [x] Contribution stats per source (signal count, quarantine rate, evidence count)
 - [x] Basic Signals output on `/signals` (bucket-aware Hold / Review / Churn — never a price) — Week 1 · 2026-08-29
-- [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
+- [x] IQVault Sources editor UI (toggle + stats) — 2026-11-22: `/sources` toggles the job feed SourceRegistry (`sources-state.json`) and shows signals / quarantine rate / active evidence with the attribution method; sources the feed cannot attribute show "—", not zero. Does not touch `vault_core.signals_news_source` (HS-3/HS-5)
 - [x] Prediction ledger / Brier calibration on the Signal Desk (`/signals/desk`, "Calls to score"; operator marks each due measurement held / did not hold) — 2026-10-17
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
