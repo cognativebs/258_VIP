@@ -11,6 +11,8 @@ import {
   listStagedBatches,
   loadScanHoldings,
   persistBatch,
+  rejectAllNone,
+  stageAllAutoToConfirmList,
   rejectUnit,
   resolveUnit,
   setUnitConfirmList,
@@ -312,5 +314,111 @@ describe("scan staging (ADR 0009)", () => {
 
     const listed = await listStagedBatches(50);
     expect(listed.some((b) => b.id === staged.batchId)).toBe(false);
+  });
+  it("bulk-stages auto-band cards onto the confirm list without writing inventory", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    const unitId = opened.batch.units[0]!.id;
+    const before = await countScanHoldings();
+
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_unit
+      SET confidence_band = 'auto', review_status = 'needs_confirmation',
+          duplicate_acknowledged = true
+      WHERE id = ${unitId}::uuid
+    `);
+    const result = await stageAllAutoToConfirmList(staged.batchId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.staged).toEqual([unitId]);
+    expect(result.duplicates.map((d) => d.unitId)).toEqual([unitId]);
+    expect(await countScanHoldings()).toBe(before);
+
+    // Staging does not bypass the duplicate gate at approve.
+    const blocked = await approveConfirmList(staged.batchId);
+    expect(blocked.ok).toBe(false);
+    if (blocked.ok) return;
+    expect(blocked.status).toBe(409);
+    expect(await countScanHoldings()).toBe(before);
+  });
+
+  it("bulk stage skips a needs_review auto card and leaves the flag set", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    const unitId = opened.batch.units[0]!.id;
+
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_unit
+      SET confidence_band = 'auto', review_status = 'needs_review'
+      WHERE id = ${unitId}::uuid
+    `);
+    const result = await stageAllAutoToConfirmList(staged.batchId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toEqual([{ unitId, reason: "needs_review" }]);
+    const row = await getDb().execute(sql`
+      SELECT review_status FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+    `);
+    expect((row.rows[0] as { review_status: string }).review_status).toBe("needs_review");
+  });
+
+  it("bulk-rejects no-match cards as a status change and keeps the scan", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    const unitId = opened.batch.units[0]!.id;
+
+    // A no-match card: band none, no candidate rows.
+    await getDb().execute(sql`
+      DELETE FROM vault_media.scan_unit_candidate WHERE unit_id = ${unitId}::uuid
+    `);
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_unit SET confidence_band = 'none' WHERE id = ${unitId}::uuid
+    `);
+
+    const stale = await rejectAllNone(staged.batchId, { expectedCount: 2 });
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.status).toBe(409);
+
+    const result = await rejectAllNone(staged.batchId, { expectedCount: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rejected).toEqual([unitId]);
+    const row = await getDb().execute(sql`
+      SELECT status, resolution_mode, raw_snapshot_id, front_storage_ref
+      FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+    `);
+    const unit = row.rows[0] as Record<string, unknown>;
+    expect(unit.status).toBe("rejected");
+    expect(unit.resolution_mode).toBe("rejected");
+    expect(unit.front_storage_ref).toBeTruthy();
+
+    const again = await rejectAllNone(staged.batchId);
+    expect(again.ok).toBe(true);
+    if (again.ok) expect(again.rejected).toEqual([]);
+  });
+
+  it("refuses bulk review on a committed batch (ADR 0015)", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_batch SET lifecycle = 'committed' WHERE id = ${staged.batchId}::uuid
+    `);
+    const stage = await stageAllAutoToConfirmList(staged.batchId);
+    const reject = await rejectAllNone(staged.batchId);
+    expect(stage.ok).toBe(false);
+    expect(reject.ok).toBe(false);
   });
 });

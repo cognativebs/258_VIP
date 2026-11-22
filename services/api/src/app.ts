@@ -58,6 +58,8 @@ import { createInventoryTransaction, listInventoryTransactions } from "./lib/tra
 import { compactSignalsContextWithPhaseD, signalsOutputFromFeed } from "./lib/signalsContext.js";
 import {
   ApproveConfirmListRequestSchema,
+  BulkRejectNoneRequestSchema,
+  BulkStageAutoRequestSchema,
   ebayCredsFromEnv,
 } from "@vip/scan-ingest";
 import { LIVE_RANGE_COPY, loadAllLiveRanges } from "./lib/liveRange.js";
@@ -81,6 +83,8 @@ import {
 import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
   approveConfirmList,
+  rejectAllNone,
+  stageAllAutoToConfirmList,
   discardBatch,
   editStagedUnit,
   getStagedBatch,
@@ -1105,6 +1109,42 @@ export function createApp(deps: AppDeps = {}) {
           ? "Nothing on the confirm list to approve."
           : `Wrote ${result.approved} draft holding(s) to Collections (NM assumed · unverified).`,
     });
+  });
+
+  /** Bulk stage: every unresolved `auto`-band card onto the confirm list. Writes no inventory. */
+  app.post("/api/scan/batches/:id/confirm-list/stage-auto", async (req, res) => {
+    const parsed = BulkStageAutoRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, error: parsed.error.message });
+      return;
+    }
+    const result = await stageAllAutoToConfirmList(String(req.params.id));
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
+  });
+
+  /** Bulk reject: every unresolved `none`-band card. A status change; scans are kept. */
+  app.post("/api/scan/batches/:id/reject-none", async (req, res) => {
+    const parsed = BulkRejectNoneRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        ok: false,
+        error: "body.confirm must be true to reject every no-match card",
+      });
+      return;
+    }
+    const result = await rejectAllNone(String(req.params.id), {
+      expectedCount: parsed.data.expectedCount,
+      reason: parsed.data.reason,
+    });
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
   });
 
   app.post("/api/scan/units/:id/edit", async (req, res) => {

@@ -572,6 +572,24 @@ describe("VIP API", () => {
     });
   });
 
+  it("bulk scan review routes validate their bodies before touching a batch", async () => {
+    await withServer(async (base) => {
+      const id = "00000000-0000-4000-8000-000000000000";
+      const noConfirm = await fetch(`${base}/api/scan/batches/${id}/reject-none`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(noConfirm.status).toBe(400);
+      const extra = await fetch(`${base}/api/scan/batches/${id}/confirm-list/stage-auto`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ acknowledgeDuplicates: true }),
+      });
+      expect(extra.status).toBe(400);
+    });
+  });
+
   it("POST /api/scan/batches → confirm unit into inventory with eBay draft idle", async () => {
     await withServer(async (base) => {
       const meta = await fetch(`${base}/api/scan`);

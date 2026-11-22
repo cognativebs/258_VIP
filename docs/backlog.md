@@ -177,7 +177,7 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] **ADR 0009** identity staging — candidates as rows; canonical inventory written only at resolve — 2026-08-10
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10
 - [x] Catalog adapter seam (`CatalogAdapter`) so the fixture catalog is swappable — 2026-08-10
-- [ ] Bulk review actions (confirm all `auto`, reject all `none`)
+- [x] Bulk review actions (2026-11-22, `scan-bulk-review@0.1.0`): **Add all auto to confirm list** (`POST /api/scan/batches/:id/confirm-list/stage-auto`) stages only — Approve keeps its duplicate gate; **Reject all no-match** (`POST /api/scan/batches/:id/reject-none`, `confirm: true` + `expectedCount`) is a status change, scans kept. needs_review / pairing-flagged cards are skipped, never cleared; committed batches (ADR 0015) refuse both. Note: the `auto` band is only written when `VIP_SCAN_AUTO_RESOLVE=1`
 
 ### O. Intelligence core *(landed 2026-08-18 · PRs #41–#45)*
 
