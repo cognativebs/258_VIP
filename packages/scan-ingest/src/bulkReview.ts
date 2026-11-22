@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_CONFIDENCE_POLICY, type ConfidencePolicy } from "./confidence-policy.js";
 
 /**
  * Bulk review actions for a Ricoh scan batch (backlog F).
@@ -12,9 +13,39 @@ import { z } from "zod";
  * Cards flagged for review (needs_review, pairing needs review) are never swept
  * up by a bulk action — needs_review is a permanent workflow state and the
  * operator handles those cards one at a time.
+ *
+ * Owner decisions 2026-11-22 (finish plan):
+ * - Q7: "Add all auto" also takes unresolved `review`-band cards that clear the
+ *   same HIGH bar auto-resolve uses (top confidence, margin over the runner-up,
+ *   identity-grade match reason). Only the VIP_SCAN_AUTO_RESOLVE switch is
+ *   ignored — the card is still only staged, never resolved.
+ * - Q8: cards that already look held are skipped (`already_held`), not staged.
+ *   A genuine second copy is added one card at a time.
+ * - Q9: Reject all no-match keeps its split — needs_review no-match cards are
+ *   rejected without clearing the flag; pairing doubts are skipped.
  */
 
-export const BULK_REVIEW_RULE_VERSION = "scan-bulk-review@0.1.0";
+export const BULK_REVIEW_RULE_VERSION = "scan-bulk-review@0.2.0";
+
+export type BulkCandidate = { confidence: number; matchReasons: ReadonlyArray<string> };
+
+/**
+ * Q7: true when the top candidate clears the auto-resolve HIGH bar, whether or
+ * not auto-resolve is switched on. Duplicate checks are separate (Q8).
+ */
+export function meetsHighBar(
+  candidates: ReadonlyArray<BulkCandidate>,
+  policy: ConfidencePolicy = DEFAULT_CONFIDENCE_POLICY,
+): boolean {
+  const ranked = [...candidates].sort((a, b) => b.confidence - a.confidence);
+  const top = ranked[0];
+  if (!top) return false;
+  const margin = Number((top.confidence - (ranked[1]?.confidence ?? 0)).toFixed(3));
+  const identityGrade = top.matchReasons.some((r) =>
+    policy.identityGradeReasonPrefixes.some((prefix) => r.startsWith(prefix)),
+  );
+  return top.confidence >= policy.autoResolveMin && margin >= policy.autoResolveMargin && identityGrade;
+}
 
 /** Minimal unit shape the selectors need — matches the staged-unit rows. */
 export type BulkReviewUnit = {
@@ -24,7 +55,7 @@ export type BulkReviewUnit = {
   confidenceBand: string | null;
   reviewStatus: string | null;
   pairingNeedsReview: boolean;
-  candidates: ReadonlyArray<unknown>;
+  candidates: ReadonlyArray<BulkCandidate>;
 };
 
 export const BulkSkipReasonSchema = z.enum([
@@ -33,6 +64,7 @@ export const BulkSkipReasonSchema = z.enum([
   "pairing_needs_review",
   "no_candidate",
   "has_candidates",
+  "already_held",
 ]);
 export type BulkSkipReason = z.infer<typeof BulkSkipReasonSchema>;
 
@@ -45,14 +77,27 @@ function unresolved(unit: BulkReviewUnit): boolean {
   return !unit.resolutionMode;
 }
 
-/** Unresolved cards in the `auto` band that a bulk stage may put on the confirm list. */
+/** True for an `auto`-band card, or a `review`-band card that meets the HIGH bar (Q7). */
+export function isBulkAutoCandidate(
+  unit: Pick<BulkReviewUnit, "confidenceBand" | "candidates">,
+  policy: ConfidencePolicy = DEFAULT_CONFIDENCE_POLICY,
+): boolean {
+  if (unit.confidenceBand === "auto") return true;
+  return unit.confidenceBand === "review" && meetsHighBar(unit.candidates, policy);
+}
+
+/**
+ * Unresolved auto / HIGH cards that a bulk stage may put on the confirm list.
+ * `alreadyHeld` holds unit ids whose top candidate already looks owned (Q8).
+ */
 export function selectAutoForConfirmList(
   units: ReadonlyArray<BulkReviewUnit>,
+  opts: { alreadyHeld?: ReadonlySet<string>; policy?: ConfidencePolicy } = {},
 ): BulkSelection {
   const eligible: string[] = [];
   const skipped: BulkSelection["skipped"] = [];
   for (const unit of units) {
-    if (!unresolved(unit) || unit.confidenceBand !== "auto") continue;
+    if (!unresolved(unit) || !isBulkAutoCandidate(unit, opts.policy)) continue;
     if (unit.reviewStatus === "draft_ready") {
       skipped.push({ unitId: unit.id, reason: "already_on_confirm_list" });
     } else if (unit.reviewStatus === "needs_review" || unit.status === "needs_review") {
@@ -61,6 +106,8 @@ export function selectAutoForConfirmList(
       skipped.push({ unitId: unit.id, reason: "pairing_needs_review" });
     } else if (unit.candidates.length === 0) {
       skipped.push({ unitId: unit.id, reason: "no_candidate" });
+    } else if (opts.alreadyHeld?.has(unit.id)) {
+      skipped.push({ unitId: unit.id, reason: "already_held" });
     } else {
       eligible.push(unit.id);
     }
@@ -107,7 +154,7 @@ export const BulkStageAutoResultSchema = z.object({
   batchId: UnitIdSchema,
   staged: z.array(UnitIdSchema),
   skipped: z.array(BulkSkippedSchema),
-  /** Staged cards that already look held — Approve will ask before adding a copy. */
+  /** Cards skipped because they already look held (Q8). Add a real second copy by hand. */
   duplicates: z.array(z.object({ unitId: UnitIdSchema, displayName: z.string().min(1) })),
   ruleVersion: z.literal(BULK_REVIEW_RULE_VERSION),
   note: z.string(),

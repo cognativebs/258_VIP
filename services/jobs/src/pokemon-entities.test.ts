@@ -39,11 +39,16 @@ describe.skipIf(!DSN)("source item entity extraction (IQVAULT_TEST_DSN, rolled b
     await inTransaction(async (db) => {
       const binder = await db.query(`SELECT id FROM vault_tcg.binder_page LIMIT 1`);
       if (binder.rows[0]) {
-        await db.query(
-          `INSERT INTO vault_tcg.binder_slot (page_id, slot_index, card_name, set_name, source)
-           VALUES ($1, 9999, 'Fixtureon ex', 'Fixture Sparks', 'test')`,
-          [binder.rows[0].id],
-        ).catch(() => undefined);
+        // A failed insert aborts the transaction; the savepoint keeps the test going.
+        await db.query("SAVEPOINT fixture_slot");
+        await db
+          .query(
+            `INSERT INTO vault_tcg.binder_slot (page_id, slot_index, card_name, set_name, source)
+             VALUES ($1, 9999, 'Fixtureon ex', 'Fixture Sparks', 'test')`,
+            [binder.rows[0].id],
+          )
+          .then(() => db.query("RELEASE SAVEPOINT fixture_slot"))
+          .catch(() => db.query("ROLLBACK TO SAVEPOINT fixture_slot"));
       }
       await put(db, article("990001", "fixture-rise-preorders", "“Fixture Rise” Preorders Now Live on Pokemon Center!"));
       await put(db, article("990002", "charizard-ex-revealed", "Charizard ex and More Cards Revealed from Fixture Rise"));

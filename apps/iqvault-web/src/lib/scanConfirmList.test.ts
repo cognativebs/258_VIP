@@ -133,7 +133,12 @@ describe("approve list duplicate copy verify", () => {
 });
 
 describe("bulk review counts", () => {
-  const cand = { catalogKey: "k" } as unknown as StagedUnit["candidates"][number];
+  const cand = { catalogKey: "k", confidence: 0.5, matchReasons: [] } as unknown as StagedUnit["candidates"][number];
+  const highCand = {
+    catalogKey: "h",
+    confidence: 0.95,
+    matchReasons: ["collector_number:4/102"],
+  } as unknown as StagedUnit["candidates"][number];
   const batch = {
     id: "b1",
     device: "ricoh",
@@ -143,6 +148,8 @@ describe("bulk review counts", () => {
     createdAt: "",
     units: [
       unit({ id: "auto1", confidenceBand: "auto", candidates: [cand] }),
+      unit({ id: "review-high", confidenceBand: "review", candidates: [highCand] }),
+      unit({ id: "review-plain", confidenceBand: "review", candidates: [cand] }),
       unit({ id: "auto-listed", confidenceBand: "auto", candidates: [cand], reviewStatus: "draft_ready" }),
       unit({ id: "auto-flagged", confidenceBand: "auto", candidates: [cand], reviewStatus: "needs_review" }),
       unit({ id: "none1", confidenceBand: "none", reviewStatus: "needs_review" }),
@@ -151,8 +158,8 @@ describe("bulk review counts", () => {
     ],
   } as unknown as StagedBatch;
 
-  it("stages only unflagged auto cards not already listed", () => {
-    assert.deepEqual(bulkAutoStageUnits(batch).map((u) => u.id), ["auto1"]);
+  it("stages unflagged auto and HIGH review cards not already listed (Q7)", () => {
+    assert.deepEqual(bulkAutoStageUnits(batch).map((u) => u.id), ["auto1", "review-high"]);
   });
 
   it("rejects only unresolved no-match cards without a pairing doubt", () => {

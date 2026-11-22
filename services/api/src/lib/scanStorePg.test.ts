@@ -326,6 +326,28 @@ describe("scan staging (ADR 0009)", () => {
 
     await getDb().execute(sql`
       UPDATE vault_media.scan_unit
+      SET confidence_band = 'auto', review_status = 'needs_confirmation'
+      WHERE id = ${unitId}::uuid
+    `);
+    const result = await stageAllAutoToConfirmList(staged.batchId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.staged).toEqual([unitId]);
+    expect(result.duplicates).toEqual([]);
+    expect(await countScanHoldings()).toBe(before);
+  });
+
+  it("bulk stage skips a card that already looks held (Q8)", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    const unitId = opened.batch.units[0]!.id;
+    const before = await countScanHoldings();
+
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_unit
       SET confidence_band = 'auto', review_status = 'needs_confirmation',
           duplicate_acknowledged = true
       WHERE id = ${unitId}::uuid
@@ -333,15 +355,13 @@ describe("scan staging (ADR 0009)", () => {
     const result = await stageAllAutoToConfirmList(staged.batchId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.staged).toEqual([unitId]);
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toEqual([{ unitId, reason: "already_held" }]);
     expect(result.duplicates.map((d) => d.unitId)).toEqual([unitId]);
-    expect(await countScanHoldings()).toBe(before);
-
-    // Staging does not bypass the duplicate gate at approve.
-    const blocked = await approveConfirmList(staged.batchId);
-    expect(blocked.ok).toBe(false);
-    if (blocked.ok) return;
-    expect(blocked.status).toBe(409);
+    const row = await getDb().execute(sql`
+      SELECT review_status FROM vault_media.scan_unit WHERE id = ${unitId}::uuid
+    `);
+    expect((row.rows[0] as { review_status: string }).review_status).toBe("needs_confirmation");
     expect(await countScanHoldings()).toBe(before);
   });
 

@@ -339,15 +339,29 @@ export function approveScanConfirmList(
 /*
  * Bulk review (backlog F). Mirrors selectAutoForConfirmList / selectNoneForReject
  * in @vip/scan-ingest; the server recomputes the set, these only drive the counts.
- * needs_review and pairing-flagged cards are never in a bulk set.
+ * needs_review and pairing-flagged cards are never in a bulk set. The server also
+ * skips cards that already look held (Q8), so the button count can run high.
  */
 
-/** Unresolved `auto`-band cards that "Add all auto" would stage. */
+/** Q7: the auto-resolve HIGH bar (defaults from @vip/scan-ingest confidence policy). */
+function meetsHighBar(candidates: StagedCandidate[]): boolean {
+  const ranked = [...candidates].sort((a, b) => b.confidence - a.confidence);
+  const top = ranked[0];
+  if (!top) return false;
+  const margin = Number((top.confidence - (ranked[1]?.confidence ?? 0)).toFixed(3));
+  const identityGrade = top.matchReasons.some(
+    (r) => r.startsWith("external_id:") || r.startsWith("collector_number:"),
+  );
+  return top.confidence >= 0.9 && margin >= 0.15 && identityGrade;
+}
+
+/** Unresolved auto / HIGH cards that "Add all high-confidence" would stage. */
 export function bulkAutoStageUnits(batch: StagedBatch): StagedUnit[] {
   return batch.units.filter(
     (u) =>
       !u.resolutionMode &&
-      u.confidenceBand === "auto" &&
+      (u.confidenceBand === "auto" ||
+        (u.confidenceBand === "review" && meetsHighBar(u.candidates))) &&
       u.reviewStatus !== "draft_ready" &&
       u.reviewStatus !== "needs_review" &&
       u.status !== "needs_review" &&

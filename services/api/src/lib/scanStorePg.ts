@@ -11,6 +11,7 @@ import {
   baseVsParallelFromEvidence,
   formatDuplicateCopyVerifyMessage,
   policyFromEnv,
+  isBulkAutoCandidate,
   selectAutoForConfirmList,
   selectNoneForReject,
   unitNeedsInventoryCopyAck,
@@ -934,9 +935,10 @@ async function batchLifecycle(batchId: string): Promise<string | null> {
 }
 
 /**
- * Put every unresolved `auto`-band card on the confirm list (backlog F).
+ * Put every unresolved auto / HIGH card on the confirm list (backlog F; Q7, Q8).
  * Stages only — inventory moves at Approve Confirm List, which keeps its
- * duplicate gate. Cards flagged needs_review / pairing are skipped, never cleared.
+ * duplicate gate. Cards flagged needs_review / pairing are skipped, never
+ * cleared; cards that already look held are skipped, not staged.
  */
 export async function stageAllAutoToConfirmList(
   batchId: string,
@@ -948,23 +950,34 @@ export async function stageAllAutoToConfirmList(
   if ((await batchLifecycle(batchId)) === "committed") {
     return { ok: false, status: 409, error: "This batch is committed; bulk review is closed." };
   }
-  const selection = selectAutoForConfirmList(batch.units);
+  const policy = policyFromEnv();
+  const holdings = await loadScanHoldings();
+  const heldUnits = batch.units.filter((u) => {
+    if (u.resolutionMode || !isBulkAutoCandidate(u, policy)) return false;
+    const top = [...u.candidates].sort((a, b) => b.confidence - a.confidence)[0];
+    return unitNeedsInventoryCopyAck(u) || (top ? holdingMatchesCandidate(holdings, top) : false);
+  });
+  const alreadyHeld = new Set(heldUnits.map((u) => u.id));
+  const selection = selectAutoForConfirmList(batch.units, { alreadyHeld, policy });
   const staged: string[] = [];
   for (const unitId of selection.eligible) {
     // The per-card path keeps its own guards (unresolved, has a candidate).
     const result = await setUnitConfirmList(unitId, true);
     if (result.ok) staged.push(unitId);
   }
-  const after = await getStagedBatch(batchId);
-  const stagedSet = new Set(staged);
-  const duplicates = (await confirmListAlreadyHeld(after?.units ?? [])).filter((d) =>
-    stagedSet.has(d.unitId),
+  const skippedHeld = new Set(
+    selection.skipped.filter((s) => s.reason === "already_held").map((s) => s.unitId),
   );
+  const duplicates = heldUnits
+    .filter((u) => skippedHeld.has(u.id))
+    .map((u) => ({ unitId: u.id, displayName: confirmListDisplayName(u) }));
   const note =
-    staged.length === 0
-      ? "No auto-band cards to add to the confirm list."
-      : `Added ${staged.length} auto-band card(s) to the confirm list. Nothing is in Collections until Approve Confirm List.` +
-        (duplicates.length ? ` ${duplicates.length} look already held; Approve will ask before adding a copy.` : "");
+    (staged.length === 0
+      ? "No high-confidence cards to add to the confirm list."
+      : `Added ${staged.length} high-confidence card(s) to the confirm list. Nothing is in Collections until Approve Confirm List.`) +
+    (duplicates.length
+      ? ` Skipped ${duplicates.length} that look already held; add a second copy one card at a time.`
+      : "");
   return {
     ok: true,
     batchId,

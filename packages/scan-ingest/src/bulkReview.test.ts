@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BulkRejectNoneRequestSchema,
+  meetsHighBar,
   BulkStageAutoRequestSchema,
   selectAutoForConfirmList,
   selectNoneForReject,
@@ -17,7 +18,7 @@ function unit(over: Partial<BulkReviewUnit> = {}): BulkReviewUnit {
     confidenceBand: "auto",
     reviewStatus: "needs_confirmation",
     pairingNeedsReview: false,
-    candidates: [{}],
+    candidates: [{ confidence: 0.5, matchReasons: [] }],
     ...over,
   };
 }
@@ -50,6 +51,48 @@ describe("selectAutoForConfirmList", () => {
   });
 });
 
+describe("Q7 HIGH review-band cards and Q8 already-held skip", () => {
+  const high = [
+    { confidence: 0.95, matchReasons: ["collector_number:4/102"] },
+    { confidence: 0.6, matchReasons: [] },
+  ];
+
+  it("meetsHighBar needs confidence, margin and an identity-grade reason", () => {
+    expect(meetsHighBar(high)).toBe(true);
+    expect(meetsHighBar([{ confidence: 0.95, matchReasons: ["token_overlap"] }])).toBe(false);
+    expect(meetsHighBar([{ confidence: 0.85, matchReasons: ["external_id:x"] }])).toBe(false);
+    expect(
+      meetsHighBar([
+        { confidence: 0.95, matchReasons: ["external_id:x"] },
+        { confidence: 0.9, matchReasons: [] },
+      ]),
+    ).toBe(false);
+    expect(meetsHighBar([])).toBe(false);
+  });
+
+  it("stages a review-band card only when it clears the HIGH bar", () => {
+    const strong = unit({ confidenceBand: "review", candidates: high });
+    const plain = unit({ confidenceBand: "review" });
+    const weak = unit({ confidenceBand: "weak", candidates: high });
+    const sel = selectAutoForConfirmList([strong, plain, weak]);
+    expect(sel.eligible).toEqual([strong.id]);
+  });
+
+  it("skips cards that already look held instead of staging them", () => {
+    const held = unit();
+    const fresh = unit();
+    const sel = selectAutoForConfirmList([held, fresh], { alreadyHeld: new Set([held.id]) });
+    expect(sel.eligible).toEqual([fresh.id]);
+    expect(sel.skipped).toEqual([{ unitId: held.id, reason: "already_held" }]);
+  });
+
+  it("a held card flagged needs_review reports needs_review first", () => {
+    const both = unit({ reviewStatus: "needs_review" });
+    const sel = selectAutoForConfirmList([both], { alreadyHeld: new Set([both.id]) });
+    expect(sel.skipped.map((s) => s.reason)).toEqual(["needs_review"]);
+  });
+});
+
 describe("selectNoneForReject", () => {
   it("rejects only unresolved none-band cards with no candidate", () => {
     const none = unit({ confidenceBand: "none", candidates: [], reviewStatus: "needs_review" });
@@ -60,7 +103,7 @@ describe("selectNoneForReject", () => {
   });
 
   it("skips a none card that gained candidates or has a pairing doubt", () => {
-    const edited = unit({ confidenceBand: "none", candidates: [{}] });
+    const edited = unit({ confidenceBand: "none", candidates: [{ confidence: 0.5, matchReasons: [] }] });
     const pairing = unit({ confidenceBand: "none", candidates: [], pairingNeedsReview: true });
     const sel = selectNoneForReject([edited, pairing]);
     expect(sel.eligible).toEqual([]);

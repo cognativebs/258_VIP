@@ -361,7 +361,9 @@ export function ScanIntake() {
       setStatus(null);
       try {
         const result = await stageAllAutoToConfirmList(batch.id);
-        const skipped = result.skipped.filter((s) => s.reason !== "already_on_confirm_list");
+        const skipped = result.skipped.filter(
+          (s) => s.reason !== "already_on_confirm_list" && s.reason !== "already_held",
+        );
         setStatus(
           result.note +
             (skipped.length ? ` Skipped ${skipped.length} flagged for review.` : ""),
@@ -978,7 +980,7 @@ export function ScanIntake() {
                     onClick={() => void stageAllAuto(batch)}
                     title="Stage every auto-band card. Nothing enters Collections until Approve confirm list."
                   >
-                    Add all auto to confirm list ({bulkAutoStageUnits(batch).length})
+                    Add all high-confidence to confirm list ({bulkAutoStageUnits(batch).length})
                   </button>
                   <button
                     type="button"
