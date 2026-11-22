@@ -32,6 +32,17 @@ import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPok
 import { formatComicbaseImport, runComicbaseImport } from "./comicbase-import.js";
 import { formatPriceChartingSnapshotReport, runPriceChartingSnapshotJob } from "./pricecharting-snapshot.js";
 import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
+import { formatIntelligenceDueReport, runIntelligenceDueReport } from "./intelligence-due.js";
+
+/** Read-only: counts predictions waiting for a person to record the outcome. */
+async function intelligenceDueOnce(): Promise<string> {
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  try {
+    return formatIntelligenceDueReport(await runIntelligenceDueReport(pool));
+  } finally {
+    await pool.end();
+  }
+}
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -448,6 +459,11 @@ async function main() {
     return;
   }
 
+  if (cmd === "intelligence-due") {
+    console.log(await intelligenceDueOnce());
+    return;
+  }
+
   if (cmd === "price-history") {
     const report = await runPriceHistoryJob({
       ...parsePriceHistoryArgs(process.argv.slice(3)),
@@ -650,6 +666,16 @@ async function main() {
             });
           },
         },
+        {
+          // Report only — never resolves a prediction (a person does, on /intelligence).
+          name: "intelligence-due",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void intelligenceDueOnce()
+              .then((line) => console.log(line))
+              .catch((e) => console.error(`intelligence-due failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
     ];
     const unknown = [...skip].filter((n) => !jobs.some((j) => j.name === n));
     if (unknown.length) {
@@ -668,7 +694,7 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices, pokebeach-reconcile and the read-only intelligence-due count daily). Ctrl+C to stop.",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {

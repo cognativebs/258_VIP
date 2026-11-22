@@ -4,20 +4,17 @@ import { ZodError } from "zod";
 import {
   EMERGING_MARKET_SEEDS,
   PRINT_LIFE_WATCHES,
+  ResolvePredictionRequestSchema,
   scoreCohenCover,
 } from "@vip/intelligence";
 import { intelligenceSnapshot } from "../lib/intelligence.js";
+import type { IntelligenceStore } from "../lib/intelligenceStore.js";
 import {
-  addGoldenCaseRow,
-  addGrading,
-  addManualCycle,
-  addPrediction,
-  addUnderwriting,
-  captureFieldItem,
-  lockStoredUnderwriting,
-  resolveStoredPrediction,
-  startFieldSession,
-} from "../lib/intelligenceStore.js";
+  IntelligenceStoreUnavailableError,
+  createIntelligenceStoreSelector,
+  type IntelligenceStoreSelector,
+  type StoreResult,
+} from "../lib/intelligenceStoreSelect.js";
 import type { BinderSummary } from "../lib/binderHoldings.js";
 import type { ApiHolding } from "../lib/holdings.js";
 import { dogfoodSellQueue } from "../lib/sellQueue.js";
@@ -35,6 +32,8 @@ export type IntelligenceDeps = {
     binders: BinderSummary[];
     pageChase?: PageChase[];
   }>;
+  /** Injectable so tests choose the backend (JSON temp file, or Postgres inside a rolled-back transaction). */
+  intelligenceStore?: IntelligenceStoreSelector;
 };
 
 /**
@@ -42,6 +41,10 @@ export type IntelligenceDeps = {
  * flatten zod issues into a sentence instead of echoing raw JSON.
  */
 function fail(res: Response, e: unknown): void {
+  if (e instanceof IntelligenceStoreUnavailableError) {
+    res.status(503).json({ error: e.message });
+    return;
+  }
   if (e instanceof ZodError) {
     const detail = e.issues
       .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
@@ -52,14 +55,42 @@ function fail(res: Response, e: unknown): void {
   res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
 }
 
-function created(res: Response, body: Record<string, unknown>): void {
-  res.status(201).json(body);
-}
-
 export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps): void {
+  const stores = deps.intelligenceStore ?? createIntelligenceStoreSelector();
+
   async function snapshot() {
-    const { holdings, binders, pageChase } = await deps.loadSnapshotInputs();
-    return intelligenceSnapshot(new Date(), { holdings, binders, pageChase });
+    const [{ holdings, binders, pageChase }, manual] = await Promise.all([
+      deps.loadSnapshotInputs(),
+      stores.run(async (s) => ({ doc: await s.load(), due: await s.duePredictions(new Date()) })),
+    ]);
+    return intelligenceSnapshot(
+      new Date(),
+      { holdings, binders, pageChase },
+      {
+        kind: manual.store,
+        doc: manual.value.doc,
+        due: manual.value.due,
+        fallbackReason: manual.fallbackReason,
+      },
+    );
+  }
+
+  /** Run a store call and answer with its result plus which backend took it. */
+  async function write(
+    res: Response,
+    status: number,
+    fn: (s: IntelligenceStore) => Promise<Record<string, unknown>>,
+  ): Promise<void> {
+    try {
+      const out: StoreResult<Record<string, unknown>> = await stores.run(fn);
+      res.status(status).json({
+        ...out.value,
+        store: out.store,
+        ...(out.fallbackReason ? { fallbackReason: out.fallbackReason } : {}),
+      });
+    } catch (e) {
+      fail(res, e);
+    }
   }
 
   app.get("/api/intelligence", async (_req: Request, res: Response) => {
@@ -99,82 +130,73 @@ export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps)
     res.json({ version: snap.version, collection: snap.collection });
   });
 
-  app.post("/api/intelligence/predictions", (req: Request, res: Response) => {
+  /**
+   * Predictions whose horizon has passed with no outcome recorded. Postgres
+   * mode reads vault_core.prediction_needs_scoring; nothing here resolves.
+   */
+  app.get("/api/intelligence/predictions/due", async (_req: Request, res: Response) => {
     try {
-      created(res, { prediction: addPrediction(req.body ?? {}) });
+      const out = await stores.run((s) => s.duePredictions(new Date()));
+      res.json({
+        ...JSON.parse(JSON.stringify(out.value)),
+        ...(out.fallbackReason ? { fallbackReason: out.fallbackReason } : {}),
+      });
     } catch (e) {
-      fail(res, e);
+      if (e instanceof IntelligenceStoreUnavailableError) fail(res, e);
+      else res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
     }
   });
 
+  app.post("/api/intelligence/predictions", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({ prediction: await s.addPrediction(req.body ?? {}) })),
+  );
+
+  /** A person records the outcome. Refused before resolvesAt and on an already-resolved row. */
   app.post("/api/intelligence/predictions/:id/resolve", (req: Request, res: Response) => {
-    const actualPrice = Number(req.body?.actualPrice);
-    if (!Number.isFinite(actualPrice)) {
+    const raw = req.body?.actualPrice;
+    if (raw == null || raw === "" || !Number.isFinite(Number(raw))) {
       res.status(400).json({ error: "actualPrice required" });
       return;
     }
-    try {
-      res.json({
-        prediction: resolveStoredPrediction(
-          String(req.params.id),
-          actualPrice,
-          req.body?.explanation,
-        ),
-      });
-    } catch (e) {
-      fail(res, e);
+    const parsed = ResolvePredictionRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      fail(res, parsed.error);
+      return;
     }
+    const body = parsed.data;
+    return write(res, 200, async (s) => ({
+      prediction: await s.resolvePrediction(String(req.params.id), body.actualPrice, {
+        explanation: body.explanation || undefined,
+        modelAdjustment: body.modelAdjustment || undefined,
+      }),
+    }));
   });
 
-  app.post("/api/intelligence/underwriting", (req: Request, res: Response) => {
-    try {
-      created(res, { underwriting: addUnderwriting(req.body ?? {}) });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/underwriting", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({ underwriting: await s.addUnderwriting(req.body ?? {}) })),
+  );
 
-  app.post("/api/intelligence/underwriting/:id/lock", (req: Request, res: Response) => {
-    try {
-      res.json({ underwriting: lockStoredUnderwriting(String(req.params.id)) });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/underwriting/:id/lock", (req: Request, res: Response) =>
+    write(res, 200, async (s) => ({ underwriting: await s.lockUnderwriting(String(req.params.id)) })),
+  );
 
-  app.post("/api/intelligence/grading", (req: Request, res: Response) => {
-    try {
-      created(res, { grading: addGrading(req.body ?? {}) });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/grading", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({ grading: await s.addGrading(req.body ?? {}) })),
+  );
 
-  app.post("/api/intelligence/cycle", (req: Request, res: Response) => {
-    try {
-      created(res, addManualCycle(req.body ?? {}) as Record<string, unknown>);
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/cycle", (req: Request, res: Response) =>
+    write(res, 201, async (s) => (await s.addManualCycle(req.body ?? {})) as Record<string, unknown>),
+  );
 
-  app.post("/api/intelligence/sessions", (req: Request, res: Response) => {
-    try {
-      created(res, { session: startFieldSession(req.body ?? {}) });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/sessions", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({ session: await s.startFieldSession(req.body ?? {}) })),
+  );
 
-  app.post("/api/intelligence/sessions/:id/capture", (req: Request, res: Response) => {
-    try {
-      created(res, {
-        capture: captureFieldItem({ sessionId: String(req.params.id), ...(req.body ?? {}) }),
-      });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/sessions/:id/capture", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({
+      capture: await s.captureFieldItem({ ...(req.body ?? {}), sessionId: String(req.params.id) }),
+    })),
+  );
 
   app.post("/api/intelligence/cohen-score", (req: Request, res: Response) => {
     try {
@@ -184,13 +206,9 @@ export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps)
     }
   });
 
-  app.post("/api/intelligence/golden-cases", (req: Request, res: Response) => {
-    try {
-      created(res, { goldenCase: addGoldenCaseRow(req.body ?? {}) });
-    } catch (e) {
-      fail(res, e);
-    }
-  });
+  app.post("/api/intelligence/golden-cases", (req: Request, res: Response) =>
+    write(res, 201, async (s) => ({ goldenCase: await s.addGoldenCase(req.body ?? {}) })),
+  );
 
   // Manual watch lists: scoring stays off until Signals velocity is live, so
   // these report scoringEnabled:false rather than implying a computed stance.
