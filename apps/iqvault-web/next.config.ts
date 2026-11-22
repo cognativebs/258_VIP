@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
     middlewareClientMaxBodySize: "50mb",
   },
   async redirects() {
+    // ADR 0014 keeps the older pages reachable by URL until each one has a home
+    // inside a concept; most shell targets below are still empty states. The
+    // redirects ship off and turn on with VIP_SHELL_REDIRECTS=1 (operator call,
+    // see docs/status/2026-11-22_vip_finish_plan.md Q22).
+    if (process.env.VIP_SHELL_REDIRECTS !== "1") return [];
     return [
       { source: "/portfolio", destination: "/vault", permanent: false },
       { source: "/collections", destination: "/vault", permanent: false },
