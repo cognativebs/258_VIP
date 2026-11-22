@@ -6,11 +6,16 @@ import {
   SCAN_HOLDING_SOURCE,
   SCAN_INGEST_RULE,
   SCAN_SNAPSHOT_SOURCE,
+  BULK_REVIEW_RULE_VERSION,
   assessCandidates,
   baseVsParallelFromEvidence,
   formatDuplicateCopyVerifyMessage,
   policyFromEnv,
+  selectAutoForConfirmList,
+  selectNoneForReject,
   unitNeedsInventoryCopyAck,
+  type BulkRejectNoneResult,
+  type BulkStageAutoResult,
   type EditStagedUnitRequest,
   type OpenBatchResult,
 } from "@vip/scan-ingest";
@@ -915,6 +920,105 @@ export async function rejectUnit(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+export type BulkReviewFailure = { ok: false; status: 404 | 409; error: string };
+
+/** ADR 0015: committed is terminal, so a committed batch takes no bulk review. */
+async function batchLifecycle(batchId: string): Promise<string | null> {
+  const res = await getDb().execute(sql`
+    SELECT lifecycle FROM vault_media.scan_batch WHERE id = ${batchId}::uuid
+  `);
+  const row = (res.rows as Array<{ lifecycle: string | null }>)[0];
+  return row?.lifecycle ?? null;
+}
+
+/**
+ * Put every unresolved `auto`-band card on the confirm list (backlog F).
+ * Stages only — inventory moves at Approve Confirm List, which keeps its
+ * duplicate gate. Cards flagged needs_review / pairing are skipped, never cleared.
+ */
+export async function stageAllAutoToConfirmList(
+  batchId: string,
+): Promise<BulkStageAutoResult | BulkReviewFailure> {
+  const batch = await getStagedBatch(batchId);
+  if (!batch) {
+    return { ok: false, status: 404, error: `Scan batch ${batchId} not found` };
+  }
+  if ((await batchLifecycle(batchId)) === "committed") {
+    return { ok: false, status: 409, error: "This batch is committed; bulk review is closed." };
+  }
+  const selection = selectAutoForConfirmList(batch.units);
+  const staged: string[] = [];
+  for (const unitId of selection.eligible) {
+    // The per-card path keeps its own guards (unresolved, has a candidate).
+    const result = await setUnitConfirmList(unitId, true);
+    if (result.ok) staged.push(unitId);
+  }
+  const after = await getStagedBatch(batchId);
+  const stagedSet = new Set(staged);
+  const duplicates = (await confirmListAlreadyHeld(after?.units ?? [])).filter((d) =>
+    stagedSet.has(d.unitId),
+  );
+  const note =
+    staged.length === 0
+      ? "No auto-band cards to add to the confirm list."
+      : `Added ${staged.length} auto-band card(s) to the confirm list. Nothing is in Collections until Approve Confirm List.` +
+        (duplicates.length ? ` ${duplicates.length} look already held; Approve will ask before adding a copy.` : "");
+  return {
+    ok: true,
+    batchId,
+    staged,
+    skipped: selection.skipped,
+    duplicates,
+    ruleVersion: BULK_REVIEW_RULE_VERSION,
+    note,
+  };
+}
+
+/**
+ * Reject every unresolved `none`-band card (no candidate) on a batch (backlog F).
+ * A status change per card through `rejectUnit`: raw scans, images, and the unit
+ * rows stay. `expectedCount` must match what the operator confirmed, or 409.
+ */
+export async function rejectAllNone(
+  batchId: string,
+  input: { expectedCount?: number; reason?: string } = {},
+): Promise<BulkRejectNoneResult | BulkReviewFailure> {
+  const batch = await getStagedBatch(batchId);
+  if (!batch) {
+    return { ok: false, status: 404, error: `Scan batch ${batchId} not found` };
+  }
+  if ((await batchLifecycle(batchId)) === "committed") {
+    return { ok: false, status: 409, error: "This batch is committed; bulk review is closed." };
+  }
+  const selection = selectNoneForReject(batch.units);
+  if (input.expectedCount != null && input.expectedCount !== selection.eligible.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: `The batch changed: ${selection.eligible.length} no-match card(s) now, ${input.expectedCount} confirmed. Reload and confirm again.`,
+    };
+  }
+  const rejected: string[] = [];
+  const errors: string[] = [];
+  for (const unitId of selection.eligible) {
+    const result = await rejectUnit(unitId, input.reason ?? "bulk reject: no match");
+    if (result.ok) rejected.push(unitId);
+    else errors.push(`${unitId}: ${result.error ?? "reject failed"}`);
+  }
+  return {
+    ok: true,
+    batchId,
+    rejected,
+    skipped: selection.skipped,
+    errors,
+    ruleVersion: BULK_REVIEW_RULE_VERSION,
+    note:
+      rejected.length === 0
+        ? "No no-match cards to reject."
+        : `Rejected ${rejected.length} no-match card(s). The scans are kept; nothing was deleted.`,
+  };
 }
 
 export type DiscardBatchResult =

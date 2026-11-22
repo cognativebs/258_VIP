@@ -562,6 +562,35 @@ describe("VIP API", () => {
     delete process.env.VIP_SOURCES_STATE;
   });
 
+  it("sources list matches the contract; unattributed sources carry no stats", async () => {
+    const { SourcesListResponseSchema } = await import("@vip/signals");
+    await withServer(async (base) => {
+      const body = SourcesListResponseSchema.parse(await (await fetch(`${base}/api/sources`)).json());
+      const clz = body.sources.find((s) => s.id === "clz-import");
+      expect(clz).toBeTruthy();
+      expect(clz?.stats).toBeUndefined();
+      const news = body.sources.find((s) => s.id === "pokemon-news-rss");
+      if (news?.stats) expect(news.stats.method).toContain("signalType=news");
+    });
+  });
+
+  it("PATCH /api/sources/:id rejects a body without a boolean active", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/sources/pokemon-news-rss`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: "yes" }),
+      });
+      expect(res.status).toBe(400);
+      const missing = await fetch(`${base}/api/sources/not-a-source`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ active: false }),
+      });
+      expect(missing.status).toBe(404);
+    });
+  });
+
   it("signals fall back to seeds when feed missing", async () => {
     process.env.VIP_SIGNALS_FEED = join(here, "does-not-exist-signals-feed.json");
     await withServer(async (base) => {
@@ -569,6 +598,24 @@ describe("VIP API", () => {
       const body = (await res.json()) as { source: string; signals: unknown[] };
       expect(body.source).toBe("seed");
       expect(body.signals.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("bulk scan review routes validate their bodies before touching a batch", async () => {
+    await withServer(async (base) => {
+      const id = "00000000-0000-4000-8000-000000000000";
+      const noConfirm = await fetch(`${base}/api/scan/batches/${id}/reject-none`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(noConfirm.status).toBe(400);
+      const extra = await fetch(`${base}/api/scan/batches/${id}/confirm-list/stage-auto`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ acknowledgeDuplicates: true }),
+      });
+      expect(extra.status).toBe(400);
     });
   });
 

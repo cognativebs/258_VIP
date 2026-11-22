@@ -6,6 +6,8 @@ export const SourceStatsSchema = z.object({
   signalCount: z.number().int().nonnegative().optional(),
   quarantineRate: z.number().min(0).max(1).optional(),
   evidenceCount: z.number().int().nonnegative().optional(),
+  /** How the counts were attributed (provenance for a derived number). */
+  method: z.string().min(1).optional(),
 });
 export type SourceStats = z.infer<typeof SourceStatsSchema>;
 
@@ -28,6 +30,13 @@ export const ApiSourceEntrySchema = SourceRegistryEntrySchema.extend({
   persistedAt: z.string().optional(),
 });
 export type ApiSourceEntry = z.infer<typeof ApiSourceEntrySchema>;
+
+/** PATCH /api/sources/:id — the job feed registry toggle (sources-state.json). */
+export const SourcePatchRequestSchema = z.object({ active: z.boolean() }).strict();
+export type SourcePatchRequest = z.infer<typeof SourcePatchRequestSchema>;
+
+export const SourcesListResponseSchema = z.object({ sources: z.array(ApiSourceEntrySchema) });
+export type SourcesListResponse = z.infer<typeof SourcesListResponseSchema>;
 
 // Re-export base schema for contracts-first consumers.
 export { SourceRegistryEntrySchema };

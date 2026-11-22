@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  bulkAutoStageUnits,
+  bulkNoneRejectUnits,
   confirmListCount,
   confirmListDuplicateUnits,
   confirmListUnitDisplayName,
@@ -127,5 +129,33 @@ describe("approve list duplicate copy verify", () => {
       formatDuplicateCopyVerifyMessage(["Carvanha (ME02 060)"]),
       "This card already exists in inventory:\n\nCarvanha (ME02 060)\n\nAdd another copy?",
     );
+  });
+});
+
+describe("bulk review counts", () => {
+  const cand = { catalogKey: "k" } as unknown as StagedUnit["candidates"][number];
+  const batch = {
+    id: "b1",
+    device: "ricoh",
+    status: "review",
+    categoryHint: "pokemon",
+    notes: null,
+    createdAt: "",
+    units: [
+      unit({ id: "auto1", confidenceBand: "auto", candidates: [cand] }),
+      unit({ id: "auto-listed", confidenceBand: "auto", candidates: [cand], reviewStatus: "draft_ready" }),
+      unit({ id: "auto-flagged", confidenceBand: "auto", candidates: [cand], reviewStatus: "needs_review" }),
+      unit({ id: "none1", confidenceBand: "none", reviewStatus: "needs_review" }),
+      unit({ id: "none-pair", confidenceBand: "none", pairingNeedsReview: true }),
+      unit({ id: "none-done", confidenceBand: "none", resolutionMode: "rejected" }),
+    ],
+  } as unknown as StagedBatch;
+
+  it("stages only unflagged auto cards not already listed", () => {
+    assert.deepEqual(bulkAutoStageUnits(batch).map((u) => u.id), ["auto1"]);
+  });
+
+  it("rejects only unresolved no-match cards without a pairing doubt", () => {
+    assert.deepEqual(bulkNoneRejectUnits(batch).map((u) => u.id), ["none1"]);
   });
 });

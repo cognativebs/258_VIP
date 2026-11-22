@@ -336,6 +336,68 @@ export function approveScanConfirmList(
   );
 }
 
+/*
+ * Bulk review (backlog F). Mirrors selectAutoForConfirmList / selectNoneForReject
+ * in @vip/scan-ingest; the server recomputes the set, these only drive the counts.
+ * needs_review and pairing-flagged cards are never in a bulk set.
+ */
+
+/** Unresolved `auto`-band cards that "Add all auto" would stage. */
+export function bulkAutoStageUnits(batch: StagedBatch): StagedUnit[] {
+  return batch.units.filter(
+    (u) =>
+      !u.resolutionMode &&
+      u.confidenceBand === "auto" &&
+      u.reviewStatus !== "draft_ready" &&
+      u.reviewStatus !== "needs_review" &&
+      u.status !== "needs_review" &&
+      !u.pairingNeedsReview &&
+      u.candidates.length > 0,
+  );
+}
+
+/** Unresolved `none`-band cards with no candidate that "Reject all none" would close. */
+export function bulkNoneRejectUnits(batch: StagedBatch): StagedUnit[] {
+  return batch.units.filter(
+    (u) =>
+      !u.resolutionMode &&
+      u.confidenceBand === "none" &&
+      u.candidates.length === 0 &&
+      !u.pairingNeedsReview,
+  );
+}
+
+export type BulkSkipped = { unitId: string; reason: string };
+
+export function stageAllAutoToConfirmList(batchId: string): Promise<{
+  ok: true;
+  staged: string[];
+  skipped: BulkSkipped[];
+  duplicates: ScanDuplicateCopy[];
+  note: string;
+}> {
+  return vipFetch(
+    `/api/scan/batches/${encodeURIComponent(batchId)}/confirm-list/stage-auto`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export function rejectAllNone(
+  batchId: string,
+  body: { expectedCount: number; reason?: string },
+): Promise<{
+  ok: true;
+  rejected: string[];
+  skipped: BulkSkipped[];
+  errors: string[];
+  note: string;
+}> {
+  return vipFetch(`/api/scan/batches/${encodeURIComponent(batchId)}/reject-none`, {
+    method: "POST",
+    body: JSON.stringify({ confirm: true, ...body }),
+  });
+}
+
 /** The ADR 0009 boundary: staging → canonical inventory. */
 export function resolveScanUnit(
   unitId: string,
