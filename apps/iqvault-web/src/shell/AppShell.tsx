@@ -49,6 +49,9 @@ export function ShellFrame({
               </a>
             ))}
           </nav>
+          <a className="vip-popout" href="/classic" title="Pages from the old tab bar">
+            Classic
+          </a>
           <button type="button" className="vip-search-btn" onClick={() => setPaletteOpen(true)}>
             Search
             <kbd>Ctrl K</kbd>
