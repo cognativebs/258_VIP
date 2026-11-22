@@ -15,7 +15,7 @@ export function ValueRange({
   compCount: number;
   recencyDays: number | null;
   confidence: ConfidenceWord;
-  evidenceLabel?: "comps" | "listings";
+  evidenceLabel?: "comps" | "listings" | "guides";
 }) {
   if (confidence === "none" || low == null || high == null) {
     return (

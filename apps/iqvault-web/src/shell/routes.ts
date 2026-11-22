@@ -28,3 +28,6 @@ export function conceptFromPath(pathname: string): ConceptId | "HOME" | null {
   matches.sort((a, b) => CONCEPT_HREFS[b].length - CONCEPT_HREFS[a].length);
   return matches[0] ?? null;
 }
+
+/** VAULT → Needs review burn-down (one-click verification queue). */
+export const VAULT_REVIEW_HREF = `${CONCEPT_HREFS.VAULT}/review`;

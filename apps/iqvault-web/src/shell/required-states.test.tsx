@@ -200,8 +200,7 @@ const ingest: IngestModel = {
 };
 
 const operate: OperateModel = {
-  sellError: null,
-  sell: [],
+  sell: { error: null, note: null, assumption: null, marksNote: null, items: [] },
   listingsError: null,
   listings: [],
   transactionsError: null,

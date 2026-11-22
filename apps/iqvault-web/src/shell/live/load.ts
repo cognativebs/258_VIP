@@ -9,6 +9,7 @@ import {
   type LiveChip,
   type VaultAssetModel,
 } from "./holding";
+import { loadSellAdvice, type SellModel } from "./sell";
 
 const SLOW_READ_MS = 30_000;
 const ADVISOR_READ_MS = 90_000;
@@ -81,8 +82,8 @@ export type IngestModel = {
 };
 
 export type OperateModel = {
-  sellError: string | null;
-  sell: { id: string; name: string; priority: string | null; range: ValueRangeProps }[];
+  /** Top-N decision-engine sell advice (GET /api/sell-queue/dogfood). */
+  sell: SellModel;
   listingsError: string | null;
   listings: { id: string; title: string; status: string; range: ValueRangeProps; ask: number | null }[];
   transactionsError: string | null;
@@ -338,10 +339,7 @@ export async function loadIngest(): Promise<IngestModel> {
 
 export async function loadOperate(): Promise<OperateModel> {
   const [sell, listings, transactions] = await Promise.all([
-    apiGet<{ items: Holding[] }>("/api/sell-queue", SLOW_READ_MS).then(
-      (data) => ({ items: data.items ?? [], error: null as string | null }),
-      (e: unknown) => ({ items: [], error: e instanceof Error ? e.message : "Sell queue request failed" }),
-    ),
+    loadSellAdvice(),
     apiGet<{ drafts: { id: string; title: string; status: string; askPrice: number | null; liveLow: number | null; liveHigh: number | null; listingCount: number }[] }>(
       "/api/listings",
     ).then(
@@ -356,13 +354,7 @@ export async function loadOperate(): Promise<OperateModel> {
     ),
   ]);
   return {
-    sellError: sell.error,
-    sell: sell.items.filter((item) => !isBridgeSeed(item)).map((item) => ({
-      id: item.id,
-      name: item.assetName,
-      priority: item.sellPriority,
-      range: rangeFromHoldingFields(item),
-    })),
+    sell,
     listingsError: listings.error,
     listings: listings.drafts.map((draft) => ({
       id: draft.id,

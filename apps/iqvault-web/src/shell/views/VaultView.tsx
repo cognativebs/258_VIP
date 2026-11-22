@@ -5,6 +5,7 @@ import { VerificationChip } from "../components/VerificationChip";
 import { ValueRange } from "../components/ValueRange";
 import type { VaultModel } from "../live/load";
 import type { VaultCategory } from "../live/holding";
+import { VAULT_REVIEW_HREF } from "../routes";
 
 const PAGE = 48;
 const VIEWS = [
@@ -54,6 +55,9 @@ export function VaultView({ model }: { model: VaultModel }) {
         <p className="vip-rail-foot">
           <span className="vip-num">{reviewCount}</span> need review. That state stays open.
         </p>
+        <a className="vip-text-action" href={VAULT_REVIEW_HREF}>
+          Work the verification queue
+        </a>
       </aside>
       <div className="vip-screen-body">
         <header className="vip-screen-head">

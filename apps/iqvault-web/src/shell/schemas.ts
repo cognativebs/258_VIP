@@ -38,8 +38,8 @@ export const valueRangeSchema = z
     compCount: z.number().int().nonnegative(),
     recencyDays: z.number().nonnegative().nullable(),
     confidence: confidenceSchema,
-    /** Sold comps, or browse listings. Callers must not relabel one as the other. */
-    evidenceLabel: z.enum(["comps", "listings"]).default("comps"),
+    /** Sold comps, browse listings, or vendor guides. Callers must not relabel one as another. */
+    evidenceLabel: z.enum(["comps", "listings", "guides"]).default("comps"),
   })
   .strict()
   .superRefine((value, ctx) => {

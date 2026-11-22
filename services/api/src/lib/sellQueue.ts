@@ -123,7 +123,9 @@ export async function dogfoodSellQueue(
 ): Promise<SellQueueResponse> {
   // buildRecommendation fetches comps per holding, so rank a bounded slice
   // rather than the whole collection.
-  const candidates = [...items]
+  // Pokémon bridge seeds are sample rows, not owned copies: never liquidate advice.
+  const candidates = items
+    .filter((h) => h.provenance?.source !== "vip_pokemon_seed")
     .sort((a, b) => (b.currentPrice ?? 0) - (a.currentPrice ?? 0))
     .slice(0, Math.max(limit * 3, limit));
 
