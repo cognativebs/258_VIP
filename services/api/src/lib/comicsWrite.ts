@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db/client.js";
 import { markObserved } from "@vip/evidence";
+import { VERIFICATION_MARKED_AT_KEY } from "./verificationQueue.js";
 
 /**
  * Comics Terminal edits through the VIP API (same Postgres as Comics API :5200).
@@ -261,6 +262,12 @@ export async function updateComicHolding(
           throw new Error(`Unhandled column ${p.column}`);
       }
     });
+
+    // An operator click on Needs Verification is stamped so the burn-down can
+    // count "verified this week". The flag itself only changes when sent.
+    if (parsed.data["Needs Verification"] !== undefined) {
+      metaPatch[VERIFICATION_MARKED_AT_KEY] = new Date().toISOString();
+    }
 
     const metaJson = JSON.stringify(metaPatch);
     const result = await db.execute(sql`

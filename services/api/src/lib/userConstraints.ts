@@ -68,3 +68,64 @@ export function constraintsForHolding(
   if (pillar && !goals.includes(pillar)) goals.push(pillar);
   return { ...base, collectionGoals: goals };
 }
+
+/**
+ * Grading cost per book used by the sell-queue grading-EV check.
+ *
+ * Load order: VIP_GRADING_COST_USD env > `gradingCostUsd` in the same user
+ * constraints JSON > DEFAULT_GRADING_COST_USD. The default is an assumption
+ * (rough PSA/CGC economy tier, no shipping or insurance) and is labelled
+ * unverified everywhere it surfaces. None of the three is a verified quote.
+ */
+export const DEFAULT_GRADING_COST_USD = 25;
+
+export type GradingCostAssumption = {
+  usd: number;
+  source: "env" | "user_constraints" | "default_assumption";
+  verificationStatus: "unverified";
+  note: string;
+};
+
+function positiveNumber(value: unknown): number | null {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function loadGradingCostAssumption(env: NodeJS.ProcessEnv = process.env): GradingCostAssumption {
+  const fromEnv = positiveNumber(env.VIP_GRADING_COST_USD);
+  if (fromEnv != null) {
+    return {
+      usd: fromEnv,
+      source: "env",
+      verificationStatus: "unverified",
+      note: "VIP_GRADING_COST_USD (operator-set, not a grader quote)",
+    };
+  }
+  const candidates = [
+    env.VIP_USER_CONSTRAINTS_PATH,
+    join(__dirname, "..", "..", "user-constraints.json"),
+  ].filter((p): p is string => Boolean(p));
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      const usd = positiveNumber(raw?.gradingCostUsd);
+      if (usd != null) {
+        return {
+          usd,
+          source: "user_constraints",
+          verificationStatus: "unverified",
+          note: "gradingCostUsd from user constraints (operator-set, not a grader quote)",
+        };
+      }
+    } catch {
+      // Corrupt file: fall through to the labelled default.
+    }
+  }
+  return {
+    usd: DEFAULT_GRADING_COST_USD,
+    source: "default_assumption",
+    verificationStatus: "unverified",
+    note: `Default ${DEFAULT_GRADING_COST_USD} USD per book is an assumption · unverified (no shipping, insurance or tier quote)`,
+  };
+}

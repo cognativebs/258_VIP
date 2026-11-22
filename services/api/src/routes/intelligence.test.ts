@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp, type AppDeps } from "../app.js";
 import type { ComicsPayload } from "../lib/comicsHoldings.js";
 import { mapInventoryRow } from "../lib/holdings.js";
+import { SellQueueResponseSchema } from "../lib/sellQueue.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -237,6 +238,26 @@ describe("GET /api/sell-queue/dogfood", () => {
         expect(body.items[0]?.isStale).toBe(true);
         expect(body.items[0]?.compsSource).toBe("none");
         expect(body.items[0]?.dogfoodNote).toMatch(/stale/i);
+        // Full contract: action + confidence + reasons + provenance block on every item.
+        const parsed = SellQueueResponseSchema.parse(body);
+        const first = parsed.items[0]!;
+        expect(first.insufficientMarketEvidence).toBe(true);
+        expect(first.marketRange).toBeNull();
+        expect(first.reasons.length).toBeGreaterThan(0);
+        expect(first.provenance).toMatchObject({
+          method: "recommendation",
+          verificationStatus: "unverified",
+          evidenceCount: 0,
+          recencyDays: null,
+        });
+        expect(first.provenance.ruleOrModelVersion).toContain("vip-sell-queue-dogfood@");
+        expect(parsed.gradingCost.verificationStatus).toBe("unverified");
+        expect(parsed.operatorMarks).toBe("not_recorded");
+
+        const limited = await fetch(`${base}/api/sell-queue/dogfood?limit=2`);
+        const limitedBody = SellQueueResponseSchema.parse(await limited.json());
+        expect(limitedBody.limit).toBe(2);
+        expect(limitedBody.items.length).toBeLessThanOrEqual(2);
       });
     } finally {
       if (prevFixture === undefined) delete process.env.VIP_COMPS_USE_FIXTURE;

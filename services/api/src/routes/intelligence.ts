@@ -20,7 +20,7 @@ import {
 } from "../lib/intelligenceStore.js";
 import type { BinderSummary } from "../lib/binderHoldings.js";
 import type { ApiHolding } from "../lib/holdings.js";
-import { dogfoodSellQueue } from "../lib/sellQueue.js";
+import { dogfoodSellQueue, parseSellQueueLimit } from "../lib/sellQueue.js";
 import { EMERGING_HUNTS } from "../seeds/hunts-emerging.js";
 import { huntCompletion } from "../seeds/hunts.js";
 
@@ -222,8 +222,12 @@ export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps)
    * Sell queue ranked by grading EV + evidence freshness. Kept separate from
    * /api/sell-queue, which returns plain holdings the collector face renders.
    */
-  app.get("/api/sell-queue/dogfood", async (_req: Request, res: Response) => {
-    const { holdings } = await deps.loadSnapshotInputs();
-    res.json(await dogfoodSellQueue(holdings, 20));
+  app.get("/api/sell-queue/dogfood", async (req: Request, res: Response) => {
+    try {
+      const { holdings } = await deps.loadSnapshotInputs();
+      res.json(await dogfoodSellQueue(holdings, parseSellQueueLimit(req.query.limit)));
+    } catch (e) {
+      fail(res, e);
+    }
   });
 }
