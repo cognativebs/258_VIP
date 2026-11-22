@@ -35,9 +35,9 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 | 2.2 | Prediction resolution workflow from `prediction_needs_scoring` (O) | TRACK-A | `claude/intel-store-pg` |
 | 2.3 | Scan bulk review: add all `auto` to confirm list, reject all `none` (F) | TRACK-B | `claude/scan-bulk-sources-ui` |
 | 2.4 | IQVault Sources editor (toggle + stats) (D) | TRACK-B | `claude/scan-bulk-sources-ui` |
-| 2.5 | Scheduled daily Binder price refresh (E) | TRACK-C | `claude/binder-refresh-evidence` |
-| 2.6 | `@vip/evidence` inside Binder (E) | TRACK-C | `claude/binder-refresh-evidence` |
-| 2.7 | Admin spend keys docs (K) | TRACK-C | `claude/binder-refresh-evidence` |
+| 2.5 | Scheduled daily Binder price refresh (E) — shared `syncBinderGuidePrices` in `@vip/pricing`; `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; scheduler runs it daily only with `VIP_BINDER_PRICE_REFRESH=on` | 🔄 merged | `claude/binder-refresh-evidence` · Q4–Q5 |
+| 2.6 | `@vip/evidence` inside Binder (E) — shared verification enum + `toEvidenceProvenance` mapping | 🔄 merged | Q6 |
+| 2.7 | Admin spend keys docs (K) — `docs/how-to/05-orchestr8-env-keys.md` | ✅ merged | |
 | 2.8 | Sell-queue dogfood: top-N with provenance, shown in OPERATE → Sell (A) | TRACK-D | `claude/sellqueue-verification` |
 | 2.9 | Comics verification burn-down queue (L — 2,684 "Needs Verification") | TRACK-D | `claude/sellqueue-verification` |
 
@@ -106,3 +106,6 @@ Filled in as each track reports; the first three come from landing ingest v1.
 - **Q1 — `/signals`.** ADR 0014 makes `/signals` the new shell view and moves the old feed to `/signals-feed`. Main's Signals page had grown a lot since (daily lists, Pokémon SIGNALS, Evaluate in Orchestr8), so all of that now lives at `/signals-feed`, linked from `/classic`. OK, or should the shell's SIGNALS view absorb those sections?
 - **Q2 — Classic pages.** With the old tab bar gone, `/classic` (header link "Classic") is the only way to reach Signal Desk, Scan, Tools, Hunts, eBay, etc. Keep it until each page moves into a concept (4.2)?
 - **Q3 — Batch `ed919c12` lifecycle.** Ingest v1's migration marks that batch `abandoned` (your G-1 decision, 2026-09-23). Its identification status stays `review`, and `/scan` does not filter by lifecycle, so the batch stays reviewable. Confirm that's still what you want now that it is the gate batch.
+- **Q4 — Binder daily refresh default.** Off unless `VIP_BINDER_PRICE_REFRESH=on`. Turn it on by default? (It never calls PriceCharting itself; it reads the guide `pokemon-prices` already stored, through the VIP API on `:8787`, so it needs the API running — acceptable, or read the DB directly?)
+- **Q5 — Rarity on scheduled runs.** The job skips Binder's local card index, so rarity only fills where a manual Sync Prices already did. Fine?
+- **Q6 — Binder → shared provenance mapping.** `api` / `user_upload` map to `observed`; a missing model version becomes `binder-vault:unversioned`; a missing confidence becomes 0 (band low, with a note). Nothing sends the mapped provenance to VIP yet — should Binder's VIP write path send it?
