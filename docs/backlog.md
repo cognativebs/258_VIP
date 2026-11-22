@@ -19,8 +19,8 @@ clone on branch `orchestr8-first-o0` is now on `main` in five reviewed PRs:
 Phase 2 (market cycle / buy-opportunity scoring) stays **manual-only** — it is
 gated on `signals_raw` / `signals_normalized` being confirmed live, and every
 endpoint reports `scoringEnabled: false` until then. The manual intelligence
-store still writes JSON (`VIP_INTELLIGENCE_STATE`); moving it onto the new
-Postgres tables is the next step.
+store writes the `vault_core` tables since 2026-11-22; the JSON file
+(`VIP_INTELLIGENCE_STATE`) is only the fallback when Postgres is down.
 
 **Progress checklist (2026-10-17, latest):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
 
@@ -191,8 +191,9 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] `vault_core` migrations `20260815_11..16`, applied and acceptance-tested against Postgres
 - [x] `/api/intelligence/*`, `/api/hunts/emerging`, `/api/sell-queue/dogfood`
 - [x] `/intelligence` desk on the collector face; vertical-aware Ask prompts
-- [ ] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables
-- [ ] Resolution workflow driven by `vault_core.prediction_needs_scoring` (nothing polls it yet)
+- [x] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables (2026-11-22, branch `claude/intel-store-pg`): `intelligenceStorePg.ts` behind one `IntelligenceStore` interface; `VIP_INTELLIGENCE_STORE=auto|postgres|json` (auto falls back to JSON only when Postgres is unreachable / unmigrated, and every response names the store); one-shot `npm run intelligence:import -w @vip/api -- [--file] [--dry-run]` (idempotent on id, skips rows whose asset/holding is not in the catalog)
+- [ ] Owner decisions open from that move: free-text asset/holding keys are refused in Postgres (FKs to `vault_core.asset` / `vault_collection.holding`); no provenance columns on these tables (provenance rebuilt on read); capture→underwriting link carried as a `[field_capture:<id>]` tag in `acquisition_underwriting.notes`
+- [x] Resolution workflow driven by `vault_core.prediction_needs_scoring` (2026-11-22): `GET /api/intelligence/predictions/due`, resolve form on `/intelligence` (a person records the observed price; nothing auto-resolves), read-only `intelligence-due` count in the jobs scheduler
 - [x] Per-page binder chase completion from `vault_tcg` (2026-10-10, `binder-page-chase@0.1.0`): owned vs missing per page on `/intelligence`; empty pockets are not part of the chase
 - [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live
 

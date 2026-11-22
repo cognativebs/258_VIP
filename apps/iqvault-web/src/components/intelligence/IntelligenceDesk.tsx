@@ -47,8 +47,10 @@ export function IntelligenceDesk() {
       <article className="panel">
         <h3>Desk — write around the HOLDs</h3>
         <p className="muted" style={{ marginTop: 0 }}>
-          Persists to JSON (not Postgres). Cycle rows stay <code>manual</code>. Field
-          captures stay <code>needs_review</code>. No auction/trade math.
+          Persists to Postgres <code>vault_core</code>; the JSON file is only a fallback when
+          Postgres is down (each save says which). In Postgres, asset and holding keys must be
+          catalog UUIDs. Cycle rows stay <code>manual</code>. Field captures stay{" "}
+          <code>needs_review</code>. No auction/trade math.
         </p>
         {msg ? <p className="badge badge-ok">{msg}</p> : null}
         {err ? <div className="error">{err}</div> : null}

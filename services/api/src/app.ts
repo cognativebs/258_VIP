@@ -18,6 +18,7 @@ import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
 import { registerIngestRoutes } from "./routes/ingest.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
+import type { IntelligenceStoreSelector } from "./lib/intelligenceStoreSelect.js";
 import { registerDealerKitRoutes } from "./routes/dealerKit.js";
 import { registerUnknownExitRoutes } from "./routes/unknownExit.js";
 import { registerSignalsDeskRoutes } from "./routes/signalsDesk.js";
@@ -215,6 +216,8 @@ export type AppDeps = {
   huntBrowse?: HuntBrowseFetch;
   /** Injectable Orchestr8 HTTP for the Signals Desk so tests never call a model. */
   orchestr8Fetch?: Orchestr8Fetch;
+  /** Injectable intelligence store backend (Postgres / JSON fallback) so tests control persistence. */
+  intelligenceStore?: IntelligenceStoreSelector;
 };
 
 type InventoryBundle = {
@@ -441,6 +444,7 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   registerIntelligenceRoutes(app, {
+    intelligenceStore: deps.intelligenceStore,
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
       const pageChase = await loadPageChase(deps.signalsDb ?? getPool()).catch(() => undefined);
