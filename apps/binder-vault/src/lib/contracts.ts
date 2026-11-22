@@ -1,5 +1,6 @@
 import {
-  ProvenanceSchema as EvidenceProvenanceSchema,
+  BINDER_UNVERSIONED as SHARED_BINDER_UNVERSIONED,
+  fromBinderProvenance,
   VerificationStatusSchema,
   type Provenance as EvidenceProvenance,
 } from "@vip/evidence";
@@ -26,7 +27,7 @@ export const provenanceSchema = z.object({
 export type Provenance = z.infer<typeof provenanceSchema>;
 
 /** Rule version used when a Binder row recorded none (uploads, legacy rows). */
-export const BINDER_UNVERSIONED = "binder-vault:unversioned";
+export const BINDER_UNVERSIONED = SHARED_BINDER_UNVERSIONED;
 
 /**
  * Map a Binder provenance onto the shared @vip/evidence contract, validated by the shared schema.
@@ -38,18 +39,7 @@ export const BINDER_UNVERSIONED = "binder-vault:unversioned";
  * - source empty → `binder-vault` (the shared contract requires one).
  */
 export function toEvidenceProvenance(p: Provenance): EvidenceProvenance {
-  const notes: string[] = [];
-  if (p.method === "user_upload") notes.push("binder method user_upload");
-  if (p.confidence == null) notes.push("confidence not recorded by Binder");
-  return EvidenceProvenanceSchema.parse({
-    source: p.source.trim() || "binder-vault",
-    method: p.method === "inferred" ? "inferred" : "observed",
-    ruleOrModelVersion: p.modelVersion?.trim() || BINDER_UNVERSIONED,
-    confidence: p.confidence ?? 0,
-    ...(p.confidence == null ? { confidenceBand: "low" as const } : {}),
-    verificationStatus: p.verificationStatus,
-    ...(notes.length ? { notes: notes.join("; ") } : {}),
-  });
+  return fromBinderProvenance(p);
 }
 
 /** A unified card result from any swappable data-source adapter. */

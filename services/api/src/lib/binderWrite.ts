@@ -1,3 +1,4 @@
+import { fromBinderProvenance, type Provenance } from "@vip/evidence";
 import { sql } from "drizzle-orm";
 import { getDb } from "../db/client.js";
 import { binderPublicUrl, printedTcgName, resolveTcgCover } from "./tcgPresentation.js";
@@ -13,7 +14,18 @@ import { binderPublicUrl, printedTcgName, resolveTcgCover } from "./tcgPresentat
  */
 
 export const BINDER_HOLDING_SOURCE = "binder_vault";
-export const BINDER_WRITE_RULE = "binder-vip-write@0.1.0";
+export const BINDER_WRITE_RULE = "binder-vip-write@0.2.0";
+
+/** The slot's card provenance on the shared contract (finish plan Q6, owner 2026-11-22). */
+export function slotProvenance(slot: BinderSlotPayload): Provenance {
+  return fromBinderProvenance({
+    method: slot.provenanceMethod,
+    source: slot.provenanceSource,
+    modelVersion: slot.provenanceModelVersion,
+    confidence: slot.confidence,
+    verificationStatus: slot.verificationStatus,
+  });
+}
 
 export type BinderSlotPayload = {
   slotId: string;
@@ -140,6 +152,7 @@ async function upsertOwnedHolding(
     number: slot.number,
     rarity: slot.rarity,
     imageUrl: slot.imageUrl,
+    provenance: slotProvenance(slot),
     writtenBy: BINDER_WRITE_RULE,
   });
   const notes = [
@@ -194,6 +207,7 @@ async function upsertWishlist(
   assetId: string,
 ): Promise<string> {
   const db = getDb();
+  const prov = slotProvenance(slot);
   const note = [
     `Wishlist from Binder: ${slot.binderName}`,
     slot.pageTitle || `Page ${slot.pageIndex + 1}`,
@@ -211,9 +225,9 @@ async function upsertWishlist(
       ${assetId}::uuid, ${slot.slotId}, ${BINDER_HOLDING_SOURCE}, ${slot.slotId},
       ${assetName(slot)}, ${note},
       ${slot.source}, ${slot.externalId},
-      ${slot.provenanceSource || "binder-vault"}, ${"observed"},
-      ${BINDER_WRITE_RULE}, ${slot.confidence ?? 0.7},
-      ${slot.verificationStatus || "unverified"}
+      ${prov.source}, ${prov.method},
+      ${BINDER_WRITE_RULE}, ${prov.confidence},
+      ${prov.verificationStatus}
     )
     ON CONFLICT (source, source_row_id) DO UPDATE SET
       asset_id = EXCLUDED.asset_id,
@@ -222,6 +236,7 @@ async function upsertWishlist(
       external_source = EXCLUDED.external_source,
       external_value = EXCLUDED.external_value,
       prov_source = EXCLUDED.prov_source,
+      prov_method = EXCLUDED.prov_method,
       prov_rule_version = EXCLUDED.prov_rule_version,
       prov_confidence = EXCLUDED.prov_confidence,
       prov_verification = EXCLUDED.prov_verification,
