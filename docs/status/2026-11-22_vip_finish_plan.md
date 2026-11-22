@@ -33,8 +33,8 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 |---|---|---|---|
 | 2.1 | Intelligence manual store: JSON → `vault_core` tables (O) | TRACK-A | `claude/intel-store-pg` |
 | 2.2 | Prediction resolution workflow from `prediction_needs_scoring` (O) | TRACK-A | `claude/intel-store-pg` |
-| 2.3 | Scan bulk review: add all `auto` to confirm list, reject all `none` (F) | TRACK-B | `claude/scan-bulk-sources-ui` |
-| 2.4 | IQVault Sources editor (toggle + stats) (D) | TRACK-B | `claude/scan-bulk-sources-ui` |
+| 2.3 | Scan bulk review on `/scan` (F): **Add all auto to confirm list** (stages only; Approve still blocks duplicates) and **Reject all no-match** (asks first; status change, nothing deleted). Refused on `committed` batches | 🔄 merged | `claude/scan-bulk-sources-ui` · Q7–Q11 |
+| 2.4 | Sources editor on `/sources` (D): per-source toggle + signal count, quarantine rate, evidence count; banner says it changes the job-feed registry only, not news sources | 🔄 merged | Q12 |
 | 2.5 | Scheduled daily Binder price refresh (E) — shared `syncBinderGuidePrices` in `@vip/pricing`; `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; scheduler runs it daily only with `VIP_BINDER_PRICE_REFRESH=on` | 🔄 merged | `claude/binder-refresh-evidence` · Q4–Q5 |
 | 2.6 | `@vip/evidence` inside Binder (E) — shared verification enum + `toEvidenceProvenance` mapping | 🔄 merged | Q6 |
 | 2.7 | Admin spend keys docs (K) — `docs/how-to/05-orchestr8-env-keys.md` | ✅ merged | |
@@ -109,3 +109,9 @@ Filled in as each track reports; the first three come from landing ingest v1.
 - **Q4 — Binder daily refresh default.** Off unless `VIP_BINDER_PRICE_REFRESH=on`. Turn it on by default? (It never calls PriceCharting itself; it reads the guide `pokemon-prices` already stored, through the VIP API on `:8787`, so it needs the API running — acceptable, or read the DB directly?)
 - **Q5 — Rarity on scheduled runs.** The job skips Binder's local card index, so rarity only fills where a manual Sync Prices already did. Fine?
 - **Q6 — Binder → shared provenance mapping.** `api` / `user_upload` map to `observed`; a missing model version becomes `binder-vault:unversioned`; a missing confidence becomes 0 (band low, with a note). Nothing sends the mapped provenance to VIP yet — should Binder's VIP write path send it?
+- **Q7 — "Add all auto" is empty by default.** A card only lands in the `auto` band when `VIP_SCAN_AUTO_RESOLVE=1`. Should the button also take unresolved HIGH-confidence cards?
+- **Q8 — Already-held cards.** Add all auto still stages cards that look already owned and leaves the duplicate warning to Approve. Skip them instead?
+- **Q9 — Reject all no-match and `needs_review`.** It includes no-match cards flagged `needs_review` (almost all are) and rejects them without clearing the flag; it skips cards with a front/back pairing doubt (swapping faces might identify them). Right split?
+- **Q10 — Abandoned batches.** Bulk actions are refused only on `committed` batches. Refuse on `abandoned` too? (Note batch `ed919c12` is `abandoned` — see Q3.)
+- **Q11 — Reject reason.** There is no column for it, so it is still discarded. Store it (one new column)?
+- **Q12 — Sources with no reader.** Only `pokemon-news-rss`, `retail-drop-watch` and `ebay-browse` have a job that reads the toggle; toggling the other three does nothing yet. Label them on the page?
