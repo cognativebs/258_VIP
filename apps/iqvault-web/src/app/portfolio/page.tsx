@@ -6,7 +6,6 @@ import {
   type InventoryResponse,
   type TcgBindersResponse,
 } from "@/lib/api";
-import { ownedNeedsVerificationCount } from "@/lib/collections";
 
 function usd(n: number): string {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -78,11 +77,11 @@ export default async function PortfolioPage() {
             </div>
             <div className="stat">
               <div className="n">${data.totalValueEstimate.amount.toLocaleString()}</div>
-              <div className="l">Owned snapshot · {data.totalValueEstimate.confidence} conf</div>
+              <div className="l">Snapshot sum · {data.totalValueEstimate.confidence} conf</div>
             </div>
             <div className="stat">
               <div className="n">
-                {ownedNeedsVerificationCount(data.holdings)}
+                {data.holdings.filter((h) => h.needsVerification).length}
               </div>
               <div className="l">Needs verification</div>
             </div>
