@@ -29,7 +29,8 @@ const comic = mapInventoryRow(
 );
 
 function sale(id: string, price: number, daysAgo: number) {
-  const d = new Date("2026-08-25T00:00:00.000Z");
+  // Relative to now: a fixed date ages out of the comps recency window.
+  const d = new Date();
   d.setUTCDate(d.getUTCDate() - daysAgo);
   return {
     id,
