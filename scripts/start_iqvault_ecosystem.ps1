@@ -115,8 +115,19 @@ function Start-MinimizedProcess([string]$Title, [string]$WorkingDir, [string]$Co
 }
 
 function Test-DockerReady {
-    $null = docker info 2>$null
-    return $LASTEXITCODE -eq 0
+    # PS 5.1 + $ErrorActionPreference=Stop turns docker's stderr ("cannot connect
+    # to dockerDesktopLinuxEngine") into a terminating error, so this used to
+    # throw instead of returning $false and Start-DockerDesktop never ran.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $null = docker info 2>$null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
 }
 
 function Start-DockerDesktop {
