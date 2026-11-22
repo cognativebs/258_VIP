@@ -38,8 +38,8 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 | 2.5 | Scheduled daily Binder price refresh (E) — shared `syncBinderGuidePrices` in `@vip/pricing`; `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; scheduler runs it daily only with `VIP_BINDER_PRICE_REFRESH=on` | 🔄 merged | `claude/binder-refresh-evidence` · Q4–Q5 |
 | 2.6 | `@vip/evidence` inside Binder (E) — shared verification enum + `toEvidenceProvenance` mapping | 🔄 merged | Q6 |
 | 2.7 | Admin spend keys docs (K) — `docs/how-to/05-orchestr8-env-keys.md` | ✅ merged | |
-| 2.8 | Sell-queue dogfood: top-N with provenance, shown in OPERATE → Sell (A) | TRACK-D | `claude/sellqueue-verification` |
-| 2.9 | Comics verification burn-down queue (L — 2,684 "Needs Verification") | TRACK-D | `claude/sellqueue-verification` |
+| 2.8 | Sell-queue dogfood (A): `GET /api/sell-queue/dogfood?limit=N` — action, confidence, reasons, provenance block (source, method, rule version, evidence count, recency; always unverified); no sales → no range + "Insufficient market evidence". Shown in **OPERATE → Sell**. Grading cost from `VIP_GRADING_COST_USD` → `gradingCostUsd` in user-constraints → 25 USD default (labelled an assumption) | 🔄 merged | `claude/sellqueue-verification` · Q15–Q16. Accept/reject mark **not built** (Q16) |
+| 2.9 | Comics verification queue (L): `GET /api/comics/verification-queue` (highest guide value first, then key issues, then oldest); **`/vault/review`** (VAULT rail) with burn-down counter and one-click Verified / Still needs review / Undo. No bulk verify | 🔄 merged | Q13, Q14, Q17 |
 
 ## 3. Backlog items that were already done (backlog was stale)
 
@@ -103,6 +103,8 @@ Nothing is merged to `main`, nothing is pushed, and the live database was not to
 
 Filled in as each track reports; the first three come from landing ingest v1.
 
+- **Q13 — ⚠ most important: CLZ re-import overwrites verification.** An existing problem, not caused by this pass: re-importing CLZ (`load_comics.py`) rewrites `needs_verification` and `clz_metadata`, so it can undo your Verified clicks — or clear the flag with nobody clicking (against the "never auto-clear `needs_review`" rule). Claude did not change the importer. Recommended: re-import never touches a human verification mark. Go ahead?
+
 - **Q1 — `/signals`.** ADR 0014 makes `/signals` the new shell view and moves the old feed to `/signals-feed`. Main's Signals page had grown a lot since (daily lists, Pokémon SIGNALS, Evaluate in Orchestr8), so all of that now lives at `/signals-feed`, linked from `/classic`. OK, or should the shell's SIGNALS view absorb those sections?
 - **Q2 — Classic pages.** With the old tab bar gone, `/classic` (header link "Classic") is the only way to reach Signal Desk, Scan, Tools, Hunts, eBay, etc. Keep it until each page moves into a concept (4.2)?
 - **Q3 — Batch `ed919c12` lifecycle.** Ingest v1's migration marks that batch `abandoned` (your G-1 decision, 2026-09-23). Its identification status stays `review`, and `/scan` does not filter by lifecycle, so the batch stays reviewable. Confirm that's still what you want now that it is the gate batch.
@@ -115,3 +117,7 @@ Filled in as each track reports; the first three come from landing ingest v1.
 - **Q10 — Abandoned batches.** Bulk actions are refused only on `committed` batches. Refuse on `abandoned` too? (Note batch `ed919c12` is `abandoned` — see Q3.)
 - **Q11 — Reject reason.** There is no column for it, so it is still discarded. Store it (one new column)?
 - **Q12 — Sources with no reader.** Only `pokemon-news-rss`, `retail-drop-watch` and `ebay-browse` have a job that reads the toggle; toggling the other three does nothing yet. Label them on the page?
+- **Q14 — "Verified this week".** Both verification write paths now add a "Verification Marked At" timestamp inside `clz_metadata` (no new column). OK, or a dedicated column?
+- **Q15 — Default grading cost.** Is 25 USD per book right?
+- **Q16 — Sell-queue accept / reject mark.** Not built: `disposition_history` would also move the eBay sell engine's current disposition, and `inventory_transaction.kind` only allows buy / sell / transfer. Put it in `disposition_history` (as which disposition?) or a new decision-log table?
+- **Q17 — Guide ranges in the shell.** Vendor-guide ranges show as low confidence with a "guides" label in ValueRange. OK?
