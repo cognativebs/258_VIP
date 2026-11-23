@@ -84,6 +84,16 @@ export const SellQueueItemSchema = z
     dogfoodNote: z.string(),
     rank: z.number(),
     provenance: SellQueueProvenanceSchema,
+    /** Newest operator mark for this holding (Q16); null when none, absent when not loaded. */
+    latestDecision: z
+      .object({
+        decision: z.enum(["accepted", "rejected"]),
+        action: SellQueueActionSchema,
+        reason: z.string().nullable(),
+        decidedAt: z.string(),
+      })
+      .nullable()
+      .optional(),
   })
   .strict();
 export type SellQueueItem = z.infer<typeof SellQueueItemSchema>;
@@ -95,8 +105,12 @@ export const SellQueueResponseSchema = z
     limit: z.number().int().positive(),
     count: z.number().int().nonnegative(),
     gradingCost: GradingCostAssumptionSchema,
-    /** Operator accept/reject is not recorded: no existing decision-log path fits (see backlog). */
-    operatorMarks: z.literal("not_recorded"),
+    /**
+     * Q16: accept/reject marks live in vault_collection.sell_queue_decision.
+     * "recorded" = marks attached to items; "unavailable" = the log could not be
+     * read; "not_recorded" = dogfoodSellQueue alone, before marks are attached.
+     */
+    operatorMarks: z.enum(["recorded", "unavailable", "not_recorded"]),
     items: z.array(SellQueueItemSchema),
   })
   .strict();

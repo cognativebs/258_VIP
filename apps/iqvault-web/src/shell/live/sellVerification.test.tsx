@@ -90,6 +90,38 @@ describe("OPERATE → Sell dogfood list", () => {
     assert.match(html, /not recorded yet/);
   });
 
+  it("shows the last accept / reject mark and offers the buttons when marks are recorded (Q16)", () => {
+    const marked = {
+      ...dogfood,
+      operatorMarks: "recorded",
+      items: [
+        {
+          ...dogfood.items[0],
+          latestDecision: { decision: "rejected", action: "Sell", reason: "keeping it", decidedAt: "2026-11-23T12:00:00.000Z" },
+        },
+        { ...dogfood.items[1], latestDecision: null },
+      ],
+    };
+    const model = sellModelFromResponse(marked);
+    assert.equal(model.marksEnabled, true);
+    assert.equal(model.marksNote, null);
+    assert.equal(model.items[0]?.mark?.decision, "rejected");
+    assert.equal(model.items[0]?.ruleOrModelVersion, provenance.ruleOrModelVersion);
+    assert.equal(model.items[1]?.mark, null);
+    const html = renderToStaticMarkup(
+      <RoleProvider initialRoleId="dealer">
+        <OperateView
+          model={{ sell: model, listingsError: null, listings: [], transactionsError: null, transactions: [] }}
+          sectionId="sell"
+        />
+      </RoleProvider>,
+    );
+    assert.match(html, /You rejected Sell/);
+    assert.match(html, /keeping it/);
+    assert.match(html, /Accept Sell/);
+    assert.match(html, /data-sell-mark="none"/);
+  });
+
   it("reports a contract mismatch instead of rendering guesses", () => {
     const model = sellModelFromResponse({ items: [{ holdingId: "x" }] });
     assert.ok(model.error);

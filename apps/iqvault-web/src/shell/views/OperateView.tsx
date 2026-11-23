@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { ValueRange } from "../components/ValueRange";
+import { recordSellMark, type SellAdviceModel } from "../live/sell";
 import type { OperateModel } from "../live/load";
 import { useRole } from "../role-context";
 import { operateHref } from "../routes";
@@ -82,9 +84,49 @@ function SellList({ label, model }: { label: string; model: OperateModel }) {
             ))}
           </ul>
           <p className="vip-muted">{item.provenance}</p>
+          {sell.marksEnabled ? <SellMark item={item} /> : null}
         </article>
       ))}
     </section>
+  );
+}
+
+/** Q16: accept / reject this advice. Logged only; nothing about the item changes. */
+function SellMark({ item }: { item: SellAdviceModel }) {
+  const [mark, setMark] = useState(item.mark);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function decide(decision: "accepted" | "rejected") {
+    const reason =
+      decision === "rejected" ? window.prompt("Why reject this advice? (optional)") ?? undefined : undefined;
+    setBusy(true);
+    setError(null);
+    try {
+      setMark(await recordSellMark(item, decision, reason));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not record the mark");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="vip-card-actions" data-sell-mark={mark?.decision ?? "none"}>
+      {mark ? (
+        <p className="vip-muted">
+          You {mark.decision} {mark.action} on {new Date(mark.decidedAt).toLocaleDateString()}
+          {mark.reason ? ` · ${mark.reason}` : ""}
+        </p>
+      ) : null}
+      <button type="button" className="btn-link" disabled={busy} onClick={() => void decide("accepted")}>
+        Accept {item.action}
+      </button>{" "}
+      <button type="button" className="btn-link" disabled={busy} onClick={() => void decide("rejected")}>
+        Reject
+      </button>
+      {error ? <p className="vip-callout">{error}</p> : null}
+    </div>
   );
 }
 

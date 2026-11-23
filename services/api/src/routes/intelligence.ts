@@ -18,6 +18,13 @@ import {
 import type { BinderSummary } from "../lib/binderHoldings.js";
 import type { ApiHolding } from "../lib/holdings.js";
 import { dogfoodSellQueue, parseSellQueueLimit } from "../lib/sellQueue.js";
+import type { Queryable } from "../lib/huntStore.js";
+import {
+  SELL_QUEUE_DECISION_RULE,
+  latestSellQueueDecisions,
+  recordSellQueueDecision,
+  sellQueueDecisionHistory,
+} from "../lib/sellQueueDecisions.js";
 import { EMERGING_HUNTS } from "../seeds/hunts-emerging.js";
 import { huntCompletion } from "../seeds/hunts.js";
 
@@ -34,6 +41,8 @@ export type IntelligenceDeps = {
   }>;
   /** Injectable so tests choose the backend (JSON temp file, or Postgres inside a rolled-back transaction). */
   intelligenceStore?: IntelligenceStoreSelector;
+  /** Q16 decision log (vault_collection.sell_queue_decision). Absent: marks not loaded, POST 503. */
+  decisionsDb?: () => Queryable;
 };
 
 /**
@@ -243,7 +252,64 @@ export function registerIntelligenceRoutes(app: Express, deps: IntelligenceDeps)
   app.get("/api/sell-queue/dogfood", async (req: Request, res: Response) => {
     try {
       const { holdings } = await deps.loadSnapshotInputs();
-      res.json(await dogfoodSellQueue(holdings, parseSellQueueLimit(req.query.limit)));
+      const queue = await dogfoodSellQueue(holdings, parseSellQueueLimit(req.query.limit));
+      if (!deps.decisionsDb) {
+        res.json(queue);
+        return;
+      }
+      try {
+        const marks = await latestSellQueueDecisions(
+          deps.decisionsDb(),
+          queue.items.map((i) => i.holdingId),
+        );
+        res.json({
+          ...queue,
+          operatorMarks: "recorded",
+          items: queue.items.map((i) => {
+            const m = marks.get(i.holdingId);
+            return {
+              ...i,
+              latestDecision: m
+                ? { decision: m.decision, action: m.action, reason: m.reason, decidedAt: m.decidedAt }
+                : null,
+            };
+          }),
+        });
+      } catch {
+        res.json({ ...queue, operatorMarks: "unavailable" });
+      }
+    } catch (e) {
+      fail(res, e);
+    }
+  });
+
+  /** Q16: append an operator accept / reject mark. Changes no holding or listing. */
+  app.post("/api/sell-queue/decisions", async (req: Request, res: Response) => {
+    if (!deps.decisionsDb) {
+      res.status(503).json({ error: "Decision log is not configured" });
+      return;
+    }
+    try {
+      const decision = await recordSellQueueDecision(deps.decisionsDb(), req.body);
+      res.status(201).json({ ok: true, decision, ruleVersion: SELL_QUEUE_DECISION_RULE });
+    } catch (e) {
+      fail(res, e);
+    }
+  });
+
+  /** Q16: mark history for one holding (?holdingId=), newest first. */
+  app.get("/api/sell-queue/decisions", async (req: Request, res: Response) => {
+    const ref = String(req.query.holdingId ?? "").trim();
+    if (!ref) {
+      res.status(400).json({ error: "expected ?holdingId=<sell-queue item id>" });
+      return;
+    }
+    if (!deps.decisionsDb) {
+      res.status(503).json({ error: "Decision log is not configured" });
+      return;
+    }
+    try {
+      res.json({ holdingId: ref, decisions: await sellQueueDecisionHistory(deps.decisionsDb(), ref) });
     } catch (e) {
       fail(res, e);
     }

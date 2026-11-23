@@ -445,6 +445,7 @@ export function createApp(deps: AppDeps = {}) {
 
   registerIntelligenceRoutes(app, {
     intelligenceStore: deps.intelligenceStore,
+    decisionsDb: () => deps.huntDb ?? getPool(),
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
       const pageChase = await loadPageChase(deps.signalsDb ?? getPool()).catch(() => undefined);

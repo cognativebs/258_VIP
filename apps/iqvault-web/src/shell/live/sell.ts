@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import type { ConfidenceWord, ValueRangeProps } from "../schemas";
 
 /**
@@ -43,6 +43,16 @@ export const sellAdviceItemSchema = z.object({
     recencyDays: z.number().nullable(),
     minSalesRequired: z.number(),
   }),
+  /** Q16: newest operator mark; absent when the API did not load marks. */
+  latestDecision: z
+    .object({
+      decision: z.enum(["accepted", "rejected"]),
+      action: z.string(),
+      reason: z.string().nullable(),
+      decidedAt: z.string(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const sellAdviceResponseSchema = z.object({
@@ -68,6 +78,10 @@ export type SellAdviceModel = {
   stale: boolean;
   reasons: string[];
   provenance: string;
+  /** Advice as shown — sent with a mark so the log keeps what was decided on. */
+  confidenceRaw: number;
+  ruleOrModelVersion: string;
+  mark: { decision: "accepted" | "rejected"; action: string; reason: string | null; decidedAt: string } | null;
 };
 
 export type SellModel = {
@@ -75,8 +89,34 @@ export type SellModel = {
   note: string | null;
   assumption: string | null;
   marksNote: string | null;
+  /** True when the decision log answered, so Accept / Reject can be offered. */
+  marksEnabled?: boolean;
   items: SellAdviceModel[];
 };
+
+/** Q16: append an accept / reject mark. It changes no holding or listing. */
+export async function recordSellMark(
+  item: Pick<SellAdviceModel, "id" | "action" | "confidenceRaw" | "ruleOrModelVersion">,
+  decision: "accepted" | "rejected",
+  reason?: string,
+): Promise<{ decision: "accepted" | "rejected"; action: string; reason: string | null; decidedAt: string }> {
+  const res = await apiPost<{
+    decision: { decision: "accepted" | "rejected"; action: string; reason: string | null; decidedAt: string };
+  }>("/api/sell-queue/decisions", {
+    holdingId: item.id,
+    decision,
+    action: item.action,
+    confidence: item.confidenceRaw,
+    ruleOrModelVersion: item.ruleOrModelVersion,
+    ...(reason && reason.trim() ? { reason: reason.trim() } : {}),
+  });
+  return {
+    decision: res.decision.decision,
+    action: res.decision.action,
+    reason: res.decision.reason,
+    decidedAt: res.decision.decidedAt,
+  };
+}
 
 export function sellModelFromResponse(raw: unknown): SellModel {
   const parsed = sellAdviceResponseSchema.safeParse(raw);
@@ -89,9 +129,12 @@ export function sellModelFromResponse(raw: unknown): SellModel {
     note: data.note,
     assumption: `Grading cost ${data.gradingCost.usd} USD per book · ${data.gradingCost.note}`,
     marksNote:
-      data.operatorMarks === "not_recorded"
-        ? "Accept / reject is not recorded yet. Act on a row in Listings or the comics terminal."
-        : null,
+      data.operatorMarks === "recorded"
+        ? null
+        : data.operatorMarks === "unavailable"
+          ? "Accept / reject marks could not be read right now."
+          : "Accept / reject is not recorded yet. Act on a row in Listings or the comics terminal.",
+    marksEnabled: data.operatorMarks === "recorded",
     items: data.items.map((item) => {
       const range = item.marketRange && item.marketRange.matchedSales > 0 ? item.marketRange : null;
       return {
@@ -114,6 +157,9 @@ export function sellModelFromResponse(raw: unknown): SellModel {
             }
           : null,
         reasons: item.reasons,
+        confidenceRaw: item.confidence,
+        ruleOrModelVersion: item.provenance.ruleOrModelVersion,
+        mark: item.latestDecision ?? null,
         provenance: [
           item.provenance.source,
           item.provenance.method,

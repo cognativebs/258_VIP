@@ -539,6 +539,19 @@ describe("VIP API", () => {
     });
   });
 
+  it("sell-queue decision routes refuse a bad body without writing (Q16)", async () => {
+    await withServer(async (base) => {
+      const bad = await fetch(`${base}/api/sell-queue/decisions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ holdingId: "x", decision: "maybe", action: "Sell", confidence: 0.5, ruleOrModelVersion: "t" }),
+      });
+      expect(bad.status).toBe(400);
+      const noRef = await fetch(`${base}/api/sell-queue/decisions`);
+      expect(noRef.status).toBe(400);
+    });
+  });
+
   it("GET /api/sources says which jobs read each toggle (Q12)", async () => {
     await withServer(async (base) => {
       const body = (await (await fetch(`${base}/api/sources`)).json()) as {

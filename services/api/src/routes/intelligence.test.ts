@@ -289,7 +289,8 @@ describe("GET /api/sell-queue/dogfood", () => {
         });
         expect(first.provenance.ruleOrModelVersion).toContain("vip-sell-queue-dogfood@");
         expect(parsed.gradingCost.verificationStatus).toBe("unverified");
-        expect(parsed.operatorMarks).toBe("not_recorded");
+        expect(parsed.operatorMarks).toBe("recorded");
+        expect(parsed.items.every((i) => i.latestDecision === null)).toBe(true);
 
         const limited = await fetch(`${base}/api/sell-queue/dogfood?limit=2`);
         const limitedBody = SellQueueResponseSchema.parse(await limited.json());
