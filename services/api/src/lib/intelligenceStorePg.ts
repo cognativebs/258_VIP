@@ -12,9 +12,12 @@
  * (recommendation_active, evidence_card_live, acquisition_underwriting_flagged,
  * prediction_needs_scoring), so stale and below-threshold flags come from SQL.
  *
- * Provenance: none of these tables has provenance columns. Provenance on a row
- * read back is rebuilt from the row (source system / model_version, method,
- * confidence) and says so in `notes`; the rule version shown is the reader's.
+ * Provenance (Q21, owner 2026-11-23): prediction, acquisition_underwriting,
+ * grading_evaluation, recommendation and evidence_card store provenance in
+ * prov_* columns at write time. Rows written before that have NULL prov_* and
+ * are rebuilt on read, labelled so in `notes` with the reader's rule version.
+ *
+ * Field capture -> underwriting (Q20) is field_captured_item.acquisition_underwriting_id.
  *
  * Nothing here writes vault_market (HS-2) or implies a priced_unit join (HS-1);
  * assets join on vault_core.asset(id), holdings on vault_collection.holding(id).
@@ -54,7 +57,7 @@ import {
   type RecommendationRecord,
   type Underwriting,
 } from "@vip/intelligence";
-import { markInferred, markObserved } from "@vip/evidence";
+import { ProvenanceSchema, markInferred, markObserved, type Provenance } from "@vip/evidence";
 import {
   buildFieldCapture,
   buildFieldSession,
@@ -64,7 +67,6 @@ import {
   buildPrediction,
   buildUnderwriting,
   emptyIntelligenceDoc,
-  fieldCaptureTag,
   type IntelligenceDoc,
   type IntelligenceStore,
 } from "./intelligenceStore.js";
@@ -82,7 +84,43 @@ export type PgIntelligenceStoreOptions = {
 };
 
 const REBUILT_NOTE = (table: string) =>
-  `provenance rebuilt on read — vault_core.${table} has no provenance columns; rule version is the reader's (${INTELLIGENCE_VERSION})`;
+  `provenance rebuilt on read — this vault_core.${table} row predates stored provenance; rule version is the reader's (${INTELLIGENCE_VERSION})`;
+
+/** Q21: the six prov_* columns, in insert order. */
+const PROV_COLUMNS =
+  "prov_source, prov_method, prov_rule_version, prov_confidence, prov_verification_status, prov_notes";
+
+function provParams(p: Provenance | null | undefined): unknown[] {
+  if (!p) return [null, null, null, null, null, null];
+  return [
+    p.source,
+    p.method,
+    p.ruleOrModelVersion,
+    Number(p.confidence.toFixed(3)),
+    p.verificationStatus,
+    p.notes ?? null,
+  ];
+}
+
+/** Provenance stored at write time, or null for a row written before Q21. */
+function storedProvenance(r: Record<string, unknown>): Provenance | null {
+  if (r.prov_rule_version == null || r.prov_method == null || r.prov_source == null) return null;
+  return ProvenanceSchema.parse({
+    source: String(r.prov_source),
+    method: String(r.prov_method),
+    ruleOrModelVersion: String(r.prov_rule_version),
+    confidence: r.prov_confidence == null ? 0 : Number(r.prov_confidence),
+    verificationStatus: String(r.prov_verification_status ?? "unverified"),
+    ...(r.prov_notes != null ? { notes: String(r.prov_notes) } : {}),
+  });
+}
+
+/** SELECT from a read view plus the base table's prov_* columns (views list their columns explicitly). */
+function viewWithProv(view: string, base: string): string {
+  return `SELECT v.*, b.prov_source, b.prov_method, b.prov_rule_version, b.prov_confidence,
+                 b.prov_verification_status, b.prov_notes
+            FROM vault_core.${view} v JOIN vault_core.${base} b ON b.id = v.id`;
+}
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -293,19 +331,28 @@ export function predictionFromRow(r: Record<string, unknown>): Prediction {
     modelAdjustment: (r.model_adjustment as string | null) ?? null,
     resolvedAt: dateOrNull(r.resolved_at),
     createdAt: date(r.created_at),
-    provenance: resolved
-      ? markObserved({
-          source: modelVersion,
-          ruleOrModelVersion: INTELLIGENCE_VERSION,
+    provenance: (() => {
+      const stored = storedProvenance(r);
+      if (resolved) {
+        return markObserved({
+          source: stored?.source ?? modelVersion,
+          ruleOrModelVersion: stored?.ruleOrModelVersion ?? INTELLIGENCE_VERSION,
           confidence: 1,
-          notes: `Outcome recorded after horizon · ${REBUILT_NOTE("prediction")}`,
-        })
-      : markInferred({
+          notes: stored
+            ? "Outcome recorded after horizon · forecast provenance stored at write"
+            : `Outcome recorded after horizon · ${REBUILT_NOTE("prediction")}`,
+        });
+      }
+      return (
+        stored ??
+        markInferred({
           source: modelVersion,
           ruleOrModelVersion: INTELLIGENCE_VERSION,
           confidence: confidence ?? 0.5,
           notes: `Frozen forecast — unverified until resolution · ${REBUILT_NOTE("prediction")}`,
-        }),
+        })
+      );
+    })(),
   });
 }
 
@@ -335,7 +382,7 @@ function underwritingFromRow(r: Record<string, unknown>): Underwriting {
     completedTransaction: Boolean(r.completed_transaction),
     lockedAt: dateOrNull(r.locked_at),
     notes: (r.notes as string | null) ?? null,
-    provenance: markInferred({
+    provenance: storedProvenance(r) ?? markInferred({
       source: "acquisition_underwriting",
       ruleOrModelVersion: INTELLIGENCE_VERSION,
       confidence: confidence ?? 0.7,
@@ -370,7 +417,7 @@ function gradingFromRow(r: Record<string, unknown>): GradingEvaluation {
     recommendation,
     graderRouting: (r.grader_routing as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
-    provenance: markInferred({
+    provenance: storedProvenance(r) ?? markInferred({
       source: "grading_optimizer",
       ruleOrModelVersion: INTELLIGENCE_VERSION,
       confidence: recommendation === "inspect_further" ? 0.3 : 0.65,
@@ -509,7 +556,7 @@ function recommendationFromRows(
         confidenceWouldIncreaseIf: (c.confidence_would_increase_if as string | null) ?? null,
         rawReferenceId: (c.raw_reference_id as string | null) ?? null,
         createdAt: date(c.created_at),
-        provenance: markObserved({
+        provenance: storedProvenance(c) ?? markObserved({
           source: String(c.evidence_source),
           ruleOrModelVersion: INTELLIGENCE_VERSION,
           confidence: numOrNull(c.confidence) ?? 0.7,
@@ -517,7 +564,7 @@ function recommendationFromRows(
         }),
       }),
     ),
-    provenance: markObserved({
+    provenance: storedProvenance(r) ?? markObserved({
       source: String(r.source_system),
       ruleOrModelVersion: INTELLIGENCE_VERSION,
       confidence,
@@ -546,9 +593,9 @@ export function insertPrediction(db: PgExec, p: Prediction): Promise<boolean> {
        (id, asset_id, predicted_at, price_at_prediction, horizon_days, resolves_at,
         probability_down, probability_sideways, probability_up, assumptions, evidence_ids,
         confidence, model_version, actual_price, actual_direction, forecast_error,
-        explanation, model_adjustment, resolved_at, created_at)
+        explanation, model_adjustment, resolved_at, created_at, ${PROV_COLUMNS})
      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid[], $12, $13,
-             $14, $15, $16, $17, $18, $19, $20)
+             $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [
@@ -572,6 +619,7 @@ export function insertPrediction(db: PgExec, p: Prediction): Promise<boolean> {
       p.modelAdjustment ?? null,
       p.resolvedAt ?? null,
       p.createdAt,
+      ...provParams(p.provenance),
     ],
   );
 }
@@ -584,9 +632,9 @@ export function insertUnderwriting(db: PgExec, u: Underwriting, notes = u.notes)
         conservative_raw_value, likely_raw_value, museum_keep_value, liquidation_value,
         selling_costs, expected_days_to_liquidate, coverage_ratio_minimum_threshold,
         expected_profit, capital_at_risk, confidence, linked_recommendation_id,
-        completed_transaction, locked_at, notes)
+        completed_transaction, locked_at, notes, ${PROV_COLUMNS})
      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-             $16, $17::uuid, $18, $19, $20)
+             $16, $17::uuid, $18, $19, $20, $21, $22, $23, $24, $25, $26)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [
@@ -610,6 +658,7 @@ export function insertUnderwriting(db: PgExec, u: Underwriting, notes = u.notes)
       u.completedTransaction,
       u.lockedAt ?? null,
       notes ?? null,
+      ...provParams(u.provenance),
     ],
   );
 }
@@ -622,9 +671,9 @@ export function insertGrading(db: PgExec, g: GradingEvaluation): Promise<boolean
         psa8_probability, psa8_value, psa9_probability, psa9_value, psa10_probability,
         psa10_value, grading_cost, shipping_cost, insurance_cost, selling_expense_pct,
         opportunity_cost, expected_incremental_profit, grading_opportunity_score,
-        recommendation, grader_routing, notes)
+        recommendation, grader_routing, notes, ${PROV_COLUMNS})
      VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-             $16, $17, $18, $19, $20, $21, $22)
+             $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [
@@ -650,6 +699,7 @@ export function insertGrading(db: PgExec, g: GradingEvaluation): Promise<boolean
       g.recommendation,
       g.graderRouting ?? null,
       g.notes ?? null,
+      ...provParams(g.provenance),
     ],
   );
 }
@@ -774,8 +824,9 @@ export function insertCapture(db: PgExec, c: FieldCapture): Promise<boolean> {
   return inserted(
     db,
     `INSERT INTO vault_core.field_captured_item
-       (id, field_session_id, captured_at, raw_scan_id, asking_price, recommendation_id)
-     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6::uuid)
+       (id, field_session_id, captured_at, raw_scan_id, asking_price, recommendation_id,
+        acquisition_underwriting_id)
+     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6::uuid, $7::uuid)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [
@@ -785,6 +836,7 @@ export function insertCapture(db: PgExec, c: FieldCapture): Promise<boolean> {
       c.cardScanId,
       c.askingPrice,
       c.recommendationId,
+      c.underwritingId ?? null,
     ],
   );
 }
@@ -793,8 +845,9 @@ export async function insertRecommendation(db: PgExec, r: RecommendationRecord):
   const did = await inserted(
     db,
     `INSERT INTO vault_core.recommendation
-       (id, asset_id, holding_id, action, confidence, rationale, created_at, expires_at, source_system)
-     VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9)
+       (id, asset_id, holding_id, action, confidence, rationale, created_at, expires_at, source_system,
+        ${PROV_COLUMNS})
+     VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      ON CONFLICT (id) DO NOTHING
      RETURNING id`,
     [
@@ -807,6 +860,7 @@ export async function insertRecommendation(db: PgExec, r: RecommendationRecord):
       r.createdAt,
       r.expiresAt,
       r.sourceSystem,
+      ...provParams(r.provenance),
     ],
   );
   if (did) {
@@ -815,8 +869,8 @@ export async function insertRecommendation(db: PgExec, r: RecommendationRecord):
         `INSERT INTO vault_core.evidence_card
            (id, recommendation_id, evidence_source, evidence_timestamp, confidence,
             supporting_evidence, contradictory_evidence, missing_information,
-            confidence_would_increase_if, raw_reference_id, created_at)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            confidence_would_increase_if, raw_reference_id, created_at, ${PROV_COLUMNS})
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (id) DO NOTHING`,
         [
           c.id,
@@ -830,6 +884,7 @@ export async function insertRecommendation(db: PgExec, r: RecommendationRecord):
           c.confidenceWouldIncreaseIf ?? null,
           c.rawReferenceId ?? null,
           c.createdAt,
+          ...provParams(c.provenance),
         ],
       );
     }
@@ -842,19 +897,15 @@ export async function insertRecommendation(db: PgExec, r: RecommendationRecord):
 // ---------------------------------------------------------------------------
 
 const CAPTURE_SELECT = `
-  SELECT c.*, s.image_ref, i.id AS identification_id, i.needs_review, u.id AS underwriting_id
+  SELECT c.*, s.image_ref, i.id AS identification_id, i.needs_review,
+         c.acquisition_underwriting_id AS underwriting_id
     FROM vault_core.field_captured_item c
     LEFT JOIN vault_core.card_scan s ON s.id = c.raw_scan_id
     LEFT JOIN LATERAL (
       SELECT ci.id, ci.needs_review FROM vault_core.card_identification ci
        WHERE ci.card_scan_id = c.raw_scan_id AND ci.superseded_by IS NULL
        ORDER BY ci.created_at DESC LIMIT 1
-    ) i ON true
-    LEFT JOIN LATERAL (
-      SELECT au.id FROM vault_core.acquisition_underwriting au
-       WHERE au.notes LIKE '%[field_capture:' || c.id::text || ']%'
-       LIMIT 1
-    ) u ON true`;
+    ) i ON true`;
 
 async function one<T>(
   db: PgExec,
@@ -871,9 +922,9 @@ export async function loadPgIntelligenceDoc(db: PgExec): Promise<IntelligenceDoc
   const q = async (text: string) => (await db.query(text)).rows as Record<string, unknown>[];
   // One query at a time: a single pg client must not be handed concurrent queries.
   const predictions = await q(`SELECT * FROM vault_core.prediction ORDER BY created_at, id`);
-  const recs = await q(`SELECT * FROM vault_core.recommendation_active ORDER BY created_at, id`);
-  const cards = await q(`SELECT * FROM vault_core.evidence_card_live ORDER BY created_at, id`);
-  const underwriting = await q(`SELECT * FROM vault_core.acquisition_underwriting_flagged ORDER BY evaluated_at, id`);
+  const recs = await q(`${viewWithProv("recommendation_active", "recommendation")} ORDER BY v.created_at, v.id`);
+  const cards = await q(`${viewWithProv("evidence_card_live", "evidence_card")} ORDER BY v.created_at, v.id`);
+  const underwriting = await q(`${viewWithProv("acquisition_underwriting_flagged", "acquisition_underwriting")} ORDER BY v.evaluated_at, v.id`);
   const grading = await q(`SELECT * FROM vault_core.grading_evaluation ORDER BY evaluated_at, id`);
   const cycles = await q(`SELECT * FROM vault_core.market_cycle_state ORDER BY evaluated_at, id`);
   const scans = await q(`SELECT * FROM vault_core.buy_opportunity_scan ORDER BY scanned_at, id`);
@@ -908,7 +959,10 @@ export async function loadPgIntelligenceDoc(db: PgExec): Promise<IntelligenceDoc
 
 export async function pgDuePredictions(db: PgExec): Promise<DuePredictionsReport> {
   const r = await db.query(
-    `SELECT p.*, now() AS db_now FROM vault_core.prediction_needs_scoring p ORDER BY p.resolves_at, p.id`,
+    `SELECT p.*, b.prov_source, b.prov_method, b.prov_rule_version, b.prov_confidence,
+            b.prov_verification_status, b.prov_notes, now() AS db_now
+       FROM vault_core.prediction_needs_scoring p JOIN vault_core.prediction b ON b.id = p.id
+      ORDER BY p.resolves_at, p.id`,
   );
   const rows = r.rows as Record<string, unknown>[];
   const asOf =
@@ -994,7 +1048,7 @@ export function pgIntelligenceStore(
         await insertUnderwriting(t, row);
         return one(
           t,
-          `SELECT * FROM vault_core.acquisition_underwriting_flagged WHERE id = $1::uuid`,
+          `${viewWithProv("acquisition_underwriting_flagged", "acquisition_underwriting")} WHERE v.id = $1::uuid`,
           row.id,
           underwritingFromRow,
         );
@@ -1004,7 +1058,7 @@ export function pgIntelligenceStore(
       tx(async (t) => {
         if (!isUuid(id)) throw new Error(`Underwriting not found: ${id}`);
         const found = await t.query(
-          `SELECT * FROM vault_core.acquisition_underwriting_flagged WHERE id = $1::uuid`,
+          `${viewWithProv("acquisition_underwriting_flagged", "acquisition_underwriting")} WHERE v.id = $1::uuid`,
           [id],
         );
         if (!found.rows[0]) throw new Error(`Underwriting not found: ${id}`);
@@ -1017,7 +1071,7 @@ export function pgIntelligenceStore(
         );
         return one(
           t,
-          `SELECT * FROM vault_core.acquisition_underwriting_flagged WHERE id = $1::uuid`,
+          `${viewWithProv("acquisition_underwriting_flagged", "acquisition_underwriting")} WHERE v.id = $1::uuid`,
           id,
           underwritingFromRow,
         );
@@ -1061,11 +1115,7 @@ export function pgIntelligenceStore(
         if (bundle.cardScan) await insertCardScan(t, bundle.cardScan);
         if (bundle.identification) await insertIdentification(t, bundle.identification);
         if (bundle.underwriting) {
-          await insertUnderwriting(
-            t,
-            bundle.underwriting,
-            withCaptureTag(bundle.underwriting.notes, bundle.capture.id),
-          );
+          await insertUnderwriting(t, bundle.underwriting);
         }
         await insertCapture(t, bundle.capture);
         return one(t, `${CAPTURE_SELECT} WHERE c.id = $1::uuid`, bundle.capture.id, captureFromRow);
@@ -1089,12 +1139,6 @@ export function pgIntelligenceStore(
         );
       }),
   };
-}
-
-function withCaptureTag(notes: string | null | undefined, captureId: string): string {
-  const tag = fieldCaptureTag(captureId);
-  if (notes?.includes(tag)) return notes;
-  return notes ? `${notes} ${tag}` : tag;
 }
 
 // ---------------------------------------------------------------------------
@@ -1136,10 +1180,6 @@ export async function importIntelligenceDoc(
   opts: { dryRun: boolean; source: string; inTransaction?: boolean },
 ): Promise<IntelligenceImportReport> {
   const doc: IntelligenceDoc = { ...emptyIntelligenceDoc(), ...raw };
-  const captureByUnderwriting = new Map<string, string>();
-  for (const c of doc.captures ?? []) {
-    if (c?.underwritingId) captureByUnderwriting.set(c.underwritingId, c.id);
-  }
 
   const asset = (id: string | null | undefined, label = "asset") => async (db: PgExec) =>
     id == null || (await exists(db, "vault_core.asset", id)) ? null : `${label} ${id} not in vault_core.asset`;
@@ -1209,13 +1249,12 @@ export async function importIntelligenceDoc(
       }
       case "underwriting": {
         const u = UnderwritingSchema.parse(row);
-        const captureId = captureByUnderwriting.get(u.id);
         return {
           precheck: all(
             asset(u.assetId),
             parent("vault_core.recommendation", u.linkedRecommendationId, "recommendation"),
           ),
-          insert: (db) => insertUnderwriting(db, u, captureId ? withCaptureTag(u.notes, captureId) : u.notes),
+          insert: (db) => insertUnderwriting(db, u),
         };
       }
       case "grading": {
@@ -1247,6 +1286,7 @@ export async function importIntelligenceDoc(
             parent("vault_core.field_session", c.fieldSessionId, "field session"),
             parent("vault_core.card_scan", c.cardScanId, "card scan"),
             parent("vault_core.recommendation", c.recommendationId, "recommendation"),
+            parent("vault_core.acquisition_underwriting", c.underwritingId ?? null, "underwriting"),
           ),
           insert: (db) => insertCapture(db, c),
         };

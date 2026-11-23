@@ -67,7 +67,14 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
       expect(Math.round((p.resolvesAt.getTime() - p.predictedAt.getTime()) / 86_400_000)).toBe(90);
       expect(p.provenance.method).toBe("inferred");
       expect(p.provenance.verificationStatus).toBe("unverified");
-      expect(p.provenance.notes).toMatch(/rebuilt on read/);
+      // Q21: provenance is stored at write time, so it is not rebuilt.
+      expect(p.provenance.notes ?? "").not.toMatch(/rebuilt on read/);
+      const provRow = await db.query(
+        `SELECT prov_method, prov_rule_version, prov_verification_status FROM vault_core.prediction WHERE id = $1`,
+        [p.id],
+      );
+      expect(provRow.rows[0]).toMatchObject({ prov_method: "inferred", prov_verification_status: "unverified" });
+      expect(provRow.rows[0].prov_rule_version).toBe(p.provenance.ruleOrModelVersion);
       const row = await db.query(`SELECT resolves_at FROM vault_core.prediction WHERE id = $1`, [p.id]);
       expect(new Date(row.rows[0].resolves_at).getTime()).toBe(p.resolvesAt.getTime());
       // Early resolution is refused by the domain rule before any UPDATE.
@@ -141,12 +148,30 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
     });
   });
 
+  it("labels a row written before stored provenance as rebuilt on read (Q21)", async () => {
+    await inTransaction(async ({ store, db }) => {
+      const u = await store.addUnderwriting({ lotDescription: "old row", askingPrice: 100, offerPrice: 90, conservativeRawValue: 150 });
+      await db.query(
+        `UPDATE vault_core.acquisition_underwriting
+            SET prov_source = NULL, prov_method = NULL, prov_rule_version = NULL,
+                prov_confidence = NULL, prov_verification_status = NULL, prov_notes = NULL
+          WHERE id = $1`,
+        [u.id],
+      );
+      const doc = await store.load();
+      const old = doc.underwriting.find((x) => x.id === u.id);
+      expect(old?.provenance.notes).toMatch(/rebuilt on read/);
+      expect(old?.provenance.method).toBe("inferred");
+    });
+  });
+
   it("underwrites, locks once, and keeps coverage/below-threshold from the SQL view", async () => {
     await inTransaction(async ({ store }) => {
       const u = await store.addUnderwriting({ lotDescription: "pg lot", askingPrice: 750, offerPrice: 700, conservativeRawValue: 770 });
       expect(u.acquisitionCoverageRatio).toBe(1.1);
       expect(u.belowThreshold).toBe(true);
       expect(u.blocked).toBe(false);
+      expect(u.provenance.notes ?? "").not.toMatch(/rebuilt on read/);
       const locked = await store.lockUnderwriting(u.id);
       expect(locked.completedTransaction).toBe(true);
       expect(locked.lockedAt).toBeInstanceOf(Date);
@@ -173,7 +198,7 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
   });
 
   it("keeps cycle rows manual, and links a field capture to its scan, identification and underwriting", async () => {
-    await inTransaction(async ({ store, assetId }) => {
+    await inTransaction(async ({ store, assetId, db }) => {
       const { cycle, scan } = await store.addManualCycle({ assetId, cycleState: "accumulation", watchNote: "watch" });
       expect(cycle.dataSource).toBe("manual");
       expect(scan.marketCycleStateId).toBe(cycle.id);
@@ -191,6 +216,16 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
       expect(capture.cardScanId).not.toBeNull();
       expect(capture.identificationId).not.toBeNull();
       expect(capture.underwritingId).not.toBeNull();
+      // Q20: the link is a column, not a tag in the underwriting notes.
+      const link = await db.query(
+        `SELECT c.acquisition_underwriting_id, au.notes
+           FROM vault_core.field_captured_item c
+           JOIN vault_core.acquisition_underwriting au ON au.id = c.acquisition_underwriting_id
+          WHERE c.id = $1`,
+        [capture.id],
+      );
+      expect(link.rows[0].acquisition_underwriting_id).toBe(capture.underwritingId);
+      expect(String(link.rows[0].notes ?? "")).not.toMatch(/field_capture:/);
 
       const golden = await store.addGoldenCase({ imageRef: "s3://golden/pg.jpg", knownCorrectAssetId: assetId });
       const doc = await store.load();
