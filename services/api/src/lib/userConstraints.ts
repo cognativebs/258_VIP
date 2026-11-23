@@ -76,8 +76,9 @@ export function constraintsForHolding(
  * constraints JSON > DEFAULT_GRADING_COST_USD. The default is an assumption
  * (rough PSA/CGC economy tier, no shipping or insurance) and is labelled
  * unverified everywhere it surfaces. None of the three is a verified quote.
+ * 32 USD set by the owner 2026-11-23 (finish plan Q15; was 25).
  */
-export const DEFAULT_GRADING_COST_USD = 25;
+export const DEFAULT_GRADING_COST_USD = 32;
 
 export type GradingCostAssumption = {
   usd: number;
@@ -126,6 +127,6 @@ export function loadGradingCostAssumption(env: NodeJS.ProcessEnv = process.env):
     usd: DEFAULT_GRADING_COST_USD,
     source: "default_assumption",
     verificationStatus: "unverified",
-    note: `Default ${DEFAULT_GRADING_COST_USD} USD per book is an assumption · unverified (no shipping, insurance or tier quote)`,
+    note: `Default ${DEFAULT_GRADING_COST_USD} USD per book (owner-set 2026-11-23) is an assumption · unverified (no shipping, insurance or tier quote)`,
   };
 }

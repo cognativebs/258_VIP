@@ -11,6 +11,7 @@ describe("loadGradingCostAssumption", () => {
   it("defaults to a labelled, unverified assumption", () => {
     const g = loadGradingCostAssumption({ VIP_USER_CONSTRAINTS_PATH: missing });
     expect(g.usd).toBe(DEFAULT_GRADING_COST_USD);
+    expect(DEFAULT_GRADING_COST_USD).toBe(32);
     expect(g.source).toBe("default_assumption");
     expect(g.verificationStatus).toBe("unverified");
     expect(g.note).toMatch(/assumption/);

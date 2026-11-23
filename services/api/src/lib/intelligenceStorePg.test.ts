@@ -59,8 +59,8 @@ const P = { priceAtPrediction: 230, horizonDays: 90, probabilityDown: 0.55, prob
 describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled back)", () => {
   it("writes a prediction to vault_core.prediction and refuses an asset that is not in the catalog", async () => {
     await inTransaction(async ({ store, assetId, db }) => {
-      await expect(store.addPrediction({ assetId: "mega-greninja-ex-sir", ...P })).rejects.toThrow(
-        /not in vault_core\.asset/,
+      await expect(store.addPrediction({ assetId: "zz-no-such-asset-slug", ...P })).rejects.toThrow(
+        /matches no asset/,
       );
       const p = await store.addPrediction({ assetId, ...P, assumptions: "pg test" });
       expect(p.assetId).toBe(assetId);
@@ -111,6 +111,36 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
     });
   });
 
+  it("finds an asset by slug, exact name or external id, and refuses an ambiguous key (Q18)", async () => {
+    await inTransaction(async ({ store, assetId, holdingId, db }) => {
+      const slug = `zz-intel-slug-${randomUUID().slice(0, 8)}`;
+      await db.query(`UPDATE vault_core.asset SET slug = $2 WHERE id = $1::uuid`, [assetId, slug]);
+      expect((await store.addPrediction({ assetId: slug, ...P })).assetId).toBe(assetId);
+      expect((await store.addPrediction({ assetId: "INTEL-STORE TEST ASSET (ROLLED BACK)", ...P })).assetId).toBe(assetId);
+      const ext = `zz-ext-${randomUUID().slice(0, 8)}`;
+      await db.query(
+        `INSERT INTO vault_core.external_id (asset_id, source, external_value) VALUES ($1::uuid, 'test', $2)`,
+        [assetId, ext],
+      );
+      expect((await store.addPrediction({ assetId: ext, ...P })).assetId).toBe(assetId);
+      // A holding by asset key works while the asset has exactly one holding.
+      const g = await store.addGrading({ holdingId: slug, rawValue: 80, gradingCost: 32 });
+      expect(g.holdingId).toBe(holdingId);
+
+      await db.query(
+        `INSERT INTO vault_core.asset (category_id, canonical_name)
+         VALUES ((SELECT id FROM vault_core.categories WHERE kind = 'pokemon'), 'intel-store test asset (rolled back)')`,
+      );
+      await expect(
+        store.addPrediction({ assetId: "intel-store test asset (rolled back)", ...P }),
+      ).rejects.toThrow(/matches 2 assets/);
+      await db.query(`INSERT INTO vault_collection.holding (asset_id) VALUES ($1::uuid)`, [assetId]);
+      await expect(store.addGrading({ holdingId: slug, rawValue: 80, gradingCost: 32 })).rejects.toThrow(
+        /several holdings/,
+      );
+    });
+  });
+
   it("underwrites, locks once, and keeps coverage/below-threshold from the SQL view", async () => {
     await inTransaction(async ({ store }) => {
       const u = await store.addUnderwriting({ lotDescription: "pg lot", askingPrice: 750, offerPrice: 700, conservativeRawValue: 770 });
@@ -126,8 +156,8 @@ describe.skipIf(!DSN)("Postgres intelligence store (IQVAULT_TEST_DSN, rolled bac
 
   it("grades a real holding only", async () => {
     await inTransaction(async ({ store, holdingId }) => {
-      await expect(store.addGrading({ holdingId: "flareon-raw", rawValue: 80, gradingCost: 25 })).rejects.toThrow(
-        /not in vault_collection\.holding/,
+      await expect(store.addGrading({ holdingId: "zz-no-such-holding", rawValue: 80, gradingCost: 25 })).rejects.toThrow(
+        /matches no asset/,
       );
       const g = await store.addGrading({
         holdingId,

@@ -54,7 +54,7 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
 - [x] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
       (2026-11-22: `GET /api/sell-queue/dogfood?limit=N` items carry a zod-typed provenance
-      block; grading cost from `VIP_GRADING_COST_USD` / `gradingCostUsd`, default 25 USD
+      block; grading cost from `VIP_GRADING_COST_USD` / `gradingCostUsd`, default 32 USD (owner 2026-11-23)
       labelled assumption · unverified; shown in OPERATE → Sell.)
 - [ ] Sell-queue operator accept/reject mark. No existing table fits without a semantic
       choice: `disposition_history` writes `current_disposition` (PC/HOLD/GRADE/SINGLE/LOT…),

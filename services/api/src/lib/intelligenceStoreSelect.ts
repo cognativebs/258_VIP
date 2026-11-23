@@ -10,14 +10,15 @@ import { isPgUnavailable, pgIntelligenceStore } from "./intelligenceStorePg.js";
 /**
  * Picks the backend for each intelligence call.
  *
- *   VIP_INTELLIGENCE_STORE=json (default until the operator imports the JSON
- *     state and opts in — switching silently would hide JSON-only rows and
- *     reject the desk's free-text asset keys) — the legacy JSON file only.
+ *   VIP_INTELLIGENCE_STORE=postgres (default since 2026-11-23, owner, finish
+ *     plan Q18) — Postgres only; unreachable is a 503. The JSON state held only
+ *     sample rows (import dry-run: 8 of 9 skipped, no real asset), and the desk's
+ *     free-text keys resolve by slug / exact name / external id.
+ *   VIP_INTELLIGENCE_STORE=json — the legacy JSON file only.
  *   VIP_INTELLIGENCE_STORE=auto — Postgres; JSON only when Postgres
  *     cannot be reached or is not migrated (connection / undefined-table
  *     errors). Constraint and trigger rejections are NOT a fallback: they are
  *     the guardrails and surface to the caller.
- *   VIP_INTELLIGENCE_STORE=postgres — Postgres only; unreachable is a 503.
  *
  * Every result names the store that answered, so a JSON fallback is never
  * presented as the durable ledger.
@@ -43,9 +44,9 @@ export class IntelligenceStoreUnavailableError extends Error {
 
 export function intelligenceStoreMode(env = process.env): IntelligenceStoreMode {
   const parsed = IntelligenceStoreModeSchema.safeParse(
-    (env.VIP_INTELLIGENCE_STORE ?? "json").trim().toLowerCase(),
+    (env.VIP_INTELLIGENCE_STORE ?? "postgres").trim().toLowerCase(),
   );
-  return parsed.success ? parsed.data : "json";
+  return parsed.success ? parsed.data : "postgres";
 }
 
 export function createIntelligenceStoreSelector(opts: {

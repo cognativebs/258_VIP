@@ -173,6 +173,63 @@ async function requireHolding(db: PgExec, holdingId: string): Promise<void> {
   }
 }
 
+/**
+ * Q18 (owner 2026-11-23): the desk can name an asset by UUID, slug, exact
+ * canonical name (case-insensitive) or an external id value, as it could with
+ * the JSON store. Exactly one asset must match; zero or several is an error
+ * that names the matches — never a guess.
+ */
+export const ASSET_KEY_LOOKUP_RULE = "intel-asset-key-lookup@0.1.0";
+
+export async function resolveAssetKey(db: PgExec, raw: unknown, label: string): Promise<string> {
+  const keyText = String(raw ?? "").trim();
+  if (!keyText) throw new Error(`${label} is empty — pass an asset UUID, slug or exact name.`);
+  if (isUuid(keyText)) {
+    await requireAsset(db, keyText, label);
+    return keyText;
+  }
+  const r = await db.query(
+    `SELECT a.id, a.canonical_name
+       FROM vault_core.asset a
+      WHERE lower(a.slug) = lower($1)
+         OR lower(a.canonical_name) = lower($1)
+         OR a.id IN (SELECT e.asset_id FROM vault_core.external_id e WHERE e.external_value = $1)
+      ORDER BY a.canonical_name
+      LIMIT 6`,
+    [keyText],
+  );
+  const rows = r.rows as Array<{ id: string; canonical_name: string }>;
+  if (rows.length === 1) return String(rows[0]!.id);
+  if (rows.length === 0) {
+    throw new Error(
+      `${label} matches no asset in vault_core.asset (by slug, exact name or external id). Pass the asset's UUID.`,
+    );
+  }
+  const names = rows.slice(0, 5).map((row) => `${row.canonical_name} (${row.id})`).join("; ");
+  throw new Error(`${label} matches ${rows.length >= 6 ? "6+" : rows.length} assets: ${names}. Pass the UUID.`);
+}
+
+/** A holding by UUID, or by an asset key when that asset has exactly one holding. */
+export async function resolveHoldingKey(db: PgExec, raw: unknown): Promise<string> {
+  const keyText = String(raw ?? "").trim();
+  if (isUuid(keyText)) {
+    await requireHolding(db, keyText);
+    return keyText;
+  }
+  const assetId = await resolveAssetKey(db, keyText, `Holding "${keyText}"`);
+  const r = await db.query(
+    `SELECT id FROM vault_collection.holding WHERE asset_id = $1::uuid ORDER BY id LIMIT 3`,
+    [assetId],
+  );
+  if (r.rows.length === 1) return String((r.rows[0] as { id: string }).id);
+  throw new Error(
+    r.rows.length === 0
+      ? `Holding "${keyText}": asset ${assetId} has no holding in vault_collection.holding.`
+      : `Holding "${keyText}": asset ${assetId} has several holdings. Pass the holding's UUID.`,
+  );
+}
+
+
 let savepointSeq = 0;
 
 async function withTx<T>(
@@ -894,8 +951,8 @@ export function pgIntelligenceStore(
 
     addPrediction: (body) =>
       tx(async (t) => {
-        const row = buildPrediction(body);
-        await requireAsset(t, row.assetId, `Asset "${String(body.assetId)}"`);
+        const assetId = await resolveAssetKey(t, body.assetId, `Asset "${String(body.assetId)}"`);
+        const row = buildPrediction({ ...body, assetId });
         await insertPrediction(t, row);
         return one(t, `SELECT * FROM vault_core.prediction WHERE id = $1::uuid`, row.id, predictionFromRow);
       }),
@@ -968,16 +1025,16 @@ export function pgIntelligenceStore(
 
     addGrading: (body) =>
       tx(async (t) => {
-        const row = buildGrading(body);
-        await requireHolding(t, row.holdingId);
+        const holdingId = await resolveHoldingKey(t, body.holdingId);
+        const row = buildGrading({ ...body, holdingId });
         await insertGrading(t, row);
         return one(t, `SELECT * FROM vault_core.grading_evaluation WHERE id = $1::uuid`, row.id, gradingFromRow);
       }),
 
     addManualCycle: (body) =>
       tx(async (t) => {
-        const { cycle, scan } = buildManualCycle(body);
-        await requireAsset(t, cycle.assetId, `Asset "${String(body.assetId)}"`);
+        const assetId = await resolveAssetKey(t, body.assetId, `Asset "${String(body.assetId)}"`);
+        const { cycle, scan } = buildManualCycle({ ...body, assetId });
         await insertCycle(t, cycle);
         await insertBuyScan(t, scan);
         return {
@@ -1016,8 +1073,12 @@ export function pgIntelligenceStore(
 
     addGoldenCase: (body) =>
       tx(async (t) => {
-        const { cardScan, goldenCase } = buildGoldenCase(body);
-        await requireAsset(t, goldenCase.knownCorrectAssetId, `Known-correct asset "${String(body.knownCorrectAssetId)}"`);
+        const knownCorrectAssetId = await resolveAssetKey(
+          t,
+          body.knownCorrectAssetId,
+          `Known-correct asset "${String(body.knownCorrectAssetId)}"`,
+        );
+        const { cardScan, goldenCase } = buildGoldenCase({ ...body, knownCorrectAssetId });
         await insertCardScan(t, cardScan);
         await insertGoldenCase(t, goldenCase);
         return one(

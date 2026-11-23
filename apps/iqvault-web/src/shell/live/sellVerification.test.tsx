@@ -24,7 +24,7 @@ const dogfood = {
   note: "Dogfood ranking",
   limit: 20,
   count: 2,
-  gradingCost: { usd: 25, source: "default_assumption", note: "Default 25 USD per book is an assumption · unverified" },
+  gradingCost: { usd: 32, source: "default_assumption", note: "Default 32 USD per book is an assumption · unverified" },
   operatorMarks: "not_recorded",
   items: [
     {
