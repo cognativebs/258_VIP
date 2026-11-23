@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ConditionKeySchema } from "./pricecharting.js";
 
-export const PHASE_D_RULE = "phase-d-cross-section@0.1.0";
+export const PHASE_D_RULE = "phase-d-cross-section@0.2.0";
 export const PHASE_D_CONFIDENCE_CEILING = 0.75;
 export const PHASE_D_MIN_NIGHTLY_SNAPSHOTS = 30;
 export const PHASE_D_ASK_LISTING_MIN = 5;
@@ -13,7 +13,8 @@ export const PHASE_D_PREMIUM_TIGHT = 1.4;
 /** Assumed CGC 9.8 hit rate · unverified. No pop report attached. */
 export const PHASE_D_P_98_UNVERIFIED = 0.2;
 export const PHASE_D_P_98_SENSITIVITY = [0.1, 0.2, 0.3] as const;
-export const PHASE_D_GRADING_COST = 25;
+/** Grading cost per book, an assumption · unverified. 32 USD set by the owner 2026-11-23 (finish plan Q15b; was 25, rule 0.1.0). */
+export const PHASE_D_GRADING_COST = 32;
 export const PHASE_D_SELLING_EXPENSE_PCT = 0.13;
 export const PHASE_D_PRE_1975_YEAR = 1975;
 
