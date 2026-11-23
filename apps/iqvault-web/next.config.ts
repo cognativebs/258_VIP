@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { shellRedirects } from "./src/lib/shellRedirects";
 
 const comicsTarget = process.env.COMICS_API_URL ?? "http://127.0.0.1:5200";
 const orchestr8Target = process.env.ORCHESTR8_URL ?? "http://127.0.0.1:5210";
@@ -11,30 +12,11 @@ const nextConfig: NextConfig = {
     middlewareClientMaxBodySize: "50mb",
   },
   async redirects() {
-    // ADR 0014 keeps the older pages reachable by URL until each one has a home
-    // inside a concept; most shell targets below are still empty states. The
-    // redirects ship off and turn on with VIP_SHELL_REDIRECTS=1 (operator call,
-    // see docs/status/2026-11-22_vip_finish_plan.md Q22).
-    if (process.env.VIP_SHELL_REDIRECTS !== "1") return [];
-    return [
-      { source: "/portfolio", destination: "/vault", permanent: false },
-      { source: "/collections", destination: "/vault", permanent: false },
-      { source: "/collections/:path*", destination: "/vault", permanent: false },
-      { source: "/scan", destination: "/ingest", permanent: false },
-      { source: "/batch/:path*", destination: "/ingest", permanent: false },
-      { source: "/intelligence", destination: "/advisor", permanent: false },
-      { source: "/recommendations", destination: "/advisor", permanent: false },
-      { source: "/signals-feed", destination: "/signals", permanent: false },
-      { source: "/sell-queue", destination: "/operate/sell", permanent: false },
-      { source: "/listings", destination: "/operate/listings", permanent: false },
-      { source: "/transactions", destination: "/operate/transactions", permanent: false },
-      { source: "/ebay", destination: "/operate/listings", permanent: false },
-      { source: "/ebay/:path*", destination: "/operate/listings", permanent: false },
-      { source: "/hunts", destination: "/vault", permanent: false },
-      { source: "/watchlist", destination: "/vault", permanent: false },
-      { source: "/theses", destination: "/advisor", permanent: false },
-      { source: "/sources", destination: "/operate/integrations", permanent: false },
-    ];
+    // ADR 0014 keeps older pages reachable by URL until each one has a home in a
+    // concept. Per page (Q22, owner 2026-11-23): a page redirects once it is
+    // marked absorbed in src/lib/shellRedirects.ts, or when the operator names it
+    // in VIP_SHELL_REDIRECTS (comma list, "all" or "off").
+    return shellRedirects(process.env.VIP_SHELL_REDIRECTS);
   },
   async rewrites() {
     return [
