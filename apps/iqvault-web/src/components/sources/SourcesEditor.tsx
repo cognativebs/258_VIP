@@ -69,6 +69,16 @@ export function SourcesEditor({ initial }: { initial: SourceRow[] }) {
                 {s.id} · {s.authority} · {s.accessMethod} · {s.categoryCoverage.join(", ")}
                 {s.persistedAt ? ` · changed ${new Date(s.persistedAt).toLocaleString()}` : " · registry default"}
               </p>
+              {s.readBy && s.readBy.length === 0 ? (
+                <p style={{ margin: "4px 0" }}>
+                  <span className="badge badge-warn">No job reads this yet</span>{" "}
+                  <span className="muted">The toggle is saved, but nothing changes until a job uses this source.</span>
+                </p>
+              ) : s.readBy ? (
+                <p className="muted" style={{ margin: "4px 0", fontSize: 13 }}>
+                  Read by: {s.readBy.join(", ")} (next run)
+                </p>
+              ) : null}
               <dl
                 style={{
                   display: "grid",

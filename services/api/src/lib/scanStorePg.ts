@@ -902,6 +902,9 @@ export async function rejectUnit(
   reason?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const db = getDb();
+  // Q11 (owner 2026-11-23): the operator's reason is kept on the unit.
+  const cleanReason =
+    typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : null;
   try {
     const res = await db.execute(sql`
       UPDATE vault_media.scan_unit
@@ -910,13 +913,13 @@ export async function rejectUnit(
           resolution_rule_version = ${SCAN_INGEST_RULE},
           resolved_at = now(),
           ocr_text = COALESCE(ocr_text, ''),
+          reject_reason = ${cleanReason},
           updated_at = now()
       WHERE id = ${unitId}::uuid AND resolution_mode IS NULL
     `);
     if ((res.rowCount ?? 0) === 0) {
       return { ok: false, error: "Unit not found or already resolved" };
     }
-    void reason;
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -925,7 +928,17 @@ export async function rejectUnit(
 
 export type BulkReviewFailure = { ok: false; status: 404 | 409; error: string };
 
-/** ADR 0015: committed is terminal, so a committed batch takes no bulk review. */
+/**
+ * ADR 0015: committed is terminal, so a committed batch takes no bulk review.
+ * Q10 (owner 2026-11-23): an abandoned batch takes none either.
+ */
+const BULK_CLOSED_LIFECYCLES = new Set(["committed", "abandoned"]);
+
+function bulkClosed(lifecycle: string | null): BulkReviewFailure | null {
+  if (!lifecycle || !BULK_CLOSED_LIFECYCLES.has(lifecycle)) return null;
+  return { ok: false, status: 409, error: `This batch is ${lifecycle}; bulk review is closed.` };
+}
+
 async function batchLifecycle(batchId: string): Promise<string | null> {
   const res = await getDb().execute(sql`
     SELECT lifecycle FROM vault_media.scan_batch WHERE id = ${batchId}::uuid
@@ -947,9 +960,8 @@ export async function stageAllAutoToConfirmList(
   if (!batch) {
     return { ok: false, status: 404, error: `Scan batch ${batchId} not found` };
   }
-  if ((await batchLifecycle(batchId)) === "committed") {
-    return { ok: false, status: 409, error: "This batch is committed; bulk review is closed." };
-  }
+  const closed = bulkClosed(await batchLifecycle(batchId));
+  if (closed) return closed;
   const policy = policyFromEnv();
   const holdings = await loadScanHoldings();
   const heldUnits = batch.units.filter((u) => {
@@ -1002,9 +1014,8 @@ export async function rejectAllNone(
   if (!batch) {
     return { ok: false, status: 404, error: `Scan batch ${batchId} not found` };
   }
-  if ((await batchLifecycle(batchId)) === "committed") {
-    return { ok: false, status: 409, error: "This batch is committed; bulk review is closed." };
-  }
+  const closed = bulkClosed(await batchLifecycle(batchId));
+  if (closed) return closed;
   const selection = selectNoneForReject(batch.units);
   if (input.expectedCount != null && input.expectedCount !== selection.eligible.length) {
     return {

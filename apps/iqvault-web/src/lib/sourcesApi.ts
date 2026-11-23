@@ -34,6 +34,8 @@ export const SourceRowSchema = z.object({
   active: z.boolean(),
   persistedAt: z.string().optional(),
   stats: SourceStatsSchema.optional(),
+  /** Jobs that read the toggle; empty = none yet (Q12). Absent = API did not say. */
+  readBy: z.array(z.string()).optional(),
 });
 export type SourceRow = z.infer<typeof SourceRowSchema>;
 

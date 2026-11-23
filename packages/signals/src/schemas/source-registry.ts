@@ -28,6 +28,11 @@ export const ApiSourceEntrySchema = SourceRegistryEntrySchema.extend({
   label: z.string().min(1),
   stats: SourceStatsSchema.optional(),
   persistedAt: z.string().optional(),
+  /**
+   * Jobs that read this source's toggle (finish plan Q12, owner 2026-11-23).
+   * Empty means no job reads it yet: the toggle is saved but changes nothing.
+   */
+  readBy: z.array(z.string().min(1)).optional(),
 });
 export type ApiSourceEntry = z.infer<typeof ApiSourceEntrySchema>;
 

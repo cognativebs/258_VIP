@@ -978,7 +978,7 @@ export function ScanIntake() {
                     className="btn-link"
                     disabled={busy || bulkAutoStageUnits(batch).length === 0}
                     onClick={() => void stageAllAuto(batch)}
-                    title="Stage every auto-band card. Nothing enters Collections until Approve confirm list."
+                    title="Stage every high-confidence card not already held. Nothing enters Collections until Approve confirm list."
                   >
                     Add all high-confidence to confirm list ({bulkAutoStageUnits(batch).length})
                   </button>

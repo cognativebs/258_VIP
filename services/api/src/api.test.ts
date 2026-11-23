@@ -539,6 +539,20 @@ describe("VIP API", () => {
     });
   });
 
+  it("GET /api/sources says which jobs read each toggle (Q12)", async () => {
+    await withServer(async (base) => {
+      const body = (await (await fetch(`${base}/api/sources`)).json()) as {
+        sources: { id: string; readBy?: string[] }[];
+      };
+      const by = Object.fromEntries(body.sources.map((s) => [s.id, s.readBy]));
+      expect(by["pokemon-news-rss"]).toEqual(["pokemon-drops"]);
+      expect(by["ebay-browse"]).toEqual(["ebay-browse-comps"]);
+      expect(by["clz-import"]).toEqual([]);
+      expect(by["ebay-sold"]).toEqual([]);
+      expect(by["tcgplayer-market"]).toEqual([]);
+    });
+  });
+
   it("PATCH /api/sources/:id persists active toggle", async () => {
     const statePath = join(dirname(tmpFeed), "sources-state-api-test.json");
     process.env.VIP_SOURCES_STATE = statePath;

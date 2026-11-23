@@ -26,6 +26,20 @@ const STATS_BY_SIGNAL_TYPE: Record<string, string> = {
   "retail-drop-watch": "retail",
 };
 
+/**
+ * Q12 (owner 2026-11-23): which jobs read each toggle through isSourceActive.
+ * Keep in step with services/jobs (pokemon-drops.ts, ebay-browse-comps.ts).
+ */
+export const SOURCE_READERS: Record<string, string[]> = {
+  "pokemon-news-rss": ["pokemon-drops"],
+  "retail-drop-watch": ["pokemon-drops"],
+  "ebay-browse": ["ebay-browse-comps"],
+};
+
+export function sourceReaders(sourceId: string): string[] {
+  return SOURCE_READERS[sourceId] ?? [];
+}
+
 export const SOURCE_STATS_METHOD = "signals-feed signalType proxy@0.1.0";
 
 export function contributionStats(sourceId: string): ApiSourceEntry["stats"] {
@@ -63,6 +77,7 @@ export function loadSources(): ApiSourceEntry[] {
       label: entry.name,
       persistedAt: overlay?.persistedAt,
       stats: contributionStats(entry.id),
+      readBy: sourceReaders(entry.id),
     };
   });
 }
@@ -78,5 +93,6 @@ export function updateSourceActive(id: string, active: boolean): ApiSourceEntry 
     label: base.name,
     persistedAt: state[id]?.persistedAt,
     stats: contributionStats(id),
+    readBy: sourceReaders(id),
   };
 }

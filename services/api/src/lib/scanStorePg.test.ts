@@ -188,13 +188,16 @@ describe("scan staging (ADR 0009)", () => {
       SELECT
         (SELECT count(*)::int FROM vault_media.scan_unit_candidate WHERE unit_id = ${unitId}::uuid) AS candidates,
         (SELECT resolution_mode FROM vault_media.scan_unit WHERE id = ${unitId}::uuid) AS mode,
-        (SELECT confirmed_asset_id FROM vault_media.scan_unit WHERE id = ${unitId}::uuid) AS asset
+        (SELECT confirmed_asset_id FROM vault_media.scan_unit WHERE id = ${unitId}::uuid) AS asset,
+        (SELECT reject_reason FROM vault_media.scan_unit WHERE id = ${unitId}::uuid) AS reason
     `);
     const row = (res.rows as Array<Record<string, unknown>>)[0]!;
     // Candidates survive so a better catalog can re-run against the same capture.
     expect(Number(row.candidates)).toBeGreaterThan(0);
     expect(row.mode).toBe("rejected");
     expect(row.asset).toBeNull();
+    // Q11: the operator's reason is kept.
+    expect(row.reason).toBe("blurry scan");
   });
 
   it("refuses to resolve a candidate that was never staged for the unit", async () => {
@@ -440,5 +443,24 @@ describe("scan staging (ADR 0009)", () => {
     const reject = await rejectAllNone(staged.batchId);
     expect(stage.ok).toBe(false);
     expect(reject.ok).toBe(false);
+  });
+
+  it("refuses bulk review on an abandoned batch (Q10)", async () => {
+    if (!(await dbAvailable())) return;
+    const tag = randomUUID().slice(0, 8);
+    const opened = await stageOneUnit(tag);
+    const staged = await persistBatch(opened);
+    trackScanBatch(staged.batchId);
+    await getDb().execute(sql`
+      UPDATE vault_media.scan_batch SET lifecycle = 'abandoned' WHERE id = ${staged.batchId}::uuid
+    `);
+    const stage = await stageAllAutoToConfirmList(staged.batchId);
+    const reject = await rejectAllNone(staged.batchId);
+    expect(stage.ok).toBe(false);
+    expect(reject.ok).toBe(false);
+    if (!stage.ok) {
+      expect(stage.status).toBe(409);
+      expect(stage.error).toContain("abandoned");
+    }
   });
 });
