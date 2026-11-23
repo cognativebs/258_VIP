@@ -10,6 +10,13 @@ export {
 } from "./provenance.js";
 
 export {
+  BINDER_UNVERSIONED,
+  BinderProvenanceInputSchema,
+  fromBinderProvenance,
+  type BinderProvenanceInput,
+} from "./binder.js";
+
+export {
   ProvenanceError,
   assertVerified,
   markInferred,

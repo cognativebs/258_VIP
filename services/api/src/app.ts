@@ -16,7 +16,9 @@ import cors from "cors";
 import express from "express";
 import { loadBinderTcg } from "./lib/binderHoldings.js";
 import { SIGNALS_INGESTION } from "./lib/intelligence.js";
+import { registerIngestRoutes } from "./routes/ingest.js";
 import { registerIntelligenceRoutes } from "./routes/intelligence.js";
+import type { IntelligenceStoreSelector } from "./lib/intelligenceStoreSelect.js";
 import { registerDealerKitRoutes } from "./routes/dealerKit.js";
 import { registerUnknownExitRoutes } from "./routes/unknownExit.js";
 import { registerSignalsDeskRoutes } from "./routes/signalsDesk.js";
@@ -43,6 +45,11 @@ import {
   updateComicHolding,
   type UpdateComicHoldingResult,
 } from "./lib/comicsWrite.js";
+import {
+  VerificationQueueQuerySchema,
+  loadVerificationQueue,
+  type VerificationQueueResponse,
+} from "./lib/verificationQueue.js";
 import { ebayAuthStatus } from "./lib/comps/ebayAuth.js";
 import { ebayDeletionStatus } from "./lib/comps/ebayMarketplaceDeletion.js";
 import { registerEbayDeletionRoutes } from "./routes/ebayMarketplaceDeletion.js";
@@ -57,6 +64,8 @@ import { createInventoryTransaction, listInventoryTransactions } from "./lib/tra
 import { compactSignalsContextWithPhaseD, signalsOutputFromFeed } from "./lib/signalsContext.js";
 import {
   ApproveConfirmListRequestSchema,
+  BulkRejectNoneRequestSchema,
+  BulkStageAutoRequestSchema,
   ebayCredsFromEnv,
 } from "@vip/scan-ingest";
 import { LIVE_RANGE_COPY, loadAllLiveRanges } from "./lib/liveRange.js";
@@ -68,6 +77,7 @@ import {
   selectHoldingsForRecommendations,
 } from "./lib/recommendations.js";
 import { defaultSignalsFeedPath, readSignalsFeed } from "./lib/signalsFeed.js";
+import { SourcePatchRequestSchema } from "@vip/signals";
 import { loadSources, updateSourceActive } from "./lib/sourcesRegistry.js";
 import {
   confirmScanFromApi,
@@ -80,6 +90,8 @@ import {
 import { scanInboxRoot } from "./lib/scanFolder.js";
 import {
   approveConfirmList,
+  rejectAllNone,
+  stageAllAutoToConfirmList,
   discardBatch,
   editStagedUnit,
   getStagedBatch,
@@ -190,6 +202,8 @@ export type AppDeps = {
     sourceRowId: string,
     fields: Record<string, unknown>,
   ) => Promise<UpdateComicHoldingResult>;
+  /** Injectable so route tests control the verification burn-down rows. */
+  loadVerificationQueue?: (query: { limit: number; offset: number }) => Promise<VerificationQueueResponse>;
   /** Injectable so tests do not inherit whatever scans the local DB holds. */
   loadScanHoldings?: () => Promise<ScanHoldingRow[]>;
   /** Injectable eBay sell store/service so API tests do not need live OAuth or Postgres tables. */
@@ -202,6 +216,8 @@ export type AppDeps = {
   huntBrowse?: HuntBrowseFetch;
   /** Injectable Orchestr8 HTTP for the Signals Desk so tests never call a model. */
   orchestr8Fetch?: Orchestr8Fetch;
+  /** Injectable intelligence store backend (Postgres / JSON fallback) so tests control persistence. */
+  intelligenceStore?: IntelligenceStoreSelector;
 };
 
 type InventoryBundle = {
@@ -428,6 +444,8 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   registerIntelligenceRoutes(app, {
+    intelligenceStore: deps.intelligenceStore,
+    decisionsDb: () => deps.huntDb ?? getPool(),
     loadSnapshotInputs: async () => {
       const { holdings, binder } = await buildInventory(deps);
       const pageChase = await loadPageChase(deps.signalsDb ?? getPool()).catch(() => undefined);
@@ -972,12 +990,12 @@ export function createApp(deps: AppDeps = {}) {
     res.json({ sources: loadSources() });
   });
   app.patch("/api/sources/:id", (req, res) => {
-    const active = req.body?.active;
-    if (typeof active !== "boolean") {
+    const parsed = SourcePatchRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
       res.status(400).json({ error: "body.active boolean required" });
       return;
     }
-    const updated = updateSourceActive(String(req.params.id), active);
+    const updated = updateSourceActive(String(req.params.id), parsed.data.active);
     if (!updated) {
       res.status(404).json({ error: "Source not found" });
       return;
@@ -989,6 +1007,8 @@ export function createApp(deps: AppDeps = {}) {
    * Ricoh fi-8170 intake: scan → ID → duplicate alert → inventory confirm
    * → optional eBay listing draft (idle without developer tokens).
    */
+  registerIngestRoutes(app);
+
   app.get("/api/scan", (_req, res) => {
     const inbox = scanInboxRoot();
     res.json({
@@ -1102,6 +1122,42 @@ export function createApp(deps: AppDeps = {}) {
           ? "Nothing on the confirm list to approve."
           : `Wrote ${result.approved} draft holding(s) to Collections (NM assumed · unverified).`,
     });
+  });
+
+  /** Bulk stage: every unresolved `auto`-band card onto the confirm list. Writes no inventory. */
+  app.post("/api/scan/batches/:id/confirm-list/stage-auto", async (req, res) => {
+    const parsed = BulkStageAutoRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ ok: false, error: parsed.error.message });
+      return;
+    }
+    const result = await stageAllAutoToConfirmList(String(req.params.id));
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
+  });
+
+  /** Bulk reject: every unresolved `none`-band card. A status change; scans are kept. */
+  app.post("/api/scan/batches/:id/reject-none", async (req, res) => {
+    const parsed = BulkRejectNoneRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        ok: false,
+        error: "body.confirm must be true to reject every no-match card",
+      });
+      return;
+    }
+    const result = await rejectAllNone(String(req.params.id), {
+      expectedCount: parsed.data.expectedCount,
+      reason: parsed.data.reason,
+    });
+    if (!result.ok) {
+      res.status(result.status).json(result);
+      return;
+    }
+    res.json(result);
   });
 
   app.post("/api/scan/units/:id/edit", async (req, res) => {
@@ -1603,6 +1659,17 @@ export function createApp(deps: AppDeps = {}) {
    * Collector face uses this when :5200 is down so VIP→Postgres is not
    * stuck read-only for operator patches (e.g. Mark verified).
    */
+  /**
+   * Verification burn-down: unverified owned comics by value at risk. Read-only;
+   * each book is cleared by one operator click on POST /api/comics/holding/:id.
+   */
+  app.get("/api/comics/verification-queue", async (req, res) => {
+    const query = VerificationQueueQuerySchema.parse(req.query ?? {});
+    const load = deps.loadVerificationQueue ?? loadVerificationQueue;
+    const body = await load(query);
+    res.status(body.available ? 200 : 503).json(body);
+  });
+
   app.post("/api/comics/holding/:id", async (req, res) => {
     const parsed = comicHoldingPatchBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {

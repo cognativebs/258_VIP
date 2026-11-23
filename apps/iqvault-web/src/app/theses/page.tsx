@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
 import { ThesisCard } from "@/components/signals/ThesisCard";
 import { apiGet } from "@/lib/api";
 import type { DeskThesis } from "@/lib/signalsDesk";
@@ -18,7 +17,6 @@ export default async function ThesesPage() {
 
   return (
     <div className="shell">
-      <Nav active="/theses" />
       <h1 className="page-title">Theses</h1>
       <p className="page-sub">
         Stated beliefs with a horizon and an action, each resting on signals. Orchestr8 drafts them from the daily brief (inferred · unverified);

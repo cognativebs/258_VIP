@@ -18,9 +18,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "price-history": "tsx src/cli.ts price-history",
+    "intelligence-due": "tsx src/cli.ts intelligence-due",
     "pricecharting-snapshot": "tsx src/cli.ts pricecharting-snapshot",
     "signals-brief": "tsx src/cli.ts signals-brief",
-    "gdelt-radar": "tsx src/cli.ts gdelt-radar"
+    "gdelt-radar": "tsx src/cli.ts gdelt-radar",
+    "binder-price-refresh": "tsx src/cli.ts binder-price-refresh"
   },
   "dependencies": {
     "@vip/core-model": "0.1.0",

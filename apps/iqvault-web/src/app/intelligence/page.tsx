@@ -1,5 +1,8 @@
 import { IntelligenceDesk } from "@/components/intelligence/IntelligenceDesk";
-import { Nav } from "@/components/Nav";
+import {
+  ResolvePredictions,
+  type DuePrediction,
+} from "@/components/intelligence/ResolvePredictions";
 import { apiGet } from "@/lib/api";
 
 type IntelligenceSnapshot = {
@@ -84,7 +87,11 @@ type IntelligenceSnapshot = {
     gradingOpportunityScore: number;
     expectedIncrementalProfit: number;
   }[];
-  predictions: { needsScoring: unknown[] };
+  predictions: {
+    needsScoring: DuePrediction[];
+    due?: { source: string; asOf: string; count: number };
+  };
+  store?: { kind: string; durable: boolean; note: string; fallbackReason: string | null };
   identification: { goldenCount: number; target: number };
   phase2: { manualScans: { watchNote: string | null }[] };
 };
@@ -100,7 +107,6 @@ export default async function IntelligencePage() {
 
   return (
     <div className="shell">
-      <Nav active="/intelligence" />
       <h1 className="page-title">Intelligence</h1>
       <p className="page-sub">
         Phase 1 scoring + write desk. Phase 2 stays manual-only until Signals ingestion is live.
@@ -109,6 +115,12 @@ export default async function IntelligencePage() {
       <IntelligenceDesk />
       {snap ? (
         <div className="stack" style={{ marginTop: 18 }}>
+          <ResolvePredictions
+            due={snap.predictions.needsScoring}
+            source={snap.predictions.due?.source ?? "needsScoring"}
+            store={snap.store?.kind ?? "unknown"}
+          />
+
           <article className="panel">
             <h3>Signals ingestion gate</h3>
             <span className={`badge ${snap.signalsIngestion.live ? "badge-ok" : "badge-warn"}`}>
@@ -116,6 +128,11 @@ export default async function IntelligencePage() {
             </span>
             <span className="badge badge-info">{snap.signalsIngestion.mode}</span>
             <span className="badge">{snap.version}</span>
+            {snap.store ? (
+              <span className={`badge ${snap.store.durable ? "badge-ok" : "badge-warn"}`}>
+                store: {snap.store.kind}
+              </span>
+            ) : null}
             <p className="muted" style={{ marginBottom: 0 }}>
               {snap.signalsIngestion.note} Blocks: {snap.signalsIngestion.blocks.join(", ")}.
             </p>

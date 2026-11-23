@@ -6,15 +6,16 @@ import {
   calibrate,
   collectionQualityDensity,
   createPrediction,
-  needsScoring,
   resolvePrediction,
+  type DuePredictionsReport,
+  type IntelligenceStoreKind,
   scoreSynergy,
   seedIntelligenceFixtures,
   uuidFromKey,
 } from "@vip/intelligence";
 import type { BinderSummary } from "./binderHoldings.js";
 import type { ApiHolding } from "./holdings.js";
-import { loadIntelligenceDoc } from "./intelligenceStore.js";
+import type { IntelligenceDoc } from "./intelligenceStore.js";
 
 /** Job-feed JSON + RSS exist. Postgres signals_raw / signals_normalized are not live. */
 export const SIGNALS_INGESTION = {
@@ -129,8 +130,16 @@ export function intelligenceSnapshot(
     /** Per-page chase completion from vault_tcg (binderPageChase.ts); undefined when Postgres is down. */
     pageChase?: PageChase[];
   },
+  /** The manual store's document and due list, plus which backend answered. */
+  store?: {
+    kind: IntelligenceStoreKind;
+    doc: IntelligenceDoc;
+    due: DuePredictionsReport;
+    fallbackReason?: string;
+  },
 ) {
-  const doc = loadIntelligenceDoc();
+  if (!store) throw new Error("intelligenceSnapshot needs the store document");
+  const { doc, due } = store;
   const predictions = [...doc.predictions, ...calibrationSamples()];
   const museum = binderPageCompletion(fixtures.museumPage, fixtures.museumOwned);
   const liveSynergy = extras?.holdings ? scoreHoldingsSynergy(extras.holdings, asOf) : [];
@@ -148,9 +157,21 @@ export function intelligenceSnapshot(
     version: INTELLIGENCE_VERSION,
     asOf: asOf.toISOString(),
     signalsIngestion: SIGNALS_INGESTION,
+    store: {
+      kind: store.kind,
+      durable: store.kind === "postgres",
+      fallbackReason: store.fallbackReason ?? null,
+      note:
+        store.kind === "postgres"
+          ? "Manual intelligence rows live in vault_core (Postgres)."
+          : "JSON fallback store (VIP_INTELLIGENCE_STATE) — not the Postgres ledger.",
+    },
     predictions: {
       open: predictions.filter((p) => !p.resolvedAt),
-      needsScoring: needsScoring(predictions, asOf),
+      // Read from vault_core.prediction_needs_scoring in Postgres mode. The
+      // calibration samples are resolved, so they never appear here.
+      needsScoring: due.predictions,
+      due: { source: due.source, asOf: due.asOf, count: due.count, rule: due.rule, note: due.note },
       calibration: calibrate(predictions),
       claimLedger: claimLedger.calibrationSummary(),
       claims: claimLedger.list(),

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { shellRedirects } from "./src/lib/shellRedirects";
 
 const comicsTarget = process.env.COMICS_API_URL ?? "http://127.0.0.1:5200";
 const orchestr8Target = process.env.ORCHESTR8_URL ?? "http://127.0.0.1:5210";
@@ -9,6 +10,13 @@ const nextConfig: NextConfig = {
   // Ricoh 600 DPI JPEGs are several MB each; the rewrite proxy defaults to 10MB.
   experimental: {
     middlewareClientMaxBodySize: "50mb",
+  },
+  async redirects() {
+    // ADR 0014 keeps older pages reachable by URL until each one has a home in a
+    // concept. Per page (Q22, owner 2026-11-23): a page redirects once it is
+    // marked absorbed in src/lib/shellRedirects.ts, or when the operator names it
+    // in VIP_SHELL_REDIRECTS (comma list, "all" or "off").
+    return shellRedirects(process.env.VIP_SHELL_REDIRECTS);
   },
   async rewrites() {
     return [

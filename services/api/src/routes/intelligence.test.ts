@@ -6,12 +6,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp, type AppDeps } from "../app.js";
 import type { ComicsPayload } from "../lib/comicsHoldings.js";
 import { mapInventoryRow } from "../lib/holdings.js";
+import { SellQueueResponseSchema } from "../lib/sellQueue.js";
+import { createIntelligenceStoreSelector } from "../lib/intelligenceStoreSelect.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The manual intelligence store writes JSON. Point it at a temp file so a test
- * run never mutates the operator's dev state.
+ * These route tests pin the JSON backend and point it at a temp file, so a run
+ * never mutates the operator's dev state or the Postgres ledger (whose rows
+ * cannot be deleted). The Postgres backend has its own tests that run inside a
+ * rolled-back transaction (intelligenceStorePg.test.ts).
  */
 let previousStatePath: string | undefined;
 
@@ -45,6 +49,7 @@ async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
   const deps: AppDeps = {
     loadComics: async () => fixtureComics(),
     loadScanHoldings: async () => [],
+    intelligenceStore: createIntelligenceStoreSelector({ mode: "json" }),
   };
   const app = createApp(deps);
   const server = app.listen(0);
@@ -177,6 +182,39 @@ describe("prediction ledger writes", () => {
   });
 });
 
+describe("due predictions (JSON fallback)", () => {
+  it("lists past-horizon predictions read-only and names the backend", async () => {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/api/intelligence/predictions/due`);
+      const body = (await res.json()) as {
+        store: string;
+        source: string;
+        count: number;
+        predictions: { id: string; resolvedAt: string | null; resolvesAt: string }[];
+      };
+      expect(res.status).toBe(200);
+      expect(body.store).toBe("json");
+      expect(body.source).toBe("json:needsScoring");
+      // The seeded Mega Greninja fixture (2026-08-15 + 90d) is past its horizon.
+      expect(body.count).toBe(body.predictions.length);
+      for (const p of body.predictions) {
+        expect(p.resolvedAt).toBeNull();
+        expect(new Date(p.resolvesAt).getTime()).toBeLessThanOrEqual(Date.now());
+      }
+
+      const again = await fetch(`${base}/api/intelligence/predictions/due`);
+      expect(((await again.json()) as { count: number }).count).toBe(body.count);
+
+      const snap = (await (await fetch(`${base}/api/intelligence`)).json()) as {
+        store: { kind: string; durable: boolean };
+        predictions: { needsScoring: unknown[] };
+      };
+      expect(snap.store).toMatchObject({ kind: "json", durable: false });
+      expect(snap.predictions.needsScoring.length).toBe(body.count);
+    });
+  });
+});
+
 describe("manual watch surfaces", () => {
   it("labels print life and emerging markets as unscored", async () => {
     await withServer(async (base) => {
@@ -237,6 +275,27 @@ describe("GET /api/sell-queue/dogfood", () => {
         expect(body.items[0]?.isStale).toBe(true);
         expect(body.items[0]?.compsSource).toBe("none");
         expect(body.items[0]?.dogfoodNote).toMatch(/stale/i);
+        // Full contract: action + confidence + reasons + provenance block on every item.
+        const parsed = SellQueueResponseSchema.parse(body);
+        const first = parsed.items[0]!;
+        expect(first.insufficientMarketEvidence).toBe(true);
+        expect(first.marketRange).toBeNull();
+        expect(first.reasons.length).toBeGreaterThan(0);
+        expect(first.provenance).toMatchObject({
+          method: "recommendation",
+          verificationStatus: "unverified",
+          evidenceCount: 0,
+          recencyDays: null,
+        });
+        expect(first.provenance.ruleOrModelVersion).toContain("vip-sell-queue-dogfood@");
+        expect(parsed.gradingCost.verificationStatus).toBe("unverified");
+        expect(parsed.operatorMarks).toBe("recorded");
+        expect(parsed.items.every((i) => i.latestDecision === null)).toBe(true);
+
+        const limited = await fetch(`${base}/api/sell-queue/dogfood?limit=2`);
+        const limitedBody = SellQueueResponseSchema.parse(await limited.json());
+        expect(limitedBody.limit).toBe(2);
+        expect(limitedBody.items.length).toBeLessThanOrEqual(2);
       });
     } finally {
       if (prevFixture === undefined) delete process.env.VIP_COMPS_USE_FIXTURE;

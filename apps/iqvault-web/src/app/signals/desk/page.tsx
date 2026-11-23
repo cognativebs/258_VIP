@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
 import { DeskArticles } from "@/components/signals/DeskArticles";
 import { MeasureButtons } from "@/components/signals/DeskActions";
 import { ThesisCard } from "@/components/signals/ThesisCard";
@@ -71,7 +70,6 @@ export default async function SignalDeskPage() {
 
   return (
     <div className="shell">
-      <Nav active="/signals/desk" />
       <h1 className="page-title">Signal Desk</h1>
       <p className="page-sub">
         Today&apos;s Orchestr8 brief, the theses it proposed, and every signal article from the last 72 hours. Inferred · unverified unless

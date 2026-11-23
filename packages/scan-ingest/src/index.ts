@@ -262,3 +262,23 @@ export type {
   PairingStrategy,
 } from "./adapters/types.js";
 export { doubleFeedSuspects, DOUBLE_FEED_RULE, type ScanSize } from "./doubleFeed.js";
+export {
+  BULK_REVIEW_RULE_VERSION,
+  BulkRejectNoneRequestSchema,
+  BulkRejectNoneResultSchema,
+  BulkSkipReasonSchema,
+  BulkStageAutoRequestSchema,
+  BulkStageAutoResultSchema,
+  isBulkAutoCandidate,
+  meetsHighBar,
+  selectAutoForConfirmList,
+  selectNoneForReject,
+  type BulkCandidate,
+  type BulkRejectNoneRequest,
+  type BulkRejectNoneResult,
+  type BulkReviewUnit,
+  type BulkSelection,
+  type BulkSkipReason,
+  type BulkStageAutoRequest,
+  type BulkStageAutoResult,
+} from "./bulkReview.js";

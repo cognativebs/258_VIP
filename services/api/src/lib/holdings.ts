@@ -68,7 +68,9 @@ export type ApiHolding = {
   currentPrice: number | null;
   /** ComicBase's guide price for this copy (second opinion, vendor guide · unverified); null when unmatched. */
   comicbasePrice?: number | null;
-  /** Where currentPrice came from: "Locked value", "ComicBase" or "CLZ" (comics). */
+  /** CovrPrice's value for this copy via the CLZ Cloud export (vendor guide · unverified); null when unmatched. */
+  covrpricePrice?: number | null;
+  /** Where currentPrice came from: "Locked value", "CovrPrice", "ComicBase", "CLZ" or "PriceCharting" (comics). */
   valueSource?: string | null;
   assumedGrade: string | null;
   gradeRating: number | null;
@@ -224,6 +226,7 @@ export function mapInventoryRow(row: Record<string, unknown>, index: number): Ap
       row["Verification Notes"] != null ? String(row["Verification Notes"]) : null,
     currentPrice: num(row["Current Price"]),
     comicbasePrice: num(row["ComicBase Price"]),
+    covrpricePrice: num(row["CovrPrice Price"]),
     valueSource: row["Value Source"] != null ? String(row["Value Source"]) || null : null,
     assumedGrade: isNmAssumed ? "NM" : assumed || null,
     gradeRating: isNmAssumed || gradeRating === 0 ? null : gradeRating,

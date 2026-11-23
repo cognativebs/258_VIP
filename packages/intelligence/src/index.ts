@@ -180,3 +180,26 @@ export {
   type EmergingStance,
   type EmergingMarketSeed,
 } from "./emergingMarkets.js";
+
+export {
+  IntelligenceStoreKindSchema,
+  IntelligenceStoreModeSchema,
+  FieldCaptureSchema,
+  ResolvePredictionRequestSchema,
+  DUE_PREDICTIONS_RULE,
+  DuePredictionsReportSchema,
+  INTELLIGENCE_COLLECTIONS,
+  IntelligenceCollectionSchema,
+  ImportSkipSchema,
+  ImportCollectionReportSchema,
+  INTELLIGENCE_IMPORT_RULE,
+  IntelligenceImportReportSchema,
+  type IntelligenceStoreKind,
+  type IntelligenceStoreMode,
+  type FieldCapture,
+  type ResolvePredictionRequest,
+  type DuePredictionsReport,
+  type IntelligenceCollection,
+  type ImportCollectionReport,
+  type IntelligenceImportReport,
+} from "./store.js";

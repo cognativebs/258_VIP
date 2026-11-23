@@ -1,0 +1,200 @@
+{
+  "plan_id": "vip-ingest-v1",
+  "version": "1.0",
+  "created": "2026-09-22",
+  "owner": "Greg Williamson",
+  "repo": "D:\\Projects\\Business_Ideas\\258_Labs\\258_VIP",
+  "branch": "cursor/vip-ingest-v1",
+  "branch_base": "cursor/vip-shell-v1",
+  "depends_on": "vip-shell-v1 (tokens, role config, AppShell, primitives)",
+
+  "objective": "Rebuild INGEST as a three-decision flow — WHERE it goes, HOW it arrives, WHICH batch — with a state-derived stage strip and a real batch lifecycle. Clear the stale active batch correctly.",
+
+  "what_changed_from_the_mockup": [
+    "Destination selection added as the FIRST decision. It was missing entirely and it is not cosmetic: destination changes the commit contract.",
+    "Method selection expanded from three tiles to a real method registry (scanner, UPC, manual, image upload, CSV, API import).",
+    "Stage strip becomes derived state. In the mockup it was decorative.",
+    "Batch lifecycle and a recent/active batch panel with lookup added."
+  ],
+
+  "hard_stops": [
+    {
+      "id": "HS-1",
+      "trigger": "Any code path deletes a batch, or deletes or mutates a raw scan.",
+      "action": "STOP. Raw scans are immutable. Closing a batch is a STATUS CHANGE, never a delete. There is no destructive batch action anywhere in this feature."
+    },
+    {
+      "id": "HS-2",
+      "trigger": "An ingested row is stored without its ingest_method, or the method is inferred at read time.",
+      "action": "STOP. Method is provenance. A UPC scan and a manual entry are different evidence classes and must stay distinguishable forever."
+    },
+    {
+      "id": "HS-3",
+      "trigger": "A seeded, demo, or fixture batch can render in a non-fixture environment.",
+      "action": "STOP. Add an environment guard. The current stale batch exists because nothing prevented this."
+    },
+    {
+      "id": "HS-4",
+      "trigger": "A UPC scan sets condition, grade, or printing-level identity.",
+      "action": "STOP. A UPC identifies a SKU. It cannot distinguish printings, reprint waves, or condition. Anything beyond product identity must come from another method or a human."
+    },
+    {
+      "id": "HS-5",
+      "trigger": "Commit runs a single shared path that ignores destination.",
+      "action": "STOP. Dealer inventory, personal collection, binder slots, and hunt targets have different required fields. See destination_contract."
+    },
+    {
+      "id": "HS-6",
+      "trigger": "A design decision is needed that the GATES do not cover.",
+      "action": "STOP. Report the decision, the options, and your recommendation."
+    }
+  ],
+
+  "gates": [
+    {
+      "id": "G-1",
+      "name": "The stale Ricoh batch",
+      "status": "RESOLVED — branch on what it is",
+      "resolution": "FIRST determine whether it holds real raw scans. If it does: set status to 'abandoned' via the lifecycle, preserve every scan, and report the scan count. If it is seed or demo data: delete the seed and add the HS-3 environment guard. Report which case it was. Do not guess — check for linked raw scan rows."
+    },
+    {
+      "id": "G-2",
+      "name": "Destination taxonomy",
+      "status": "OPEN — Greg",
+      "blocking": false,
+      "resolution": "Reuse the buckets that already exist in vault_collection rather than inventing new ones. Expected set: Personal Collection, Dealer Inventory, Investment, plus sub-targets Binder and Hunt. Read the schema and report what is actually there before wiring the selector."
+    },
+    {
+      "id": "G-3",
+      "name": "UPC to priced_unit mapping table",
+      "status": "OPEN — Greg",
+      "blocking": false,
+      "resolution": "Create it in the CATALOG layer, not in ingest and not in market. Store GTIN normalized to 14 digits, zero-padded, as varchar. Never numeric. Include: gtin14, priced_unit_id (nullable until confirmed), confirmed_by, confirmed_at, source_url, source_tier, needs_review. Name and exact schema placement flagged for Greg in the ADR."
+    },
+    {
+      "id": "G-4",
+      "name": "API import sources",
+      "status": "NONE WIRED",
+      "resolution": "Render the method tile in a disabled state reading 'No sources connected'. Do NOT build a stub that appears to work. An import method that silently does nothing is worse than one that is visibly unavailable."
+    },
+    {
+      "id": "G-5",
+      "name": "CSV presets",
+      "status": "RESOLVED",
+      "resolution": "Build a column-mapping step with saved presets. Ship two: CLZ XML/CSV and Collectr CSV. Both are already in use. A preset is data, not code."
+    }
+  ],
+
+  "flow": {
+    "step_1_destination": {
+      "question": "Where is this inventory going?",
+      "note": "First decision, always. Cannot be skipped, cannot be changed mid-batch — a batch belongs to one destination. Changing destination means a new batch.",
+      "sub_target": "Some destinations take an optional sub-target: a specific binder, a specific hunt, a dealer intake lot."
+    },
+    "step_2_method": {
+      "question": "How is it arriving?",
+      "methods": [
+        { "key": "scanner_hid", "label": "Scanner (live)", "evidence_class": "device_capture", "notes": "HID keyboard mode. Capture field holds focus, Enter commits a row and re-focuses. This is the default for sealed product." },
+        { "key": "scanner_batch", "label": "Scanner (stored upload)", "evidence_class": "device_capture", "notes": "Accepts a paste dump from the scanner's Storage Mode. One code per line. Same validation path as live." },
+        { "key": "image_capture", "label": "Card images", "evidence_class": "image_identification", "notes": "CardSight path. Front and back. Carries the false-auto-confirm metric." },
+        { "key": "manual", "label": "Manual entry", "evidence_class": "user_asserted", "notes": "Typed by a human. NOT the same as verified — it is asserted, and stays distinguishable from device capture." },
+        { "key": "file_upload", "label": "Upload images", "evidence_class": "image_identification", "notes": "Batch drop of existing photos." },
+        { "key": "csv_import", "label": "CSV / file import", "evidence_class": "bulk_import", "notes": "Column mapping step with presets. See G-5." },
+        { "key": "api_import", "label": "API import", "evidence_class": "external_system", "notes": "Disabled. See G-4." }
+      ],
+      "rule": "The method's evidence_class is written to every row it produces and never recomputed."
+    },
+    "step_3_batch": {
+      "question": "New batch, or continue an existing one?",
+      "panel": "Recent and active batches, searchable by name, date, destination, method, and status. Each row shows: name, destination, method, counts (captured / identified / review / unresolved), status, last activity."
+    }
+  },
+
+  "destination_contract": {
+    "note": "Destination changes what commit requires. This is why a shared commit path is HS-5.",
+    "personal_collection": "Requires product identity. Condition optional but prompts. May target a binder slot.",
+    "dealer_inventory": "Requires cost basis and quantity. Surfaces margin and listing readiness at commit.",
+    "investment": "Requires cost basis and acquisition date. Cost basis is not optional here.",
+    "binder": "Requires a resolved slot. A commit that cannot resolve a slot goes to review, not to the binder.",
+    "hunt": "Commit updates hunt completion. A duplicate against an already-filled hunt slot must surface as a duplicate, not silently increment."
+  },
+
+  "batch_lifecycle": {
+    "states": ["draft", "active", "paused", "abandoned", "committed"],
+    "rules": [
+      "Raw scans persist across every state, including abandoned.",
+      "abandoned is reversible to active. committed is terminal.",
+      "Only one batch per destination may be 'active' at a time; starting another pauses the first with a visible notice.",
+      "A batch older than 30 days with no activity renders as stale in the panel but is never auto-abandoned. Ask, never assume."
+    ]
+  },
+
+  "stage_strip": {
+    "rule": "Derived from batch counters. Never manually advanced, never decorative.",
+    "derivation": {
+      "capture": "active while items are still arriving",
+      "identify": "resolved_count / captured_count",
+      "review": "pending_decision_count > 0",
+      "commit": "enabled when review reaches 0, or when the user explicitly chooses partial commit"
+    },
+    "note": "In the current build this strip does nothing. That is the bug being fixed here — it must read real state or be removed."
+  },
+
+  "capture_field_requirements": [
+    "Autofocus on mount; re-focus after every committed row. A scanner types into whatever has focus and will eventually type into the wrong thing.",
+    "Enter is the row terminator.",
+    "Validate the GTIN mod-10 check digit on entry. Reject with a visible reason, never silently.",
+    "Normalize to GTIN-14, zero-padded, stored as varchar.",
+    "Known GTIN resolves from the mapping table and increments quantity rather than erroring on duplicate.",
+    "Unknown GTIN opens an INLINE confirm row — never a modal. A modal breaks the scanning rhythm and the operator is holding a scanner, not a mouse.",
+    "Running count always visible, so a missed scan is distinguishable from a slow one.",
+    "Paste-many input accepts a Storage Mode dump, one code per line, through the same validation path.",
+    "A product resolved less than 90 days from release is flagged thin-comps at commit. New releases have no comp history by definition."
+  ],
+
+  "required_states": [
+    "No destination chosen yet — method and batch steps not reachable.",
+    "Destination chosen, no active batch — new batch prompt.",
+    "Active batch mid-capture with live rows appearing.",
+    "Unknown GTIN awaiting inline confirmation.",
+    "Failed checksum with a visible reason.",
+    "Duplicate scan incrementing quantity.",
+    "A batch with review items blocking commit.",
+    "Partial commit with review items remaining.",
+    "An abandoned batch in the panel, showing its preserved scan count.",
+    "A stale batch older than 30 days.",
+    "API import method, disabled and honest about it.",
+    "CSV import at the column-mapping step with a preset applied."
+  ],
+
+  "phases": [
+    { "id": "P0", "tag": "NOW", "name": "Diagnose and clear the stale batch", "tasks": ["Determine whether the existing active batch has linked raw scans. Report the count.", "Apply G-1: abandon it, or delete the seed and add the environment guard.", "Report which case it was."] },
+    { "id": "P1", "tag": "NOW", "name": "Batch lifecycle", "tasks": ["States, transitions, one-active-per-destination rule.", "No destructive action anywhere. HS-1."] },
+    { "id": "P2", "tag": "NOW", "name": "Destination step", "tasks": ["Read vault_collection and report the real buckets (G-2).", "Selector with sub-target support.", "Destination is immutable for the life of a batch."] },
+    { "id": "P3", "tag": "NOW", "name": "Method registry", "tasks": ["Methods as config with evidence_class attached.", "api_import disabled per G-4.", "evidence_class written to every produced row."] },
+    { "id": "P4", "tag": "NOW", "name": "Batch panel", "tasks": ["Recent and active list with search across name, date, destination, method, status.", "Counts per batch. Stale marker. Resume and abandon actions."] },
+    { "id": "P5", "tag": "NOW", "name": "Stage strip, derived", "tasks": ["Wire to real counters. Remove every hardcoded stage value."] },
+    { "id": "P6", "tag": "NOW", "name": "GTIN capture path", "tasks": ["Capture field per capture_field_requirements.", "Checksum, normalization, duplicate handling, inline unknown-GTIN confirm.", "Paste-many for Storage Mode dumps."] },
+    { "id": "P7", "tag": "NOW", "name": "GTIN mapping table", "tasks": ["Migration per G-3, date-prefixed, transaction-wrapped.", "varchar GTIN-14. Never numeric. needs_review never auto-cleared."] },
+    { "id": "P8", "tag": "NOW", "name": "CSV import", "tasks": ["Column mapper with CLZ and Collectr presets.", "Dedup against existing inventory before commit."] },
+    { "id": "P9", "tag": "NOW", "name": "Commit paths", "tasks": ["Per-destination commit per destination_contract.", "Partial commit leaves review items in the batch, never drops them."] },
+    { "id": "P10", "tag": "NOW", "name": "ADR + report", "tasks": ["docs/adr/0015-ingest-flow.md.", "Report: what the stale batch turned out to be, gates left open, and what you would have done differently but did not."] }
+  ],
+
+  "parked": [
+    { "item": "Automated GTIN web lookup", "reason": "The lookup method is proven manually but needs a source-tier policy before automating. Inline confirm accepts a typed product for now." },
+    { "item": "CardSight image identification", "reason": "Interfaces only. The image methods render and queue; identification itself is not built here." },
+    { "item": "Offline capture and later sync", "reason": "Field modes are a separate workstream." },
+    { "item": "Mobile capture", "reason": "Desktop first." }
+  ],
+
+  "definition_of_done": [
+    "No active batch exists that nobody created.",
+    "No code path can delete a raw scan — enforced by a test.",
+    "Stage strip reflects real counters under every required state.",
+    "Every ingested row carries its ingest_method and evidence_class.",
+    "GTIN stored as varchar, normalized to 14, checksum-validated on entry.",
+    "Every entry in required_states has a rendered case.",
+    "ADR 0015 written and the report delivered."
+  ]
+}

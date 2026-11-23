@@ -32,6 +32,17 @@ import { confirmMatch, formatPokemonPricesReport, listReview, loadApiEnv, runPok
 import { formatComicbaseImport, runComicbaseImport } from "./comicbase-import.js";
 import { formatPriceChartingSnapshotReport, runPriceChartingSnapshotJob } from "./pricecharting-snapshot.js";
 import { clusterPokebeachItems, formatClusterReport } from "./pokebeach-cluster.js";
+import { formatIntelligenceDueReport, runIntelligenceDueReport } from "./intelligence-due.js";
+
+/** Read-only: counts predictions waiting for a person to record the outcome. */
+async function intelligenceDueOnce(): Promise<string> {
+  const pool = new Pool({ connectionString: dsnFromEnv() });
+  try {
+    return formatIntelligenceDueReport(await runIntelligenceDueReport(pool));
+  } finally {
+    await pool.end();
+  }
+}
 
 /** One transaction per PokéBeach run: items, revisions, fetch state and raw rows land together or not at all. */
 async function inPokebeachTransaction<T>(fn: (db: PokebeachQueryable) => Promise<T>): Promise<T> {
@@ -130,6 +141,12 @@ import {
   runPriceHistoryJob,
 } from "./price-history.js";
 import { startScheduler } from "./scheduler.js";
+import {
+  binderPriceRefreshEnabled,
+  formatBinderPriceRefreshReport,
+  parseBinderPriceRefreshArgs,
+  runBinderPriceRefreshJob,
+} from "./binder-price-refresh.js";
 import { formatBriefJobReport, runSignalsBriefJob } from "./signals-brief.js";
 import { formatRadarReport, runGdeltRadar } from "./gdelt-radar.js";
 
@@ -448,12 +465,31 @@ async function main() {
     return;
   }
 
+  if (cmd === "intelligence-due") {
+    console.log(await intelligenceDueOnce());
+    return;
+  }
+
   if (cmd === "price-history") {
     const report = await runPriceHistoryJob({
       ...parsePriceHistoryArgs(process.argv.slice(3)),
       triggeredBy: "cli",
     });
     console.log(formatPriceHistoryReport(report));
+    return;
+  }
+
+  if (cmd === "binder-price-refresh") {
+    // binder-price-refresh [--dry-run] [--binder <id>] — manual runs work whether or not the schedule is on.
+    let args;
+    try {
+      args = parseBinderPriceRefreshArgs(process.argv.slice(3));
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : String(e));
+      process.exit(1);
+    }
+    const report = await runBinderPriceRefreshJob({ ...args, triggeredBy: "cli" });
+    console.log(formatBinderPriceRefreshReport(report));
     return;
   }
 
@@ -650,7 +686,32 @@ async function main() {
             });
           },
         },
+        {
+          // Report only — never resolves a prediction (a person does, on /intelligence).
+          name: "intelligence-due",
+          everyMs: 24 * 60 * 60 * 1000,
+          run: () => {
+            void intelligenceDueOnce()
+              .then((line) => console.log(line))
+              .catch((e) => console.error(`intelligence-due failed: ${e instanceof Error ? e.message : e}`));
+          },
+        },
     ];
+    if (binderPriceRefreshEnabled()) {
+      jobs.push({
+        name: "binder-price-refresh",
+        everyMs: 24 * 60 * 60 * 1000,
+        run: () => {
+          // Every binder's pockets from the stored guide, after the daily pokemon-prices pass has had time
+          // to land (that pass waits up to 30 min). On by default; VIP_BINDER_PRICE_REFRESH=off stops it.
+          void new Promise((r) => setTimeout(r, 45 * 60 * 1000))
+            .then(() => jitter(15 * 60 * 1000))
+            .then(() => runBinderPriceRefreshJob({ triggeredBy: "schedule" }))
+            .then((r) => console.log(formatBinderPriceRefreshReport(r)))
+            .catch((e) => console.error(`binder-price-refresh failed: ${e instanceof Error ? e.message : e}`));
+        },
+      });
+    }
     const unknown = [...skip].filter((n) => !jobs.some((j) => j.name === n));
     if (unknown.length) {
       console.error(`unknown job(s) for --skip: ${unknown.join(", ")} (jobs: ${jobs.map((j) => j.name).join(", ")})`);
@@ -668,7 +729,12 @@ async function main() {
     void heartbeat;
     const handle = startScheduler(running, { runImmediately: true });
     console.log(
-      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices and pokebeach-reconcile daily). Ctrl+C to stop.",
+      "Scheduler started (gdelt-radar every 10m; pokebeach every 15m; pokemon-drops, espn-sports, collectibles-news, macro-news, items and comicbase-import hourly; signals-brief checked hourly, runs once a day; clz-sync every 6h; price-history, pokemon-prices, pokebeach-reconcile and the read-only intelligence-due count daily). Ctrl+C to stop.",
+    );
+    console.log(
+      binderPriceRefreshEnabled()
+        ? "binder-price-refresh: daily (set VIP_BINDER_PRICE_REFRESH=off to stop)."
+        : "binder-price-refresh: off (VIP_BINDER_PRICE_REFRESH=off).",
     );
     if (skip.size) console.log(`Skipped: ${[...skip].join(", ")}`);
     process.on("SIGINT", () => {

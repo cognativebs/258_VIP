@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Nav } from "@/components/Nav";
 import { apiGet, apiPost } from "@/lib/api";
 
 type FailureClass =
@@ -135,7 +134,6 @@ export default function Batch001Page() {
 
   return (
     <div className="shell">
-      <Nav active="/batch/001" />
       <h1 className="page-title">Batch 001 — sports first</h1>
       <p className="page-sub">
         25 messy Dealer Inventory sports cards through ingest → identify → bucket →

@@ -19,7 +19,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^3.24.1",
-    "@vip/pricing": "0.1.0"
+    "@vip/pricing": "0.1.0",
+    "@vip/evidence": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",

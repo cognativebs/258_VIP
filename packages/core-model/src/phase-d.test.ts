@@ -7,10 +7,16 @@ import {
   PHASE_D_MIN_NIGHTLY_SNAPSHOTS,
   PhaseDContextSchema,
   PhaseDEvidenceBundleSchema,
+  PHASE_D_GRADING_COST,
   PHASE_D_RULE,
 } from "./phase-d.js";
 
 describe("Phase D evidence bundle", () => {
+  it("uses the owner-set 32 USD grading cost under rule 0.2.0 (Q15b)", () => {
+    expect(PHASE_D_GRADING_COST).toBe(32);
+    expect(PHASE_D_RULE).toBe("phase-d-cross-section@0.2.0");
+  });
+
   it("caps confidence at 0.75 and stays cross-sectional", () => {
     const row = PhaseDEvidenceBundleSchema.parse({
       emitterKey: "ask_divergence_high",

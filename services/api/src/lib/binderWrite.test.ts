@@ -5,7 +5,37 @@ import {
   loadDurableBinderHoldings,
   loadDurableWatchlist,
   projectSlotToVip,
+  slotProvenance,
+  type BinderSlotPayload,
 } from "./binderWrite.js";
+
+const slot = (over: Partial<BinderSlotPayload>): BinderSlotPayload => ({
+  slotId: "s1", binderId: "b1", binderName: "B", pageTitle: "", pageIndex: 0, roleLabel: "",
+  source: "tcgdex", externalId: "base1-4", cardName: "Charizard", setName: "Base", number: "4",
+  rarity: null, imageUrl: null, priceMarket: null, owned: true, onWishlist: false,
+  provenanceSource: null, provenanceMethod: null, provenanceModelVersion: null,
+  confidence: null, verificationStatus: null,
+  ...over,
+});
+
+describe("slotProvenance (sent with every Binder → VIP write)", () => {
+  it("passes Binder's recorded provenance through on the shared contract", () => {
+    expect(
+      slotProvenance(slot({ provenanceSource: "tcgdex", provenanceMethod: "api", provenanceModelVersion: "tcgdex-v2", confidence: 0.9, verificationStatus: "verified" })),
+    ).toEqual({ source: "tcgdex", method: "observed", ruleOrModelVersion: "tcgdex-v2", confidence: 0.9, verificationStatus: "verified" });
+  });
+
+  it("no recorded provenance: inferred, unversioned, confidence 0 (was observed / 0.7)", () => {
+    expect(slotProvenance(slot({}))).toMatchObject({
+      source: "binder-vault",
+      method: "inferred",
+      ruleOrModelVersion: "binder-vault:unversioned",
+      confidence: 0,
+      confidenceBand: "low",
+      verificationStatus: "unverified",
+    });
+  });
+});
 
 /**
  * Integration against live Postgres + the seeded Binder test slot

@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "comics-comps": "tsx src/comicsCompsWalkCli.ts",
     "hunt:load": "tsx src/huntLoadCli.ts",
+    "intelligence:import": "tsx src/intelligenceImportCli.ts",
     "ebay-listing-sync": "tsx src/ebaySellJobsCli.ts listing-sync",
     "ebay-order-sync": "tsx src/ebaySellJobsCli.ts order-sync",
     "ebay-traffic-sync": "tsx src/ebaySellJobsCli.ts traffic-sync",

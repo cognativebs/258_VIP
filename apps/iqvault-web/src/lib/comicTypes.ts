@@ -18,6 +18,7 @@ export type ComicRow = {
   "Current Price"?: number | null;
   /** ComicBase's guide price for this copy: second opinion beside CLZ's value, never blended. */
   "ComicBase Price"?: number | null;
+  "CovrPrice Price"?: number | null;
   "ComicBase Date"?: string | null;
   /** Where "Current Price" (VALUE) came from: Locked value, ComicBase (· date) or CLZ. */
   "Value Source"?: string | null;

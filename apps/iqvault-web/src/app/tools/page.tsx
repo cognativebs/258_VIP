@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
 import { loadCatalog } from "@/lib/toolsApi";
 
 const COPY: Record<string, string> = {
@@ -21,7 +20,6 @@ export default async function ToolsPage() {
 
   return (
     <div className="shell">
-      <Nav active="/tools" />
       <h1 className="page-title">Dealer kit</h1>
       <p className="page-sub">
         Sellable tools on the same Temper brain. PriceCharting is a valuation adapter

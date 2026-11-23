@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   approveScanConfirmList,
+  bulkAutoStageUnits,
+  bulkNoneRejectUnits,
   confirmListCount,
   confirmListDuplicateUnits,
   confirmListUnitDisplayName,
@@ -16,10 +18,12 @@ import {
   formatDuplicateCopyVerifyMessage,
   isOnConfirmList,
   reidentifyScanBatch,
+  rejectAllNone,
   rejectScanUnit,
   scanMediaUrl,
   ScanApiError,
   setScanUnitConfirmList,
+  stageAllAutoToConfirmList,
   startScanUpload,
   swapScanFaces,
   uploadScanFile,
@@ -343,6 +347,59 @@ export function ScanIntake() {
         await reload();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not add to confirm list");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const stageAllAuto = useCallback(
+    async (batch: StagedBatch) => {
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await stageAllAutoToConfirmList(batch.id);
+        const skipped = result.skipped.filter(
+          (s) => s.reason !== "already_on_confirm_list" && s.reason !== "already_held",
+        );
+        setStatus(
+          result.note +
+            (skipped.length ? ` Skipped ${skipped.length} flagged for review.` : ""),
+        );
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not add auto cards to the confirm list");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
+
+  const rejectNone = useCallback(
+    async (batch: StagedBatch) => {
+      const n = bulkNoneRejectUnits(batch).length;
+      if (n === 0) return;
+      const ok = window.confirm(
+        `Reject ${n} card(s) with no match? They leave the review queue and are not added to Collections. The scans are kept, not deleted.`,
+      );
+      if (!ok) return;
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      try {
+        const result = await rejectAllNone(batch.id, {
+          expectedCount: n,
+          reason: "operator bulk reject: no match",
+        });
+        setStatus(result.note);
+        if (result.errors.length) setError(result.errors.slice(0, 3).join(" · "));
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Reject all no-match failed");
+        await reload();
       } finally {
         setBusy(false);
       }
@@ -916,6 +973,24 @@ export function ScanIntake() {
                       Re-identify with live catalog
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busy || bulkAutoStageUnits(batch).length === 0}
+                    onClick={() => void stageAllAuto(batch)}
+                    title="Stage every high-confidence card not already held. Nothing enters Collections until Approve confirm list."
+                  >
+                    Add all high-confidence to confirm list ({bulkAutoStageUnits(batch).length})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busy || bulkNoneRejectUnits(batch).length === 0}
+                    onClick={() => void rejectNone(batch)}
+                    title="Reject every card with no match. A status change; the scans are kept."
+                  >
+                    Reject all no-match ({bulkNoneRejectUnits(batch).length})
+                  </button>
                   <button
                     type="button"
                     className="btn-primary"

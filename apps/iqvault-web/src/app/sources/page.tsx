@@ -1,43 +1,34 @@
-import { Nav } from "@/components/Nav";
+import { SourcesEditor } from "@/components/sources/SourcesEditor";
 import { apiGet } from "@/lib/api";
+import { SourcesListSchema, type SourceRow } from "@/lib/sourcesApi";
 
 export default async function SourcesPage() {
   let error: string | null = null;
-  let sources: {
-    id: string;
-    name: string;
-    authority: string;
-    accessMethod: string;
-    categoryCoverage: string[];
-    notes: string;
-  }[] = [];
+  let sources: SourceRow[] = [];
   try {
-    const data = await apiGet<{ sources: typeof sources }>("/api/sources");
-    sources = data.sources;
+    sources = SourcesListSchema.parse(await apiGet<unknown>("/api/sources")).sources;
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load sources";
   }
 
   return (
     <div className="shell">
-      <><Nav active="/sources" />
       <h1 className="page-title">Sources</h1>
       <p className="page-sub">
-        Registry of inputs. Core logic must not depend on one scraper.
+        Job feed registry. Core logic must not depend on one scraper.
       </p>
-      {error ? <div className="error">{error}</div> : null}
-      <div className="stack">
-        {sources.map((s) => (
-          <article key={s.id} className="panel">
-            <h3>{s.name}</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              {s.authority} · {s.accessMethod} · {s.categoryCoverage.join(", ")}
-            </p>
-            <p style={{ marginBottom: 0 }}>{s.notes}</p>
-          </article>
-        ))}
+      <div className="panel" role="note">
+        <p style={{ margin: 0 }}>
+          <strong>These toggles affect the job feed registry only</strong> (
+          <code>sources-state.json</code>, read by the Pokémon drops and eBay comps jobs on their
+          next run). They do not enable, disable, or change any news source in the SIGNALS spine
+          (<code>vault_core.signals_news_source</code>); those are turned on only by the operator
+          command <code>npm run news-source -- enable … --confirm-operator</code>.
+        </p>
       </div>
-      </>
+      {error ? <div className="error">{error}</div> : null}
+      {!error && sources.length === 0 ? <p className="muted">No sources registered.</p> : null}
+      <SourcesEditor initial={sources} />
     </div>
   );
 }

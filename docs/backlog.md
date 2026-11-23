@@ -19,10 +19,12 @@ clone on branch `orchestr8-first-o0` is now on `main` in five reviewed PRs:
 Phase 2 (market cycle / buy-opportunity scoring) stays **manual-only** — it is
 gated on `signals_raw` / `signals_normalized` being confirmed live, and every
 endpoint reports `scoringEnabled: false` until then. The manual intelligence
-store still writes JSON (`VIP_INTELLIGENCE_STATE`); moving it onto the new
-Postgres tables is the next step.
+store writes the `vault_core` tables since 2026-11-22; the JSON file
+(`VIP_INTELLIGENCE_STATE`) is only the fallback when Postgres is down.
 
-**Progress checklist (2026-10-17, latest):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
+**Finish plan (2026-11-22, latest):** the whole to-do list — landed branches, what was built, operator actions, open questions — is [`docs/status/2026-11-22_vip_finish_plan.md`](status/2026-11-22_vip_finish_plan.md).
+
+**Progress checklist (2026-10-17):** POC / Testing / Production percentages per task — [`docs/status/2026-10-17_vip_progress_checklist.md`](status/2026-10-17_vip_progress_checklist.md) (earlier: [`2026-10-04`](status/2026-10-04_vip_progress_checklist.md)).
 
 **Historical sequencing (no longer binding):** ADR 0002 Orchestr8-first; ADR 0003
 autonomy 0 (Orchestr8 authors specs; Cursor builds).
@@ -50,7 +52,13 @@ Started as owner unlock; thin slice shipped; gates incomplete.
 - [x] **Comics LIVE query accuracy** (2026-09-13): Browse `Series #Issue` in category 63, title-match the book, drop lots/omnibus/TPB; LIVE chip uses only the latest walk. Still unverified asks — never `vault_market.sale`.
 - [x] **Collection Tab LIVE range column** (plan 0003 Track B): range + listing count + recency + unverified beside CLZ VALUE; never overwrite `current_price_snapshot`. Reads `listing_observation`. (Week 1 · 2026-08-29)
 - [x] **Signals slice in Analysis / Comics Ask context** (feed exists; Orchestr8 does not ingest it) — plan 0002 W1 (Week 1 · 2026-08-29)
-- [ ] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
+- [x] Sell-queue dogfood path: top-N liquidate advice tied to decision-engine + provenance
+      (2026-11-22: `GET /api/sell-queue/dogfood?limit=N` items carry a zod-typed provenance
+      block; grading cost from `VIP_GRADING_COST_USD` / `gradingCostUsd`, default 32 USD (owner 2026-11-23)
+      labelled assumption · unverified; shown in OPERATE → Sell.)
+- [ ] Sell-queue operator accept/reject mark. No existing table fits without a semantic
+      choice: `disposition_history` writes `current_disposition` (PC/HOLD/GRADE/SINGLE/LOT…),
+      and `inventory_transaction.kind` is buy/sell/transfer only. Needs an owner decision.
 
 ### B. Orchestr8 — Console UX polish
 
@@ -94,7 +102,7 @@ Job→feed→API→Signals page works; Sources quality UX does not.
 - [x] Mutable `active` toggle + persistence for sources (`PATCH /api/sources/:id` + `sources-state.json`)
 - [x] Contribution stats per source (signal count, quarantine rate, evidence count)
 - [x] Basic Signals output on `/signals` (bucket-aware Hold / Review / Churn — never a price) — Week 1 · 2026-08-29
-- [ ] IQVault Sources editor UI (toggle + stats) — API ready; thin editor still optional
+- [x] IQVault Sources editor UI (toggle + stats) — 2026-11-22: `/sources` toggles the job feed SourceRegistry (`sources-state.json`) and shows signals / quarantine rate / active evidence with the attribution method; sources the feed cannot attribute show "—", not zero. Does not touch `vault_core.signals_news_source` (HS-3/HS-5)
 - [x] Prediction ledger / Brier calibration on the Signal Desk (`/signals/desk`, "Calls to score"; operator marks each due measurement held / did not hold) — 2026-10-17
 - [x] Real RSS adapter for `pokemon-news-rss` (fixture offline; live via `VIP_POKEMON_NEWS_RSS_URL`) — retail stub remains
 - [x] Signals feeding decision-engine as evidence (`signalsToEvidenceRefs` + recommend bridge)
@@ -154,14 +162,14 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Binder → VIP write path (2026-08-09) — owned → `vault_collection.holding`
       (`source=binder_vault`); wishlist → `vault_collection.watchlist_item`; per-toggle
       project + bulk **Push to VIP**; inventory prefers durable owned holdings
-- [ ] Full TCG catalog holdings in VIP (not just 5 seeds)
-- [ ] Shared provenance package (`@vip/evidence`) inside Binder (today: local zod shapes)
+- [x] Full TCG catalog holdings in VIP (not just 5 seeds) — every owned Binder slot is merged into `/api/inventory` (`services/api/src/app.ts`); seeds only with `VIP_INCLUDE_POKEMON_SEEDS=1` (audit 2026-11-22)
+- [x] Shared provenance package (`@vip/evidence`) inside Binder (2026-11-22): Binder's wire/slot provenance uses the shared verification enum; `toEvidenceProvenance` maps it onto the shared `ProvenanceSchema` (api/user_upload → observed; missing version/confidence → `binder-vault:unversioned` / 0 · low with a note). Binder's own shape stays for stored rows and the UI
 - [ ] Merge Binder into iqvault-web routes / kill dual-app friction (optional product choice)
 - [x] Binder typecheck clean — verified clean 2026-08-08 (`rarityKeys` errors no longer reproduce); now enforced by root `typecheck` + CI
 - [x] Per-slot `price_updated_at` + Ledger “Prices as of…” + Sync Prices / Refresh All (page)
 - [x] Price history snapshots (`price_snapshot` table) — schema in ADR 0007 migration
-- [ ] Scheduled / background Binder price refresh (cron or idle job)
-- [ ] Wire Binder price sync to insert `price_snapshot` rows on every refresh
+- [x] Scheduled / background Binder price refresh (2026-11-22): `npm run job:binder-price-refresh -- [--dry-run] [--binder <id>]`; daily in the scheduler by default (owner 2026-11-22; `VIP_BINDER_PRICE_REFRESH=off` stops it). Same `@vip/pricing` `syncBinderGuidePrices` as Sync Prices; every page of every binder; reads the stored guide via the VIP API (no vendor calls)
+- [x] Wire Binder price sync to insert `price_snapshot` rows on every refresh — one row per pocket per guide day (done with the PriceCharting switch; test `services/jobs/src/binder-price-refresh.test.ts`, 2026-11-22). The `20260816_01` table comment still says "Never written to" (stale; migrations re-run, left as is)
 
 ### F. Unified Bloomberg / collector terminal *(partial — owner unlock 2026-08-08)*
 
@@ -170,14 +178,14 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] Comics Terminal edits via VIP when `:5200` is down (`POST /api/comics/holding/:id`, same Postgres) — 2026-08-09
 - [x] TCG + Sports collection tabs (`/collections/pokemon`, `/collections/sports`) — Pokémon is live Binder holdings; Sports is a stub; CLZ XML drop zone live on Comics
 - [x] Richer hunts explorer on VIP `/api/hunts`; Vite `iqvault/` proof archived
-- [ ] **TCG + comics in one Bloomberg grid** (explicit gap; see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
+- [x] **TCG + comics in one grid** — the shell's VAULT screen (`/vault`, ADR 0014) is one grid over `/api/inventory` with Comics / Pokémon / Sealed / Other pills (2026-11-22). Historical note ( see [`docs/how-to/02-tcg-in-bloomberg-view.md`](how-to/02-tcg-in-bloomberg-view.md))
 - [x] Collections hub + first-class Pokémon collection page (`/collections`, `/collections/pokemon`) so comics is not the only collection — 2026-08-10
 - [x] Scan intake in IQVault (`/scan` + `POST /api/scan/import-folder`) — no curl to start/import a batch — 2026-08-10
 - [x] **ADR 0011** sports vs TCG OCR profiles + Football/Baseball/Soccer/Basketball/Pokémon/Magic/One Piece identifying mechanics — 2026-09-07
 - [x] **ADR 0009** identity staging — candidates as rows; canonical inventory written only at resolve — 2026-08-10
 - [x] Confidence bands + opt-in auto-resolve gate (margin + identity-grade reason + no duplicate) — 2026-08-10
 - [x] Catalog adapter seam (`CatalogAdapter`) so the fixture catalog is swappable — 2026-08-10
-- [ ] Bulk review actions (confirm all `auto`, reject all `none`)
+- [x] Bulk review actions (2026-11-22, `scan-bulk-review@0.1.0`): **Add all auto to confirm list** (`POST /api/scan/batches/:id/confirm-list/stage-auto`) stages only — Approve keeps its duplicate gate; **Reject all no-match** (`POST /api/scan/batches/:id/reject-none`, `confirm: true` + `expectedCount`) is a status change, scans kept. needs_review / pairing-flagged cards are skipped, never cleared; committed batches (ADR 0015) refuse both. Note: the `auto` band is only written when `VIP_SCAN_AUTO_RESOLVE=1`
 
 ### O. Intelligence core *(landed 2026-08-18 · PRs #41–#45)*
 
@@ -185,8 +193,9 @@ News sources (`vault_core.signals_news_source`; never set a price) are kept apar
 - [x] `vault_core` migrations `20260815_11..16`, applied and acceptance-tested against Postgres
 - [x] `/api/intelligence/*`, `/api/hunts/emerging`, `/api/sell-queue/dogfood`
 - [x] `/intelligence` desk on the collector face; vertical-aware Ask prompts
-- [ ] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables
-- [ ] Resolution workflow driven by `vault_core.prediction_needs_scoring` (nothing polls it yet)
+- [x] Move the manual store from JSON (`VIP_INTELLIGENCE_STATE`) onto the `vault_core` tables (2026-11-22, branch `claude/intel-store-pg`): `intelligenceStorePg.ts` behind one `IntelligenceStore` interface; `VIP_INTELLIGENCE_STORE=auto|postgres|json` (auto falls back to JSON only when Postgres is unreachable / unmigrated, and every response names the store); one-shot `npm run intelligence:import -w @vip/api -- [--file] [--dry-run]` (idempotent on id, skips rows whose asset/holding is not in the catalog)
+- [ ] Owner decisions open from that move: free-text asset/holding keys are refused in Postgres (FKs to `vault_core.asset` / `vault_collection.holding`); no provenance columns on these tables (provenance rebuilt on read); capture→underwriting link carried as a `[field_capture:<id>]` tag in `acquisition_underwriting.notes`
+- [x] Resolution workflow driven by `vault_core.prediction_needs_scoring` (2026-11-22): `GET /api/intelligence/predictions/due`, resolve form on `/intelligence` (a person records the observed price; nothing auto-resolves), read-only `intelligence-due` count in the jobs scheduler
 - [x] Per-page binder chase completion from `vault_tcg` (2026-10-10, `binder-page-chase@0.1.0`): owned vs missing per page on `/intelligence`; empty pockets are not part of the chase
 - [ ] Phase 2 scoring — blocked on `signals_raw` / `signals_normalized` being confirmed live
 
@@ -235,7 +244,7 @@ third-party-access licence limit).
 ### G. Product trial & trust
 
 - [ ] Dogfood IQVault for 7 days vs spreadsheets
-- [ ] Hunt completion % vs shelf
+- [x] Hunt completion % vs shelf — `services/api/src/lib/huntShelf.ts` (audit 2026-11-22)
 - [ ] Sell-queue trust (top 20) — operator acceptance
 
 ### H. Phase 5 — Mobile Show Mode *(not started)*
@@ -280,7 +289,7 @@ third-party-access licence limit).
 
 - [x] Reliable one-shot VIP stack launcher (`Launch IQVault.bat` → Docker/Postgres/migrate/VIP/Comics/Orchestr8/web; restarts stale listeners) — 2026-08-09
 - [x] Double-click / Dev Environment **[A]** wait-for-`:3000` + empty-`%*` PowerShell 5.1 fix (PR #27, 2026-08-14)
-- [ ] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`)
+- [x] Admin spend keys optional docs (`/v1/accounts` vs chat keys on `/v1/health`) — [05-orchestr8-env-keys.md](how-to/05-orchestr8-env-keys.md#optional-admin-spend-keys-v1accounts) (2026-11-22)
 - [x] Include `@vip/binder-vault` in monorepo `typecheck` (also `@vip/orchestr8-console`) — 2026-08-08
 - [x] CI on every PR: `build` → `typecheck` → `test` (Node) + Python ingest tests — 2026-08-08
 - [x] `npm test` / `npm run typecheck` work from a cold checkout (`build:packages` prerequisite) — 2026-08-08
@@ -305,7 +314,7 @@ These are rule violations and wrong-data paths, not missing features.
       `VIP_USER_CONSTRAINTS_PATH`; empty defaults when unset (no invented budget).
 - [x] **Hardcoded/derived-from-nothing endpoints.** Sell-queue / watchlist / theses
       now derive from live holdings. `/api/hunts` remains a seed file (tracked below).
-- [ ] **Hunts still seed data.** `/api/hunts` reads `seeds/hunts.ts` — move to Postgres.
+- [x] **Hunts still seed data.** Done: `/api/hunts` serves `vault_hunt` (`services/api/src/lib/huntStore.ts`, audit 2026-11-22).
 - [x] **Live comps adapters.** eBay sold + TCGplayer market adapters shipped
       2026-08-09 (`services/api/src/lib/comps/`). Idle without credentials /
       network — never fabricate. Operator path: `EBAY_APP_ID` + `EBAY_CERT_ID`
@@ -314,8 +323,13 @@ These are rule violations and wrong-data paths, not missing features.
       — not a sold ledger. Production deletion URL is live
       ([how-to 11](how-to/11-ebay-marketplace-deletion.md)). Full-vault walk is
       [plan 0003](plans/0003-comics-comps-vault-ingest.md).
-- [ ] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
+- [x] **Verification debt.** 2,684 of 2,700 comics carry `Needs Verification` (mostly
       raw books with `NM assumed`). Needs a burn-down path, not a silent accept.
+      (2026-11-22: `GET /api/comics/verification-queue` + `/vault/review`, one click per
+      book, no bulk verify. "Verified this week" counts the `Verification Marked At`
+      stamp both write paths now add to `clz_metadata`.)
+- [ ] CLZ re-import (`load_comics.py` upsert) overwrites `needs_verification` and
+      `clz_metadata` from the parser, which can undo operator verification clicks.
 - [x] **Unrecorded bulk giveaway.** July 2026 CLZ snapshot still lists ~2,700
       rows after an unrecorded ~1,000-book school-custodian gift. Collection-level
       `unknown_exit` records the fact as inferred · unverified (how-to 14). Does
